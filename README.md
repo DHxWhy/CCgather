@@ -10,7 +10,7 @@
 [![React](https://img.shields.io/badge/React-19-61DAFB?style=flat-square&logo=react)](https://react.dev/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.9-3178C6?style=flat-square&logo=typescript)](https://www.typescriptlang.org/)
 [![Supabase](https://img.shields.io/badge/Supabase-Database-3FCF8E?style=flat-square&logo=supabase)](https://supabase.com/)
-[![License](https://img.shields.io/badge/License-MIT-green?style=flat-square)](LICENSE)
+[![License](https://img.shields.io/badge/License-Proprietary-red?style=flat-square)](LICENSE)
 
 [Website](https://ccgather.com) · [Report Bug](https://github.com/DHxYoon/ccgather/issues) · [Request Feature](https://github.com/DHxYoon/ccgather/issues)
 
@@ -247,7 +247,7 @@ ccgather/
 
 ## License
 
-MIT License. See [`LICENSE`](LICENSE) for more information.
+This project is proprietary. See [`LICENSE`](LICENSE) for more information.
 
 <br/>
 
@@ -255,7 +255,7 @@ MIT License. See [`LICENSE`](LICENSE) for more information.
 
 <div align="center">
 
-**Gather. Compete. Rise.**
+**Gather. Track. Rise.**
 
 Made with ❤️ by Claude Code enthusiasts
 
