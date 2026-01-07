@@ -1,6 +1,6 @@
 {
   "name": "ccgather",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "CLI tool for syncing Claude Code usage data to CCgather leaderboard",
   "bin": {
     "ccgather": "./dist/index.js",
@@ -46,6 +46,6 @@
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/your-username/ccgather"
+    "url": "https://github.com/DHxYoon/CCgather"
   }
 }
