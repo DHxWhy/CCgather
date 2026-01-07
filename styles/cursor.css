@@ -1,0 +1,174 @@
+/* ============================================
+   CCgather Custom Cursor - Synk Style
+   White triangle pointer
+   PC Only (hidden on touch devices)
+   ============================================ */
+
+/* ========================================
+   HIDE DEFAULT CURSOR
+   ======================================== */
+
+html.has-custom-cursor,
+html.has-custom-cursor * {
+  cursor: none !important;
+}
+
+/* Hide cursor on scrollbars */
+html.has-custom-cursor ::-webkit-scrollbar {
+  cursor: none !important;
+}
+
+html.has-custom-cursor ::-webkit-scrollbar-thumb {
+  cursor: none !important;
+}
+
+html.has-custom-cursor ::-webkit-scrollbar-track {
+  cursor: none !important;
+}
+
+/* ========================================
+   CURSOR WRAPPER
+   ======================================== */
+
+.cursor-wrapper {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 99999;
+  overflow: hidden;
+}
+
+/* ========================================
+   MAIN CURSOR - White Triangle Pointer
+   ======================================== */
+
+.cursor-main {
+  position: fixed;
+  width: 20px;
+  height: 24px;
+  pointer-events: none;
+  z-index: 100000;
+  transition:
+    transform 0.15s ease-out,
+    opacity 0.2s ease;
+  /* Triangle shape using CSS clip-path */
+  background-color: white;
+  clip-path: polygon(0% 0%, 100% 50%, 30% 50%, 30% 100%);
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3));
+}
+
+/* Alternative: SVG-based cursor for better quality */
+.cursor-main {
+  background: transparent;
+  clip-path: none;
+  filter: none;
+}
+
+.cursor-main::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 20px;
+  height: 24px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='24' viewBox='0 0 20 24'%3E%3Cpath d='M0 0 L20 10 L8 10 L8 24 L0 24 Z' fill='white' stroke='%23333' stroke-width='1'/%3E%3C/svg%3E");
+  background-size: contain;
+  background-repeat: no-repeat;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.4));
+}
+
+/* Hidden state */
+.cursor-main.hidden {
+  opacity: 0;
+  transform: scale(0.5);
+}
+
+/* ========================================
+   CURSOR STATES
+   ======================================== */
+
+/* Pointer state - on interactive elements (Claude Coral) */
+.cursor-main.pointer::before {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='24' viewBox='0 0 20 24'%3E%3Cpath d='M0 0 L20 10 L8 10 L8 24 L0 24 Z' fill='%23DA7756' stroke='%23B85C3D' stroke-width='1'/%3E%3C/svg%3E");
+  transform: scale(1.1);
+}
+
+/* Text state - I-beam cursor */
+.cursor-main.text {
+  width: 2px;
+  height: 20px;
+}
+
+.cursor-main.text::before {
+  width: 2px;
+  height: 20px;
+  background-image: none;
+  background-color: white;
+  filter: drop-shadow(0 0 2px rgba(0, 0, 0, 0.5));
+}
+
+/* Click state */
+.cursor-main.click::before {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='24' viewBox='0 0 20 24'%3E%3Cpath d='M0 0 L20 10 L8 10 L8 24 L0 24 Z' fill='%23DA7756' stroke='%23B85C3D' stroke-width='1'/%3E%3C/svg%3E");
+  transform: scale(0.9);
+}
+
+/* ========================================
+   DOT CURSOR (not used)
+   ======================================== */
+
+.cursor-dot {
+  display: none;
+}
+
+/* ========================================
+   TRAIL EFFECT
+   ======================================== */
+
+.cursor-trail {
+  position: fixed;
+  width: 6px;
+  height: 6px;
+  background: rgba(218, 119, 86, 0.5);
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 99998;
+  opacity: 0;
+}
+
+/* ========================================
+   TOUCH DEVICE - HIDE CUSTOM CURSOR
+   ======================================== */
+
+@media (hover: none), (pointer: coarse) {
+  .cursor-wrapper,
+  .cursor-main,
+  .cursor-dot,
+  .cursor-trail {
+    display: none !important;
+  }
+
+  html.has-custom-cursor,
+  html.has-custom-cursor * {
+    cursor: auto !important;
+  }
+
+  html.has-custom-cursor ::-webkit-scrollbar,
+  html.has-custom-cursor ::-webkit-scrollbar-thumb,
+  html.has-custom-cursor ::-webkit-scrollbar-track {
+    cursor: auto !important;
+  }
+}
+
+/* ========================================
+   REDUCED MOTION
+   ======================================== */
+
+@media (prefers-reduced-motion: reduce) {
+  .cursor-main {
+    transition: none;
+  }
+}
