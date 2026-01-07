@@ -8,6 +8,12 @@
 # Admin 페이지 (비공개)
 /app/(admin)/
 
+# Docs (비공개)
+/docs/
+
+# Mock data (개발용)
+/data/mock/
+
 # 환경변수 (API 키, 시크릿)
 .env
 .env.local
