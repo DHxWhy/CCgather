@@ -54,6 +54,13 @@ build/
 coverage/
 .nyc_output/
 
+# E2E Tests (Playwright)
+tests/
+playwright.config.ts
+test-results/
+playwright-report/
+.playwright/
+
 # ══════════════════════════════════════════════════════════
 # IDE & OS
 # ══════════════════════════════════════════════════════════
