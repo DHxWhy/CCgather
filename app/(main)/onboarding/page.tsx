@@ -1,26 +1,54 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { ALL_COUNTRIES, TOP_COUNTRIES, type Country } from "@/lib/constants/countries";
+import { motion, AnimatePresence } from "framer-motion";
+import { ALL_COUNTRIES, TOP_COUNTRIES } from "@/lib/constants/countries";
+import { WorldGlobe } from "@/components/onboarding/WorldGlobe";
+import { CountryCard } from "@/components/onboarding/CountryCard";
+import { CountrySearchPalette } from "@/components/onboarding/CountrySearchPalette";
+import { Confetti, SparkleEffect } from "@/components/onboarding/Confetti";
+import { Globe2, Users, Trophy, Zap, ChevronRight, Sparkles, Map, LayoutGrid } from "lucide-react";
+
+// Mock stats for countries (in real app, fetch from API)
+const COUNTRY_STATS: Record<string, { users: number; rank: number; trending?: boolean }> = {
+  KR: { users: 2847, rank: 1, trending: true },
+  US: { users: 2156, rank: 2 },
+  JP: { users: 1843, rank: 3, trending: true },
+  DE: { users: 1567, rank: 4 },
+  GB: { users: 1234, rank: 5 },
+  FR: { users: 987, rank: 6 },
+  CN: { users: 876, rank: 7, trending: true },
+  IN: { users: 765, rank: 8 },
+  CA: { users: 654, rank: 9 },
+  AU: { users: 543, rank: 10 },
+  BR: { users: 432, rank: 11 },
+  NL: { users: 321, rank: 12 },
+};
+
+type ViewMode = "globe" | "grid";
 
 export default function OnboardingPage() {
   const router = useRouter();
   const [selectedCountry, setSelectedCountry] = useState<string>("");
-  const [searchQuery, setSearchQuery] = useState("");
+  const [hoveredCountry, setHoveredCountry] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-
-  const filteredCountries = useMemo(() => {
-    if (!searchQuery) return ALL_COUNTRIES;
-    const q = searchQuery.toLowerCase();
-    return ALL_COUNTRIES.filter(
-      (c) => c.name.toLowerCase().includes(q) || c.code.toLowerCase().includes(q)
-    );
-  }, [searchQuery]);
+  const [showConfetti, setShowConfetti] = useState(false);
+  const [viewMode, setViewMode] = useState<ViewMode>("grid");
+  const [step, setStep] = useState<"select" | "confirm">("select");
 
   const selectedCountryData = useMemo(() => {
     return ALL_COUNTRIES.find((c) => c.code === selectedCountry);
   }, [selectedCountry]);
+
+  const handleSelectCountry = useCallback((code: string) => {
+    setSelectedCountry(code);
+    setShowConfetti(true);
+    setStep("confirm");
+
+    // Reset confetti after animation
+    setTimeout(() => setShowConfetti(false), 3000);
+  }, []);
 
   const handleSubmit = async () => {
     if (!selectedCountry) return;
@@ -47,233 +75,353 @@ export default function OnboardingPage() {
     }
   };
 
+  const handleBack = () => {
+    setSelectedCountry("");
+    setStep("select");
+  };
+
   return (
-    <div className="min-h-screen bg-bg-primary flex items-center justify-center px-4 py-8">
-      <div className="w-full max-w-lg">
+    <div className="min-h-screen bg-bg-primary relative overflow-hidden">
+      {/* Confetti celebration */}
+      <Confetti active={showConfetti} />
+      <SparkleEffect active={step === "confirm"} />
+
+      {/* Background effects */}
+      <div className="absolute inset-0 pointer-events-none">
+        {/* Radial gradient glow */}
+        <div
+          className="absolute inset-0"
+          style={{
+            background:
+              "radial-gradient(ellipse 80% 50% at 50% 0%, rgba(218, 119, 86, 0.08) 0%, transparent 50%)",
+          }}
+        />
+        {/* Grid pattern */}
+        <div
+          className="absolute inset-0 opacity-[0.03]"
+          style={{
+            backgroundImage: `
+              linear-gradient(rgba(218, 119, 86, 0.5) 1px, transparent 1px),
+              linear-gradient(90deg, rgba(218, 119, 86, 0.5) 1px, transparent 1px)
+            `,
+            backgroundSize: "60px 60px",
+          }}
+        />
+      </div>
+
+      {/* Main content */}
+      <div className="relative z-10 min-h-screen flex flex-col">
         {/* Header */}
-        <div className="text-center mb-8">
-          <span className="text-5xl mb-4 block">🌐</span>
-          <p className="text-xs text-[var(--color-claude-coral)] font-medium tracking-wide uppercase mb-3">
-            Getting Started
-          </p>
-          <h1 className="text-2xl md:text-3xl font-semibold text-[var(--color-text-primary)] mb-2">
-            Welcome to CCgather!
-          </h1>
-          <p className="text-sm text-[var(--color-text-muted)]">
-            Select your country to continue. This helps us show you in the right leaderboard.
-          </p>
-        </div>
-
-        <div className="glass rounded-2xl p-6">
-          {/* Selected Country Display */}
-          {selectedCountryData && (
-            <div className="mb-4 p-4 bg-primary/10 border border-primary/30 rounded-xl flex items-center gap-3">
-              <span className="text-3xl">{selectedCountryData.flag}</span>
-              <div>
-                <div className="text-sm text-text-muted">Selected</div>
-                <div className="font-medium text-text-primary">{selectedCountryData.name}</div>
-              </div>
-              <button
-                onClick={() => setSelectedCountry("")}
-                className="ml-auto text-text-muted hover:text-text-primary transition-colors"
-              >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  className="h-5 w-5"
-                  viewBox="0 0 20 20"
-                  fill="currentColor"
-                >
-                  <path
-                    fillRule="evenodd"
-                    d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
-                    clipRule="evenodd"
-                  />
-                </svg>
-              </button>
-            </div>
-          )}
-
-          {/* Search */}
-          <div className="relative mb-4">
-            <svg
-              className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-text-muted"
-              xmlns="http://www.w3.org/2000/svg"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-              />
-            </svg>
-            <input
-              type="text"
-              placeholder="Search by country name or code..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-12 pr-4 py-3 bg-white/5 border border-white/10 rounded-xl text-text-primary placeholder:text-text-muted focus:outline-none focus:ring-2 focus:ring-primary"
-            />
-            {searchQuery && (
-              <button
-                onClick={() => setSearchQuery("")}
-                className="absolute right-4 top-1/2 -translate-y-1/2 text-text-muted hover:text-text-primary"
-              >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  className="h-5 w-5"
-                  viewBox="0 0 20 20"
-                  fill="currentColor"
-                >
-                  <path
-                    fillRule="evenodd"
-                    d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
-                    clipRule="evenodd"
-                  />
-                </svg>
-              </button>
-            )}
-          </div>
-
-          {/* Top Countries - Only show when not searching */}
-          {!searchQuery && (
-            <div className="mb-4">
-              <div className="text-xs font-medium text-text-muted uppercase tracking-wider mb-2">
-                Popular Countries
-              </div>
-              <div className="grid grid-cols-2 gap-2">
-                {TOP_COUNTRIES.map((country) => (
-                  <CountryButton
-                    key={country.code}
-                    country={country}
-                    selected={selectedCountry === country.code}
-                    onClick={() => setSelectedCountry(country.code)}
-                  />
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* All Countries */}
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-medium text-text-muted uppercase tracking-wider">
-                {searchQuery
-                  ? `Search Results (${filteredCountries.length})`
-                  : `All Countries (${ALL_COUNTRIES.length})`}
-              </span>
-            </div>
-            <div className="max-h-72 overflow-y-auto space-y-1 pr-1 scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent">
-              {filteredCountries.length > 0 ? (
-                filteredCountries.map((country) => (
-                  <CountryButton
-                    key={country.code}
-                    country={country}
-                    selected={selectedCountry === country.code}
-                    onClick={() => {
-                      setSelectedCountry(country.code);
-                      setSearchQuery("");
-                    }}
-                    compact
-                  />
-                ))
-              ) : (
-                <div className="text-center py-8 text-text-muted">
-                  <span className="text-2xl block mb-2">🔍</span>
-                  No countries found for &quot;{searchQuery}&quot;
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Submit */}
-          <button
-            onClick={handleSubmit}
-            disabled={!selectedCountry || isSubmitting}
-            className="w-full mt-6 px-6 py-3 rounded-xl bg-gradient-to-r from-primary to-[#F7931E] text-white font-semibold disabled:opacity-50 disabled:cursor-not-allowed hover:opacity-90 transition-opacity flex items-center justify-center gap-2"
+        <header className="pt-8 pb-4 px-4 text-center">
+          <motion.div
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5 }}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/[0.03] border border-white/[0.08] mb-6"
           >
-            {isSubmitting ? (
-              <>
-                <svg
-                  className="animate-spin h-5 w-5"
-                  xmlns="http://www.w3.org/2000/svg"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                >
-                  <circle
-                    className="opacity-25"
-                    cx="12"
-                    cy="12"
-                    r="10"
-                    stroke="currentColor"
-                    strokeWidth="4"
-                  ></circle>
-                  <path
-                    className="opacity-75"
-                    fill="currentColor"
-                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                  ></path>
-                </svg>
-                Setting up...
-              </>
-            ) : (
-              "Continue"
-            )}
-          </button>
+            <span className="w-2 h-2 rounded-full bg-primary animate-pulse" />
+            <span className="text-xs sm:text-sm text-text-muted uppercase tracking-wider">
+              Step 1 of 1 • Account Setup
+            </span>
+          </motion.div>
 
-          {/* Skip hint */}
-          <p className="text-xs text-text-muted text-center mt-4">
-            You can change your country later in Settings
-          </p>
+          <motion.h1
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.1 }}
+            className="text-3xl sm:text-4xl md:text-5xl font-bold text-text-primary mb-3"
+          >
+            Join Your{" "}
+            <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary to-[#E8A087]">
+              Nation&apos;s League
+            </span>
+          </motion.h1>
+
+          <motion.p
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.5, delay: 0.2 }}
+            className="text-text-muted text-sm sm:text-base max-w-md mx-auto"
+          >
+            Select your country to compete in regional leaderboards and represent your nation in the
+            global Claude Code championship.
+          </motion.p>
+        </header>
+
+        {/* Main area */}
+        <div className="flex-1 flex flex-col px-4 pb-8">
+          <AnimatePresence mode="wait">
+            {step === "select" ? (
+              <motion.div
+                key="select"
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -20 }}
+                transition={{ duration: 0.3 }}
+                className="flex-1 flex flex-col max-w-4xl mx-auto w-full"
+              >
+                {/* Search and View Toggle */}
+                <div className="flex flex-col sm:flex-row gap-3 mb-6">
+                  <div className="flex-1">
+                    <CountrySearchPalette
+                      countries={ALL_COUNTRIES}
+                      selectedCountry={selectedCountry}
+                      onSelectCountry={handleSelectCountry}
+                      topCountries={TOP_COUNTRIES}
+                    />
+                  </div>
+                  <div className="flex gap-1 p-1 rounded-xl bg-white/[0.03] border border-white/[0.08]">
+                    <button
+                      onClick={() => setViewMode("grid")}
+                      className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm transition-all ${
+                        viewMode === "grid"
+                          ? "bg-primary/20 text-primary"
+                          : "text-text-muted hover:text-text-primary hover:bg-white/[0.05]"
+                      }`}
+                    >
+                      <LayoutGrid className="w-4 h-4" />
+                      <span className="hidden sm:inline">Grid</span>
+                    </button>
+                    <button
+                      onClick={() => setViewMode("globe")}
+                      className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm transition-all ${
+                        viewMode === "globe"
+                          ? "bg-primary/20 text-primary"
+                          : "text-text-muted hover:text-text-primary hover:bg-white/[0.05]"
+                      }`}
+                    >
+                      <Map className="w-4 h-4" />
+                      <span className="hidden sm:inline">Map</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Content based on view mode */}
+                {viewMode === "globe" ? (
+                  <div className="flex-1 flex flex-col">
+                    <WorldGlobe
+                      countries={ALL_COUNTRIES}
+                      selectedCountry={selectedCountry}
+                      onSelectCountry={handleSelectCountry}
+                      hoveredCountry={hoveredCountry}
+                      onHoverCountry={setHoveredCountry}
+                    />
+                    <p className="text-center text-xs text-text-muted mt-4">
+                      Click on a country or use the search above
+                    </p>
+                  </div>
+                ) : (
+                  <div className="flex-1 overflow-hidden">
+                    {/* Featured Countries */}
+                    <div className="mb-6">
+                      <div className="flex items-center gap-2 mb-3">
+                        <Sparkles className="w-4 h-4 text-primary" />
+                        <span className="text-sm font-medium text-text-secondary">
+                          Popular Leagues
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                        {TOP_COUNTRIES.map((country, index) => (
+                          <CountryCard
+                            key={country.code}
+                            country={country}
+                            isSelected={selectedCountry === country.code}
+                            onClick={() => handleSelectCountry(country.code)}
+                            index={index}
+                            stats={COUNTRY_STATS[country.code]}
+                          />
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* All Countries */}
+                    <div>
+                      <div className="flex items-center gap-2 mb-3">
+                        <Globe2 className="w-4 h-4 text-text-muted" />
+                        <span className="text-sm font-medium text-text-secondary">
+                          All Countries ({ALL_COUNTRIES.length})
+                        </span>
+                      </div>
+                      <div className="max-h-[40vh] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent">
+                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2">
+                          {ALL_COUNTRIES.map((country, index) => (
+                            <motion.button
+                              key={country.code}
+                              onClick={() => handleSelectCountry(country.code)}
+                              className={`
+                                flex items-center gap-2 px-3 py-2.5 rounded-xl text-left text-sm
+                                transition-all duration-200
+                                ${
+                                  selectedCountry === country.code
+                                    ? "bg-primary/15 ring-1 ring-primary/50 text-text-primary"
+                                    : "bg-white/[0.02] hover:bg-white/[0.05] text-text-secondary hover:text-text-primary"
+                                }
+                              `}
+                              initial={{ opacity: 0 }}
+                              animate={{ opacity: 1 }}
+                              transition={{ delay: Math.min(index * 0.01, 0.5) }}
+                              whileHover={{ scale: 1.02 }}
+                              whileTap={{ scale: 0.98 }}
+                            >
+                              <span className="text-lg">{country.flag}</span>
+                              <span className="truncate">{country.name}</span>
+                            </motion.button>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </motion.div>
+            ) : (
+              <motion.div
+                key="confirm"
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: 20 }}
+                transition={{ duration: 0.3 }}
+                className="flex-1 flex flex-col items-center justify-center max-w-lg mx-auto w-full"
+              >
+                {/* Selected Country Display */}
+                <motion.div
+                  className="relative mb-8"
+                  initial={{ scale: 0.8, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  transition={{ duration: 0.5, ease: [0.25, 0.46, 0.45, 0.94] }}
+                >
+                  {/* Glow ring */}
+                  <div className="absolute inset-0 -m-6 bg-gradient-to-r from-primary/20 via-transparent to-primary/20 rounded-full blur-2xl animate-pulse" />
+
+                  {/* Flag container */}
+                  <div className="relative w-32 h-32 sm:w-40 sm:h-40 rounded-3xl bg-gradient-to-br from-white/[0.08] to-white/[0.02] border border-white/[0.1] flex items-center justify-center shadow-2xl">
+                    <span className="text-6xl sm:text-7xl">{selectedCountryData?.flag}</span>
+                  </div>
+                </motion.div>
+
+                <motion.div
+                  className="text-center mb-8"
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.2 }}
+                >
+                  <h2 className="text-2xl sm:text-3xl font-bold text-text-primary mb-2">
+                    Welcome to{" "}
+                    <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary to-[#E8A087]">
+                      {selectedCountryData?.name}
+                    </span>
+                  </h2>
+                  <p className="text-text-muted text-sm sm:text-base">
+                    You&apos;re about to join the {selectedCountryData?.name} league!
+                  </p>
+                </motion.div>
+
+                {/* Stats preview */}
+                {(() => {
+                  const stats = selectedCountryData
+                    ? COUNTRY_STATS[selectedCountryData.code]
+                    : null;
+                  if (!stats) return null;
+                  return (
+                    <motion.div
+                      className="grid grid-cols-3 gap-4 mb-8 w-full"
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: 0.3 }}
+                    >
+                      <div className="text-center p-4 rounded-xl bg-white/[0.03] border border-white/[0.08]">
+                        <Users className="w-5 h-5 mx-auto mb-2 text-primary" />
+                        <div className="text-lg font-bold text-text-primary">
+                          {stats.users.toLocaleString()}
+                        </div>
+                        <div className="text-xs text-text-muted">Coders</div>
+                      </div>
+                      <div className="text-center p-4 rounded-xl bg-white/[0.03] border border-white/[0.08]">
+                        <Trophy className="w-5 h-5 mx-auto mb-2 text-amber-500" />
+                        <div className="text-lg font-bold text-text-primary">#{stats.rank}</div>
+                        <div className="text-xs text-text-muted">Global Rank</div>
+                      </div>
+                      <div className="text-center p-4 rounded-xl bg-white/[0.03] border border-white/[0.08]">
+                        <Zap className="w-5 h-5 mx-auto mb-2 text-emerald-400" />
+                        <div className="text-lg font-bold text-text-primary">Active</div>
+                        <div className="text-xs text-text-muted">League</div>
+                      </div>
+                    </motion.div>
+                  );
+                })()}
+
+                {/* Action buttons */}
+                <motion.div
+                  className="flex flex-col sm:flex-row gap-3 w-full"
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.4 }}
+                >
+                  <button
+                    onClick={handleBack}
+                    className="flex-1 px-6 py-3.5 rounded-xl bg-white/[0.03] border border-white/[0.08] text-text-secondary font-medium hover:bg-white/[0.06] hover:text-text-primary transition-all"
+                  >
+                    Choose Different
+                  </button>
+                  <button
+                    onClick={handleSubmit}
+                    disabled={isSubmitting}
+                    className="flex-1 flex items-center justify-center gap-2 px-6 py-3.5 rounded-xl bg-gradient-to-r from-primary to-[#B85C3D] text-white font-semibold hover:shadow-lg hover:shadow-primary/25 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                  >
+                    {isSubmitting ? (
+                      <>
+                        <motion.div
+                          className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full"
+                          animate={{ rotate: 360 }}
+                          transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                        />
+                        <span>Joining...</span>
+                      </>
+                    ) : (
+                      <>
+                        <span>Join League</span>
+                        <ChevronRight className="w-5 h-5" />
+                      </>
+                    )}
+                  </button>
+                </motion.div>
+
+                {/* Hint */}
+                <motion.p
+                  className="text-xs text-text-muted text-center mt-4"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ delay: 0.5 }}
+                >
+                  You can change your country anytime in Settings
+                </motion.p>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
+
+        {/* Footer stats */}
+        <motion.footer
+          className="border-t border-white/[0.05] py-4 px-4"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.6 }}
+        >
+          <div className="max-w-4xl mx-auto flex flex-wrap items-center justify-center gap-x-8 gap-y-2 text-xs text-text-muted">
+            <div className="flex items-center gap-2">
+              <Users className="w-4 h-4 text-primary" />
+              <span>15,847 global coders</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <Globe2 className="w-4 h-4 text-primary" />
+              <span>195 countries represented</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <Trophy className="w-4 h-4 text-primary" />
+              <span>Weekly competitions</span>
+            </div>
+          </div>
+        </motion.footer>
       </div>
     </div>
-  );
-}
-
-function CountryButton({
-  country,
-  selected,
-  onClick,
-  compact = false,
-}: {
-  country: Country;
-  selected: boolean;
-  onClick: () => void;
-  compact?: boolean;
-}) {
-  return (
-    <button
-      onClick={onClick}
-      className={`
-        w-full flex items-center gap-3 px-4 rounded-xl text-left transition-all duration-150
-        ${compact ? "py-2.5" : "py-3"}
-        ${
-          selected
-            ? "bg-primary/20 border-primary text-text-primary ring-1 ring-primary/50"
-            : "bg-white/5 border-transparent text-text-secondary hover:bg-white/10 hover:text-text-primary"
-        }
-        border
-      `}
-    >
-      <span className={compact ? "text-lg" : "text-xl"}>{country.flag}</span>
-      <span className="font-medium flex-1 truncate">{country.name}</span>
-      {selected && (
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          className="h-5 w-5 text-primary flex-shrink-0"
-          viewBox="0 0 20 20"
-          fill="currentColor"
-        >
-          <path
-            fillRule="evenodd"
-            d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
-            clipRule="evenodd"
-          />
-        </svg>
-      )}
-    </button>
   );
 }

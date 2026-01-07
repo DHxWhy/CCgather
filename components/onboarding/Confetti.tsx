@@ -25,6 +25,18 @@ const COLORS = [
   "#ec4899", // Pink
 ];
 
+const SHAPES: ConfettiPiece["type"][] = ["circle", "square", "triangle", "star"];
+
+function getRandomColor(): string {
+  const index = Math.floor(Math.random() * COLORS.length);
+  return COLORS[index] ?? "#DA7756";
+}
+
+function getRandomShape(): ConfettiPiece["type"] {
+  const index = Math.floor(Math.random() * SHAPES.length);
+  return SHAPES[index] ?? "circle";
+}
+
 function generateConfetti(count: number): ConfettiPiece[] {
   return Array.from({ length: count }, (_, i) => ({
     id: Date.now() + i,
@@ -32,9 +44,9 @@ function generateConfetti(count: number): ConfettiPiece[] {
     y: -10 - Math.random() * 20,
     rotation: Math.random() * 360,
     scale: 0.5 + Math.random() * 1,
-    color: COLORS[Math.floor(Math.random() * COLORS.length)],
+    color: getRandomColor(),
     delay: Math.random() * 0.3,
-    type: (["circle", "square", "triangle", "star"] as const)[Math.floor(Math.random() * 4)],
+    type: getRandomShape(),
   }));
 }
 
@@ -47,15 +59,17 @@ export function Confetti({ active, duration = 3000 }: ConfettiProps) {
   const [pieces, setPieces] = useState<ConfettiPiece[]>([]);
 
   useEffect(() => {
-    if (active) {
-      setPieces(generateConfetti(50));
-
-      const timer = setTimeout(() => {
-        setPieces([]);
-      }, duration);
-
-      return () => clearTimeout(timer);
+    if (!active) {
+      return;
     }
+
+    setPieces(generateConfetti(50));
+
+    const timer = setTimeout(() => {
+      setPieces([]);
+    }, duration);
+
+    return () => clearTimeout(timer);
   }, [active, duration]);
 
   return (
@@ -143,19 +157,21 @@ export function SelectionBurst({ active, x = 50, y = 50 }: BurstProps) {
   >([]);
 
   useEffect(() => {
-    if (active) {
-      const newParticles = Array.from({ length: 16 }, (_, i) => ({
-        id: Date.now() + i,
-        angle: (360 / 16) * i,
-        distance: 60 + Math.random() * 40,
-        size: 4 + Math.random() * 4,
-        color: COLORS[Math.floor(Math.random() * COLORS.length)],
-      }));
-      setParticles(newParticles);
-
-      const timer = setTimeout(() => setParticles([]), 800);
-      return () => clearTimeout(timer);
+    if (!active) {
+      return;
     }
+
+    const newParticles = Array.from({ length: 16 }, (_, i) => ({
+      id: Date.now() + i,
+      angle: (360 / 16) * i,
+      distance: 60 + Math.random() * 40,
+      size: 4 + Math.random() * 4,
+      color: getRandomColor(),
+    }));
+    setParticles(newParticles);
+
+    const timer = setTimeout(() => setParticles([]), 800);
+    return () => clearTimeout(timer);
   }, [active]);
 
   return (
@@ -232,24 +248,25 @@ export function SparkleEffect({ active }: { active: boolean }) {
   >([]);
 
   useEffect(() => {
-    if (active) {
-      const interval = setInterval(() => {
-        setSparkles((prev) => [
-          ...prev.slice(-20),
-          {
-            id: Date.now(),
-            x: Math.random() * 100,
-            y: Math.random() * 100,
-            size: 2 + Math.random() * 4,
-            delay: 0,
-          },
-        ]);
-      }, 200);
-
-      return () => clearInterval(interval);
-    } else {
+    if (!active) {
       setSparkles([]);
+      return;
     }
+
+    const interval = setInterval(() => {
+      setSparkles((prev) => [
+        ...prev.slice(-20),
+        {
+          id: Date.now(),
+          x: Math.random() * 100,
+          y: Math.random() * 100,
+          size: 2 + Math.random() * 4,
+          delay: 0,
+        },
+      ]);
+    }, 200);
+
+    return () => clearInterval(interval);
   }, [active]);
 
   return (
