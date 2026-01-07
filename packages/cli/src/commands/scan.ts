@@ -1,116 +1,119 @@
-import chalk from "chalk";
 import ora from "ora";
 import { scanAndSave, getCCGatherJsonPath, CCGatherData } from "../lib/ccgather-json.js";
+import {
+  colors,
+  formatNumber,
+  formatCost,
+  header,
+  createBox,
+  success,
+  error,
+  printCompactHeader,
+  getCCplanBadge,
+} from "../lib/ui.js";
 
 /**
- * Format number with commas and units
- */
-function formatNumber(num: number): string {
-  if (num >= 1_000_000) return `${(num / 1_000_000).toFixed(2)}M`;
-  if (num >= 1_000) return `${(num / 1_000).toFixed(2)}K`;
-  return num.toLocaleString();
-}
-
-/**
- * Display scan results in a nice box
+ * Display scan results
  */
 function displayResults(data: CCGatherData): void {
-  const orange = chalk.hex("#FF6B35");
-  const green = chalk.hex("#10B981");
-  const gray = chalk.gray;
-  const white = chalk.white;
-  const bold = chalk.bold;
-  const cyan = chalk.cyan;
-
+  // Usage Summary Box
   console.log();
-  console.log(gray("  ┌─────────────────────────────────────────────────────┐"));
-  console.log(
-    gray("  │") + white("  📊 Usage Summary") + gray("                                   │")
-  );
-  console.log(gray("  ├─────────────────────────────────────────────────────┤"));
-  console.log(
-    gray("  │") +
-      `  Total Tokens:   ${orange(formatNumber(data.usage.totalTokens).padEnd(15))}` +
-      gray("            │")
-  );
-  console.log(
-    gray("  │") +
-      `  Total Cost:     ${green("$" + data.usage.totalCost.toFixed(2).padEnd(14))}` +
-      gray("            │")
-  );
-  console.log(
-    gray("  │") +
-      `  Input Tokens:   ${white(formatNumber(data.usage.inputTokens).padEnd(15))}` +
-      gray("            │")
-  );
-  console.log(
-    gray("  │") +
-      `  Output Tokens:  ${white(formatNumber(data.usage.outputTokens).padEnd(15))}` +
-      gray("            │")
-  );
-  console.log(gray("  ├─────────────────────────────────────────────────────┤"));
-  console.log(
-    gray("  │") + white("  📈 Stats") + gray("                                           │")
-  );
-  console.log(
-    gray("  │") +
-      `  Days Tracked:   ${white(data.stats.daysTracked.toString().padEnd(15))}` +
-      gray("            │")
-  );
-  console.log(
-    gray("  │") +
-      `  Sessions:       ${white(data.stats.sessionsCount.toString().padEnd(15))}` +
-      gray("            │")
-  );
-  console.log(
-    gray("  │") +
-      `  First Used:     ${gray((data.stats.firstUsed || "N/A").padEnd(15))}` +
-      gray("            │")
-  );
-  console.log(
-    gray("  │") +
-      `  Last Used:      ${gray((data.stats.lastUsed || "N/A").padEnd(15))}` +
-      gray("            │")
-  );
-  console.log(gray("  └─────────────────────────────────────────────────────┘"));
+  const usageLines = [
+    `${colors.white.bold("📊 Usage Summary")}`,
+    "",
+    `${colors.muted("Total Tokens")}    ${colors.primary(formatNumber(data.usage.totalTokens))}`,
+    `${colors.muted("Total Cost")}      ${colors.success(formatCost(data.usage.totalCost))}`,
+    `${colors.muted("Input Tokens")}    ${colors.white(formatNumber(data.usage.inputTokens))}`,
+    `${colors.muted("Output Tokens")}   ${colors.white(formatNumber(data.usage.outputTokens))}`,
+  ];
+
+  // Add cache tokens if present
+  if (data.usage.cacheReadTokens > 0 || data.usage.cacheWriteTokens > 0) {
+    usageLines.push(
+      `${colors.muted("Cache Read")}      ${colors.dim(formatNumber(data.usage.cacheReadTokens))}`
+    );
+    usageLines.push(
+      `${colors.muted("Cache Write")}     ${colors.dim(formatNumber(data.usage.cacheWriteTokens))}`
+    );
+  }
+
+  console.log(createBox(usageLines));
+
+  // Stats Box
+  console.log();
+  const statsLines = [
+    `${colors.white.bold("📈 Statistics")}`,
+    "",
+    `${colors.muted("Days Tracked")}    ${colors.warning(data.stats.daysTracked.toString())}`,
+    `${colors.muted("Sessions")}        ${colors.white(data.stats.sessionsCount.toString())}`,
+    `${colors.muted("First Used")}      ${colors.dim(data.stats.firstUsed || "N/A")}`,
+    `${colors.muted("Last Used")}       ${colors.dim(data.stats.lastUsed || "N/A")}`,
+  ];
+  console.log(createBox(statsLines));
+
+  // Account Info (CCplan)
+  if (data.account?.ccplan) {
+    console.log();
+    const badge = getCCplanBadge(data.account.ccplan);
+    console.log(`  ${colors.muted("Account Plan:")} ${badge}`);
+    if (data.account.rateLimitTier) {
+      console.log(`  ${colors.muted("Rate Limit:")}   ${colors.dim(data.account.rateLimitTier)}`);
+    }
+  }
 
   // Model breakdown
   if (Object.keys(data.models).length > 0) {
     console.log();
-    console.log(gray("  ") + bold("Model Breakdown:"));
-    for (const [model, tokens] of Object.entries(data.models)) {
+    console.log(`  ${colors.white.bold("🤖 Model Breakdown")}`);
+    console.log(colors.dim("  ─".repeat(25)));
+
+    const sortedModels = Object.entries(data.models)
+      .sort(([, a], [, b]) => b - a)
+      .slice(0, 5);
+
+    for (const [model, tokens] of sortedModels) {
       const shortModel = model.replace("claude-", "").substring(0, 20);
-      console.log(gray("    • ") + white(shortModel.padEnd(22)) + orange(formatNumber(tokens)));
+      console.log(
+        `  ${colors.dim("•")} ${colors.white(shortModel.padEnd(22))} ${colors.primary(formatNumber(tokens))}`
+      );
+    }
+
+    if (Object.keys(data.models).length > 5) {
+      console.log(`  ${colors.dim(`... and ${Object.keys(data.models).length - 5} more models`)}`);
     }
   }
 
   // Top projects (show top 5 by tokens)
   if (data.projects && Object.keys(data.projects).length > 0) {
     console.log();
-    console.log(gray("  ") + bold("Top Projects:"));
+    console.log(`  ${colors.white.bold("📁 Top Projects")}`);
+    console.log(colors.dim("  ─".repeat(25)));
 
     const sortedProjects = Object.entries(data.projects)
       .sort(([, a], [, b]) => b.tokens - a.tokens)
       .slice(0, 5);
 
     for (const [name, stats] of sortedProjects) {
-      const displayName = name.length > 25 ? name.substring(0, 22) + "..." : name;
+      const displayName = name.length > 20 ? name.substring(0, 17) + "..." : name;
       console.log(
-        gray("    📁 ") +
-          cyan(displayName.padEnd(25)) +
-          orange(formatNumber(stats.tokens).padStart(8)) +
-          green(` $${stats.cost.toFixed(2).padStart(8)}`) +
-          gray(` (${stats.sessions} sessions)`)
+        `  ${colors.cyan(displayName.padEnd(20))} ` +
+          `${colors.primary(formatNumber(stats.tokens).padStart(8))} ` +
+          `${colors.success(formatCost(stats.cost).padStart(10))} ` +
+          `${colors.dim(`(${stats.sessions} sess)`)}`
       );
     }
 
     if (Object.keys(data.projects).length > 5) {
-      console.log(gray(`    ... and ${Object.keys(data.projects).length - 5} more projects`));
+      console.log(
+        `  ${colors.dim(`... and ${Object.keys(data.projects).length - 5} more projects`)}`
+      );
     }
   }
 
+  // File location
   console.log();
-  console.log(gray(`  📁 Saved to: ${getCCGatherJsonPath()}`));
+  console.log(colors.dim("  ─".repeat(25)));
+  console.log(`  ${colors.muted("Saved to:")} ${colors.dim(getCCGatherJsonPath())}`);
   console.log();
 }
 
@@ -118,24 +121,34 @@ function displayResults(data: CCGatherData): void {
  * Scan command - scans JSONL files and creates ccgather.json
  */
 export async function scan(): Promise<void> {
-  console.log(chalk.bold("\n🔍 Scanning Claude Code Usage\n"));
+  printCompactHeader("1.2.1");
+  console.log(header("Scan Claude Code Usage", "🔍"));
 
-  const spinner = ora("Scanning JSONL files...").start();
+  const spinner = ora({
+    text: "Scanning JSONL files...",
+    color: "cyan",
+  }).start();
 
   const data = scanAndSave();
 
   if (!data) {
-    spinner.fail(chalk.red("No usage data found"));
-    console.log(chalk.gray("\nPossible reasons:"));
-    console.log(chalk.gray("  • Claude Code has not been used yet"));
-    console.log(chalk.gray("  • ~/.claude/projects/ directory is empty"));
-    console.log(chalk.gray("  • No permission to read files\n"));
+    spinner.fail(colors.error("No usage data found"));
+    console.log();
+    console.log(`  ${error("Possible reasons:")}`);
+    console.log(`  ${colors.dim("•")} Claude Code has not been used yet`);
+    console.log(`  ${colors.dim("•")} ~/.claude/projects/ directory is empty`);
+    console.log(`  ${colors.dim("•")} No permission to read files`);
+    console.log();
     process.exit(1);
   }
 
-  spinner.succeed(chalk.green("Scan complete!"));
+  spinner.succeed(colors.success("Scan complete!"));
 
   displayResults(data);
+
+  // Next steps
+  console.log(`  ${colors.muted("Next:")} Run ${colors.white("npx ccgather")} to submit your data`);
+  console.log();
 }
 
 export default scan;

@@ -1,6 +1,7 @@
 import * as fs from "fs";
 import * as path from "path";
 import * as os from "os";
+import { readCredentials } from "./credentials.js";
 
 export interface DailyUsage {
   date: string; // YYYY-MM-DD
@@ -41,6 +42,10 @@ export interface CCGatherData {
     }
   >;
   dailyUsage: DailyUsage[];
+  account?: {
+    ccplan: "free" | "pro" | "max" | "team" | null;
+    rateLimitTier: string | null;
+  };
 }
 
 const CCGATHER_JSON_VERSION = "1.2.0";
@@ -291,6 +296,9 @@ export function scanUsageData(): CCGatherData | null {
     }))
     .sort((a, b) => a.date.localeCompare(b.date));
 
+  // Read account credentials
+  const credentials = readCredentials();
+
   return {
     version: CCGATHER_JSON_VERSION,
     lastUpdated: new Date().toISOString(),
@@ -312,6 +320,10 @@ export function scanUsageData(): CCGatherData | null {
     models,
     projects,
     dailyUsage,
+    account: {
+      ccplan: credentials.ccplan,
+      rateLimitTier: credentials.rateLimitTier,
+    },
   };
 }
 

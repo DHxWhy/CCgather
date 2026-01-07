@@ -1,8 +1,8 @@
-'use client';
+"use client";
 
-import { useEffect, useRef, useState, useMemo, useCallback } from 'react';
-import { X } from 'lucide-react';
-import ReactCountryFlag from 'react-country-flag';
+import { useEffect, useRef, useState, useMemo, useCallback } from "react";
+import { X } from "lucide-react";
+import ReactCountryFlag from "react-country-flag";
 import {
   LineChart,
   Line,
@@ -11,12 +11,19 @@ import {
   Tooltip,
   ResponsiveContainer,
   CartesianGrid,
-} from 'recharts';
-import { LEVELS, getLevelByTokens } from '@/lib/constants/levels';
-import { BADGES, type Badge } from '@/lib/constants/badges';
-import { ActivityHeatmap } from '@/components/profile/ActivityHeatmap';
-import { RollingNumber } from '@/components/ui/RollingNumber';
-import type { LeaderboardUser, UsageHistoryPoint, PeriodFilter, ScopeFilter } from '@/lib/types';
+} from "recharts";
+import { LEVELS, getLevelByTokens } from "@/lib/constants/levels";
+import { BADGES, type Badge } from "@/lib/constants/badges";
+import { ActivityHeatmap } from "@/components/profile/ActivityHeatmap";
+import { RollingNumber } from "@/components/ui/RollingNumber";
+import { CCplanBadge } from "@/components/leaderboard/CCplanBadge";
+import type {
+  LeaderboardUser,
+  UsageHistoryPoint,
+  PeriodFilter,
+  ScopeFilter,
+  CCPlanFilter,
+} from "@/lib/types";
 
 // Extended user type for panel display
 interface DisplayUser extends LeaderboardUser {
@@ -39,7 +46,15 @@ function formatShortTokens(num: number): string {
 }
 
 // Custom tooltip for the chart
-function CustomTooltip({ active, payload, label }: { active?: boolean; payload?: Array<{ value: number }>; label?: string }) {
+function CustomTooltip({
+  active,
+  payload,
+  label,
+}: {
+  active?: boolean;
+  payload?: Array<{ value: number }>;
+  label?: string;
+}) {
   if (active && payload && payload.length > 0 && payload[0]) {
     return (
       <div className="bg-[var(--color-bg-secondary)] border border-[var(--border-default)] rounded-lg px-2 py-1.5 shadow-lg">
@@ -71,8 +86,21 @@ function aggregateByMonth(data: UsageHistoryPoint[]): { date: string; tokens: nu
 }
 
 // Line chart for usage history
-function UsageChart({ history, periodFilter }: { history: UsageHistoryPoint[]; periodFilter: PeriodFilter }) {
-  const days = periodFilter === 'today' ? 1 : periodFilter === '7d' ? 7 : periodFilter === '30d' ? 30 : history.length;
+function UsageChart({
+  history,
+  periodFilter,
+}: {
+  history: UsageHistoryPoint[];
+  periodFilter: PeriodFilter;
+}) {
+  const days =
+    periodFilter === "today"
+      ? 1
+      : periodFilter === "7d"
+        ? 7
+        : periodFilter === "30d"
+          ? 30
+          : history.length;
   const filteredData = history.slice(-days);
 
   const useMonthly = filteredData.length > 60;
@@ -89,22 +117,30 @@ function UsageChart({ history, periodFilter }: { history: UsageHistoryPoint[]; p
       <div className="h-32">
         <ResponsiveContainer width="100%" height="100%">
           <LineChart data={chartData} margin={{ top: 5, right: 20, left: 0, bottom: 0 }}>
-            <CartesianGrid
-              strokeDasharray="3 3"
-              stroke="var(--border-default)"
-              vertical={false}
-            />
+            <CartesianGrid strokeDasharray="3 3" stroke="var(--border-default)" vertical={false} />
             <XAxis
               dataKey="date"
               axisLine={false}
               tickLine={false}
-              tick={{ fill: '#71717A', fontSize: 9 }}
-              interval={periodFilter === 'today' ? 0 : periodFilter === '7d' ? 0 : periodFilter === '30d' ? 6 : useMonthly ? Math.max(0, Math.floor(chartData.length / 6) - 1) : chartData.length <= 14 ? 0 : Math.floor(chartData.length / 5)}
+              tick={{ fill: "#71717A", fontSize: 9 }}
+              interval={
+                periodFilter === "today"
+                  ? 0
+                  : periodFilter === "7d"
+                    ? 0
+                    : periodFilter === "30d"
+                      ? 6
+                      : useMonthly
+                        ? Math.max(0, Math.floor(chartData.length / 6) - 1)
+                        : chartData.length <= 14
+                          ? 0
+                          : Math.floor(chartData.length / 5)
+              }
             />
             <YAxis
               axisLine={false}
               tickLine={false}
-              tick={{ fill: '#71717A', fontSize: 9 }}
+              tick={{ fill: "#71717A", fontSize: 9 }}
               tickFormatter={formatShortTokens}
               width={35}
             />
@@ -115,7 +151,7 @@ function UsageChart({ history, periodFilter }: { history: UsageHistoryPoint[]; p
               stroke="#DA7756"
               strokeWidth={2}
               dot={false}
-              activeDot={{ r: 4, fill: '#DA7756', stroke: '#fff', strokeWidth: 2 }}
+              activeDot={{ r: 4, fill: "#DA7756", stroke: "#fff", strokeWidth: 2 }}
             />
           </LineChart>
         </ResponsiveContainer>
@@ -138,7 +174,7 @@ function formatLevelRange(min: number, max: number): string {
 }
 
 // Level progress bar with hover tooltips and animation
-type Level = typeof LEVELS[number];
+type Level = (typeof LEVELS)[number];
 
 function LevelProgressBar({
   currentTokens,
@@ -153,7 +189,7 @@ function LevelProgressBar({
   progressToNext: number;
   userId: string;
 }) {
-  const [hoveredPart, setHoveredPart] = useState<'filled' | 'empty' | null>(null);
+  const [hoveredPart, setHoveredPart] = useState<"filled" | "empty" | null>(null);
   const [animatedProgress, setAnimatedProgress] = useState(0);
 
   const tokensInCurrentLevel = currentTokens - level.minTokens;
@@ -200,7 +236,7 @@ function LevelProgressBar({
         <div
           className="absolute top-0 left-0 h-full bg-[var(--color-claude-coral)] rounded-l-full cursor-pointer"
           style={{ width: `${Math.min(animatedProgress, 100)}%` }}
-          onMouseEnter={() => setHoveredPart('filled')}
+          onMouseEnter={() => setHoveredPart("filled")}
           onMouseLeave={() => setHoveredPart(null)}
         />
 
@@ -208,12 +244,12 @@ function LevelProgressBar({
           <div
             className="absolute top-0 right-0 h-full cursor-pointer"
             style={{ width: `${100 - Math.min(animatedProgress, 100)}%` }}
-            onMouseEnter={() => setHoveredPart('empty')}
+            onMouseEnter={() => setHoveredPart("empty")}
             onMouseLeave={() => setHoveredPart(null)}
           />
         )}
 
-        {hoveredPart === 'filled' && (
+        {hoveredPart === "filled" && (
           <div className="absolute bottom-full left-1/4 -translate-x-1/2 mb-2 z-50 px-2 py-1 bg-[var(--color-bg-secondary)] border border-[var(--border-default)] rounded-lg shadow-lg whitespace-nowrap">
             <div className="text-[10px] text-[var(--color-text-muted)]">Current Level Progress</div>
             <div className="text-xs font-medium text-[var(--color-claude-coral)]">
@@ -222,7 +258,7 @@ function LevelProgressBar({
           </div>
         )}
 
-        {hoveredPart === 'empty' && nextLevel && (
+        {hoveredPart === "empty" && nextLevel && (
           <div className="absolute bottom-full right-1/4 translate-x-1/2 mb-2 z-50 px-2 py-1 bg-[var(--color-bg-secondary)] border border-[var(--border-default)] rounded-lg shadow-lg whitespace-nowrap">
             <div className="text-[10px] text-[var(--color-text-muted)]">To Next Level</div>
             <div className="text-xs font-medium text-[var(--color-text-primary)]">
@@ -233,7 +269,11 @@ function LevelProgressBar({
       </div>
 
       <div className="text-[9px] text-[var(--color-text-muted)] mt-1.5">
-        Current Range: <span className="text-[var(--color-text-secondary)]">{formatLevelRange(level.minTokens, level.maxTokens)}</span> ({level.name})
+        Current Range:{" "}
+        <span className="text-[var(--color-text-secondary)]">
+          {formatLevelRange(level.minTokens, level.maxTokens)}
+        </span>{" "}
+        ({level.name})
       </div>
     </div>
   );
@@ -243,45 +283,57 @@ function LevelProgressBar({
 function countryCodeToFlag(countryCode: string): string {
   const codePoints = countryCode
     .toUpperCase()
-    .split('')
-    .map(char => 0x1F1E6 + char.charCodeAt(0) - 65);
+    .split("")
+    .map((char) => 0x1f1e6 + char.charCodeAt(0) - 65);
   return String.fromCodePoint(...codePoints);
 }
 
 // Single badge with hover popover
-function BadgeItem({ badge, isEarned, columnIndex, totalInCategory, userCountry }: { badge: Badge; isEarned: boolean; columnIndex: number; totalInCategory: number; userCountry?: string }) {
+function BadgeItem({
+  badge,
+  isEarned,
+  columnIndex,
+  totalInCategory,
+  userCountry,
+}: {
+  badge: Badge;
+  isEarned: boolean;
+  columnIndex: number;
+  totalInCategory: number;
+  userCountry?: string;
+}) {
   const [isHovered, setIsHovered] = useState(false);
 
-  const RARITY_COLORS: Record<Badge['rarity'], string> = {
-    common: 'border-gray-500/30',
-    rare: 'border-blue-500/30',
-    epic: 'border-purple-500/30',
-    legendary: 'border-yellow-500/30',
+  const RARITY_COLORS: Record<Badge["rarity"], string> = {
+    common: "border-gray-500/30",
+    rare: "border-blue-500/30",
+    epic: "border-purple-500/30",
+    legendary: "border-yellow-500/30",
   };
 
-  const RARITY_TEXT_COLOR = 'text-[var(--color-text-primary)]';
+  const RARITY_TEXT_COLOR = "text-[var(--color-text-primary)]";
 
-  const RARITY_BG_COLORS: Record<Badge['rarity'], string> = {
-    common: 'bg-gray-500/20',
-    rare: 'bg-blue-500/20',
-    epic: 'bg-purple-500/20',
-    legendary: 'bg-[var(--color-claude-coral)]/30',
+  const RARITY_BG_COLORS: Record<Badge["rarity"], string> = {
+    common: "bg-gray-500/20",
+    rare: "bg-blue-500/20",
+    epic: "bg-purple-500/20",
+    legendary: "bg-[var(--color-claude-coral)]/30",
   };
 
   const isLeftSide = columnIndex <= 1;
   const isRightSide = columnIndex >= totalInCategory - 2;
 
   const popoverPositionClass = isLeftSide
-    ? 'left-0'
+    ? "left-0"
     : isRightSide
-    ? 'right-0'
-    : 'left-1/2 -translate-x-1/2';
+      ? "right-0"
+      : "left-1/2 -translate-x-1/2";
 
   const arrowPositionClass = isLeftSide
-    ? 'left-4'
+    ? "left-4"
     : isRightSide
-    ? 'right-4'
-    : 'left-1/2 -translate-x-1/2';
+      ? "right-4"
+      : "left-1/2 -translate-x-1/2";
 
   return (
     <div
@@ -293,30 +345,38 @@ function BadgeItem({ badge, isEarned, columnIndex, totalInCategory, userCountry 
         className={`w-full aspect-square flex items-center justify-center rounded border border-[var(--border-default)] text-center transition-colors cursor-default ${
           isEarned
             ? `bg-[var(--color-section-bg)] ${RARITY_COLORS[badge.rarity]} hover:bg-white/10`
-            : 'bg-[var(--color-section-bg)] opacity-50'
+            : "bg-[var(--color-section-bg)] opacity-50"
         }`}
       >
-        <div className={`text-lg ${!isEarned ? 'grayscale' : ''}`}>
+        <div className={`text-lg ${!isEarned ? "grayscale" : ""}`}>
           {isEarned
-            ? (badge.id === 'country_first' && userCountry ? countryCodeToFlag(userCountry) : badge.icon)
-            : '🔒'}
+            ? badge.id === "country_first" && userCountry
+              ? countryCodeToFlag(userCountry)
+              : badge.icon
+            : "🔒"}
         </div>
       </div>
 
       {isHovered && (
-        <div className={`absolute top-full ${popoverPositionClass} mt-2 z-[100] w-48 p-2.5 bg-[var(--color-bg-secondary)] border border-[var(--border-default)] rounded-lg shadow-xl`}>
+        <div
+          className={`absolute top-full ${popoverPositionClass} mt-2 z-[100] w-48 p-2.5 bg-[var(--color-bg-secondary)] border border-[var(--border-default)] rounded-lg shadow-xl`}
+        >
           <div className={`absolute bottom-full ${arrowPositionClass} mb-[-1px]`}>
             <div className="border-8 border-transparent border-b-[var(--color-bg-secondary)]" />
           </div>
           <div className="flex items-center gap-2 mb-1.5">
             <span className="text-lg">
-              {badge.id === 'country_first' && userCountry ? countryCodeToFlag(userCountry) : badge.icon}
+              {badge.id === "country_first" && userCountry
+                ? countryCodeToFlag(userCountry)
+                : badge.icon}
             </span>
             <div>
               <div className="text-xs font-medium text-[var(--color-text-primary)]">
                 {badge.name}
               </div>
-              <span className={`inline-block text-[9px] font-medium capitalize px-1.5 py-0.5 rounded ${RARITY_BG_COLORS[badge.rarity]} ${RARITY_TEXT_COLOR}`}>
+              <span
+                className={`inline-block text-[9px] font-medium capitalize px-1.5 py-0.5 rounded ${RARITY_BG_COLORS[badge.rarity]} ${RARITY_TEXT_COLOR}`}
+              >
                 {badge.rarity}
               </span>
             </div>
@@ -324,8 +384,10 @@ function BadgeItem({ badge, isEarned, columnIndex, totalInCategory, userCountry 
           <div className="text-[10px] text-[var(--color-text-secondary)] mb-1.5 bg-black/20 px-1.5 py-1 rounded">
             📋 {badge.description}
           </div>
-          <div className={`text-[10px] ${isEarned ? 'text-[var(--color-text-secondary)]' : 'text-[var(--color-text-muted)]'}`}>
-            {isEarned ? `✨ ${badge.praise}` : '🔒 Not yet unlocked'}
+          <div
+            className={`text-[10px] ${isEarned ? "text-[var(--color-text-secondary)]" : "text-[var(--color-text-muted)]"}`}
+          >
+            {isEarned ? `✨ ${badge.praise}` : "🔒 Not yet unlocked"}
           </div>
         </div>
       )}
@@ -334,16 +396,16 @@ function BadgeItem({ badge, isEarned, columnIndex, totalInCategory, userCountry 
 }
 
 // Category labels with icons
-const CATEGORY_LABELS: Record<Badge['category'], { icon: string; label: string }> = {
-  streak: { icon: '🔥', label: 'Streak' },
-  tokens: { icon: '💎', label: 'Tokens' },
-  rank: { icon: '🏆', label: 'Rank' },
-  model: { icon: '🎭', label: 'Model' },
-  social: { icon: '🤝', label: 'Social' },
+const CATEGORY_LABELS: Record<Badge["category"], { icon: string; label: string }> = {
+  streak: { icon: "🔥", label: "Streak" },
+  tokens: { icon: "💎", label: "Tokens" },
+  rank: { icon: "🏆", label: "Rank" },
+  model: { icon: "🎭", label: "Model" },
+  social: { icon: "🤝", label: "Social" },
 };
 
 // Rarity order for sorting
-const RARITY_ORDER: Record<Badge['rarity'], number> = {
+const RARITY_ORDER: Record<Badge["rarity"], number> = {
   legendary: 4,
   epic: 3,
   rare: 2,
@@ -352,18 +414,18 @@ const RARITY_ORDER: Record<Badge['rarity'], number> = {
 
 // Badge display component
 function BadgeGrid({ badgeIds, userCountry }: { badgeIds: string[]; userCountry: string }) {
-  const categories: Badge['category'][] = ['streak', 'tokens', 'rank', 'model', 'social'];
+  const categories: Badge["category"][] = ["streak", "tokens", "rank", "model", "social"];
 
   const badgesByCategory = useMemo(() => {
-    return categories.map(category => ({
+    return categories.map((category) => ({
       category,
-      badges: BADGES
-        .filter(b => b.category === category)
-        .sort((a, b) => RARITY_ORDER[b.rarity] - RARITY_ORDER[a.rarity]),
+      badges: BADGES.filter((b) => b.category === category).sort(
+        (a, b) => RARITY_ORDER[b.rarity] - RARITY_ORDER[a.rarity]
+      ),
     }));
   }, []);
 
-  const maxBadges = Math.max(...badgesByCategory.map(c => c.badges.length));
+  const maxBadges = Math.max(...badgesByCategory.map((c) => c.badges.length));
 
   return (
     <div className="flex gap-1">
@@ -401,9 +463,17 @@ interface ProfileSidePanelProps {
   onClose: () => void;
   periodFilter: PeriodFilter;
   scopeFilter: ScopeFilter;
+  ccplanFilter?: CCPlanFilter;
 }
 
-export function ProfileSidePanel({ user, isOpen, onClose, periodFilter, scopeFilter }: ProfileSidePanelProps) {
+export function ProfileSidePanel({
+  user,
+  isOpen,
+  onClose,
+  periodFilter,
+  scopeFilter,
+  ccplanFilter = "all",
+}: ProfileSidePanelProps) {
   const panelRef = useRef<HTMLDivElement>(null);
   const statsRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -437,8 +507,8 @@ export function ProfileSidePanel({ user, isOpen, onClose, periodFilter, scopeFil
       setIsNarrow(width < 400);
     };
     checkScreenSize();
-    window.addEventListener('resize', checkScreenSize);
-    return () => window.removeEventListener('resize', checkScreenSize);
+    window.addEventListener("resize", checkScreenSize);
+    return () => window.removeEventListener("resize", checkScreenSize);
   }, []);
 
   // Calculate swipe offset
@@ -458,13 +528,16 @@ export function ProfileSidePanel({ user, isOpen, onClose, periodFilter, scopeFil
     }
   }, []);
 
-  const handleTouchMove = useCallback((e: React.TouchEvent) => {
-    if (!isDragging) return;
-    const touch = e.touches[0];
-    if (touch) {
-      setTouchCurrent(touch.clientX);
-    }
-  }, [isDragging]);
+  const handleTouchMove = useCallback(
+    (e: React.TouchEvent) => {
+      if (!isDragging) return;
+      const touch = e.touches[0];
+      if (touch) {
+        setTouchCurrent(touch.clientX);
+      }
+    },
+    [isDragging]
+  );
 
   const handleTouchEnd = useCallback(() => {
     if (!isDragging || touchStart === null || touchCurrent === null) {
@@ -556,11 +629,11 @@ export function ProfileSidePanel({ user, isOpen, onClose, periodFilter, scopeFil
   // Escape key handler
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
-      if (e.key === 'Escape') onClose();
+      if (e.key === "Escape") onClose();
     }
     if (isOpen) {
-      document.addEventListener('keydown', handleKeyDown);
-      return () => document.removeEventListener('keydown', handleKeyDown);
+      document.addEventListener("keydown", handleKeyDown);
+      return () => document.removeEventListener("keydown", handleKeyDown);
     }
     return undefined;
   }, [isOpen, onClose]);
@@ -572,17 +645,17 @@ export function ProfileSidePanel({ user, isOpen, onClose, periodFilter, scopeFil
     function handleClickOutside(e: MouseEvent) {
       const target = e.target as HTMLElement;
       if (panelRef.current?.contains(target)) return;
-      if (target.closest('tr') || target.closest('table')) return;
+      if (target.closest("tr") || target.closest("table")) return;
       onClose();
     }
 
     if (isOpen) {
       const timer = setTimeout(() => {
-        document.addEventListener('click', handleClickOutside);
+        document.addEventListener("click", handleClickOutside);
       }, 100);
       return () => {
         clearTimeout(timer);
-        document.removeEventListener('click', handleClickOutside);
+        document.removeEventListener("click", handleClickOutside);
       };
     }
     return undefined;
@@ -591,9 +664,9 @@ export function ProfileSidePanel({ user, isOpen, onClose, periodFilter, scopeFil
   // Body scroll prevention
   useEffect(() => {
     if (isOverlayPanel && isOpen) {
-      document.body.style.overflow = 'hidden';
+      document.body.style.overflow = "hidden";
       return () => {
-        document.body.style.overflow = '';
+        document.body.style.overflow = "";
       };
     }
     return undefined;
@@ -612,8 +685,8 @@ export function ProfileSidePanel({ user, isOpen, onClose, periodFilter, scopeFil
       setShowCompactStats(statsRect.bottom < containerRect.top + 10);
     };
 
-    scrollContainer.addEventListener('scroll', handleScroll);
-    return () => scrollContainer.removeEventListener('scroll', handleScroll);
+    scrollContainer.addEventListener("scroll", handleScroll);
+    return () => scrollContainer.removeEventListener("scroll", handleScroll);
   }, [displayedUser]);
 
   const currentUser = displayedUser;
@@ -628,20 +701,34 @@ export function ProfileSidePanel({ user, isOpen, onClose, periodFilter, scopeFil
   const countryRank = currentUser.country_rank || currentUser.rank;
 
   // Calculate period stats from history
-  const days = periodFilter === 'today' ? 1 : periodFilter === '7d' ? 7 : periodFilter === '30d' ? 30 : usageHistory.length;
+  const days =
+    periodFilter === "today"
+      ? 1
+      : periodFilter === "7d"
+        ? 7
+        : periodFilter === "30d"
+          ? 30
+          : usageHistory.length;
   const filteredHistory = usageHistory.slice(-days);
   const periodTokens = filteredHistory.reduce((sum, day) => sum + day.tokens, 0);
   const periodCost = filteredHistory.reduce((sum, day) => sum + day.cost, 0);
   const avgDailyTokens = filteredHistory.length > 0 ? periodTokens / filteredHistory.length : 0;
 
-  const periodLabel = periodFilter === 'today' ? 'Today' : periodFilter === '7d' ? '7D' : periodFilter === '30d' ? '30D' : 'All Time';
+  const periodLabel =
+    periodFilter === "today"
+      ? "Today"
+      : periodFilter === "7d"
+        ? "7D"
+        : periodFilter === "30d"
+          ? "30D"
+          : "All Time";
 
   return (
     <>
       {isOverlayPanel && (
         <div
           className={`fixed inset-0 z-40 transition-opacity duration-300 lg:hidden pointer-events-none ${
-            isOpen ? 'opacity-100' : 'opacity-0'
+            isOpen ? "opacity-100" : "opacity-0"
           }`}
         />
       )}
@@ -649,20 +736,21 @@ export function ProfileSidePanel({ user, isOpen, onClose, periodFilter, scopeFil
       <div
         ref={panelRef}
         className={`fixed top-0 right-0 h-full flex flex-col bg-[var(--color-bg-primary)] border-l border-[var(--border-default)] z-50 shadow-2xl ${
-          isDragging ? '' : 'transition-transform duration-300 ease-out'
-        } ${isOpen ? 'translate-x-0' : 'translate-x-full'}`}
+          isDragging ? "" : "transition-transform duration-300 ease-out"
+        } ${isOpen ? "translate-x-0" : "translate-x-full"}`}
         style={{
-          width: isMobile ? 'calc(100% - 56px)' : (isTabletPortrait || isTablet) ? '380px' : '440px',
-          maxWidth: isMobile ? 'calc(100% - 56px)' : (isTabletPortrait || isTablet) ? '380px' : '440px',
-          transform: isOpen
-            ? `translateX(${swipeOffset}px)`
-            : 'translateX(100%)',
+          width: isMobile ? "calc(100% - 56px)" : isTabletPortrait || isTablet ? "380px" : "440px",
+          maxWidth: isMobile
+            ? "calc(100% - 56px)"
+            : isTabletPortrait || isTablet
+              ? "380px"
+              : "440px",
+          transform: isOpen ? `translateX(${swipeOffset}px)` : "translateX(100%)",
         }}
         onTouchStart={isOverlayPanel ? handleTouchStart : undefined}
         onTouchMove={isOverlayPanel ? handleTouchMove : undefined}
         onTouchEnd={isOverlayPanel ? handleTouchEnd : undefined}
       >
-
         {/* Fixed Header Area */}
         <div className="flex-shrink-0">
           {/* Title Bar */}
@@ -679,9 +767,11 @@ export function ProfileSidePanel({ user, isOpen, onClose, periodFilter, scopeFil
           </div>
 
           {/* Profile Header */}
-          <div className={`p-4 pb-3 border-b border-[var(--border-default)] bg-[var(--color-bg-primary)] transition-opacity duration-150 ${
-            isTransitioning ? 'opacity-30' : 'opacity-100'
-          }`}>
+          <div
+            className={`p-4 pb-3 border-b border-[var(--border-default)] bg-[var(--color-bg-primary)] transition-opacity duration-150 ${
+              isTransitioning ? "opacity-30" : "opacity-100"
+            }`}
+          >
             <div className="flex items-start gap-3">
               {currentUser.avatar_url ? (
                 <img
@@ -695,7 +785,7 @@ export function ProfileSidePanel({ user, isOpen, onClose, periodFilter, scopeFil
                 </div>
               )}
               <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
                   <h2 className="text-base font-semibold text-[var(--color-text-primary)] truncate">
                     {currentUser.display_name || currentUser.username}
                   </h2>
@@ -705,12 +795,23 @@ export function ProfileSidePanel({ user, isOpen, onClose, periodFilter, scopeFil
                   >
                     {level.icon} Lv.{level.level}
                   </span>
+                  {currentUser.ccplan && (
+                    <CCplanBadge
+                      ccplan={currentUser.ccplan as Exclude<CCPlanFilter, "all">}
+                      ccplanRank={currentUser.ccplan_rank}
+                      size="sm"
+                    />
+                  )}
                 </div>
                 <p className="text-[10px] text-[var(--color-text-muted)] flex items-center gap-1.5 mt-0.5">
                   {currentUser.country_code && (
-                    <ReactCountryFlag countryCode={currentUser.country_code} svg style={{ width: '12px', height: '12px' }} />
+                    <ReactCountryFlag
+                      countryCode={currentUser.country_code}
+                      svg
+                      style={{ width: "12px", height: "12px" }}
+                    />
                   )}
-                  <span>@{currentUser.username.toLowerCase().replace(/\s+/g, '')}</span>
+                  <span>@{currentUser.username.toLowerCase().replace(/\s+/g, "")}</span>
                 </p>
               </div>
             </div>
@@ -719,28 +820,40 @@ export function ProfileSidePanel({ user, isOpen, onClose, periodFilter, scopeFil
           {/* Compact Stats Bar */}
           <div
             className={`overflow-hidden transition-all duration-200 ${
-              showCompactStats ? 'max-h-16 opacity-100' : 'max-h-0 opacity-0'
+              showCompactStats ? "max-h-16 opacity-100" : "max-h-0 opacity-0"
             }`}
           >
             <div className="px-3 py-2">
               <div className="flex items-center py-1.5 px-2 bg-[var(--color-section-bg)] border border-[var(--border-default)] rounded-full text-[11px]">
                 <div className="flex-1 flex items-center justify-center gap-1">
                   <span>🌍</span>
-                  <span className="font-medium text-[var(--color-text-primary)]">#{currentUser.global_rank || currentUser.rank}</span>
+                  <span className="font-medium text-[var(--color-text-primary)]">
+                    #{currentUser.global_rank || currentUser.rank}
+                  </span>
                 </div>
                 <div className="flex-1 flex items-center justify-center gap-1">
                   {currentUser.country_code && (
-                    <ReactCountryFlag countryCode={currentUser.country_code} svg style={{ width: '12px', height: '12px' }} />
+                    <ReactCountryFlag
+                      countryCode={currentUser.country_code}
+                      svg
+                      style={{ width: "12px", height: "12px" }}
+                    />
                   )}
-                  <span className="font-medium text-[var(--color-text-primary)]">#{countryRank}</span>
+                  <span className="font-medium text-[var(--color-text-primary)]">
+                    #{countryRank}
+                  </span>
                 </div>
                 <div className="flex-1 flex items-center justify-center gap-1">
                   <span>💰</span>
-                  <span className="font-medium text-[var(--color-cost)]">${formatTokens(periodCost)}</span>
+                  <span className="font-medium text-[var(--color-cost)]">
+                    ${formatTokens(periodCost)}
+                  </span>
                 </div>
                 <div className="flex-1 flex items-center justify-center gap-1">
                   <span>🔥</span>
-                  <span className="font-medium text-[var(--color-claude-coral)]">{formatTokens(periodTokens)}</span>
+                  <span className="font-medium text-[var(--color-claude-coral)]">
+                    {formatTokens(periodTokens)}
+                  </span>
                 </div>
               </div>
             </div>
@@ -751,7 +864,7 @@ export function ProfileSidePanel({ user, isOpen, onClose, periodFilter, scopeFil
         <div
           ref={scrollContainerRef}
           className={`p-4 overflow-y-auto flex-1 transition-opacity duration-150 ${
-            isTransitioning ? 'opacity-30' : 'opacity-100'
+            isTransitioning ? "opacity-30" : "opacity-100"
           }`}
         >
           {/* Level Progress */}
@@ -764,18 +877,48 @@ export function ProfileSidePanel({ user, isOpen, onClose, periodFilter, scopeFil
           />
 
           {/* Stats Grid */}
-          <div ref={statsRef} className="grid grid-cols-2 gap-2 mb-4" key={`stats-${currentUser.id}`}>
+          <div
+            ref={statsRef}
+            className="grid grid-cols-2 gap-2 mb-4"
+            key={`stats-${currentUser.id}`}
+          >
+            {/* CCplan Rank - show when filtering by a specific tier */}
+            {ccplanFilter !== "all" && currentUser.ccplan && currentUser.ccplan_rank && (
+              <div className="p-3 rounded-lg bg-primary/10 ring-1 ring-primary/30 border border-[var(--border-default)] col-span-2">
+                <div className="text-[10px] text-[var(--color-text-muted)] mb-0.5 flex items-center gap-1">
+                  <CCplanBadge
+                    ccplan={currentUser.ccplan as Exclude<CCPlanFilter, "all">}
+                    size="sm"
+                  />
+                  League Rank
+                </div>
+                <div
+                  className={`font-semibold text-[var(--color-text-primary)] ${isNarrow ? "text-base" : "text-lg"}`}
+                >
+                  #<RollingNumber value={currentUser.ccplan_rank} delay={0} duration={600} />
+                </div>
+              </div>
+            )}
             {/* Global Rank */}
-            <div className={`p-3 rounded-lg transition-all ${
-              scopeFilter === 'global'
-                ? 'bg-primary/10 ring-1 ring-primary/30'
-                : 'bg-[var(--color-section-bg)]'
-            } border border-[var(--border-default)]`}>
+            <div
+              className={`p-3 rounded-lg transition-all ${
+                scopeFilter === "global" && ccplanFilter === "all"
+                  ? "bg-primary/10 ring-1 ring-primary/30"
+                  : "bg-[var(--color-section-bg)]"
+              } border border-[var(--border-default)]`}
+            >
               <div className="text-[10px] text-[var(--color-text-muted)] mb-0.5 flex items-center gap-1">
                 🌍 Global Rank
               </div>
-              <div className={`font-semibold text-[var(--color-text-primary)] ${isNarrow ? 'text-base' : 'text-lg'}`}>
-                #<RollingNumber value={currentUser.global_rank || currentUser.rank} delay={0} duration={600} />
+              <div
+                className={`font-semibold text-[var(--color-text-primary)] ${isNarrow ? "text-base" : "text-lg"}`}
+              >
+                #
+                <RollingNumber
+                  value={currentUser.global_rank || currentUser.rank}
+                  delay={0}
+                  duration={600}
+                />
               </div>
             </div>
             {/* Cost */}
@@ -783,11 +926,19 @@ export function ProfileSidePanel({ user, isOpen, onClose, periodFilter, scopeFil
               <div className="text-[10px] text-[var(--color-text-muted)] mb-0.5">
                 {periodLabel} Cost $
               </div>
-              <div className={`font-semibold text-[var(--color-cost)] ${
-                isNarrow
-                  ? (periodCost >= 100_000 ? 'text-sm' : 'text-base')
-                  : (periodTokens >= 100_000_000_000 ? 'text-sm lg:text-lg' : periodTokens >= 1_000_000_000 ? 'text-base lg:text-lg' : 'text-lg')
-              }`}>
+              <div
+                className={`font-semibold text-[var(--color-cost)] ${
+                  isNarrow
+                    ? periodCost >= 100_000
+                      ? "text-sm"
+                      : "text-base"
+                    : periodTokens >= 100_000_000_000
+                      ? "text-sm lg:text-lg"
+                      : periodTokens >= 1_000_000_000
+                        ? "text-base lg:text-lg"
+                        : "text-lg"
+                }`}
+              >
                 <RollingNumber
                   value={periodCost}
                   delay={100}
@@ -796,24 +947,35 @@ export function ProfileSidePanel({ user, isOpen, onClose, periodFilter, scopeFil
                     if (isNarrow && v >= 100_000) {
                       return `${(v / 1_000).toFixed(0)}K`;
                     }
-                    return v.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+                    return v.toLocaleString(undefined, {
+                      minimumFractionDigits: 0,
+                      maximumFractionDigits: 0,
+                    });
                   }}
                 />
               </div>
             </div>
             {/* Country Rank */}
-            <div className={`p-3 rounded-lg transition-all ${
-              scopeFilter === 'country'
-                ? 'bg-primary/10 ring-1 ring-primary/30'
-                : 'bg-[var(--color-section-bg)]'
-            } border border-[var(--border-default)]`}>
+            <div
+              className={`p-3 rounded-lg transition-all ${
+                scopeFilter === "country" && ccplanFilter === "all"
+                  ? "bg-primary/10 ring-1 ring-primary/30"
+                  : "bg-[var(--color-section-bg)]"
+              } border border-[var(--border-default)]`}
+            >
               <div className="text-[10px] text-[var(--color-text-muted)] mb-0.5 flex items-center gap-1">
                 {currentUser.country_code && (
-                  <ReactCountryFlag countryCode={currentUser.country_code} svg style={{ width: '10px', height: '10px' }} />
+                  <ReactCountryFlag
+                    countryCode={currentUser.country_code}
+                    svg
+                    style={{ width: "10px", height: "10px" }}
+                  />
                 )}
                 Country Rank
               </div>
-              <div className={`font-semibold text-[var(--color-text-primary)] ${isNarrow ? 'text-base' : 'text-lg'}`}>
+              <div
+                className={`font-semibold text-[var(--color-text-primary)] ${isNarrow ? "text-base" : "text-lg"}`}
+              >
                 #<RollingNumber value={countryRank} delay={200} duration={600} />
               </div>
             </div>
@@ -822,11 +984,19 @@ export function ProfileSidePanel({ user, isOpen, onClose, periodFilter, scopeFil
               <div className="text-[10px] text-[var(--color-text-muted)] mb-0.5">
                 {periodLabel} Tokens
               </div>
-              <div className={`font-semibold text-[var(--color-claude-coral)] ${
-                isNarrow
-                  ? (periodTokens >= 1_000_000_000 ? 'text-sm' : 'text-base')
-                  : (periodTokens >= 100_000_000_000 ? 'text-sm lg:text-lg' : periodTokens >= 1_000_000_000 ? 'text-base lg:text-lg' : 'text-lg')
-              }`}>
+              <div
+                className={`font-semibold text-[var(--color-claude-coral)] ${
+                  isNarrow
+                    ? periodTokens >= 1_000_000_000
+                      ? "text-sm"
+                      : "text-base"
+                    : periodTokens >= 100_000_000_000
+                      ? "text-sm lg:text-lg"
+                      : periodTokens >= 1_000_000_000
+                        ? "text-base lg:text-lg"
+                        : "text-lg"
+                }`}
+              >
                 <RollingNumber
                   value={periodTokens}
                   delay={300}
@@ -849,12 +1019,17 @@ export function ProfileSidePanel({ user, isOpen, onClose, periodFilter, scopeFil
                 📈 Usage History
               </div>
               <div className="text-[9px] text-[var(--color-text-muted)]">
-                {historyLoading ? 'Loading...' : (
-                  periodFilter === 'today' ? 'Today'
-                    : periodFilter === '7d' ? 'Last 7 days'
-                    : periodFilter === '30d' ? 'Last 30 days'
-                    : usageHistory.length > 60 ? 'All Time (Monthly)' : 'All Time'
-                )}
+                {historyLoading
+                  ? "Loading..."
+                  : periodFilter === "today"
+                    ? "Today"
+                    : periodFilter === "7d"
+                      ? "Last 7 days"
+                      : periodFilter === "30d"
+                        ? "Last 30 days"
+                        : usageHistory.length > 60
+                          ? "All Time (Monthly)"
+                          : "All Time"}
               </div>
             </div>
             {historyLoading ? (
@@ -869,7 +1044,11 @@ export function ProfileSidePanel({ user, isOpen, onClose, periodFilter, scopeFil
               </div>
             )}
             <div className="text-[11px] text-[var(--color-text-secondary)] mt-2 pt-2 border-t border-[var(--border-default)] text-center">
-              Avg Daily: <span className="font-medium text-[var(--color-claude-coral)]">{formatTokens(Math.round(avgDailyTokens))}</span> tokens
+              Avg Daily:{" "}
+              <span className="font-medium text-[var(--color-claude-coral)]">
+                {formatTokens(Math.round(avgDailyTokens))}
+              </span>{" "}
+              tokens
             </div>
           </div>
 
@@ -894,7 +1073,7 @@ export function ProfileSidePanel({ user, isOpen, onClose, periodFilter, scopeFil
             <div className="text-[10px] text-[var(--color-text-muted)] uppercase tracking-wide mb-2">
               🏅 Badges ({userBadges.length}/{BADGES.length})
             </div>
-            <BadgeGrid badgeIds={userBadges} userCountry={currentUser.country_code || 'US'} />
+            <BadgeGrid badgeIds={userBadges} userCountry={currentUser.country_code || "US"} />
           </div>
         </div>
       </div>

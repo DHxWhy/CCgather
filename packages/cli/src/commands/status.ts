@@ -1,60 +1,52 @@
-import chalk from 'chalk';
-import ora from 'ora';
-import { isAuthenticated } from '../lib/config.js';
-import { getStatus } from '../lib/api.js';
+import ora from "ora";
+import { isAuthenticated } from "../lib/config.js";
+import { getStatus as getApiStatus } from "../lib/api.js";
+import {
+  colors,
+  formatNumber,
+  formatCost,
+  getRankMedal,
+  getCCplanBadge,
+  getLevelInfo,
+  header,
+  createBox,
+  divider,
+  error,
+  link,
+  printCompactHeader,
+} from "../lib/ui.js";
 
 interface StatusOptions {
   json?: boolean;
-}
-
-function formatNumber(num: number): string {
-  if (num >= 1_000_000_000) return `${(num / 1_000_000_000).toFixed(2)}B`;
-  if (num >= 1_000_000) return `${(num / 1_000_000).toFixed(2)}M`;
-  if (num >= 1_000) return `${(num / 1_000).toFixed(2)}K`;
-  return num.toString();
-}
-
-function getTierEmoji(tier: string): string {
-  const emojis: Record<string, string> = {
-    free: '🆓',
-    pro: '⭐',
-    team: '👥',
-    enterprise: '🏢',
-  };
-  return emojis[tier.toLowerCase()] || '🎯';
-}
-
-function getRankMedal(rank: number): string {
-  if (rank === 1) return '🥇';
-  if (rank === 2) return '🥈';
-  if (rank === 3) return '🥉';
-  if (rank <= 10) return '🏅';
-  if (rank <= 100) return '🎖️';
-  return '📊';
 }
 
 export async function status(options: StatusOptions): Promise<void> {
   // Check authentication
   if (!isAuthenticated()) {
     if (options.json) {
-      console.log(JSON.stringify({ error: 'Not authenticated' }));
+      console.log(JSON.stringify({ error: "Not authenticated" }));
     } else {
-      console.log(chalk.red('\nNot authenticated.'));
-      console.log(chalk.gray('Run: npx ccgather auth\n'));
+      console.log(`\n  ${error("Not authenticated.")}`);
+      console.log(`  ${colors.muted("Run:")} ${colors.white("npx ccgather auth")}\n`);
     }
     process.exit(1);
   }
 
-  const spinner = options.json ? null : ora('Fetching your stats...').start();
+  const spinner = options.json
+    ? null
+    : ora({
+        text: "Fetching your stats...",
+        color: "cyan",
+      }).start();
 
-  const result = await getStatus();
+  const result = await getApiStatus();
 
   if (!result.success) {
-    if (spinner) spinner.fail(chalk.red('Failed to fetch status'));
+    if (spinner) spinner.fail(colors.error("Failed to fetch status"));
     if (options.json) {
       console.log(JSON.stringify({ error: result.error }));
     } else {
-      console.log(chalk.red(`Error: ${result.error}\n`));
+      console.log(`\n  ${error(result.error || "Unknown error")}\n`);
     }
     process.exit(1);
   }
@@ -66,37 +58,56 @@ export async function status(options: StatusOptions): Promise<void> {
     return;
   }
 
-  spinner?.succeed(chalk.green('Status retrieved'));
+  spinner?.succeed(colors.success("Status retrieved"));
 
-  // Display formatted status
-  console.log('\n' + chalk.bold('═'.repeat(42)));
-  console.log(chalk.bold.white('           🌐 CCgather Status'));
-  console.log(chalk.bold('═'.repeat(42)));
+  // Print header
+  printCompactHeader("1.2.1");
+  console.log(header("Your CCgather Stats", "📊"));
+
+  // Level info
+  const levelInfo = getLevelInfo(stats.totalTokens);
 
   // Rank display
   const medal = getRankMedal(stats.rank);
-  console.log(`\n  ${medal} ${chalk.bold.yellow(`Rank #${stats.rank}`)}`);
-  console.log(chalk.gray(`     Top ${stats.percentile.toFixed(1)}% of all users`));
+  console.log();
+  console.log(`  ${medal} ${colors.white.bold(`Rank #${stats.rank}`)}`);
+  console.log(`  ${colors.dim(`Top ${stats.percentile.toFixed(1)}% of all users`)}`);
 
-  // Stats grid
-  console.log('\n' + chalk.gray('─'.repeat(42)));
+  // Level display
+  console.log();
   console.log(
-    `  ${chalk.gray('Tokens')}      ${chalk.white(formatNumber(stats.totalTokens))}`
+    `  ${levelInfo.icon} ${levelInfo.color(`Level ${levelInfo.level} • ${levelInfo.name}`)}`
   );
-  console.log(
-    `  ${chalk.gray('Spent')}       ${chalk.green('$' + stats.totalSpent.toFixed(2))}`
-  );
-  console.log(
-    `  ${chalk.gray('Tier')}        ${getTierEmoji(stats.tier)} ${chalk.white(stats.tier)}`
-  );
+
+  // CCplan badge
+  if (stats.tier) {
+    const badge = getCCplanBadge(stats.tier);
+    if (badge) {
+      console.log(`  ${badge}`);
+    }
+  }
+
+  // Stats box
+  console.log();
+  const statsLines = [
+    `${colors.muted("Total Tokens")}   ${colors.primary(formatNumber(stats.totalTokens))}`,
+    `${colors.muted("Total Spent")}    ${colors.success(formatCost(stats.totalSpent))}`,
+    `${colors.muted("Tier")}           ${colors.cyan(stats.tier || "Unknown")}`,
+  ];
+  console.log(createBox(statsLines));
 
   // Badges
   if (stats.badges && stats.badges.length > 0) {
-    console.log('\n' + chalk.gray('─'.repeat(42)));
-    console.log(chalk.gray('  Badges'));
-    console.log(`  ${stats.badges.join('  ')}`);
+    console.log();
+    console.log(`  ${colors.muted("Badges")}`);
+    console.log(`  ${stats.badges.join("  ")}`);
   }
 
-  console.log('\n' + chalk.bold('═'.repeat(42)));
-  console.log(chalk.gray('\n  View leaderboard: https://ccgather.dev/leaderboard\n'));
+  // Footer
+  console.log();
+  console.log(colors.dim("  ─".repeat(25)));
+  console.log(`  ${colors.muted("View leaderboard:")} ${link("https://ccgather.dev/leaderboard")}`);
+  console.log();
 }
+
+export default status;

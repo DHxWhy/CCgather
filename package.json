@@ -31,6 +31,7 @@
   "license": "MIT",
   "dependencies": {
     "@clerk/nextjs": "^6.36.5",
+    "@clerk/themes": "^2.4.47",
     "@hookform/resolvers": "^5.2.2",
     "@radix-ui/react-popover": "^1.1.15",
     "@supabase/ssr": "^0.8.0",

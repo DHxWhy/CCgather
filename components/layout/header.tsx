@@ -95,7 +95,6 @@ export function Header() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [cliModalOpen, setCLIModalOpen] = useState(false);
   const [authModalOpen, setAuthModalOpen] = useState(false);
-  const [authModalView, setAuthModalView] = useState<"sign-in" | "sign-up">("sign-in");
   const [clerkFailed, setClerkFailed] = useState(false);
 
   // Clerk 로드 상태 체크
@@ -118,11 +117,6 @@ export function Header() {
   }, [isLoaded]);
 
   const closeMobileMenu = () => setMobileMenuOpen(false);
-
-  const openAuthModal = (view: "sign-in" | "sign-up") => {
-    setAuthModalView(view);
-    setAuthModalOpen(true);
-  };
 
   // Sign In 버튼을 보여줄지 결정
   // Clerk 로드 전, 로드 실패, 또는 로그아웃 상태일 때 표시
@@ -196,7 +190,7 @@ export function Header() {
 
             {/* Sign In 버튼: Clerk 로드 전/실패/로그아웃 상태에서 표시 */}
             {showSignInButton && (
-              <Button variant="primary" size="sm" onClick={() => openAuthModal("sign-in")}>
+              <Button variant="primary" size="sm" onClick={() => setAuthModalOpen(true)}>
                 Sign In
               </Button>
             )}
@@ -269,7 +263,7 @@ export function Header() {
                 fullWidth
                 onClick={() => {
                   closeMobileMenu();
-                  openAuthModal("sign-in");
+                  setAuthModalOpen(true);
                 }}
               >
                 Sign In
@@ -283,11 +277,7 @@ export function Header() {
       <CLIModal isOpen={cliModalOpen} onClose={() => setCLIModalOpen(false)} />
 
       {/* Auth Modal */}
-      <AuthModal
-        isOpen={authModalOpen}
-        onClose={() => setAuthModalOpen(false)}
-        defaultView={authModalView}
-      />
+      <AuthModal isOpen={authModalOpen} onClose={() => setAuthModalOpen(false)} />
     </>
   );
 }

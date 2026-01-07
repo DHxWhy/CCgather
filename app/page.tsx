@@ -1,8 +1,10 @@
-import Link from 'next/link';
-import { SignedIn, SignedOut, SignInButton } from '@clerk/nextjs';
-import { Header } from '@/components/layout/header';
-import { Footer } from '@/components/layout/footer';
-import { CLIButton } from '@/components/cli/CLIButton';
+import Link from "next/link";
+import { SignedIn, SignedOut } from "@clerk/nextjs";
+import { Header } from "@/components/layout/header";
+import { Footer } from "@/components/layout/footer";
+import { CLIButton } from "@/components/cli/CLIButton";
+import { LiveStatsTicker } from "@/components/stats/LiveStatsTicker";
+import { GetStartedButton } from "@/components/auth/GetStartedButton";
 
 export default function HomePage() {
   return (
@@ -22,17 +24,15 @@ export default function HomePage() {
             <span className="text-[var(--color-text-secondary)]">Compete globally.</span>
           </h1>
           <p className="text-sm text-[var(--color-text-muted)] max-w-md mx-auto mb-8 leading-relaxed">
-            The definitive leaderboard for Claude Code developers.
-            See where you rank among thousands of developers worldwide.
+            The definitive leaderboard for Claude Code developers. See where you rank among
+            thousands of developers worldwide.
           </p>
 
           <div className="flex gap-3 justify-center mb-16">
             <SignedOut>
-              <SignInButton mode="modal">
-                <button className="px-5 py-2.5 rounded-lg bg-[var(--color-claude-coral)] text-white text-sm font-medium hover:opacity-90 transition-opacity">
-                  Get Started
-                </button>
-              </SignInButton>
+              <GetStartedButton className="px-5 py-2.5 rounded-lg bg-[var(--color-claude-coral)] text-white text-sm font-medium hover:opacity-90 transition-opacity">
+                Get Started
+              </GetStartedButton>
             </SignedOut>
             <SignedIn>
               <Link
@@ -50,23 +50,9 @@ export default function HomePage() {
             </Link>
           </div>
 
-          {/* Stats */}
-          <div className="grid grid-cols-4 gap-3 max-w-lg mx-auto mb-20">
-            {[
-              { value: '2.3K', label: 'Developers' },
-              { value: '45T', label: 'Tokens' },
-              { value: '$123K', label: 'Spent' },
-              { value: '42', label: 'Countries' },
-            ].map((stat) => (
-              <div key={stat.label} className="text-center">
-                <div className="text-lg font-semibold text-[var(--color-text-primary)]">
-                  {stat.value}
-                </div>
-                <div className="text-[10px] text-[var(--color-text-muted)] uppercase tracking-wide">
-                  {stat.label}
-                </div>
-              </div>
-            ))}
+          {/* Live Stats Ticker */}
+          <div className="max-w-lg mx-auto mb-20">
+            <LiveStatsTicker variant="full" />
           </div>
 
           {/* Section Divider */}
@@ -79,9 +65,9 @@ export default function HomePage() {
             </p>
             <div className="grid grid-cols-3 gap-4">
               {[
-                { num: '01', title: 'Sign in', desc: 'GitHub OAuth' },
-                { num: '02', title: 'Install', desc: 'npx ccgather' },
-                { num: '03', title: 'Track', desc: 'Auto sync' },
+                { num: "01", title: "Sign in", desc: "GitHub OAuth" },
+                { num: "02", title: "Install", desc: "npx ccgather" },
+                { num: "03", title: "Track", desc: "Auto sync" },
               ].map((item) => (
                 <div key={item.num} className="text-center">
                   <div className="text-[10px] text-[var(--color-claude-coral)] font-mono mb-2">
@@ -125,8 +111,8 @@ export default function HomePage() {
               </span>
             </div>
             <div className="bg-black/50 rounded-lg p-3 font-mono text-sm">
-              <span className="text-[var(--color-text-muted)]">$</span>{' '}
-              <span className="text-[var(--color-claude-coral)]">npx</span>{' '}
+              <span className="text-[var(--color-text-muted)]">$</span>{" "}
+              <span className="text-[var(--color-claude-coral)]">npx</span>{" "}
               <span className="text-[var(--color-text-primary)]">ccgather</span>
             </div>
           </div>
@@ -134,22 +120,17 @@ export default function HomePage() {
           {/* CLI Features */}
           <div className="grid grid-cols-2 gap-3 mb-6">
             {[
-              { icon: '⚡', title: 'Auto Sync', desc: 'Hooks into Claude Code' },
-              { icon: '🔐', title: 'Secure', desc: 'GitHub OAuth' },
-              { icon: '📊', title: 'Real-time', desc: 'Instant updates' },
-              { icon: '🎯', title: 'Zero Config', desc: 'Just works' },
+              { icon: "⚡", title: "Auto Sync", desc: "Hooks into Claude Code" },
+              { icon: "🔐", title: "Secure", desc: "GitHub OAuth" },
+              { icon: "📊", title: "Real-time", desc: "Instant updates" },
+              { icon: "🎯", title: "Zero Config", desc: "Just works" },
             ].map((feature) => (
-              <div
-                key={feature.title}
-                className="glass rounded-lg p-3 text-left"
-              >
+              <div key={feature.title} className="glass rounded-lg p-3 text-left">
                 <div className="text-lg mb-1">{feature.icon}</div>
                 <div className="text-xs font-medium text-[var(--color-text-primary)] mb-0.5">
                   {feature.title}
                 </div>
-                <div className="text-[10px] text-[var(--color-text-muted)]">
-                  {feature.desc}
-                </div>
+                <div className="text-[10px] text-[var(--color-text-muted)]">{feature.desc}</div>
               </div>
             ))}
           </div>

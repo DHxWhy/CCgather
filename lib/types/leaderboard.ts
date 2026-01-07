@@ -4,9 +4,23 @@
  * Types for leaderboard page and related components
  */
 
-export type PeriodFilter = 'today' | '7d' | '30d' | 'all';
-export type ScopeFilter = 'global' | 'country';
-export type SortByFilter = 'tokens' | 'cost';
+export type PeriodFilter = "today" | "7d" | "30d" | "all";
+export type ScopeFilter = "global" | "country";
+export type SortByFilter = "tokens" | "cost";
+
+// CCplan (subscription tier) filter
+export type CCPlanFilter = "all" | "free" | "pro" | "max" | "team";
+
+// CCplan configuration
+export const CCPLAN_CONFIG: Record<
+  Exclude<CCPlanFilter, "all">,
+  { name: string; icon: string; color: string }
+> = {
+  max: { name: "Max League", icon: "🚀", color: "#F59E0B" },
+  pro: { name: "Pro League", icon: "⚡", color: "#3B82F6" },
+  team: { name: "Team League", icon: "👥", color: "#8B5CF6" },
+  free: { name: "Free League", icon: "⚪", color: "#6B7280" },
+};
 
 export interface LeaderboardUser {
   id: string;
@@ -23,6 +37,9 @@ export interface LeaderboardUser {
   period_tokens?: number;
   period_cost?: number;
   period_rank?: number;
+  // CCplan fields
+  ccplan?: CCPlanFilter | null;
+  ccplan_rank?: number | null;
 }
 
 export interface LeaderboardResponse {
@@ -34,6 +51,13 @@ export interface LeaderboardResponse {
     totalPages: number;
   };
   period: PeriodFilter;
+  // CCplan info
+  ccplan: CCPlanFilter;
+  ccplan_info?: {
+    name: string;
+    icon: string;
+    total_users: number;
+  };
 }
 
 export interface UsageHistoryPoint {

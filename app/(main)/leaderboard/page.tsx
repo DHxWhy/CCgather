@@ -1,11 +1,19 @@
-'use client';
+"use client";
 
-import { useState, useMemo, useEffect, useCallback } from 'react';
-import ReactCountryFlag from 'react-country-flag';
-import { useUser } from '@clerk/nextjs';
-import { ProfileSidePanel } from '@/components/leaderboard/ProfileSidePanel';
-import { LEVELS, getLevelByTokens } from '@/lib/constants/levels';
-import type { LeaderboardUser, PeriodFilter, ScopeFilter, SortByFilter } from '@/lib/types';
+import { useState, useMemo, useEffect, useCallback } from "react";
+import ReactCountryFlag from "react-country-flag";
+import { useUser } from "@clerk/nextjs";
+import { ProfileSidePanel } from "@/components/leaderboard/ProfileSidePanel";
+import { CCplanTabs } from "@/components/leaderboard/CCplanTabs";
+import { LiveStatsTicker } from "@/components/stats/LiveStatsTicker";
+import { LEVELS, getLevelByTokens } from "@/lib/constants/levels";
+import type {
+  LeaderboardUser,
+  PeriodFilter,
+  ScopeFilter,
+  SortByFilter,
+  CCPlanFilter,
+} from "@/lib/types";
 
 // Format numbers properly
 function formatTokens(num: number): string {
@@ -80,16 +88,19 @@ function LevelBadge({ tokens }: { tokens: number }) {
               <div
                 key={level.level}
                 className={`flex items-center justify-between px-1.5 py-1 rounded text-[10px] ${
-                  level.level === currentLevel.level ? 'font-medium' : ''
+                  level.level === currentLevel.level ? "font-medium" : ""
                 }`}
-                style={level.level === currentLevel.level
-                  ? { backgroundColor: `${level.color}20`, color: level.color }
-                  : { color: '#9CA3AF' }
+                style={
+                  level.level === currentLevel.level
+                    ? { backgroundColor: `${level.color}20`, color: level.color }
+                    : { color: "#9CA3AF" }
                 }
               >
                 <div className="flex items-center gap-1.5">
                   <span>{level.icon}</span>
-                  <span>Lv.{level.level} {level.name}</span>
+                  <span>
+                    Lv.{level.level} {level.name}
+                  </span>
                 </div>
                 <span className="text-[8px] opacity-70">
                   {formatLevelRange(level.minTokens, level.maxTokens)}
@@ -117,9 +128,10 @@ export default function LeaderboardPage() {
   const { user: clerkUser } = useUser();
   const [selectedUser, setSelectedUser] = useState<DisplayUser | null>(null);
   const [isPanelOpen, setIsPanelOpen] = useState(false);
-  const [periodFilter, setPeriodFilter] = useState<PeriodFilter>('all');
-  const [scopeFilter, setScopeFilter] = useState<ScopeFilter>('global');
-  const [sortBy, setSortBy] = useState<SortByFilter>('tokens');
+  const [periodFilter, setPeriodFilter] = useState<PeriodFilter>("all");
+  const [scopeFilter, setScopeFilter] = useState<ScopeFilter>("global");
+  const [sortBy, setSortBy] = useState<SortByFilter>("tokens");
+  const [ccplanFilter, setCcplanFilter] = useState<CCPlanFilter>("all");
   const [isAnimating, setIsAnimating] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
   const [panelWidth, setPanelWidth] = useState(0);
@@ -132,7 +144,7 @@ export default function LeaderboardPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [total, setTotal] = useState(0);
-  const [currentUserCountry, setCurrentUserCountry] = useState<string>('KR');
+  const [currentUserCountry, setCurrentUserCountry] = useState<string>("KR");
 
   // Fetch leaderboard data
   const fetchLeaderboard = useCallback(async () => {
@@ -141,61 +153,82 @@ export default function LeaderboardPage() {
 
     try {
       const params = new URLSearchParams();
-      params.set('page', String(currentPage));
-      params.set('limit', String(ITEMS_PER_PAGE));
-      params.set('period', periodFilter);
+      params.set("page", String(currentPage));
+      params.set("limit", String(ITEMS_PER_PAGE));
+      params.set("period", periodFilter);
 
-      if (scopeFilter === 'country' && currentUserCountry) {
-        params.set('country', currentUserCountry);
+      if (scopeFilter === "country" && currentUserCountry) {
+        params.set("country", currentUserCountry);
+      }
+
+      if (ccplanFilter !== "all") {
+        params.set("ccplan", ccplanFilter);
       }
 
       const response = await fetch(`/api/leaderboard?${params}`);
 
       if (!response.ok) {
-        throw new Error('Failed to fetch leaderboard');
+        throw new Error("Failed to fetch leaderboard");
       }
 
       const data = await response.json();
 
       // Transform API response to display format
-      const transformedUsers: DisplayUser[] = (data.users || []).map((user: LeaderboardUser, index: number) => {
-        // For period queries, use period_rank; for all-time, use global/country rank
-        const rank = periodFilter !== 'all'
-          ? user.period_rank || ((currentPage - 1) * ITEMS_PER_PAGE + index + 1)
-          : scopeFilter === 'country'
-            ? user.country_rank || ((currentPage - 1) * ITEMS_PER_PAGE + index + 1)
-            : user.global_rank || ((currentPage - 1) * ITEMS_PER_PAGE + index + 1);
+      const transformedUsers: DisplayUser[] = (data.users || []).map(
+        (user: LeaderboardUser, index: number) => {
+          // For period queries, use period_rank; for ccplan filter, use ccplan_rank; otherwise use global/country rank
+          let rank: number;
+          if (periodFilter !== "all") {
+            rank = user.period_rank || (currentPage - 1) * ITEMS_PER_PAGE + index + 1;
+          } else if (ccplanFilter !== "all") {
+            rank = user.ccplan_rank || (currentPage - 1) * ITEMS_PER_PAGE + index + 1;
+          } else if (scopeFilter === "country") {
+            rank = user.country_rank || (currentPage - 1) * ITEMS_PER_PAGE + index + 1;
+          } else {
+            rank = user.global_rank || (currentPage - 1) * ITEMS_PER_PAGE + index + 1;
+          }
 
-        return {
-          ...user,
-          rank,
-          periodTokens: user.period_tokens ?? user.total_tokens,
-          periodCost: user.period_cost ?? user.total_cost,
-          isCurrentUser: clerkUser?.id === user.id,
-        };
-      });
+          return {
+            ...user,
+            rank,
+            periodTokens: user.period_tokens ?? user.total_tokens,
+            periodCost: user.period_cost ?? user.total_cost,
+            isCurrentUser: clerkUser?.id === user.id,
+          };
+        }
+      );
 
       // Sort by selected metric if needed
-      if (sortBy === 'cost') {
+      if (sortBy === "cost") {
         transformedUsers.sort((a, b) => (b.periodCost ?? 0) - (a.periodCost ?? 0));
-        transformedUsers.forEach((u, i) => { u.rank = (currentPage - 1) * ITEMS_PER_PAGE + i + 1; });
+        transformedUsers.forEach((u, i) => {
+          u.rank = (currentPage - 1) * ITEMS_PER_PAGE + i + 1;
+        });
       }
 
       setUsers(transformedUsers);
       setTotal(data.pagination?.total || 0);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred');
+      setError(err instanceof Error ? err.message : "An error occurred");
     } finally {
       setLoading(false);
     }
-  }, [currentPage, periodFilter, scopeFilter, sortBy, currentUserCountry, clerkUser?.id]);
+  }, [
+    currentPage,
+    periodFilter,
+    scopeFilter,
+    sortBy,
+    ccplanFilter,
+    currentUserCountry,
+    clerkUser?.id,
+  ]);
 
   // Fetch current user's country
   useEffect(() => {
     async function fetchUserCountry() {
       if (!clerkUser?.id) return;
       try {
-        const response = await fetch('/api/me');
+        const response = await fetch("/api/me");
         if (response.ok) {
           const data = await response.json();
           if (data.user?.country_code) {
@@ -233,8 +266,8 @@ export default function LeaderboardPage() {
       }
     };
     updatePanelWidth();
-    window.addEventListener('resize', updatePanelWidth);
-    return () => window.removeEventListener('resize', updatePanelWidth);
+    window.addEventListener("resize", updatePanelWidth);
+    return () => window.removeEventListener("resize", updatePanelWidth);
   }, []);
 
   // Set mounted state
@@ -248,7 +281,7 @@ export default function LeaderboardPage() {
 
   // Find current user
   const currentUserData = useMemo(() => {
-    return users.find(u => u.isCurrentUser);
+    return users.find((u) => u.isCurrentUser);
   }, [users]);
 
   // Go to my rank
@@ -264,14 +297,14 @@ export default function LeaderboardPage() {
   useEffect(() => {
     setCurrentPage(1);
     setHighlightMyRank(false);
-  }, [scopeFilter, periodFilter, sortBy]);
+  }, [scopeFilter, periodFilter, sortBy, ccplanFilter]);
 
   // Animation trigger
   useEffect(() => {
     setIsAnimating(true);
     const timer = setTimeout(() => setIsAnimating(false), 600);
     return () => clearTimeout(timer);
-  }, [scopeFilter, periodFilter, sortBy, currentPage]);
+  }, [scopeFilter, periodFilter, sortBy, ccplanFilter, currentPage]);
 
   const handleRowClick = (user: DisplayUser) => {
     setSelectedUser(user);
@@ -294,26 +327,50 @@ export default function LeaderboardPage() {
         <div
           className="max-w-[1000px] px-4 py-8 transition-all duration-300"
           style={{
-            marginLeft: 'max(calc((100vw - 1000px) / 2), 16px)',
-            marginRight: isPanelOpen && panelWidth > 0 ? `${panelWidth}px` : 'auto',
+            marginLeft: "max(calc((100vw - 1000px) / 2), 16px)",
+            marginRight: isPanelOpen && panelWidth > 0 ? `${panelWidth}px` : "auto",
           }}
         >
           {/* Header */}
           <div className="mb-6">
-            <p className="text-xs text-[var(--color-claude-coral)] font-medium tracking-wide uppercase mb-3">
-              Rankings
-            </p>
-            <h1 className="text-2xl md:text-3xl font-semibold text-[var(--color-text-primary)] mb-2 flex items-center gap-2">
-              {scopeFilter === 'global' ? 'Global' : (
-                <>
-                  <ReactCountryFlag countryCode={currentUserCountry} svg style={{ width: '24px', height: '24px' }} />
-                  Country
-                </>
-              )} Leaderboard
-            </h1>
-            <p className="text-sm text-[var(--color-text-muted)]">
-              Top Claude Code developers ranked by {sortBy === 'tokens' ? 'token usage' : 'spending'}
-            </p>
+            <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
+              <div>
+                <p className="text-xs text-[var(--color-claude-coral)] font-medium tracking-wide uppercase mb-3">
+                  Rankings
+                </p>
+                <h1 className="text-2xl md:text-3xl font-semibold text-[var(--color-text-primary)] mb-2 flex items-center gap-2">
+                  {scopeFilter === "global" ? (
+                    "Global"
+                  ) : (
+                    <>
+                      <ReactCountryFlag
+                        countryCode={currentUserCountry}
+                        svg
+                        style={{ width: "24px", height: "24px" }}
+                      />
+                      Country
+                    </>
+                  )}{" "}
+                  Leaderboard
+                </h1>
+                <p className="text-sm text-[var(--color-text-muted)]">
+                  Top Claude Code developers ranked by{" "}
+                  {sortBy === "tokens" ? "token usage" : "spending"}
+                </p>
+              </div>
+              {/* Live Stats Ticker */}
+              <div className="hidden lg:block">
+                <LiveStatsTicker
+                  variant="compact"
+                  className="px-3 py-2 rounded-lg bg-white/[0.02] border border-white/[0.06]"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* CCplan League Tabs */}
+          <div className="mb-4">
+            <CCplanTabs value={ccplanFilter} onChange={setCcplanFilter} />
           </div>
 
           {/* Filters */}
@@ -322,24 +379,28 @@ export default function LeaderboardPage() {
               {/* Scope Filter */}
               <div className="flex p-1 bg-[var(--color-filter-bg)] rounded-lg gap-1">
                 <button
-                  onClick={() => setScopeFilter('global')}
+                  onClick={() => setScopeFilter("global")}
                   className={`px-2.5 py-1.5 rounded-md text-sm md:text-xs font-medium transition-colors ${
-                    scopeFilter === 'global'
-                      ? 'bg-[var(--color-claude-coral)] text-white'
-                      : 'text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-filter-hover)]'
+                    scopeFilter === "global"
+                      ? "bg-[var(--color-claude-coral)] text-white"
+                      : "text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-filter-hover)]"
                   }`}
                 >
                   🌍
                 </button>
                 <button
-                  onClick={() => setScopeFilter('country')}
+                  onClick={() => setScopeFilter("country")}
                   className={`px-2.5 py-1.5 rounded-md text-sm md:text-xs font-medium transition-colors flex items-center justify-center ${
-                    scopeFilter === 'country'
-                      ? 'bg-[var(--color-claude-coral)] text-white'
-                      : 'text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-filter-hover)]'
+                    scopeFilter === "country"
+                      ? "bg-[var(--color-claude-coral)] text-white"
+                      : "text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-filter-hover)]"
                   }`}
                 >
-                  <ReactCountryFlag countryCode={currentUserCountry} svg style={{ width: '16px', height: '16px' }} />
+                  <ReactCountryFlag
+                    countryCode={currentUserCountry}
+                    svg
+                    style={{ width: "16px", height: "16px" }}
+                  />
                 </button>
               </div>
 
@@ -348,18 +409,18 @@ export default function LeaderboardPage() {
               {/* Period Filter */}
               <div className="flex p-1 bg-[var(--color-filter-bg)] rounded-lg gap-1">
                 {[
-                  { value: 'today', label: '1D', labelFull: 'Today' },
-                  { value: '7d', label: '7D' },
-                  { value: '30d', label: '30D' },
-                  { value: 'all', label: 'All', labelFull: 'All Time' },
+                  { value: "today", label: "1D", labelFull: "Today" },
+                  { value: "7d", label: "7D" },
+                  { value: "30d", label: "30D" },
+                  { value: "all", label: "All", labelFull: "All Time" },
                 ].map((period) => (
                   <button
                     key={period.value}
                     onClick={() => setPeriodFilter(period.value as PeriodFilter)}
                     className={`px-2.5 md:px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
                       periodFilter === period.value
-                        ? 'bg-[var(--color-filter-active)] text-[var(--color-text-primary)]'
-                        : 'text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-filter-hover)]'
+                        ? "bg-[var(--color-filter-active)] text-[var(--color-text-primary)]"
+                        : "text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-filter-hover)]"
                     }`}
                   >
                     <span className="md:hidden">{period.label}</span>
@@ -378,27 +439,29 @@ export default function LeaderboardPage() {
                 >
                   <span>📍</span>
                   <span className="hidden md:inline">My Rank</span>
-                  <span className="text-[var(--color-claude-coral)] font-semibold">#{currentUserData.rank}</span>
+                  <span className="text-[var(--color-claude-coral)] font-semibold">
+                    #{currentUserData.rank}
+                  </span>
                 </button>
               )}
 
               <div className="flex p-1 bg-[var(--color-filter-bg)] rounded-lg gap-1">
                 <button
-                  onClick={() => setSortBy('cost')}
+                  onClick={() => setSortBy("cost")}
                   className={`px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors ${
-                    sortBy === 'cost'
-                      ? 'bg-[var(--color-cost)] text-white'
-                      : 'text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-filter-hover)]'
+                    sortBy === "cost"
+                      ? "bg-[var(--color-cost)] text-white"
+                      : "text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-filter-hover)]"
                   }`}
                 >
                   💵
                 </button>
                 <button
-                  onClick={() => setSortBy('tokens')}
+                  onClick={() => setSortBy("tokens")}
                   className={`px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors ${
-                    sortBy === 'tokens'
-                      ? 'bg-[var(--color-claude-coral)] text-white'
-                      : 'text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-filter-hover)]'
+                    sortBy === "tokens"
+                      ? "bg-[var(--color-claude-coral)] text-white"
+                      : "text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-filter-hover)]"
                   }`}
                 >
                   🪙
@@ -439,7 +502,9 @@ export default function LeaderboardPage() {
               <div className="flex flex-col items-center gap-3 text-center">
                 <span className="text-4xl">📭</span>
                 <p className="text-sm text-[var(--color-text-muted)]">No users found</p>
-                <p className="text-xs text-[var(--color-text-muted)]">Be the first to join the leaderboard!</p>
+                <p className="text-xs text-[var(--color-text-muted)]">
+                  Be the first to join the leaderboard!
+                </p>
               </div>
             </div>
           )}
@@ -460,9 +525,15 @@ export default function LeaderboardPage() {
                     </colgroup>
                     <thead>
                       <tr className="border-b border-[var(--border-default)]">
-                        <th className="text-center text-text-secondary font-medium text-xs py-2.5 px-1">Rank</th>
-                        <th className="text-center text-text-secondary font-medium text-xs py-2.5 px-1">C</th>
-                        <th className="text-left text-text-secondary font-medium text-xs py-2.5 px-1">User</th>
+                        <th className="text-center text-text-secondary font-medium text-xs py-2.5 px-1">
+                          Rank
+                        </th>
+                        <th className="text-center text-text-secondary font-medium text-xs py-2.5 px-1">
+                          C
+                        </th>
+                        <th className="text-left text-text-secondary font-medium text-xs py-2.5 px-1">
+                          User
+                        </th>
                         <th className="text-center text-text-secondary font-medium text-xs py-2.5 px-1">
                           <span className="md:hidden">Lv</span>
                           <span className="hidden md:inline">Level</span>
@@ -481,13 +552,25 @@ export default function LeaderboardPage() {
                       {users.map((user, index) => {
                         const isFirst = user.rank === 1;
                         const isTopThree = user.rank <= 3;
-                        const rowPadding = isFirst ? 'py-2 lg:py-3' : isTopThree ? 'py-2 lg:py-2.5' : 'py-2';
-                        const avatarSize = isFirst ? 'w-6 h-6 lg:w-8 lg:h-8' : isTopThree ? 'w-6 h-6 lg:w-7 lg:h-7' : 'w-6 h-6';
-                        const avatarText = isFirst ? 'text-xs lg:text-sm' : 'text-xs';
-                        const nameSize = isFirst ? 'text-xs lg:text-sm' : 'text-xs';
-                        const rankSize = isFirst ? 'text-base lg:text-lg' : isTopThree ? 'text-base' : 'text-xs';
+                        const rowPadding = isFirst
+                          ? "py-2 lg:py-3"
+                          : isTopThree
+                            ? "py-2 lg:py-2.5"
+                            : "py-2";
+                        const avatarSize = isFirst
+                          ? "w-6 h-6 lg:w-8 lg:h-8"
+                          : isTopThree
+                            ? "w-6 h-6 lg:w-7 lg:h-7"
+                            : "w-6 h-6";
+                        const avatarText = isFirst ? "text-xs lg:text-sm" : "text-xs";
+                        const nameSize = isFirst ? "text-xs lg:text-sm" : "text-xs";
+                        const rankSize = isFirst
+                          ? "text-base lg:text-lg"
+                          : isTopThree
+                            ? "text-base"
+                            : "text-xs";
                         const flagSize = 16;
-                        const valueSize = 'text-xs';
+                        const valueSize = "text-xs";
 
                         const periodTokens = user.period_tokens ?? user.total_tokens;
                         const periodCost = user.period_cost ?? user.total_cost;
@@ -497,26 +580,37 @@ export default function LeaderboardPage() {
                             key={`${scopeFilter}-${periodFilter}-${sortBy}-${user.id}`}
                             onClick={() => handleRowClick(user)}
                             className={`border-b border-[var(--border-default)] transition-all cursor-pointer hover:!bg-[var(--color-table-row-hover)] ${
-                              user.isCurrentUser ? 'bg-primary/5' : ''
-                            } ${selectedUser?.id === user.id && isPanelOpen ? '!bg-[var(--color-table-row-hover)]' : ''} ${
-                              user.isCurrentUser && highlightMyRank ? '!bg-[var(--color-claude-coral)]/20 ring-2 ring-[var(--color-claude-coral)]' : ''
+                              user.isCurrentUser ? "bg-primary/5" : ""
+                            } ${selectedUser?.id === user.id && isPanelOpen ? "!bg-[var(--color-table-row-hover)]" : ""} ${
+                              user.isCurrentUser && highlightMyRank
+                                ? "!bg-[var(--color-claude-coral)]/20 ring-2 ring-[var(--color-claude-coral)]"
+                                : ""
                             }`}
                             style={{
-                              backgroundColor: !user.isCurrentUser && !(selectedUser?.id === user.id && isPanelOpen) && !highlightMyRank && index % 2 === 1
-                                ? 'var(--color-table-row-even)'
-                                : undefined,
-                              animation: isMounted && isAnimating
-                                ? `fadeSlideIn 0.2s ease-out ${Math.pow(index, 0.35) * 0.225}s both`
-                                : 'none',
+                              backgroundColor:
+                                !user.isCurrentUser &&
+                                !(selectedUser?.id === user.id && isPanelOpen) &&
+                                !highlightMyRank &&
+                                index % 2 === 1
+                                  ? "var(--color-table-row-even)"
+                                  : undefined,
+                              animation:
+                                isMounted && isAnimating
+                                  ? `fadeSlideIn 0.2s ease-out ${Math.pow(index, 0.35) * 0.225}s both`
+                                  : "none",
                             }}
                           >
                             <td className={`${rowPadding} px-1 md:px-2 text-center`}>
                               <span className={`text-text-primary font-mono ${rankSize}`}>
-                                {user.rank <= 3 ? ['🥇', '🥈', '🥉'][user.rank - 1] : `#${user.rank}`}
+                                {user.rank <= 3
+                                  ? ["🥇", "🥈", "🥉"][user.rank - 1]
+                                  : `#${user.rank}`}
                               </span>
                             </td>
                             <td className={`${rowPadding} px-1 text-center`}>
-                              {user.country_code && <CountryFlag countryCode={user.country_code} size={flagSize} />}
+                              {user.country_code && (
+                                <CountryFlag countryCode={user.country_code} size={flagSize} />
+                              )}
                             </td>
                             <td className={`${rowPadding} px-1 md:px-2`}>
                               <div className="flex items-center gap-1.5">
@@ -528,17 +622,24 @@ export default function LeaderboardPage() {
                                       className={`${avatarSize} rounded-full object-cover`}
                                     />
                                   ) : (
-                                    <div className={`${avatarSize} rounded-full bg-gradient-to-br from-primary to-[#F7931E] flex items-center justify-center text-white ${avatarText} font-semibold`}>
+                                    <div
+                                      className={`${avatarSize} rounded-full bg-gradient-to-br from-primary to-[#F7931E] flex items-center justify-center text-white ${avatarText} font-semibold`}
+                                    >
                                       {user.username.charAt(0).toUpperCase()}
                                     </div>
                                   )}
                                 </div>
-                                <span className={`${nameSize} font-medium text-text-primary truncate`}>
+                                <span
+                                  className={`${nameSize} font-medium text-text-primary truncate`}
+                                >
                                   {user.display_name || user.username}
                                 </span>
                               </div>
                             </td>
-                            <td className={`${rowPadding} px-1 text-center`} onClick={(e) => e.stopPropagation()}>
+                            <td
+                              className={`${rowPadding} px-1 text-center`}
+                              onClick={(e) => e.stopPropagation()}
+                            >
                               <span className="md:hidden">
                                 {getLevelByTokens(user.total_tokens).icon}
                               </span>
@@ -548,12 +649,22 @@ export default function LeaderboardPage() {
                             </td>
                             <td className={`${rowPadding} px-0.5 md:px-2 text-center`}>
                               <span className={`text-[var(--color-cost)] font-mono ${valueSize}`}>
-                                <span className="md:hidden">${(periodCost / 1000).toFixed(0)}k</span>
-                                <span className="hidden md:inline">${periodCost.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</span>
+                                <span className="md:hidden">
+                                  ${(periodCost / 1000).toFixed(0)}k
+                                </span>
+                                <span className="hidden md:inline">
+                                  $
+                                  {periodCost.toLocaleString(undefined, {
+                                    minimumFractionDigits: 0,
+                                    maximumFractionDigits: 0,
+                                  })}
+                                </span>
                               </span>
                             </td>
                             <td className={`${rowPadding} pl-0.5 pr-2 md:pr-4 text-right`}>
-                              <span className={`text-[var(--color-claude-coral)] font-mono ${valueSize}`}>
+                              <span
+                                className={`text-[var(--color-claude-coral)] font-mono ${valueSize}`}
+                              >
                                 {formatTokens(periodTokens)}
                               </span>
                             </td>
@@ -585,25 +696,25 @@ export default function LeaderboardPage() {
                       for (let i = 1; i <= totalPages; i++) pages.push(i);
                     } else {
                       pages.push(1);
-                      if (showEllipsisStart) pages.push('...');
+                      if (showEllipsisStart) pages.push("...");
                       const start = Math.max(2, currentPage - 1);
                       const end = Math.min(totalPages - 1, currentPage + 1);
                       for (let i = start; i <= end; i++) pages.push(i);
-                      if (showEllipsisEnd) pages.push('...');
+                      if (showEllipsisEnd) pages.push("...");
                       pages.push(totalPages);
                     }
 
                     return pages.map((page, i) => (
                       <button
                         key={i}
-                        onClick={() => typeof page === 'number' && handlePageChange(page)}
-                        disabled={page === '...'}
+                        onClick={() => typeof page === "number" && handlePageChange(page)}
+                        disabled={page === "..."}
                         className={`w-10 h-10 rounded-lg text-sm font-medium transition-colors ${
                           page === currentPage
-                            ? 'bg-[var(--color-claude-coral)] text-white'
-                            : page === '...'
-                            ? 'text-text-muted cursor-default'
-                            : 'text-text-secondary hover:text-text-primary hover:bg-white/10'
+                            ? "bg-[var(--color-claude-coral)] text-white"
+                            : page === "..."
+                              ? "text-text-muted cursor-default"
+                              : "text-text-secondary hover:text-text-primary hover:bg-white/10"
                         }`}
                       >
                         {page}
@@ -619,9 +730,7 @@ export default function LeaderboardPage() {
                     ›
                   </button>
 
-                  <span className="ml-4 text-xs text-text-muted">
-                    {total} users
-                  </span>
+                  <span className="ml-4 text-xs text-text-muted">{total} users</span>
                 </div>
               )}
             </>
@@ -636,6 +745,7 @@ export default function LeaderboardPage() {
         onClose={handleClosePanel}
         periodFilter={periodFilter}
         scopeFilter={scopeFilter}
+        ccplanFilter={ccplanFilter}
       />
     </div>
   );

@@ -1,30 +1,31 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { NextRequest, NextResponse } from "next/server";
+import { createClient } from "@/lib/supabase/server";
+import { CCPLAN_CONFIG, type CCPlanFilter } from "@/lib/types/leaderboard";
 
-type Period = 'today' | '7d' | '30d' | 'all';
+type Period = "today" | "7d" | "30d" | "all";
 
 function getPeriodDateRange(period: Period): { startDate: string; endDate: string } | null {
-  if (period === 'all') return null;
+  if (period === "all") return null;
 
   const now = new Date();
-  const endDate = now.toISOString().split('T')[0] ?? '';
+  const endDate = now.toISOString().split("T")[0] ?? "";
 
   let startDate: string;
 
   switch (period) {
-    case 'today':
+    case "today":
       startDate = endDate;
       break;
-    case '7d': {
+    case "7d": {
       const weekAgo = new Date(now);
       weekAgo.setDate(weekAgo.getDate() - 7);
-      startDate = weekAgo.toISOString().split('T')[0] ?? '';
+      startDate = weekAgo.toISOString().split("T")[0] ?? "";
       break;
     }
-    case '30d': {
+    case "30d": {
       const monthAgo = new Date(now);
       monthAgo.setDate(monthAgo.getDate() - 30);
-      startDate = monthAgo.toISOString().split('T')[0] ?? '';
+      startDate = monthAgo.toISOString().split("T")[0] ?? "";
       break;
     }
     default:
@@ -36,10 +37,11 @@ function getPeriodDateRange(period: Period): { startDate: string; endDate: strin
 
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
-  const period = (searchParams.get('period') || 'all') as Period;
-  const country = searchParams.get('country') || null;
-  const page = parseInt(searchParams.get('page') || '1', 10);
-  const limit = parseInt(searchParams.get('limit') || '50', 10);
+  const period = (searchParams.get("period") || "all") as Period;
+  const country = searchParams.get("country") || null;
+  const ccplan = (searchParams.get("ccplan") || "all") as CCPlanFilter;
+  const page = parseInt(searchParams.get("page") || "1", 10);
+  const limit = parseInt(searchParams.get("limit") || "50", 10);
   const offset = (page - 1) * limit;
 
   const supabase = await createClient();
@@ -48,7 +50,7 @@ export async function GET(request: NextRequest) {
   // If period is 'all', use existing simple query
   if (!dateRange) {
     let query = supabase
-      .from('users')
+      .from("users")
       .select(
         `
         id,
@@ -60,20 +62,31 @@ export async function GET(request: NextRequest) {
         global_rank,
         country_rank,
         total_tokens,
-        total_cost
+        total_cost,
+        ccplan,
+        ccplan_rank
       `,
-        { count: 'exact' }
+        { count: "exact" }
       )
-      .eq('onboarding_completed', true);
+      .eq("onboarding_completed", true);
 
-    if (country) {
-      query = query.eq('country_code', country.toUpperCase());
+    // Apply ccplan filter
+    if (ccplan !== "all") {
+      query = query.eq("ccplan", ccplan);
     }
 
     if (country) {
-      query = query.order('country_rank', { ascending: true });
+      query = query.eq("country_code", country.toUpperCase());
+    }
+
+    // Determine ordering based on filters
+    if (ccplan !== "all") {
+      // Order by ccplan_rank when filtering by specific tier
+      query = query.order("ccplan_rank", { ascending: true, nullsFirst: false });
+    } else if (country) {
+      query = query.order("country_rank", { ascending: true });
     } else {
-      query = query.order('global_rank', { ascending: true });
+      query = query.order("global_rank", { ascending: true });
     }
 
     query = query.range(offset, offset + limit - 1);
@@ -81,12 +94,19 @@ export async function GET(request: NextRequest) {
     const { data: users, error, count } = await query;
 
     if (error) {
-      console.error('Leaderboard query error:', error);
-      return NextResponse.json(
-        { error: 'Failed to fetch leaderboard' },
-        { status: 500 }
-      );
+      console.error("Leaderboard query error:", error);
+      return NextResponse.json({ error: "Failed to fetch leaderboard" }, { status: 500 });
     }
+
+    // Build ccplan_info if filtering by specific tier
+    const ccplanInfo =
+      ccplan !== "all"
+        ? {
+            name: CCPLAN_CONFIG[ccplan].name,
+            icon: CCPLAN_CONFIG[ccplan].icon,
+            total_users: count || 0,
+          }
+        : undefined;
 
     return NextResponse.json({
       users: users || [],
@@ -97,6 +117,8 @@ export async function GET(request: NextRequest) {
         totalPages: Math.ceil((count || 0) / limit),
       },
       period,
+      ccplan,
+      ccplan_info: ccplanInfo,
     });
   }
 
@@ -105,17 +127,14 @@ export async function GET(request: NextRequest) {
 
   // First, get aggregated usage for the period
   const { data: periodStats, error: statsError } = await supabase
-    .from('usage_stats')
-    .select('user_id, total_tokens, cost_usd')
-    .gte('date', startDate)
-    .lte('date', endDate);
+    .from("usage_stats")
+    .select("user_id, total_tokens, cost_usd")
+    .gte("date", startDate)
+    .lte("date", endDate);
 
   if (statsError) {
-    console.error('Usage stats query error:', statsError);
-    return NextResponse.json(
-      { error: 'Failed to fetch usage stats' },
-      { status: 500 }
-    );
+    console.error("Usage stats query error:", statsError);
+    return NextResponse.json({ error: "Failed to fetch usage stats" }, { status: 500 });
   }
 
   // Aggregate by user
@@ -140,12 +159,13 @@ export async function GET(request: NextRequest) {
         totalPages: 0,
       },
       period,
+      ccplan,
     });
   }
 
   // Fetch user details
   let usersQuery = supabase
-    .from('users')
+    .from("users")
     .select(
       `
       id,
@@ -153,24 +173,28 @@ export async function GET(request: NextRequest) {
       display_name,
       avatar_url,
       country_code,
-      current_level
+      current_level,
+      ccplan,
+      ccplan_rank
     `
     )
-    .in('id', userIds)
-    .eq('onboarding_completed', true);
+    .in("id", userIds)
+    .eq("onboarding_completed", true);
+
+  // Apply ccplan filter
+  if (ccplan !== "all") {
+    usersQuery = usersQuery.eq("ccplan", ccplan);
+  }
 
   if (country) {
-    usersQuery = usersQuery.eq('country_code', country.toUpperCase());
+    usersQuery = usersQuery.eq("country_code", country.toUpperCase());
   }
 
   const { data: usersData, error: usersError } = await usersQuery;
 
   if (usersError) {
-    console.error('Users query error:', usersError);
-    return NextResponse.json(
-      { error: 'Failed to fetch users' },
-      { status: 500 }
-    );
+    console.error("Users query error:", usersError);
+    return NextResponse.json({ error: "Failed to fetch users" }, { status: 500 });
   }
 
   // Combine user data with period aggregates and sort
@@ -195,6 +219,16 @@ export async function GET(request: NextRequest) {
   const total = rankedUsers.length;
   const paginatedUsers = rankedUsers.slice(offset, offset + limit);
 
+  // Build ccplan_info if filtering by specific tier
+  const ccplanInfo =
+    ccplan !== "all"
+      ? {
+          name: CCPLAN_CONFIG[ccplan].name,
+          icon: CCPLAN_CONFIG[ccplan].icon,
+          total_users: total,
+        }
+      : undefined;
+
   return NextResponse.json({
     users: paginatedUsers,
     pagination: {
@@ -204,5 +238,7 @@ export async function GET(request: NextRequest) {
       totalPages: Math.ceil(total / limit),
     },
     period,
+    ccplan,
+    ccplan_info: ccplanInfo,
   });
 }

@@ -1,15 +1,27 @@
-import chalk from 'chalk';
-import ora from 'ora';
-import * as fs from 'fs';
-import * as path from 'path';
-import * as os from 'os';
-import { getApiUrl } from '../lib/config.js';
+import ora from "ora";
+import * as fs from "fs";
+import * as path from "path";
+import * as os from "os";
+import { getApiUrl } from "../lib/config.js";
 import {
   readCCGatherJson,
   scanAndSave,
   getCCGatherJsonPath,
   CCGatherData,
-} from '../lib/ccgather-json.js';
+} from "../lib/ccgather-json.js";
+import {
+  colors,
+  formatNumber,
+  formatCost,
+  header,
+  divider,
+  success,
+  error,
+  warning,
+  link,
+  createBox,
+  printCompactHeader,
+} from "../lib/ui.js";
 
 interface UsageData {
   totalTokens: number;
@@ -19,6 +31,8 @@ interface UsageData {
   cacheReadTokens: number;
   cacheWriteTokens: number;
   daysTracked: number;
+  ccplan?: string | null;
+  rateLimitTier?: string | null;
 }
 
 interface SubmitOptions {
@@ -37,6 +51,8 @@ function ccgatherToUsageData(data: CCGatherData): UsageData {
     cacheReadTokens: data.usage.cacheReadTokens,
     cacheWriteTokens: data.usage.cacheWriteTokens,
     daysTracked: data.stats.daysTracked,
+    ccplan: data.account?.ccplan || null,
+    rateLimitTier: data.account?.rateLimitTier || null,
   };
 }
 
@@ -45,9 +61,9 @@ function ccgatherToUsageData(data: CCGatherData): UsageData {
  */
 function findCcJson(): string | null {
   const possiblePaths = [
-    path.join(process.cwd(), 'cc.json'),
-    path.join(os.homedir(), 'cc.json'),
-    path.join(os.homedir(), '.claude', 'cc.json'),
+    path.join(process.cwd(), "cc.json"),
+    path.join(os.homedir(), "cc.json"),
+    path.join(os.homedir(), ".claude", "cc.json"),
   ];
 
   for (const p of possiblePaths) {
@@ -63,7 +79,7 @@ function findCcJson(): string | null {
  */
 function parseCcJson(filePath: string): UsageData | null {
   try {
-    const content = fs.readFileSync(filePath, 'utf-8');
+    const content = fs.readFileSync(filePath, "utf-8");
     const data = JSON.parse(content);
 
     return {
@@ -87,7 +103,7 @@ function calculateDaysTracked(data: Record<string, unknown>): number {
   if (data.dailyStats && Array.isArray(data.dailyStats)) {
     return data.dailyStats.length;
   }
-  if (data.daily && typeof data.daily === 'object') {
+  if (data.daily && typeof data.daily === "object") {
     return Object.keys(data.daily).length;
   }
   return 1;
@@ -97,7 +113,7 @@ function calculateDaysTracked(data: Record<string, unknown>): number {
  * Parse usage from Claude Code JSONL files
  */
 function parseUsageFromJsonl(): UsageData | null {
-  const projectsDir = path.join(os.homedir(), '.claude', 'projects');
+  const projectsDir = path.join(os.homedir(), ".claude", "projects");
 
   if (!fs.existsSync(projectsDir)) {
     return null;
@@ -117,7 +133,7 @@ function parseUsageFromJsonl(): UsageData | null {
         const fullPath = path.join(dir, entry.name);
         if (entry.isDirectory()) {
           files.push(...findJsonlFiles(fullPath));
-        } else if (entry.name.endsWith('.jsonl')) {
+        } else if (entry.name.endsWith(".jsonl")) {
           files.push(fullPath);
         }
       }
@@ -131,14 +147,14 @@ function parseUsageFromJsonl(): UsageData | null {
 
   for (const filePath of jsonlFiles) {
     try {
-      const content = fs.readFileSync(filePath, 'utf-8');
-      const lines = content.split('\n').filter(line => line.trim());
+      const content = fs.readFileSync(filePath, "utf-8");
+      const lines = content.split("\n").filter((line) => line.trim());
 
       for (const line of lines) {
         try {
           const event = JSON.parse(line);
 
-          if (event.type === 'assistant' && event.message?.usage) {
+          if (event.type === "assistant" && event.message?.usage) {
             const usage = event.message.usage;
             totalInputTokens += usage.input_tokens || 0;
             totalOutputTokens += usage.output_tokens || 0;
@@ -147,7 +163,7 @@ function parseUsageFromJsonl(): UsageData | null {
 
             // Track unique dates
             if (event.timestamp) {
-              const date = new Date(event.timestamp).toISOString().split('T')[0];
+              const date = new Date(event.timestamp).toISOString().split("T")[0];
               dates.add(date);
             }
           }
@@ -182,22 +198,15 @@ function parseUsageFromJsonl(): UsageData | null {
 }
 
 /**
- * Format number with commas
- */
-function formatNumber(num: number): string {
-  return num.toLocaleString();
-}
-
-/**
  * Detect GitHub username from git config or repo
  */
 async function detectGitHubUsername(): Promise<string | null> {
   try {
-    const { execSync } = await import('child_process');
+    const { execSync } = await import("child_process");
 
     // Try to get from git config
     try {
-      const username = execSync('git config --get user.name', { encoding: 'utf-8' }).trim();
+      const username = execSync("git config --get user.name", { encoding: "utf-8" }).trim();
       if (username) return username;
     } catch {
       // Ignore
@@ -205,7 +214,7 @@ async function detectGitHubUsername(): Promise<string | null> {
 
     // Try to get from remote origin
     try {
-      const remote = execSync('git remote get-url origin', { encoding: 'utf-8' }).trim();
+      const remote = execSync("git remote get-url origin", { encoding: "utf-8" }).trim();
       const match = remote.match(/github\.com[:/]([^/]+)/);
       if (match) return match[1];
     } catch {
@@ -220,14 +229,17 @@ async function detectGitHubUsername(): Promise<string | null> {
 /**
  * Submit data to CCgather API
  */
-async function submitToServer(username: string, data: UsageData): Promise<{ success: boolean; profileUrl?: string; error?: string }> {
+async function submitToServer(
+  username: string,
+  data: UsageData
+): Promise<{ success: boolean; profileUrl?: string; rank?: number; error?: string }> {
   const apiUrl = getApiUrl();
 
   try {
     const response = await fetch(`${apiUrl}/cli/submit`, {
-      method: 'POST',
+      method: "POST",
       headers: {
-        'Content-Type': 'application/json',
+        "Content-Type": "application/json",
       },
       body: JSON.stringify({
         username,
@@ -238,6 +250,8 @@ async function submitToServer(username: string, data: UsageData): Promise<{ succ
         cacheReadTokens: data.cacheReadTokens,
         cacheWriteTokens: data.cacheWriteTokens,
         daysTracked: data.daysTracked,
+        ccplan: data.ccplan,
+        rateLimitTier: data.rateLimitTier,
         timestamp: new Date().toISOString(),
       }),
     });
@@ -248,9 +262,9 @@ async function submitToServer(username: string, data: UsageData): Promise<{ succ
     }
 
     const result = await response.json();
-    return { success: true, profileUrl: result.profileUrl };
+    return { success: true, profileUrl: result.profileUrl, rank: result.rank };
   } catch (err) {
-    return { success: false, error: err instanceof Error ? err.message : 'Unknown error' };
+    return { success: false, error: err instanceof Error ? err.message : "Unknown error" };
   }
 }
 
@@ -258,41 +272,52 @@ async function submitToServer(username: string, data: UsageData): Promise<{ succ
  * Main submit command
  */
 export async function submit(options: SubmitOptions): Promise<void> {
-  console.log(chalk.bold('\n🚀 CCgather Submission Tool v1.0.0\n'));
+  printCompactHeader("1.2.1");
+  console.log(header("Submit Usage Data", "📤"));
 
   // Detect GitHub username
-  const spinner = ora('Detecting GitHub username...').start();
+  const spinner = ora({
+    text: "Detecting GitHub username...",
+    color: "cyan",
+  }).start();
   let username = await detectGitHubUsername();
   spinner.stop();
 
   if (username) {
-    console.log(chalk.gray(`Detected GitHub username from repository: ${chalk.white(username)}`));
+    console.log(`\n  ${colors.muted("Detected:")} ${colors.white(username)}`);
   }
 
   // Prompt for username confirmation
-  const inquirer = await import('inquirer');
+  const inquirer = await import("inquirer");
   const { confirmedUsername } = await inquirer.default.prompt([
     {
-      type: 'input',
-      name: 'confirmedUsername',
-      message: 'GitHub username:',
-      default: username || '',
-      validate: (input: string) => input.trim().length > 0 || 'Username is required',
+      type: "input",
+      name: "confirmedUsername",
+      message: colors.muted("GitHub username:"),
+      default: username || "",
+      validate: (input: string) => input.trim().length > 0 || "Username is required",
     },
   ]);
   username = confirmedUsername.trim();
 
   // Find usage data - Priority: ccgather.json > cc.json > JSONL scan
   let usageData: UsageData | null = null;
-  let dataSource = '';
+  let dataSource = "";
 
   // 1. Try ccgather.json first
   const ccgatherData = readCCGatherJson();
   if (ccgatherData) {
     usageData = ccgatherToUsageData(ccgatherData);
-    dataSource = 'ccgather.json';
-    console.log(chalk.green(`✓ Found ${dataSource}`));
-    console.log(chalk.gray(`  Last scanned: ${new Date(ccgatherData.lastScanned).toLocaleString()}\n`));
+    dataSource = "ccgather.json";
+    console.log(`\n  ${success(`Found ${dataSource}`)}`);
+    console.log(
+      `  ${colors.dim(`Last scanned: ${new Date(ccgatherData.lastScanned).toLocaleString()}`)}`
+    );
+
+    // Show CCplan if detected
+    if (usageData.ccplan) {
+      console.log(`  ${colors.dim("CCplan:")} ${colors.primary(usageData.ccplan.toUpperCase())}`);
+    }
   }
 
   // 2. Try legacy cc.json
@@ -301,86 +326,113 @@ export async function submit(options: SubmitOptions): Promise<void> {
     if (ccJsonPath) {
       const { useCcJson } = await inquirer.default.prompt([
         {
-          type: 'confirm',
-          name: 'useCcJson',
-          message: `Found existing cc.json. Use this file?`,
+          type: "confirm",
+          name: "useCcJson",
+          message: "Found existing cc.json. Use this file?",
           default: true,
         },
       ]);
 
       if (useCcJson) {
         usageData = parseCcJson(ccJsonPath);
-        dataSource = 'cc.json';
+        dataSource = "cc.json";
       }
     }
   }
 
   // 3. Scan JSONL files and create ccgather.json
   if (!usageData) {
-    const parseSpinner = ora('Scanning Claude Code usage data...').start();
+    const parseSpinner = ora({
+      text: "Scanning Claude Code usage data...",
+      color: "cyan",
+    }).start();
     const scannedData = scanAndSave();
     parseSpinner.stop();
 
     if (scannedData) {
       usageData = ccgatherToUsageData(scannedData);
-      dataSource = 'Claude Code logs';
-      console.log(chalk.green(`✓ Scanned and saved to ccgather.json`));
-      console.log(chalk.gray(`  Path: ${getCCGatherJsonPath()}\n`));
+      dataSource = "Claude Code logs";
+      console.log(`\n  ${success("Scanned and saved to ccgather.json")}`);
+      console.log(`  ${colors.dim(`Path: ${getCCGatherJsonPath()}`)}`);
     }
   }
 
   if (!usageData) {
-    console.log(chalk.red('\n❌ No usage data found.'));
-    console.log(chalk.gray('Make sure you have used Claude Code.'));
-    console.log(chalk.gray('Run: npx ccgather scan\n'));
+    console.log(`\n  ${error("No usage data found.")}`);
+    console.log(`  ${colors.muted("Make sure you have used Claude Code.")}`);
+    console.log(`  ${colors.muted("Run:")} ${colors.white("npx ccgather scan")}\n`);
     process.exit(1);
   }
 
-  if (dataSource && dataSource !== 'Claude Code logs') {
-    console.log(chalk.green(`✓ Using ${dataSource}\n`));
+  if (dataSource && dataSource !== "Claude Code logs") {
+    console.log(`\n  ${success(`Using ${dataSource}`)}`);
   }
 
-  // Show summary
-  console.log(chalk.bold('Summary:'));
-  console.log(chalk.gray(`  Total Cost: ${chalk.green('$' + formatNumber(Math.round(usageData.totalCost)))}`));
-  console.log(chalk.gray(`  Total Tokens: ${chalk.cyan(formatNumber(usageData.totalTokens))}`));
-  console.log(chalk.gray(`  Days Tracked: ${chalk.yellow(usageData.daysTracked.toString())}`));
+  // Show summary in a box
+  console.log();
+  const summaryLines = [
+    `${colors.muted("Total Cost")}     ${colors.success(formatCost(usageData.totalCost))}`,
+    `${colors.muted("Total Tokens")}   ${colors.primary(formatNumber(usageData.totalTokens))}`,
+    `${colors.muted("Days Tracked")}   ${colors.warning(usageData.daysTracked.toString())}`,
+  ];
+
+  if (usageData.ccplan) {
+    summaryLines.push(
+      `${colors.muted("CCplan")}         ${colors.cyan(usageData.ccplan.toUpperCase())}`
+    );
+  }
+
+  console.log(createBox(summaryLines));
   console.log();
 
   // Confirm submission
   if (!options.yes) {
     const { confirmSubmit } = await inquirer.default.prompt([
       {
-        type: 'confirm',
-        name: 'confirmSubmit',
-        message: 'Submit to CCgather leaderboard?',
+        type: "confirm",
+        name: "confirmSubmit",
+        message: "Submit to CCgather leaderboard?",
         default: true,
       },
     ]);
 
     if (!confirmSubmit) {
-      console.log(chalk.gray('\nSubmission cancelled.'));
+      console.log(`\n  ${colors.muted("Submission cancelled.")}\n`);
       return;
     }
   }
 
   // Submit to server
-  const submitSpinner = ora('Submitting to CCgather...').start();
+  const submitSpinner = ora({
+    text: "Submitting to CCgather...",
+    color: "cyan",
+  }).start();
   const result = await submitToServer(username, usageData);
 
   if (result.success) {
-    submitSpinner.succeed(chalk.green('Successfully submitted to CCgather!'));
+    submitSpinner.succeed(colors.success("Successfully submitted to CCgather!"));
     console.log();
-    console.log(chalk.gray(`View your profile at: ${chalk.cyan(result.profileUrl || `https://ccgather.dev/u/${username}`)}`));
+
+    // Success box
+    const successLines = [
+      `${colors.success("✓")} ${colors.white.bold("Submission Complete!")}`,
+      "",
+      `${colors.muted("Profile:")} ${link(result.profileUrl || `https://ccgather.dev/u/${username}`)}`,
+    ];
+
+    if (result.rank) {
+      successLines.push(`${colors.muted("Rank:")}    ${colors.warning(`#${result.rank}`)}`);
+    }
+
+    console.log(createBox(successLines));
     console.log();
-    console.log(chalk.bold('Done! 🎉'));
+    console.log(`  ${colors.dim("View leaderboard:")} ${link("https://ccgather.dev/leaderboard")}`);
+    console.log();
   } else {
-    submitSpinner.fail(chalk.red('Failed to submit'));
-    console.log(chalk.red(result.error || 'Unknown error'));
+    submitSpinner.fail(colors.error("Failed to submit"));
+    console.log(`\n  ${error(result.error || "Unknown error")}\n`);
     process.exit(1);
   }
-
-  console.log();
 }
 
 export default submit;

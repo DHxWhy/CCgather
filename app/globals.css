@@ -862,3 +862,5 @@ body {
     @apply bg-background text-foreground;
   }
 }
+
+/* Clerk styles removed - using custom AuthModal */
