@@ -1,0 +1,63 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { createClient } from '@/lib/supabase/server';
+
+export async function GET(request: NextRequest) {
+  try {
+    // Get API token from Authorization header
+    const authHeader = request.headers.get('Authorization');
+    if (!authHeader?.startsWith('Bearer ')) {
+      return NextResponse.json(
+        { error: 'Missing or invalid authorization header' },
+        { status: 401 }
+      );
+    }
+
+    const apiToken = authHeader.slice(7);
+    if (!apiToken || apiToken.length < 10) {
+      return NextResponse.json(
+        { error: 'Invalid API token' },
+        { status: 401 }
+      );
+    }
+
+    const supabase = await createClient();
+
+    // Find user by API key
+    const { data: user, error: userError } = await supabase
+      .from('users')
+      .select('id, username, rank, tier, total_tokens, total_spent, badges')
+      .eq('api_key', apiToken)
+      .single();
+
+    if (userError || !user) {
+      return NextResponse.json(
+        { error: 'Invalid API token' },
+        { status: 401 }
+      );
+    }
+
+    // Calculate percentile
+    const { count: totalUsers } = await supabase
+      .from('users')
+      .select('*', { count: 'exact', head: true });
+
+    const percentile = totalUsers
+      ? ((totalUsers - user.rank + 1) / totalUsers) * 100
+      : 0;
+
+    return NextResponse.json({
+      rank: user.rank,
+      totalTokens: user.total_tokens,
+      totalSpent: user.total_spent,
+      tier: user.tier,
+      badges: user.badges || [],
+      percentile: Math.round(percentile * 10) / 10,
+    });
+  } catch (error) {
+    console.error('[CLI Status] Error:', error);
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    );
+  }
+}

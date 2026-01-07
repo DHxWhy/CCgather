@@ -1,0 +1,306 @@
+export interface Badge {
+  id: string;
+  name: string;
+  description: string;
+  praise: string; // Congratulatory message for earned badges
+  icon: string;
+  category: 'streak' | 'tokens' | 'rank' | 'model' | 'social';
+  rarity: 'common' | 'rare' | 'epic' | 'legendary';
+}
+
+// Rarity order for sorting (higher = harder)
+export const RARITY_ORDER: Record<Badge['rarity'], number> = {
+  legendary: 4,
+  epic: 3,
+  rare: 2,
+  common: 1,
+};
+
+export const BADGES: Badge[] = [
+  // ═══════════════════════════════════════
+  // 1. STREAK BADGES (연속 사용) - 6개
+  // 순서: Legendary → Epic → Rare → Common
+  // ═══════════════════════════════════════
+  {
+    id: 'streak_180',
+    name: 'Half-Year Hero',
+    description: '180 days consecutive usage',
+    praise: 'Six months of dedication! You\'re in the hall of fame.',
+    icon: '👑',
+    category: 'streak',
+    rarity: 'legendary',
+  },
+  {
+    id: 'streak_90',
+    name: 'Quarter Master',
+    description: '90 days consecutive usage',
+    praise: 'Three months of commitment! You\'re building something great.',
+    icon: '🏔️',
+    category: 'streak',
+    rarity: 'epic',
+  },
+  {
+    id: 'streak_60',
+    name: 'Two-Month Titan',
+    description: '60 days consecutive usage',
+    praise: 'Two months strong! You\'re unstoppable.',
+    icon: '💪',
+    category: 'streak',
+    rarity: 'rare',
+  },
+  {
+    id: 'streak_30',
+    name: 'Monthly Warrior',
+    description: '30 days consecutive usage',
+    praise: 'One month streak! You\'re on the right track.',
+    icon: '🗓️',
+    category: 'streak',
+    rarity: 'rare',
+  },
+  {
+    id: 'streak_14',
+    name: 'Fortnight Fighter',
+    description: '14 days consecutive usage',
+    praise: 'Two weeks of consistency! Great habits forming.',
+    icon: '🔥',
+    category: 'streak',
+    rarity: 'common',
+  },
+  {
+    id: 'streak_7',
+    name: 'Week Starter',
+    description: '7 days consecutive usage',
+    praise: 'First week done! The journey begins.',
+    icon: '🌱',
+    category: 'streak',
+    rarity: 'common',
+  },
+
+  // ═══════════════════════════════════════
+  // 2. TOKENS BADGES (토큰/비용) - 6개
+  // 순서: Legendary → Epic → Rare → Common
+  // ═══════════════════════════════════════
+  {
+    id: '10b_club',
+    name: '10B Club',
+    description: 'Reached 10B+ total tokens',
+    praise: 'Absolutely legendary! 10 billion tokens of pure mastery.',
+    icon: '💎',
+    category: 'tokens',
+    rarity: 'legendary',
+  },
+  {
+    id: 'billion_club',
+    name: 'Billion Club',
+    description: 'Reached 1B+ total tokens',
+    praise: 'Welcome to the Billion Club! You\'re among the elite.',
+    icon: '💠',
+    category: 'tokens',
+    rarity: 'epic',
+  },
+  {
+    id: 'whale',
+    name: 'Whale',
+    description: 'Spent $10,000+ total',
+    praise: 'A true whale! Making waves in the Claude ocean.',
+    icon: '🐋',
+    category: 'tokens',
+    rarity: 'epic',
+  },
+  {
+    id: 'hundred_million',
+    name: '100M Club',
+    description: 'Reached 100M total tokens',
+    praise: 'One hundred million! You\'re getting serious.',
+    icon: '💫',
+    category: 'tokens',
+    rarity: 'rare',
+  },
+  {
+    id: 'big_spender',
+    name: 'Big Spender',
+    description: 'Spent $5,000+ total',
+    praise: 'Investing in AI excellence! Your commitment is remarkable.',
+    icon: '💰',
+    category: 'tokens',
+    rarity: 'rare',
+  },
+  {
+    id: 'first_million',
+    name: 'First Million',
+    description: 'Reached 1M total tokens',
+    praise: 'Your first million! The journey begins.',
+    icon: '🎯',
+    category: 'tokens',
+    rarity: 'common',
+  },
+
+  // ═══════════════════════════════════════
+  // 3. RANK BADGES (순위) - 6개
+  // 순서: Legendary → Epic → Rare → Common
+  // ═══════════════════════════════════════
+  {
+    id: 'global_first',
+    name: 'Global Champion',
+    description: 'Reached #1 Worldwide',
+    praise: 'The absolute champion! You stand at the top of the world.',
+    icon: '🥇',
+    category: 'rank',
+    rarity: 'legendary',
+  },
+  {
+    id: 'top_3',
+    name: 'Podium',
+    description: 'Reached Global Top 3',
+    praise: 'On the podium! One of the top 3 in the world.',
+    icon: '🏆',
+    category: 'rank',
+    rarity: 'legendary',
+  },
+  {
+    id: 'trailblazer',
+    name: 'Trailblazer',
+    description: 'Top 10 earliest users from your country',
+    praise: 'Pioneer of your nation! You opened the path for others.',
+    icon: '🌅',
+    category: 'rank',
+    rarity: 'legendary',
+  },
+  {
+    id: 'country_first',
+    name: 'National Champion',
+    description: 'Reached #1 in your country',
+    praise: 'National champion! You\'ve conquered your homeland.',
+    icon: '🇰🇷',
+    category: 'rank',
+    rarity: 'epic',
+  },
+  {
+    id: 'top_50',
+    name: 'Global 50',
+    description: 'Reached Global Top 50',
+    praise: 'Top 50 worldwide! Elite competitor.',
+    icon: '🏅',
+    category: 'rank',
+    rarity: 'rare',
+  },
+  {
+    id: 'rising_star',
+    name: 'Rising Star',
+    description: 'Gained 100+ ranks in a week',
+    praise: 'Shooting star! Your rise is inspiring everyone.',
+    icon: '🚀',
+    category: 'rank',
+    rarity: 'rare',
+  },
+
+  // ═══════════════════════════════════════
+  // 4. MODEL BADGES (모델 사용) - 4개
+  // 순서: Legendary → Epic → Rare → Common
+  // ═══════════════════════════════════════
+  {
+    id: 'opus_lover',
+    name: 'Opus Connoisseur',
+    description: '70%+ of tokens on Opus models',
+    praise: 'Only the finest for you! Opus is your weapon of choice.',
+    icon: '🎭',
+    category: 'model',
+    rarity: 'epic',
+  },
+  {
+    id: 'sonnet_master',
+    name: 'Sonnet Master',
+    description: '70%+ of tokens on Sonnet models',
+    praise: 'Balance of power and efficiency! Sonnet suits you perfectly.',
+    icon: '🎵',
+    category: 'model',
+    rarity: 'rare',
+  },
+  {
+    id: 'model_explorer',
+    name: 'Model Explorer',
+    description: 'Used all available Claude models (100K+ each)',
+    praise: 'Versatile explorer! You\'ve mastered the entire Claude family.',
+    icon: '🧭',
+    category: 'model',
+    rarity: 'rare',
+  },
+  {
+    id: 'haiku_ninja',
+    name: 'Haiku Ninja',
+    description: '70%+ of tokens on Haiku models',
+    praise: 'Speed demon! Quick and efficient like a true ninja.',
+    icon: '⚡',
+    category: 'model',
+    rarity: 'common',
+  },
+
+  // ═══════════════════════════════════════
+  // 5. SOCIAL BADGES (소셜/초대) - 5개
+  // 순서: Legendary → Epic → Rare → Common
+  // ═══════════════════════════════════════
+  {
+    id: 'social_legend',
+    name: 'Social Legend',
+    description: 'Referred 50+ friends who joined',
+    praise: 'Legendary influencer! You built an army.',
+    icon: '🦁',
+    category: 'social',
+    rarity: 'legendary',
+  },
+  {
+    id: 'social_star',
+    name: 'Social Star',
+    description: 'Referred 30+ friends who joined',
+    praise: 'Star power! Your network is impressive.',
+    icon: '🌟',
+    category: 'social',
+    rarity: 'epic',
+  },
+  {
+    id: 'influencer',
+    name: 'Influencer',
+    description: 'Referred 20+ friends who joined',
+    praise: 'Community builder! You\'re a true ambassador.',
+    icon: '📣',
+    category: 'social',
+    rarity: 'rare',
+  },
+  {
+    id: 'networker',
+    name: 'Networker',
+    description: 'Referred 10+ friends who joined',
+    praise: 'Growing your network! Keep spreading the word.',
+    icon: '🤝',
+    category: 'social',
+    rarity: 'rare',
+  },
+  {
+    id: 'recruiter',
+    name: 'Recruiter',
+    description: 'Referred 5+ friends who joined',
+    praise: 'First recruits! Thanks for sharing.',
+    icon: '📢',
+    category: 'social',
+    rarity: 'common',
+  },
+];
+
+export function getBadgeById(id: string): Badge | undefined {
+  return BADGES.find((b) => b.id === id);
+}
+
+export function getBadgesByCategory(category: Badge['category']): Badge[] {
+  return BADGES.filter((b) => b.category === category);
+}
+
+export function getBadgesByRarity(rarity: Badge['rarity']): Badge[] {
+  return BADGES.filter((b) => b.rarity === rarity);
+}
+
+export const RARITY_COLORS: Record<Badge['rarity'], string> = {
+  common: '#A1A1AA',
+  rare: '#3B82F6',
+  epic: '#A855F7',
+  legendary: '#FFD700',
+};
