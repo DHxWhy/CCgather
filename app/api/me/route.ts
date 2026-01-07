@@ -35,6 +35,7 @@ export async function GET() {
       total_tokens,
       total_cost,
       onboarding_completed,
+      is_admin,
       created_at
     `
     )
