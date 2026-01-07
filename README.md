@@ -180,52 +180,6 @@ AI-summarized latest news about Claude Code. *(Coming Soon)*
 
 <br/>
 
-## Contributing
-
-Contributions are welcome! Feel free to submit a Pull Request.
-
-<details>
-<summary><b>Development Setup</b></summary>
-
-### Prerequisites
-- Node.js 20+
-- pnpm 9+
-
-### Installation
-
-```bash
-# Clone the repository
-git clone https://github.com/DHxYoon/ccgather.git
-cd ccgather
-
-# Install dependencies
-pnpm install
-
-# Set up environment variables
-cp .env.example .env.local
-
-# Start development server
-pnpm dev
-```
-
-### Project Structure
-
-```
-ccgather/
-├── app/                    # Next.js App Router
-│   ├── (auth)/            # Authentication pages
-│   ├── (main)/            # Main application pages
-│   └── api/               # API routes
-├── components/            # React components
-├── lib/                   # Utilities & helpers
-├── packages/cli/          # CLI tool
-└── supabase/              # Database migrations
-```
-
-</details>
-
-<br/>
-
 ## License
 
 This project is proprietary. See [`LICENSE`](LICENSE) for more information.
