@@ -2,7 +2,8 @@
 
 import { motion } from "framer-motion";
 import { type Country } from "@/lib/constants/countries";
-import { Users, Trophy, TrendingUp, Check } from "lucide-react";
+import { Trophy, TrendingUp, Check } from "lucide-react";
+import { FlagIcon } from "@/components/ui/FlagIcon";
 
 interface CountryCardProps {
   country: Country;
@@ -50,20 +51,20 @@ export function CountryCard({ country, isSelected, onClick, index, stats }: Coun
       <div className="relative p-4 sm:p-5">
         {/* Header with flag and name */}
         <div className="flex items-center gap-3 mb-3">
-          <motion.span
-            className="text-3xl sm:text-4xl"
-            animate={isSelected ? { scale: [1, 1.2, 1] } : {}}
+          <motion.div
+            className="flex-shrink-0"
+            animate={isSelected ? { scale: [1, 1.1, 1] } : {}}
             transition={{ duration: 0.3 }}
           >
-            {country.flag}
-          </motion.span>
+            <FlagIcon countryCode={country.code} size="lg" />
+          </motion.div>
           <div className="flex-1 min-w-0">
             <h3 className="font-semibold text-text-primary truncate text-sm sm:text-base">
               {country.name}
             </h3>
-            <p className="text-xs text-text-muted uppercase tracking-wider">
-              {country.code} League
-            </p>
+            {stats && (
+              <p className="text-xs text-text-muted">{stats.users.toLocaleString()} vibe coders</p>
+            )}
           </div>
 
           {/* Selection indicator */}
@@ -87,17 +88,13 @@ export function CountryCard({ country, isSelected, onClick, index, stats }: Coun
         {stats && (
           <div className="flex items-center gap-4 text-xs text-text-secondary">
             <div className="flex items-center gap-1.5">
-              <Users className="w-3.5 h-3.5 text-primary/70" />
-              <span>{stats.users.toLocaleString()} coders</span>
-            </div>
-            <div className="flex items-center gap-1.5">
               <Trophy className="w-3.5 h-3.5 text-amber-500/70" />
-              <span>#{stats.rank}</span>
+              <span>#{stats.rank} Global</span>
             </div>
             {stats.trending && (
               <div className="flex items-center gap-1 text-emerald-400">
                 <TrendingUp className="w-3.5 h-3.5" />
-                <span>Hot</span>
+                <span>Trending</span>
               </div>
             )}
           </div>
@@ -138,7 +135,7 @@ export function CountryCardCompact({
       whileHover={{ x: 4 }}
       whileTap={{ scale: 0.98 }}
     >
-      <span className="text-xl">{country.flag}</span>
+      <FlagIcon countryCode={country.code} size="sm" />
       <span
         className={`flex-1 truncate ${isSelected ? "text-text-primary font-medium" : "text-text-secondary"}`}
       >

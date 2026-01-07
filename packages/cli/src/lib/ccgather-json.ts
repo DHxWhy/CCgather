@@ -1,6 +1,16 @@
-import * as fs from 'fs';
-import * as path from 'path';
-import * as os from 'os';
+import * as fs from "fs";
+import * as path from "path";
+import * as os from "os";
+
+export interface DailyUsage {
+  date: string; // YYYY-MM-DD
+  tokens: number;
+  cost: number;
+  inputTokens: number;
+  outputTokens: number;
+  sessions: number;
+  models: Record<string, number>;
+}
 
 export interface CCGatherData {
   version: string;
@@ -21,22 +31,56 @@ export interface CCGatherData {
     lastUsed: string | null;
   };
   models: Record<string, number>;
+  projects: Record<
+    string,
+    {
+      tokens: number;
+      cost: number;
+      sessions: number;
+      models: Record<string, number>;
+    }
+  >;
+  dailyUsage: DailyUsage[];
 }
 
-const CCGATHER_JSON_VERSION = '1.0.0';
+const CCGATHER_JSON_VERSION = "1.2.0";
+
+/**
+ * Extract project name from file path
+ */
+function extractProjectName(filePath: string): string {
+  // Path format: ~/.claude/projects/{encoded-path}/{session}.jsonl
+  const parts = filePath.split(/[/\\]/);
+  const projectsIndex = parts.findIndex((p) => p === "projects");
+
+  if (projectsIndex >= 0 && parts[projectsIndex + 1]) {
+    // Decode the project path (it's URL encoded)
+    try {
+      const encoded = parts[projectsIndex + 1];
+      const decoded = decodeURIComponent(encoded);
+      // Get last part of the path as project name
+      const pathParts = decoded.split(/[/\\]/);
+      return pathParts[pathParts.length - 1] || decoded;
+    } catch {
+      return parts[projectsIndex + 1];
+    }
+  }
+
+  return "unknown";
+}
 
 /**
  * Get the path to ccgather.json
  */
 export function getCCGatherJsonPath(): string {
-  return path.join(os.homedir(), '.claude', 'ccgather.json');
+  return path.join(os.homedir(), ".claude", "ccgather.json");
 }
 
 /**
  * Get Claude Code projects directory
  */
 function getClaudeProjectsDir(): string {
-  return path.join(os.homedir(), '.claude', 'projects');
+  return path.join(os.homedir(), ".claude", "projects");
 }
 
 /**
@@ -50,7 +94,7 @@ function findJsonlFiles(dir: string): string[] {
       const fullPath = path.join(dir, entry.name);
       if (entry.isDirectory()) {
         files.push(...findJsonlFiles(fullPath));
-      } else if (entry.name.endsWith('.jsonl')) {
+      } else if (entry.name.endsWith(".jsonl")) {
         files.push(fullPath);
       }
     }
@@ -66,15 +110,15 @@ function findJsonlFiles(dir: string): string[] {
 function estimateCost(model: string, inputTokens: number, outputTokens: number): number {
   // Pricing per million tokens (approximate)
   const pricing: Record<string, { input: number; output: number }> = {
-    'claude-opus-4': { input: 15, output: 75 },
-    'claude-sonnet-4': { input: 3, output: 15 },
-    'claude-haiku': { input: 0.25, output: 1.25 },
-    'default': { input: 3, output: 15 },
+    "claude-opus-4": { input: 15, output: 75 },
+    "claude-sonnet-4": { input: 3, output: 15 },
+    "claude-haiku": { input: 0.25, output: 1.25 },
+    default: { input: 3, output: 15 },
   };
 
-  let modelKey = 'default';
+  let modelKey = "default";
   for (const key of Object.keys(pricing)) {
-    if (model.includes(key.replace('claude-', ''))) {
+    if (model.includes(key.replace("claude-", ""))) {
       modelKey = key;
       break;
     }
@@ -105,6 +149,27 @@ export function scanUsageData(): CCGatherData | null {
   let sessionsCount = 0;
   const dates = new Set<string>();
   const models: Record<string, number> = {};
+  const projects: Record<
+    string,
+    {
+      tokens: number;
+      cost: number;
+      sessions: number;
+      models: Record<string, number>;
+    }
+  > = {};
+  // Daily usage tracking
+  const dailyData: Record<
+    string,
+    {
+      tokens: number;
+      cost: number;
+      inputTokens: number;
+      outputTokens: number;
+      sessions: Set<string>;
+      models: Record<string, number>;
+    }
+  > = {};
   let firstTimestamp: string | null = null;
   let lastTimestamp: string | null = null;
 
@@ -112,17 +177,30 @@ export function scanUsageData(): CCGatherData | null {
   sessionsCount = jsonlFiles.length;
 
   for (const filePath of jsonlFiles) {
+    const projectName = extractProjectName(filePath);
+
+    // Initialize project if not exists
+    if (!projects[projectName]) {
+      projects[projectName] = {
+        tokens: 0,
+        cost: 0,
+        sessions: 0,
+        models: {},
+      };
+    }
+    projects[projectName].sessions++;
+
     try {
-      const content = fs.readFileSync(filePath, 'utf-8');
-      const lines = content.split('\n').filter((line) => line.trim());
+      const content = fs.readFileSync(filePath, "utf-8");
+      const lines = content.split("\n").filter((line) => line.trim());
 
       for (const line of lines) {
         try {
           const event = JSON.parse(line);
 
-          if (event.type === 'assistant' && event.message?.usage) {
+          if (event.type === "assistant" && event.message?.usage) {
             const usage = event.message.usage;
-            const model = event.message.model || 'unknown';
+            const model = event.message.model || "unknown";
             const inputTokens = usage.input_tokens || 0;
             const outputTokens = usage.output_tokens || 0;
 
@@ -132,16 +210,44 @@ export function scanUsageData(): CCGatherData | null {
             totalCacheWrite += usage.cache_creation_input_tokens || 0;
 
             // Calculate cost for this message
-            totalCost += estimateCost(model, inputTokens, outputTokens);
+            const messageCost = estimateCost(model, inputTokens, outputTokens);
+            totalCost += messageCost;
 
-            // Track model usage
+            // Track model usage (global)
             const totalModelTokens = inputTokens + outputTokens;
             models[model] = (models[model] || 0) + totalModelTokens;
 
-            // Track dates
+            // Track project usage
+            projects[projectName].tokens += totalModelTokens;
+            projects[projectName].cost += messageCost;
+            projects[projectName].models[model] =
+              (projects[projectName].models[model] || 0) + totalModelTokens;
+
+            // Track dates and daily usage
             if (event.timestamp) {
-              const date = new Date(event.timestamp).toISOString().split('T')[0];
+              const date = new Date(event.timestamp).toISOString().split("T")[0];
               dates.add(date);
+
+              // Initialize daily data if not exists
+              if (!dailyData[date]) {
+                dailyData[date] = {
+                  tokens: 0,
+                  cost: 0,
+                  inputTokens: 0,
+                  outputTokens: 0,
+                  sessions: new Set(),
+                  models: {},
+                };
+              }
+
+              // Track daily usage
+              dailyData[date].tokens += totalModelTokens;
+              dailyData[date].cost += messageCost;
+              dailyData[date].inputTokens += inputTokens;
+              dailyData[date].outputTokens += outputTokens;
+              dailyData[date].sessions.add(filePath);
+              dailyData[date].models[model] =
+                (dailyData[date].models[model] || 0) + totalModelTokens;
 
               // Track first and last timestamps
               if (!firstTimestamp || event.timestamp < firstTimestamp) {
@@ -167,6 +273,24 @@ export function scanUsageData(): CCGatherData | null {
     return null;
   }
 
+  // Round project costs
+  for (const projectName of Object.keys(projects)) {
+    projects[projectName].cost = Math.round(projects[projectName].cost * 100) / 100;
+  }
+
+  // Convert daily data to sorted array
+  const dailyUsage: DailyUsage[] = Object.entries(dailyData)
+    .map(([date, data]) => ({
+      date,
+      tokens: data.tokens,
+      cost: Math.round(data.cost * 100) / 100,
+      inputTokens: data.inputTokens,
+      outputTokens: data.outputTokens,
+      sessions: data.sessions.size,
+      models: data.models,
+    }))
+    .sort((a, b) => a.date.localeCompare(b.date));
+
   return {
     version: CCGATHER_JSON_VERSION,
     lastUpdated: new Date().toISOString(),
@@ -182,10 +306,12 @@ export function scanUsageData(): CCGatherData | null {
     stats: {
       daysTracked: dates.size,
       sessionsCount,
-      firstUsed: firstTimestamp ? new Date(firstTimestamp).toISOString().split('T')[0] : null,
-      lastUsed: lastTimestamp ? new Date(lastTimestamp).toISOString().split('T')[0] : null,
+      firstUsed: firstTimestamp ? new Date(firstTimestamp).toISOString().split("T")[0] : null,
+      lastUsed: lastTimestamp ? new Date(lastTimestamp).toISOString().split("T")[0] : null,
     },
     models,
+    projects,
+    dailyUsage,
   };
 }
 
@@ -200,7 +326,7 @@ export function readCCGatherJson(): CCGatherData | null {
   }
 
   try {
-    const content = fs.readFileSync(jsonPath, 'utf-8');
+    const content = fs.readFileSync(jsonPath, "utf-8");
     return JSON.parse(content) as CCGatherData;
   } catch {
     return null;

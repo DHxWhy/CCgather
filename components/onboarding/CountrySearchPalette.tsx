@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Search, Command, X, Globe2, Sparkles } from "lucide-react";
 import { type Country } from "@/lib/constants/countries";
+import { FlagIcon } from "@/components/ui/FlagIcon";
 
 interface CountrySearchPaletteProps {
   countries: Country[];
@@ -213,7 +214,7 @@ export function CountrySearchPalette({
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ delay: index * 0.02 }}
                     >
-                      <span className="text-xl">{country.flag}</span>
+                      <FlagIcon countryCode={country.code} size="sm" />
                       <span className="flex-1">{country.name}</span>
                       {selectedCountry === country.code && (
                         <span className="text-xs text-primary font-medium px-2 py-0.5 rounded-full bg-primary/10">

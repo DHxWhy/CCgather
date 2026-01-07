@@ -1,24 +1,26 @@
-'use client';
+"use client";
 
-import Link from 'next/link';
-import Image from 'next/image';
-import { usePathname } from 'next/navigation';
-import { SignedIn, SignedOut, SignInButton, UserButton } from '@clerk/nextjs';
-import { Menu } from 'lucide-react';
-import { useState } from 'react';
-import { cn } from '@/lib/utils';
-import { ThemeSwitcher } from '@/components/ui/theme-switcher';
-import { MobileDrawer } from './MobileDrawer';
-import { Button } from '@/components/ui/Button';
-import { CLIModal } from '@/components/cli/CLIModal';
+import Link from "next/link";
+import Image from "next/image";
+import { usePathname } from "next/navigation";
+import { SignedIn, SignedOut, ClerkLoaded, ClerkLoading } from "@clerk/nextjs";
+import { Menu } from "lucide-react";
+import { useState } from "react";
+import { cn } from "@/lib/utils";
+import { ThemeSwitcher } from "@/components/ui/theme-switcher";
+import { MobileDrawer } from "./MobileDrawer";
+import { Button } from "@/components/ui/Button";
+import { CLIModal } from "@/components/cli/CLIModal";
+import { ProfileDropdown } from "@/components/auth/ProfileDropdown";
+import { AuthModal } from "@/components/auth/AuthModal";
 
 // ============================================
 // Navigation Links
 // ============================================
 
 const navLinks = [
-  { href: '/leaderboard', label: 'Leaderboard' },
-  { href: '/news', label: 'News' },
+  { href: "/leaderboard", label: "Leaderboard" },
+  { href: "/news", label: "News" },
 ];
 
 // ============================================
@@ -39,11 +41,11 @@ function NavLink({ href, label, isActive, onClick, className }: NavLinkProps) {
       href={href}
       onClick={onClick}
       className={cn(
-        'relative text-sm font-medium transition-colors duration-200',
-        'group',
+        "relative text-sm font-medium transition-colors duration-200",
+        "group",
         isActive
-          ? 'text-[var(--color-text-primary)]'
-          : 'text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]',
+          ? "text-[var(--color-text-primary)]"
+          : "text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]",
         className
       )}
     >
@@ -51,10 +53,10 @@ function NavLink({ href, label, isActive, onClick, className }: NavLinkProps) {
       {/* Underline animation */}
       <span
         className={cn(
-          'absolute -bottom-1 left-0 h-0.5 rounded-full',
-          'bg-gradient-to-r from-[var(--color-claude-coral)] to-[var(--color-claude-rust)]',
-          'transition-all duration-300',
-          isActive ? 'w-full' : 'w-0 group-hover:w-full'
+          "absolute -bottom-1 left-0 h-0.5 rounded-full",
+          "bg-gradient-to-r from-[var(--color-claude-coral)] to-[var(--color-claude-rust)]",
+          "transition-all duration-300",
+          isActive ? "w-full" : "w-0 group-hover:w-full"
         )}
       />
     </Link>
@@ -71,12 +73,12 @@ function MobileNavLink({ href, label, isActive, onClick }: NavLinkProps) {
       href={href}
       onClick={onClick}
       className={cn(
-        'flex items-center px-4 py-3 rounded-xl',
-        'text-base font-medium transition-all duration-200',
-        'touch-target',
+        "flex items-center px-4 py-3 rounded-xl",
+        "text-base font-medium transition-all duration-200",
+        "touch-target",
         isActive
-          ? 'text-[var(--color-text-primary)] bg-[var(--glass-bg)]'
-          : 'text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--glass-bg)]'
+          ? "text-[var(--color-text-primary)] bg-[var(--glass-bg)]"
+          : "text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--glass-bg)]"
       )}
     >
       {label}
@@ -92,8 +94,15 @@ export function Header() {
   const pathname = usePathname();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [cliModalOpen, setCLIModalOpen] = useState(false);
+  const [authModalOpen, setAuthModalOpen] = useState(false);
+  const [authModalView, setAuthModalView] = useState<"sign-in" | "sign-up">("sign-in");
 
   const closeMobileMenu = () => setMobileMenuOpen(false);
+
+  const openAuthModal = (view: "sign-in" | "sign-up") => {
+    setAuthModalView(view);
+    setAuthModalOpen(true);
+  };
 
   return (
     <>
@@ -101,10 +110,10 @@ export function Header() {
         {/* Glassmorphism Background */}
         <div
           className={cn(
-            'absolute inset-0',
-            'bg-[var(--color-bg-primary)]/80',
-            'backdrop-blur-xl',
-            'border-b border-[var(--border-default)]'
+            "absolute inset-0",
+            "bg-[var(--color-bg-primary)]/80",
+            "backdrop-blur-xl",
+            "border-b border-[var(--border-default)]"
           )}
         />
 
@@ -140,18 +149,18 @@ export function Header() {
             <button
               onClick={() => setCLIModalOpen(true)}
               className={cn(
-                'relative text-sm font-medium transition-colors duration-200',
-                'text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]',
-                'group'
+                "relative text-sm font-medium transition-colors duration-200",
+                "text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]",
+                "group"
               )}
             >
               CLI
               <span
                 className={cn(
-                  'absolute -bottom-1 left-0 h-0.5 rounded-full',
-                  'bg-gradient-to-r from-[var(--color-claude-coral)] to-[var(--color-claude-rust)]',
-                  'transition-all duration-300',
-                  'w-0 group-hover:w-full'
+                  "absolute -bottom-1 left-0 h-0.5 rounded-full",
+                  "bg-gradient-to-r from-[var(--color-claude-coral)] to-[var(--color-claude-rust)]",
+                  "transition-all duration-300",
+                  "w-0 group-hover:w-full"
                 )}
               />
             </button>
@@ -161,39 +170,35 @@ export function Header() {
           <div className="hidden md:flex items-center gap-3">
             <ThemeSwitcher size="sm" />
 
-            <SignedOut>
-              <SignInButton mode="modal">
-                <Button variant="primary" size="sm">
+            {/* Clerk 로딩 중일 때 기본 Sign In 버튼 표시 */}
+            <ClerkLoading>
+              <Button variant="primary" size="sm" onClick={() => openAuthModal("sign-in")}>
+                Sign In
+              </Button>
+            </ClerkLoading>
+
+            {/* Clerk 로드 완료 후 */}
+            <ClerkLoaded>
+              <SignedOut>
+                <Button variant="primary" size="sm" onClick={() => openAuthModal("sign-in")}>
                   Sign In
                 </Button>
-              </SignInButton>
-            </SignedOut>
+              </SignedOut>
 
-            <SignedIn>
-              <NavLink
-                href="/settings"
-                label="Settings"
-                isActive={pathname === '/settings'}
-                className="hidden md:block"
-              />
-              <UserButton
-                appearance={{
-                  elements: {
-                    avatarBox: 'w-8 h-8',
-                  },
-                }}
-              />
-            </SignedIn>
+              <SignedIn>
+                <ProfileDropdown align="right" />
+              </SignedIn>
+            </ClerkLoaded>
           </div>
 
           {/* Mobile Menu Button */}
           <button
             className={cn(
-              'md:hidden p-2 -mr-2 rounded-lg',
-              'text-[var(--color-text-secondary)]',
-              'hover:text-[var(--color-text-primary)]',
-              'hover:bg-[var(--glass-bg)]',
-              'transition-colors duration-200'
+              "md:hidden p-2 -mr-2 rounded-lg",
+              "text-[var(--color-text-secondary)]",
+              "hover:text-[var(--color-text-primary)]",
+              "hover:bg-[var(--glass-bg)]",
+              "transition-colors duration-200"
             )}
             onClick={() => setMobileMenuOpen(true)}
             aria-label="Open menu"
@@ -204,11 +209,7 @@ export function Header() {
       </header>
 
       {/* Mobile Drawer */}
-      <MobileDrawer
-        open={mobileMenuOpen}
-        onClose={closeMobileMenu}
-        title="Menu"
-      >
+      <MobileDrawer open={mobileMenuOpen} onClose={closeMobileMenu} title="Menu">
         <div className="flex flex-col p-4 gap-2">
           {/* Navigation Links */}
           {navLinks.map((link) => (
@@ -228,23 +229,13 @@ export function Header() {
               setCLIModalOpen(true);
             }}
             className={cn(
-              'flex items-center px-4 py-3 rounded-xl',
-              'text-base font-medium transition-all duration-200',
-              'text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--glass-bg)]'
+              "flex items-center px-4 py-3 rounded-xl",
+              "text-base font-medium transition-all duration-200",
+              "text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--glass-bg)]"
             )}
           >
             CLI
           </button>
-
-          {/* Settings (Signed In) */}
-          <SignedIn>
-            <MobileNavLink
-              href="/settings"
-              label="Settings"
-              isActive={pathname === '/settings'}
-              onClick={closeMobileMenu}
-            />
-          </SignedIn>
 
           {/* Divider */}
           <div className="my-4 border-t border-[var(--border-default)]" />
@@ -257,19 +248,50 @@ export function Header() {
 
           {/* Auth Section */}
           <div className="px-4 pt-4">
-            <SignedOut>
-              <SignInButton mode="modal">
-                <Button variant="primary" size="lg" fullWidth>
+            {/* Clerk 로딩 중일 때 */}
+            <ClerkLoading>
+              <Button
+                variant="primary"
+                size="lg"
+                fullWidth
+                onClick={() => {
+                  closeMobileMenu();
+                  openAuthModal("sign-in");
+                }}
+              >
+                Sign In
+              </Button>
+            </ClerkLoading>
+
+            {/* Clerk 로드 완료 후 */}
+            <ClerkLoaded>
+              <SignedOut>
+                <Button
+                  variant="primary"
+                  size="lg"
+                  fullWidth
+                  onClick={() => {
+                    closeMobileMenu();
+                    openAuthModal("sign-in");
+                  }}
+                >
                   Sign In
                 </Button>
-              </SignInButton>
-            </SignedOut>
+              </SignedOut>
+            </ClerkLoaded>
           </div>
         </div>
       </MobileDrawer>
 
       {/* CLI Modal */}
       <CLIModal isOpen={cliModalOpen} onClose={() => setCLIModalOpen(false)} />
+
+      {/* Auth Modal */}
+      <AuthModal
+        isOpen={authModalOpen}
+        onClose={() => setAuthModalOpen(false)}
+        defaultView={authModalView}
+      />
     </>
   );
 }

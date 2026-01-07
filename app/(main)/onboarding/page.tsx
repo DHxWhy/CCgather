@@ -9,6 +9,7 @@ import { CountryCard } from "@/components/onboarding/CountryCard";
 import { CountrySearchPalette } from "@/components/onboarding/CountrySearchPalette";
 import { Confetti, SparkleEffect } from "@/components/onboarding/Confetti";
 import { Globe2, Users, Trophy, Zap, ChevronRight, Sparkles, Map, LayoutGrid } from "lucide-react";
+import { FlagIcon } from "@/components/ui/FlagIcon";
 
 // Mock stats for countries (in real app, fetch from API)
 const COUNTRY_STATS: Record<string, { users: number; rank: number; trending?: boolean }> = {
@@ -211,65 +212,31 @@ export default function OnboardingPage() {
                     </p>
                   </div>
                 ) : (
-                  <div className="flex-1 overflow-hidden">
-                    {/* Featured Countries */}
-                    <div className="mb-6">
-                      <div className="flex items-center gap-2 mb-3">
-                        <Sparkles className="w-4 h-4 text-primary" />
-                        <span className="text-sm font-medium text-text-secondary">
-                          Popular Leagues
-                        </span>
-                      </div>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-                        {TOP_COUNTRIES.map((country, index) => (
-                          <CountryCard
-                            key={country.code}
-                            country={country}
-                            isSelected={selectedCountry === country.code}
-                            onClick={() => handleSelectCountry(country.code)}
-                            index={index}
-                            stats={COUNTRY_STATS[country.code]}
-                          />
-                        ))}
-                      </div>
+                  <div className="flex-1">
+                    {/* Popular Leagues - sorted by user count */}
+                    <div className="flex items-center gap-2 mb-4">
+                      <Sparkles className="w-4 h-4 text-primary" />
+                      <span className="text-sm font-medium text-text-secondary">
+                        Popular Leagues
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                      {TOP_COUNTRIES.map((country, index) => (
+                        <CountryCard
+                          key={country.code}
+                          country={country}
+                          isSelected={selectedCountry === country.code}
+                          onClick={() => handleSelectCountry(country.code)}
+                          index={index}
+                          stats={COUNTRY_STATS[country.code]}
+                        />
+                      ))}
                     </div>
 
-                    {/* All Countries */}
-                    <div>
-                      <div className="flex items-center gap-2 mb-3">
-                        <Globe2 className="w-4 h-4 text-text-muted" />
-                        <span className="text-sm font-medium text-text-secondary">
-                          All Countries ({ALL_COUNTRIES.length})
-                        </span>
-                      </div>
-                      <div className="max-h-[40vh] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent">
-                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2">
-                          {ALL_COUNTRIES.map((country, index) => (
-                            <motion.button
-                              key={country.code}
-                              onClick={() => handleSelectCountry(country.code)}
-                              className={`
-                                flex items-center gap-2 px-3 py-2.5 rounded-xl text-left text-sm
-                                transition-all duration-200
-                                ${
-                                  selectedCountry === country.code
-                                    ? "bg-primary/15 ring-1 ring-primary/50 text-text-primary"
-                                    : "bg-white/[0.02] hover:bg-white/[0.05] text-text-secondary hover:text-text-primary"
-                                }
-                              `}
-                              initial={{ opacity: 0 }}
-                              animate={{ opacity: 1 }}
-                              transition={{ delay: Math.min(index * 0.01, 0.5) }}
-                              whileHover={{ scale: 1.02 }}
-                              whileTap={{ scale: 0.98 }}
-                            >
-                              <span className="text-lg">{country.flag}</span>
-                              <span className="truncate">{country.name}</span>
-                            </motion.button>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
+                    {/* Hint to use search */}
+                    <p className="text-center text-xs text-text-muted mt-6">
+                      Can&apos;t find your country? Use the search above to find it.
+                    </p>
                   </div>
                 )}
               </motion.div>
@@ -294,7 +261,13 @@ export default function OnboardingPage() {
 
                   {/* Flag container */}
                   <div className="relative w-32 h-32 sm:w-40 sm:h-40 rounded-3xl bg-gradient-to-br from-white/[0.08] to-white/[0.02] border border-white/[0.1] flex items-center justify-center shadow-2xl">
-                    <span className="text-6xl sm:text-7xl">{selectedCountryData?.flag}</span>
+                    {selectedCountryData && (
+                      <FlagIcon
+                        countryCode={selectedCountryData.code}
+                        size="xl"
+                        className="w-20 h-14 sm:w-24 sm:h-18"
+                      />
+                    )}
                   </div>
                 </motion.div>
 
