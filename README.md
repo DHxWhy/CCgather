@@ -86,10 +86,6 @@ Country-based league system for a sense of belonging. Connect with developers fr
 
 27 badges · 4 rarity tiers: 🟡 Legendary · 🟣 Epic · 🔵 Rare · ⚪ Common
 
-<table>
-<tr>
-<td width="50%">
-
 **🔥 Streak** (6)
 | Badge | Condition | Rarity |
 |-------|-----------|:------:|
@@ -99,9 +95,6 @@ Country-based league system for a sense of belonging. Connect with developers fr
 | Two-Month Titan | 60 days streak | 🔵 |
 | Quarter Master | 90 days streak | 🟣 |
 | Half-Year Hero | 180 days streak | 🟡 |
-
-</td>
-<td width="50%">
 
 **💎 Tokens** (6)
 | Badge | Condition | Rarity |
@@ -113,11 +106,6 @@ Country-based league system for a sense of belonging. Connect with developers fr
 | Whale | $10,000 spent | 🟣 |
 | 10B Club | 10B tokens | 🟡 |
 
-</td>
-</tr>
-<tr>
-<td>
-
 **🏆 Rank** (6)
 | Badge | Condition | Rarity |
 |-------|-----------|:------:|
@@ -128,9 +116,6 @@ Country-based league system for a sense of belonging. Connect with developers fr
 | Podium | Global Top 3 | 🟡 |
 | Global Champion | Global #1 | 🟡 |
 
-</td>
-<td>
-
 **🎭 Model** (4) + **🤝 Social** (5)
 | Badge | Condition | Rarity |
 |-------|-----------|:------:|
@@ -139,10 +124,6 @@ Country-based league system for a sense of belonging. Connect with developers fr
 | Model Explorer | Used all models | 🔵 |
 | Opus Connoisseur | 70%+ on Opus | 🟣 |
 | Recruiter ~ Social Legend | 5~50 referrals | ⚪~🟡 |
-
-</td>
-</tr>
-</table>
 
 ### ⚡ CLI Auto-Sync
 One command to install, automatic usage sync.
