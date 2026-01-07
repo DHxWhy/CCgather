@@ -4,7 +4,6 @@ import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useSignIn } from "@clerk/nextjs";
 import { X } from "lucide-react";
-import Image from "next/image";
 
 interface AuthModalProps {
   isOpen: boolean;
