@@ -37,6 +37,14 @@ export function OnboardingGuard({ children }: OnboardingGuardProps) {
 
       try {
         const response = await fetch("/api/me");
+
+        if (response.status === 404) {
+          // User doesn't exist in DB yet - redirect to onboarding
+          // (Webhook might still be processing)
+          router.replace("/onboarding");
+          return;
+        }
+
         if (response.ok) {
           const data = await response.json();
           const hasCountry = !!data.user?.country_code;
@@ -48,10 +56,11 @@ export function OnboardingGuard({ children }: OnboardingGuardProps) {
             return;
           }
         }
-        // User doesn't exist in DB yet (404) or has completed onboarding - allow to proceed
       } catch (error) {
         console.error("Failed to check onboarding status:", error);
-        // On error, allow user to proceed
+        // On error, redirect to onboarding as a safe fallback
+        router.replace("/onboarding");
+        return;
       } finally {
         setIsChecking(false);
       }
