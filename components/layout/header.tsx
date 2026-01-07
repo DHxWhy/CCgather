@@ -3,9 +3,9 @@
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
-import { SignedIn, SignedOut, ClerkLoaded, ClerkLoading } from "@clerk/nextjs";
+import { useAuth } from "@clerk/nextjs";
 import { Menu } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { ThemeSwitcher } from "@/components/ui/theme-switcher";
 import { MobileDrawer } from "./MobileDrawer";
@@ -96,6 +96,26 @@ export function Header() {
   const [cliModalOpen, setCLIModalOpen] = useState(false);
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const [authModalView, setAuthModalView] = useState<"sign-in" | "sign-up">("sign-in");
+  const [clerkFailed, setClerkFailed] = useState(false);
+
+  // Clerk 로드 상태 체크
+  const { isLoaded, isSignedIn } = useAuth();
+
+  // Clerk 로드 타임아웃 체크 (10초 후에도 로드 안되면 실패로 간주)
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      if (!isLoaded) {
+        setClerkFailed(true);
+      }
+    }, 10000);
+
+    if (isLoaded) {
+      clearTimeout(timeout);
+      setClerkFailed(false);
+    }
+
+    return () => clearTimeout(timeout);
+  }, [isLoaded]);
 
   const closeMobileMenu = () => setMobileMenuOpen(false);
 
@@ -103,6 +123,10 @@ export function Header() {
     setAuthModalView(view);
     setAuthModalOpen(true);
   };
+
+  // Sign In 버튼을 보여줄지 결정
+  // Clerk 로드 전, 로드 실패, 또는 로그아웃 상태일 때 표시
+  const showSignInButton = !isLoaded || clerkFailed || !isSignedIn;
 
   return (
     <>
@@ -170,25 +194,15 @@ export function Header() {
           <div className="hidden md:flex items-center gap-3">
             <ThemeSwitcher size="sm" />
 
-            {/* Clerk 로딩 중일 때 기본 Sign In 버튼 표시 */}
-            <ClerkLoading>
+            {/* Sign In 버튼: Clerk 로드 전/실패/로그아웃 상태에서 표시 */}
+            {showSignInButton && (
               <Button variant="primary" size="sm" onClick={() => openAuthModal("sign-in")}>
                 Sign In
               </Button>
-            </ClerkLoading>
+            )}
 
-            {/* Clerk 로드 완료 후 */}
-            <ClerkLoaded>
-              <SignedOut>
-                <Button variant="primary" size="sm" onClick={() => openAuthModal("sign-in")}>
-                  Sign In
-                </Button>
-              </SignedOut>
-
-              <SignedIn>
-                <ProfileDropdown align="right" />
-              </SignedIn>
-            </ClerkLoaded>
+            {/* 로그인 상태: Clerk 로드 완료 + 로그인됨 */}
+            {isLoaded && isSignedIn && !clerkFailed && <ProfileDropdown align="right" />}
           </div>
 
           {/* Mobile Menu Button */}
@@ -248,8 +262,7 @@ export function Header() {
 
           {/* Auth Section */}
           <div className="px-4 pt-4">
-            {/* Clerk 로딩 중일 때 */}
-            <ClerkLoading>
+            {showSignInButton && (
               <Button
                 variant="primary"
                 size="lg"
@@ -261,24 +274,7 @@ export function Header() {
               >
                 Sign In
               </Button>
-            </ClerkLoading>
-
-            {/* Clerk 로드 완료 후 */}
-            <ClerkLoaded>
-              <SignedOut>
-                <Button
-                  variant="primary"
-                  size="lg"
-                  fullWidth
-                  onClick={() => {
-                    closeMobileMenu();
-                    openAuthModal("sign-in");
-                  }}
-                >
-                  Sign In
-                </Button>
-              </SignedOut>
-            </ClerkLoaded>
+            )}
           </div>
         </div>
       </MobileDrawer>
