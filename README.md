@@ -255,8 +255,6 @@ This project is proprietary. See [`LICENSE`](LICENSE) for more information.
 
 <div align="center">
 
-**Gather. Track. Rise.**
-
-Made with ❤️ by Claude Code enthusiasts
+**Gather. Track. Rise.*
 
 </div>
