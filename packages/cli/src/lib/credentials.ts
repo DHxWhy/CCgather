@@ -2,7 +2,7 @@ import * as fs from "fs";
 import * as path from "path";
 import * as os from "os";
 
-export type CCPlan = "free" | "pro" | "max" | "team";
+export type CCPlan = "free" | "pro" | "max" | "team" | "enterprise" | string;
 
 export interface CredentialsData {
   ccplan: CCPlan | null;
@@ -24,7 +24,9 @@ function getCredentialsPath(): string {
 }
 
 /**
- * Map subscription type to CCPlan enum
+ * Map subscription type to CCPlan
+ * - Known values (free, pro, max) are normalized
+ * - Unknown values (team, enterprise, etc.) are passed through for server logging
  */
 function mapSubscriptionToCCPlan(subscriptionType: string | undefined): CCPlan {
   if (!subscriptionType) {
@@ -33,23 +35,22 @@ function mapSubscriptionToCCPlan(subscriptionType: string | undefined): CCPlan {
 
   const type = subscriptionType.toLowerCase();
 
-  // Check for max
+  // Known subscription types - normalize
   if (type === "max" || type.includes("max")) {
     return "max";
   }
 
-  // Check for team/enterprise
-  if (type === "team" || type === "enterprise") {
-    return "team";
-  }
-
-  // Check for pro
   if (type === "pro") {
     return "pro";
   }
 
-  // Default to free
-  return "free";
+  if (type === "free") {
+    return "free";
+  }
+
+  // Unknown types (team, enterprise, etc.) - pass through for server logging
+  // This helps us discover actual values from Team/Enterprise users
+  return type;
 }
 
 /**

@@ -7,7 +7,8 @@ interface CCplanTabsProps {
   onChange: (value: CCPlanFilter) => void;
 }
 
-const CCPLAN_ORDER: CCPlanFilter[] = ["all", "max", "pro", "free", "team"];
+// Team tab hidden until we confirm Team/Enterprise subscription detection
+const CCPLAN_ORDER: CCPlanFilter[] = ["all", "max", "pro", "free"];
 
 export function CCplanTabs({ value, onChange }: CCplanTabsProps) {
   return (

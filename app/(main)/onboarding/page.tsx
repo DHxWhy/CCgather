@@ -4,38 +4,17 @@ import { useState, useMemo, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { ALL_COUNTRIES, TOP_COUNTRIES } from "@/lib/constants/countries";
-import { WorldGlobe } from "@/components/onboarding/WorldGlobe";
 import { CountryCard } from "@/components/onboarding/CountryCard";
 import { CountrySearchPalette } from "@/components/onboarding/CountrySearchPalette";
 import { Confetti, SparkleEffect } from "@/components/onboarding/Confetti";
-import { Globe2, Users, Trophy, Zap, ChevronRight, Sparkles, Map, LayoutGrid } from "lucide-react";
+import { Globe2, Users, Trophy, ChevronRight, Sparkles, Rocket } from "lucide-react";
 import { FlagIcon } from "@/components/ui/FlagIcon";
-
-// Mock stats for countries (in real app, fetch from API)
-const COUNTRY_STATS: Record<string, { users: number; rank: number; trending?: boolean }> = {
-  KR: { users: 2847, rank: 1, trending: true },
-  US: { users: 2156, rank: 2 },
-  JP: { users: 1843, rank: 3, trending: true },
-  DE: { users: 1567, rank: 4 },
-  GB: { users: 1234, rank: 5 },
-  FR: { users: 987, rank: 6 },
-  CN: { users: 876, rank: 7, trending: true },
-  IN: { users: 765, rank: 8 },
-  CA: { users: 654, rank: 9 },
-  AU: { users: 543, rank: 10 },
-  BR: { users: 432, rank: 11 },
-  NL: { users: 321, rank: 12 },
-};
-
-type ViewMode = "globe" | "grid";
 
 export default function OnboardingPage() {
   const router = useRouter();
   const [selectedCountry, setSelectedCountry] = useState<string>("");
-  const [hoveredCountry, setHoveredCountry] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showConfetti, setShowConfetti] = useState(false);
-  const [viewMode, setViewMode] = useState<ViewMode>("grid");
   const [step, setStep] = useState<"select" | "confirm">("select");
 
   const selectedCountryData = useMemo(() => {
@@ -161,84 +140,39 @@ export default function OnboardingPage() {
                 transition={{ duration: 0.3 }}
                 className="flex-1 flex flex-col max-w-4xl mx-auto w-full"
               >
-                {/* Search and View Toggle */}
-                <div className="flex flex-col sm:flex-row gap-3 mb-6">
-                  <div className="flex-1">
-                    <CountrySearchPalette
-                      countries={ALL_COUNTRIES}
-                      selectedCountry={selectedCountry}
-                      onSelectCountry={handleSelectCountry}
-                      topCountries={TOP_COUNTRIES}
-                    />
-                  </div>
-                  <div className="flex gap-1 p-1 rounded-xl bg-white/[0.03] border border-white/[0.08]">
-                    <button
-                      onClick={() => setViewMode("grid")}
-                      className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm transition-all ${
-                        viewMode === "grid"
-                          ? "bg-primary/20 text-primary"
-                          : "text-text-muted hover:text-text-primary hover:bg-white/[0.05]"
-                      }`}
-                    >
-                      <LayoutGrid className="w-4 h-4" />
-                      <span className="hidden sm:inline">Grid</span>
-                    </button>
-                    <button
-                      onClick={() => setViewMode("globe")}
-                      className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm transition-all ${
-                        viewMode === "globe"
-                          ? "bg-primary/20 text-primary"
-                          : "text-text-muted hover:text-text-primary hover:bg-white/[0.05]"
-                      }`}
-                    >
-                      <Map className="w-4 h-4" />
-                      <span className="hidden sm:inline">Map</span>
-                    </button>
-                  </div>
+                {/* Search */}
+                <div className="mb-6">
+                  <CountrySearchPalette
+                    countries={ALL_COUNTRIES}
+                    selectedCountry={selectedCountry}
+                    onSelectCountry={handleSelectCountry}
+                    topCountries={TOP_COUNTRIES}
+                  />
                 </div>
 
-                {/* Content based on view mode */}
-                {viewMode === "globe" ? (
-                  <div className="flex-1 flex flex-col">
-                    <WorldGlobe
-                      countries={ALL_COUNTRIES}
-                      selectedCountry={selectedCountry}
-                      onSelectCountry={handleSelectCountry}
-                      hoveredCountry={hoveredCountry}
-                      onHoverCountry={setHoveredCountry}
-                    />
-                    <p className="text-center text-xs text-text-muted mt-4">
-                      Click on a country or use the search above
-                    </p>
+                {/* Popular Leagues */}
+                <div className="flex-1">
+                  <div className="flex items-center gap-2 mb-4">
+                    <Sparkles className="w-4 h-4 text-primary" />
+                    <span className="text-sm font-medium text-text-secondary">Popular Leagues</span>
                   </div>
-                ) : (
-                  <div className="flex-1">
-                    {/* Popular Leagues - sorted by user count */}
-                    <div className="flex items-center gap-2 mb-4">
-                      <Sparkles className="w-4 h-4 text-primary" />
-                      <span className="text-sm font-medium text-text-secondary">
-                        Popular Leagues
-                      </span>
-                    </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-                      {TOP_COUNTRIES.map((country, index) => (
-                        <CountryCard
-                          key={country.code}
-                          country={country}
-                          isSelected={selectedCountry === country.code}
-                          onClick={() => handleSelectCountry(country.code)}
-                          index={index}
-                          stats={COUNTRY_STATS[country.code]}
-                        />
-                      ))}
-                    </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                    {TOP_COUNTRIES.map((country, index) => (
+                      <CountryCard
+                        key={country.code}
+                        country={country}
+                        isSelected={selectedCountry === country.code}
+                        onClick={() => handleSelectCountry(country.code)}
+                        index={index}
+                      />
+                    ))}
+                  </div>
 
-                    {/* Hint to use search */}
-                    <p className="text-center text-xs text-text-muted mt-6">
-                      Can&apos;t find your country? Use the search above to find it.
-                    </p>
-                  </div>
-                )}
+                  {/* Hint to use search */}
+                  <p className="text-center text-xs text-text-muted mt-6">
+                    Can&apos;t find your country? Use the search above to find it.
+                  </p>
+                </div>
               </motion.div>
             ) : (
               <motion.div
@@ -288,39 +222,29 @@ export default function OnboardingPage() {
                   </p>
                 </motion.div>
 
-                {/* Stats preview */}
-                {(() => {
-                  const stats = selectedCountryData
-                    ? COUNTRY_STATS[selectedCountryData.code]
-                    : null;
-                  if (!stats) return null;
-                  return (
-                    <motion.div
-                      className="grid grid-cols-3 gap-4 mb-8 w-full"
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: 0.3 }}
-                    >
-                      <div className="text-center p-4 rounded-xl bg-white/[0.03] border border-white/[0.08]">
-                        <Users className="w-5 h-5 mx-auto mb-2 text-primary" />
-                        <div className="text-lg font-bold text-text-primary">
-                          {stats.users.toLocaleString()}
-                        </div>
-                        <div className="text-xs text-text-muted">Coders</div>
-                      </div>
-                      <div className="text-center p-4 rounded-xl bg-white/[0.03] border border-white/[0.08]">
-                        <Trophy className="w-5 h-5 mx-auto mb-2 text-amber-500" />
-                        <div className="text-lg font-bold text-text-primary">#{stats.rank}</div>
-                        <div className="text-xs text-text-muted">Global Rank</div>
-                      </div>
-                      <div className="text-center p-4 rounded-xl bg-white/[0.03] border border-white/[0.08]">
-                        <Zap className="w-5 h-5 mx-auto mb-2 text-emerald-400" />
-                        <div className="text-lg font-bold text-text-primary">Active</div>
-                        <div className="text-xs text-text-muted">League</div>
-                      </div>
-                    </motion.div>
-                  );
-                })()}
+                {/* Welcome message */}
+                <motion.div
+                  className="grid grid-cols-3 gap-4 mb-8 w-full"
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.3 }}
+                >
+                  <div className="text-center p-4 rounded-xl bg-white/[0.03] border border-white/[0.08]">
+                    <Users className="w-5 h-5 mx-auto mb-2 text-primary" />
+                    <div className="text-lg font-bold text-text-primary">New</div>
+                    <div className="text-xs text-text-muted">League</div>
+                  </div>
+                  <div className="text-center p-4 rounded-xl bg-white/[0.03] border border-white/[0.08]">
+                    <Trophy className="w-5 h-5 mx-auto mb-2 text-amber-500" />
+                    <div className="text-lg font-bold text-text-primary">Compete</div>
+                    <div className="text-xs text-text-muted">Globally</div>
+                  </div>
+                  <div className="text-center p-4 rounded-xl bg-white/[0.03] border border-white/[0.08]">
+                    <Rocket className="w-5 h-5 mx-auto mb-2 text-emerald-400" />
+                    <div className="text-lg font-bold text-text-primary">Track</div>
+                    <div className="text-xs text-text-muted">Progress</div>
+                  </div>
+                </motion.div>
 
                 {/* Action buttons */}
                 <motion.div
@@ -372,7 +296,7 @@ export default function OnboardingPage() {
           </AnimatePresence>
         </div>
 
-        {/* Footer stats */}
+        {/* Footer info */}
         <motion.footer
           className="border-t border-white/[0.05] py-4 px-4"
           initial={{ opacity: 0 }}
@@ -382,15 +306,15 @@ export default function OnboardingPage() {
           <div className="max-w-4xl mx-auto flex flex-wrap items-center justify-center gap-x-8 gap-y-2 text-xs text-text-muted">
             <div className="flex items-center gap-2">
               <Users className="w-4 h-4 text-primary" />
-              <span>15,847 global coders</span>
+              <span>Global community</span>
             </div>
             <div className="flex items-center gap-2">
               <Globe2 className="w-4 h-4 text-primary" />
-              <span>195 countries represented</span>
+              <span>270+ countries</span>
             </div>
             <div className="flex items-center gap-2">
               <Trophy className="w-4 h-4 text-primary" />
-              <span>Weekly competitions</span>
+              <span>Real-time rankings</span>
             </div>
           </div>
         </motion.footer>

@@ -7,28 +7,44 @@ interface FlagIconProps {
   countryCode: string;
   size?: "xs" | "sm" | "md" | "lg" | "xl";
   className?: string;
+  fallbackEmoji?: string;
 }
 
 const sizeMap = {
-  xs: { width: 16, height: 12 },
-  sm: { width: 20, height: 15 },
-  md: { width: 28, height: 21 },
-  lg: { width: 40, height: 30 },
-  xl: { width: 56, height: 42 },
+  xs: { width: 16, height: 12, fontSize: "text-sm" },
+  sm: { width: 20, height: 15, fontSize: "text-base" },
+  md: { width: 28, height: 21, fontSize: "text-lg" },
+  lg: { width: 40, height: 30, fontSize: "text-2xl" },
+  xl: { width: 56, height: 42, fontSize: "text-3xl" },
 };
 
-export function FlagIcon({ countryCode, size = "md", className = "" }: FlagIconProps) {
+// Convert country code to flag emoji
+function countryCodeToEmoji(countryCode: string): string {
+  const code = countryCode.toUpperCase();
+  const offset = 127397; // Regional indicator symbol offset
+  return String.fromCodePoint(...[...code].map((c) => c.charCodeAt(0) + offset));
+}
+
+export function FlagIcon({
+  countryCode,
+  size = "md",
+  className = "",
+  fallbackEmoji,
+}: FlagIconProps) {
   const [error, setError] = useState(false);
-  const { width, height } = sizeMap[size];
+  const { width, height, fontSize } = sizeMap[size];
   const code = countryCode.toLowerCase();
 
   if (error) {
+    const emoji = fallbackEmoji || countryCodeToEmoji(countryCode);
     return (
       <span
-        className={`inline-flex items-center justify-center bg-white/10 rounded text-xs text-text-muted ${className}`}
+        className={`inline-flex items-center justify-center ${fontSize} ${className}`}
         style={{ width, height }}
+        role="img"
+        aria-label={`${countryCode} flag`}
       >
-        {countryCode}
+        {emoji}
       </span>
     );
   }

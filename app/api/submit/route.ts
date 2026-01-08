@@ -11,7 +11,11 @@ function getSupabaseAdmin() {
 }
 
 // CCplan type validation
-const CCPlanEnum = z.enum(["free", "pro", "max", "team"]);
+// Accept any string to capture unknown subscription types (team, enterprise, etc.)
+const CCPlanEnum = z.string().optional();
+
+// Known CCplan values for UI display
+const KNOWN_CCPLANS = ["free", "pro", "max"];
 
 const SubmitSchema = z.object({
   api_key: z.string().min(1),
@@ -104,6 +108,25 @@ export async function POST(request: NextRequest) {
 
     // Update user's ccplan if provided
     if (ccplan) {
+      // Log unknown/alert ccplan values for admin monitoring
+      if (!KNOWN_CCPLANS.includes(ccplan)) {
+        console.warn(`[CCPLAN_ALERT] Unknown ccplan detected: "${ccplan}" from user ${user.id}`);
+
+        // Store alert in admin_alerts table
+        const { error: alertError } = await supabaseAdmin.from("admin_alerts").insert({
+          type: "unknown_ccplan",
+          message: `Unknown ccplan "${ccplan}" detected`,
+          metadata: {
+            user_id: user.id,
+            ccplan: ccplan,
+            timestamp: new Date().toISOString(),
+          },
+        });
+        if (alertError) {
+          console.error("Failed to create admin alert:", alertError);
+        }
+      }
+
       const { error: ccplanError } = await supabaseAdmin
         .from("users")
         .update({
