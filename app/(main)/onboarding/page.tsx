@@ -8,6 +8,7 @@ import { CountryCard } from "@/components/onboarding/CountryCard";
 import { CountrySearchPalette } from "@/components/onboarding/CountrySearchPalette";
 import { Confetti, SparkleEffect } from "@/components/onboarding/Confetti";
 import { Globe2, Users, Trophy, ChevronRight, Sparkles } from "lucide-react";
+import ReactCountryFlag from "react-country-flag";
 
 export default function OnboardingPage() {
   const router = useRouter();
@@ -118,7 +119,7 @@ export default function OnboardingPage() {
             className="text-3xl sm:text-4xl md:text-5xl font-bold text-text-primary mb-3"
           >
             Join Your{" "}
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#F4A68C] to-[#FFD0B8]">
+            <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary to-[#E8A087]">
               Nation&apos;s League
             </span>
           </motion.h1>
@@ -199,9 +200,13 @@ export default function OnboardingPage() {
                   <div className="absolute inset-0 -m-6 bg-gradient-to-r from-primary/20 via-transparent to-primary/20 rounded-full blur-2xl animate-pulse" />
 
                   {/* Flag container */}
-                  <div className="relative w-32 h-32 sm:w-40 sm:h-40 rounded-3xl bg-gradient-to-br from-white/[0.08] to-white/[0.02] border border-white/[0.1] flex items-center justify-center shadow-2xl">
+                  <div className="relative w-32 h-32 sm:w-40 sm:h-40 rounded-3xl bg-[var(--color-bg-card)] border border-[var(--border-default)] flex items-center justify-center shadow-2xl">
                     {selectedCountryData && (
-                      <span className="text-6xl sm:text-7xl">{selectedCountryData.flag}</span>
+                      <ReactCountryFlag
+                        countryCode={selectedCountryData.code}
+                        svg
+                        style={{ width: "80px", height: "60px" }}
+                      />
                     )}
                   </div>
                 </motion.div>

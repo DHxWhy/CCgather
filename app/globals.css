@@ -190,13 +190,13 @@
   --color-text-disabled: #a1a1aa;
 
   /* Borders - Light (visible gray lines) */
-  --border-default: rgba(0, 0, 0, 0.12);
-  --border-hover: rgba(0, 0, 0, 0.2);
+  --border-default: rgba(0, 0, 0, 0.18);
+  --border-hover: rgba(0, 0, 0, 0.25);
   --border-focus: rgba(218, 119, 86, 0.5);
 
   /* Glass Effect - Light */
   --glass-bg: rgba(245, 245, 240, 0.9);
-  --glass-border: rgba(0, 0, 0, 0.12);
+  --glass-border: rgba(0, 0, 0, 0.18);
 
   /* Shadows - Light */
   --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.03);
