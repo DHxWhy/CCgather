@@ -8,7 +8,12 @@ import { CountryCard } from "@/components/onboarding/CountryCard";
 import { CountrySearchPalette } from "@/components/onboarding/CountrySearchPalette";
 import { Confetti, SparkleEffect } from "@/components/onboarding/Confetti";
 import { Globe2, Users, Trophy, ChevronRight, Sparkles } from "lucide-react";
-import ReactCountryFlag from "react-country-flag";
+import dynamic from "next/dynamic";
+
+const ReactCountryFlag = dynamic(() => import("react-country-flag"), {
+  ssr: false,
+  loading: () => <div className="w-[80px] h-[60px] bg-white/10 rounded animate-pulse" />,
+});
 
 export default function OnboardingPage() {
   const router = useRouter();
