@@ -52,11 +52,11 @@ export default function OnboardingPage() {
       } else {
         const data = await response.json().catch(() => ({}));
         console.error("Failed to update profile:", response.status, data);
-        alert(`리그 가입 실패 (${response.status}): ${data.error || "알 수 없는 오류"}`);
+        alert(`Failed to join league (${response.status}): ${data.error || "Unknown error"}`);
       }
     } catch (error) {
       console.error("Failed to update profile:", error);
-      alert(`네트워크 오류: ${error instanceof Error ? error.message : "연결 실패"}`);
+      alert(`Network error: ${error instanceof Error ? error.message : "Connection failed"}`);
     } finally {
       setIsSubmitting(false);
     }
@@ -160,7 +160,7 @@ export default function OnboardingPage() {
                 <div className="flex-1">
                   <div className="flex items-center gap-2 mb-4">
                     <Sparkles className="w-4 h-4 text-primary" />
-                    <span className="text-sm font-medium text-text-secondary">추천 리그</span>
+                    <span className="text-sm font-medium text-text-secondary">Popular Leagues</span>
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                     {TOP_COUNTRIES.map((country, index) => (

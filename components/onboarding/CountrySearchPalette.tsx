@@ -100,7 +100,7 @@ export function CountrySearchPalette({
       {/* Trigger Button */}
       <motion.button
         onClick={() => setIsOpen(true)}
-        className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl bg-white/[0.03] border border-white/[0.08] hover:border-primary/30 hover:bg-white/[0.05] transition-all group"
+        className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl bg-[var(--color-bg-card)] border border-[var(--border-default)] hover:border-primary/50 hover:bg-[var(--color-bg-card-hover)] transition-all group"
         whileHover={{ scale: 1.01 }}
         whileTap={{ scale: 0.99 }}
       >
@@ -110,7 +110,7 @@ export function CountrySearchPalette({
             ? `${selectedCountryData.flag} ${selectedCountryData.name}`
             : "Search for your country..."}
         </span>
-        <kbd className="hidden sm:flex items-center gap-1 px-2 py-1 rounded-md bg-white/[0.05] border border-white/[0.1] text-xs text-text-muted">
+        <kbd className="hidden sm:flex items-center gap-1 px-2 py-1 rounded-md bg-[var(--color-section-bg)] border border-[var(--border-default)] text-xs text-text-muted">
           <Command className="w-3 h-3" />K
         </kbd>
       </motion.button>

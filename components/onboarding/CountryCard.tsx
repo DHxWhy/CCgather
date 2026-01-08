@@ -22,7 +22,7 @@ export function CountryCard({ country, isSelected, onClick, index }: CountryCard
         ${
           isSelected
             ? "bg-gradient-to-br from-primary/20 via-primary/10 to-transparent ring-2 ring-primary shadow-lg shadow-primary/20"
-            : "bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.08] hover:border-primary/30"
+            : "bg-[var(--color-bg-card)] hover:bg-[var(--color-bg-card-hover)] border border-[var(--border-default)] hover:border-primary/50"
         }
       `}
       initial={{ opacity: 0, y: 20, scale: 0.95 }}

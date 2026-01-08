@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@clerk/nextjs/server";
+import { auth, currentUser } from "@clerk/nextjs/server";
 import { createClient } from "@/lib/supabase/server";
 import { z } from "zod";
 import { randomBytes } from "crypto";
@@ -69,6 +69,40 @@ export async function PATCH(request: NextRequest) {
 
     const supabase = await createClient();
 
+    // First, check if user exists
+    const { data: existingUser } = await supabase
+      .from("users")
+      .select("id")
+      .eq("clerk_id", userId)
+      .single();
+
+    // If user doesn't exist, create them first
+    if (!existingUser) {
+      const clerkUser = await currentUser();
+      if (!clerkUser) {
+        return NextResponse.json({ error: "Failed to get user info" }, { status: 500 });
+      }
+
+      const displayName =
+        [clerkUser.firstName, clerkUser.lastName].filter(Boolean).join(" ") ||
+        clerkUser.username ||
+        "Anonymous";
+
+      const { error: insertError } = await supabase.from("users").insert({
+        clerk_id: userId,
+        username: clerkUser.username || `user_${userId.slice(0, 8)}`,
+        display_name: displayName,
+        avatar_url: clerkUser.imageUrl,
+        email: clerkUser.emailAddresses[0]?.emailAddress,
+      });
+
+      if (insertError) {
+        console.error("Failed to create user:", insertError);
+        return NextResponse.json({ error: "Failed to create user" }, { status: 500 });
+      }
+    }
+
+    // Now update the user
     const updateData = {
       ...parsed.data,
       updated_at: new Date().toISOString(),
@@ -83,23 +117,9 @@ export async function PATCH(request: NextRequest) {
 
     if (error) {
       console.error("Failed to update user:", error);
-      // Check if user doesn't exist
-      if (error.code === "PGRST116") {
-        return NextResponse.json(
-          { error: "User not found. Please sign out and sign in again." },
-          { status: 404 }
-        );
-      }
       return NextResponse.json(
         { error: `Failed to update profile: ${error.message}` },
         { status: 500 }
-      );
-    }
-
-    if (!user) {
-      return NextResponse.json(
-        { error: "User not found. Please sign out and sign in again." },
-        { status: 404 }
       );
     }
 
