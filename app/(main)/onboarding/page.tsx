@@ -7,8 +7,7 @@ import { ALL_COUNTRIES, TOP_COUNTRIES } from "@/lib/constants/countries";
 import { CountryCard } from "@/components/onboarding/CountryCard";
 import { CountrySearchPalette } from "@/components/onboarding/CountrySearchPalette";
 import { Confetti, SparkleEffect } from "@/components/onboarding/Confetti";
-import { Globe2, Users, Trophy, ChevronRight, Sparkles, Rocket } from "lucide-react";
-import { FlagIcon } from "@/components/ui/FlagIcon";
+import { Globe2, Users, Trophy, ChevronRight, Sparkles } from "lucide-react";
 
 export default function OnboardingPage() {
   const router = useRouter();
@@ -47,9 +46,14 @@ export default function OnboardingPage() {
 
       if (response.ok) {
         router.push("/leaderboard");
+      } else {
+        const data = await response.json().catch(() => ({}));
+        console.error("Failed to update profile:", data);
+        alert("Failed to join league. Please try again.");
       }
     } catch (error) {
       console.error("Failed to update profile:", error);
+      alert("Network error. Please try again.");
     } finally {
       setIsSubmitting(false);
     }
@@ -195,11 +199,7 @@ export default function OnboardingPage() {
                   {/* Flag container */}
                   <div className="relative w-32 h-32 sm:w-40 sm:h-40 rounded-3xl bg-gradient-to-br from-white/[0.08] to-white/[0.02] border border-white/[0.1] flex items-center justify-center shadow-2xl">
                     {selectedCountryData && (
-                      <FlagIcon
-                        countryCode={selectedCountryData.code}
-                        size="xl"
-                        className="w-20 h-14 sm:w-24 sm:h-18"
-                      />
+                      <span className="text-6xl sm:text-7xl">{selectedCountryData.flag}</span>
                     )}
                   </div>
                 </motion.div>
@@ -221,47 +221,17 @@ export default function OnboardingPage() {
                   </p>
                 </motion.div>
 
-                {/* Welcome message */}
+                {/* Action buttons */}
                 <motion.div
-                  className="grid grid-cols-3 gap-4 mb-8 w-full"
+                  className="flex flex-col gap-3 w-full max-w-xs"
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0.3 }}
                 >
-                  <div className="text-center p-4 rounded-xl bg-white/[0.03] border border-white/[0.08]">
-                    <Users className="w-5 h-5 mx-auto mb-2 text-primary" />
-                    <div className="text-lg font-bold text-text-primary">New</div>
-                    <div className="text-xs text-text-muted">League</div>
-                  </div>
-                  <div className="text-center p-4 rounded-xl bg-white/[0.03] border border-white/[0.08]">
-                    <Trophy className="w-5 h-5 mx-auto mb-2 text-amber-500" />
-                    <div className="text-lg font-bold text-text-primary">Compete</div>
-                    <div className="text-xs text-text-muted">Globally</div>
-                  </div>
-                  <div className="text-center p-4 rounded-xl bg-white/[0.03] border border-white/[0.08]">
-                    <Rocket className="w-5 h-5 mx-auto mb-2 text-emerald-400" />
-                    <div className="text-lg font-bold text-text-primary">Track</div>
-                    <div className="text-xs text-text-muted">Progress</div>
-                  </div>
-                </motion.div>
-
-                {/* Action buttons */}
-                <motion.div
-                  className="flex flex-col sm:flex-row gap-3 w-full"
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.4 }}
-                >
-                  <button
-                    onClick={handleBack}
-                    className="flex-1 px-6 py-3.5 rounded-xl bg-white/[0.03] border border-white/[0.08] text-text-secondary font-medium hover:bg-white/[0.06] hover:text-text-primary transition-all"
-                  >
-                    Choose Different
-                  </button>
                   <button
                     onClick={handleSubmit}
                     disabled={isSubmitting}
-                    className="flex-1 flex items-center justify-center gap-2 px-6 py-3.5 rounded-xl bg-gradient-to-r from-primary to-[#B85C3D] text-white font-semibold hover:shadow-lg hover:shadow-primary/25 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                    className="w-full flex items-center justify-center gap-2 px-6 py-3.5 rounded-xl bg-gradient-to-r from-primary to-[#B85C3D] text-white font-semibold hover:shadow-lg hover:shadow-primary/25 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
                   >
                     {isSubmitting ? (
                       <>
@@ -279,17 +249,13 @@ export default function OnboardingPage() {
                       </>
                     )}
                   </button>
+                  <button
+                    onClick={handleBack}
+                    className="w-full px-6 py-3 rounded-xl text-text-muted text-sm hover:text-text-secondary transition-colors"
+                  >
+                    Choose Different Country
+                  </button>
                 </motion.div>
-
-                {/* Hint */}
-                <motion.p
-                  className="text-xs text-text-muted text-center mt-4"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  transition={{ delay: 0.5 }}
-                >
-                  You can change your country anytime in Settings
-                </motion.p>
               </motion.div>
             )}
           </AnimatePresence>
