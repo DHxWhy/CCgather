@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/server";
 
 interface SubmitPayload {
-  username: string;
+  username?: string; // Now optional - use token auth instead
   totalTokens: number;
   totalSpent: number;
   inputTokens?: number;
@@ -15,15 +15,18 @@ interface SubmitPayload {
   timestamp: string;
 }
 
+interface AuthenticatedUser {
+  id: string;
+  username: string;
+  total_tokens: number | null;
+  total_cost: number | null;
+}
+
 export async function POST(request: NextRequest) {
   try {
     const body: SubmitPayload = await request.json();
 
     // Validate required fields
-    if (!body.username || typeof body.username !== "string") {
-      return NextResponse.json({ error: "Username is required" }, { status: 400 });
-    }
-
     if (typeof body.totalTokens !== "number" || body.totalTokens < 0) {
       return NextResponse.json({ error: "Invalid totalTokens" }, { status: 400 });
     }
@@ -34,29 +37,53 @@ export async function POST(request: NextRequest) {
 
     const supabase = createServiceClient();
 
-    // Find user by username
-    const { data: user, error: userError } = await supabase
+    // Check for token authentication (required)
+    const authHeader = request.headers.get("Authorization");
+
+    if (!authHeader?.startsWith("Bearer ")) {
+      if (body.username) {
+        // Legacy username-based lookup (deprecated, will be removed)
+        return NextResponse.json(
+          {
+            error: "Authentication required. Please run 'ccgather auth' first.",
+            hint: "Username-based submission is no longer supported for security reasons.",
+          },
+          { status: 401 }
+        );
+      }
+      return NextResponse.json(
+        { error: "Authentication required. Please run 'ccgather auth' first." },
+        { status: 401 }
+      );
+    }
+
+    const token = authHeader.slice(7);
+
+    // Find user by API token
+    const { data: user, error: tokenError } = await supabase
       .from("users")
       .select("id, username, total_tokens, total_cost")
-      .eq("username", body.username)
+      .eq("api_key", token)
       .maybeSingle();
 
-    if (userError) {
-      console.error("[CLI Submit] User lookup error:", userError);
-      return NextResponse.json({ error: "Failed to find user" }, { status: 500 });
+    if (tokenError) {
+      console.error("[CLI Submit] Token lookup error:", tokenError);
+      return NextResponse.json({ error: "Authentication failed" }, { status: 500 });
     }
 
     if (!user) {
       return NextResponse.json(
-        { error: `User "${body.username}" not found. Please sign up at ccgather.com first.` },
-        { status: 404 }
+        { error: "Invalid or expired token. Please run 'ccgather auth' to re-authenticate." },
+        { status: 401 }
       );
     }
 
+    const authenticatedUser = user as AuthenticatedUser;
+
     // Update user stats (use max values to prevent lowering)
     const updateData: Record<string, unknown> = {
-      total_tokens: Math.max(user.total_tokens || 0, body.totalTokens),
-      total_cost: Math.max(user.total_cost || 0, body.totalSpent),
+      total_tokens: Math.max(authenticatedUser.total_tokens || 0, body.totalTokens),
+      total_cost: Math.max(authenticatedUser.total_cost || 0, body.totalSpent),
       last_submission_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     };
@@ -70,7 +97,7 @@ export async function POST(request: NextRequest) {
     const { error: updateError } = await supabase
       .from("users")
       .update(updateData)
-      .eq("id", user.id);
+      .eq("id", authenticatedUser.id);
 
     if (updateError) {
       console.error("[CLI Submit] Update error:", updateError);
@@ -82,7 +109,7 @@ export async function POST(request: NextRequest) {
 
     await supabase.from("usage_stats").upsert(
       {
-        user_id: user.id,
+        user_id: authenticatedUser.id,
         date: today,
         total_tokens: body.totalTokens,
         input_tokens: body.inputTokens || 0,
@@ -103,16 +130,17 @@ export async function POST(request: NextRequest) {
       .gt("total_tokens", 0)
       .order("total_tokens", { ascending: false });
 
-    const rank = (rankData?.findIndex((u) => u.id === user.id) ?? -1) + 1;
+    const rank =
+      (rankData?.findIndex((u: { id: string }) => u.id === authenticatedUser.id) ?? -1) + 1;
 
     // Update global rank
     if (rank > 0) {
-      await supabase.from("users").update({ global_rank: rank }).eq("id", user.id);
+      await supabase.from("users").update({ global_rank: rank }).eq("id", authenticatedUser.id);
     }
 
     return NextResponse.json({
       success: true,
-      profileUrl: `https://ccgather.com/u/${user.username}`,
+      profileUrl: `https://ccgather.com/u/${authenticatedUser.username}`,
       rank: rank || undefined,
     });
   } catch (error) {

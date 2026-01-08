@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo, useCallback } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { ALL_COUNTRIES, TOP_COUNTRIES } from "@/lib/constants/countries";
 import { CountryCard } from "@/components/onboarding/CountryCard";
@@ -18,11 +18,19 @@ const ReactCountryFlag = dynamic(() => import("react-country-flag"), {
 
 export default function OnboardingPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [selectedCountry, setSelectedCountry] = useState<string>("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showConfetti, setShowConfetti] = useState(false);
   const [step, setStep] = useState<"select" | "confirm">("select");
   const [showCLIModal, setShowCLIModal] = useState(false);
+  const [marketingConsent, setMarketingConsent] = useState(false);
+  const [cliAuthStatus, setCliAuthStatus] = useState<"idle" | "authorizing" | "success" | "error">(
+    "idle"
+  );
+
+  // CLI code from URL (when coming from CLI auth flow)
+  const cliCode = searchParams.get("cli_code");
 
   const selectedCountryData = useMemo(() => {
     return ALL_COUNTRIES.find((c) => c.code === selectedCountry);
@@ -49,12 +57,18 @@ export default function OnboardingPage() {
           country_code: selectedCountry,
           timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
           onboarding_completed: true,
+          marketing_consent: marketingConsent,
         }),
       });
 
       if (response.ok) {
-        // Show CLI guide modal instead of immediately redirecting
-        setShowCLIModal(true);
+        // If coming from CLI auth flow, authorize the CLI first
+        if (cliCode) {
+          await authorizeCLI(cliCode);
+        } else {
+          // Show CLI guide modal instead of immediately redirecting
+          setShowCLIModal(true);
+        }
       } else {
         const data = await response.json().catch(() => ({}));
         console.error("Failed to update profile:", response.status, data);
@@ -68,6 +82,35 @@ export default function OnboardingPage() {
     }
   };
 
+  const authorizeCLI = async (code: string) => {
+    setCliAuthStatus("authorizing");
+    try {
+      const response = await fetch("/api/cli/auth/device/authorize", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ user_code: code }),
+      });
+
+      if (response.ok) {
+        setCliAuthStatus("success");
+        // Show success briefly then redirect
+        setTimeout(() => {
+          router.replace("/leaderboard");
+        }, 2000);
+      } else {
+        const data = await response.json().catch(() => ({}));
+        console.error("Failed to authorize CLI:", data);
+        setCliAuthStatus("error");
+        // Still show the CLI modal as fallback
+        setShowCLIModal(true);
+      }
+    } catch (error) {
+      console.error("Failed to authorize CLI:", error);
+      setCliAuthStatus("error");
+      setShowCLIModal(true);
+    }
+  };
+
   const handleBack = () => {
     setSelectedCountry("");
     setStep("select");
@@ -77,6 +120,33 @@ export default function OnboardingPage() {
     setShowCLIModal(false);
     router.replace("/leaderboard");
   };
+
+  // Show CLI authorization overlay
+  if (cliAuthStatus === "authorizing" || cliAuthStatus === "success") {
+    return (
+      <div className="min-h-screen bg-bg-primary flex items-center justify-center">
+        <div className="text-center">
+          {cliAuthStatus === "authorizing" && (
+            <>
+              <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+              <h1 className="text-xl font-bold text-text-primary mb-2">Authorizing CLI...</h1>
+              <p className="text-text-muted">Please wait</p>
+            </>
+          )}
+          {cliAuthStatus === "success" && (
+            <div className="bg-bg-secondary border border-green-500/30 rounded-xl p-8">
+              <div className="text-6xl mb-4">✅</div>
+              <h1 className="text-2xl font-bold text-green-400 mb-2">CLI Authorized!</h1>
+              <p className="text-text-muted mb-4">
+                You can close this window and return to your terminal.
+              </p>
+              <p className="text-sm text-text-muted">Redirecting to leaderboard...</p>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-bg-primary relative overflow-hidden">
@@ -214,7 +284,7 @@ export default function OnboardingPage() {
                   <div className="absolute inset-0 -m-6 bg-gradient-to-r from-primary/20 via-transparent to-primary/20 rounded-full blur-2xl animate-pulse" />
 
                   {/* Flag container */}
-                  <div className="relative w-32 h-32 sm:w-40 sm:h-40 rounded-3xl bg-[var(--color-bg-card)] border border-[var(--border-default)] flex items-center justify-center shadow-2xl">
+                  <div className="relative w-32 h-32 sm:w-40 sm:h-40 rounded-xl bg-[var(--color-bg-card)] border border-[var(--border-default)] flex items-center justify-center shadow-2xl">
                     {selectedCountryData && (
                       <ReactCountryFlag
                         countryCode={selectedCountryData.code}
@@ -241,6 +311,40 @@ export default function OnboardingPage() {
                     You&apos;re about to join the {selectedCountryData?.name} league!
                   </p>
                 </motion.div>
+
+                {/* Marketing consent checkbox */}
+                <motion.label
+                  className="flex items-start gap-3 w-full max-w-xs cursor-pointer group mb-4"
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.25 }}
+                >
+                  <div className="relative flex-shrink-0 mt-0.5">
+                    <input
+                      type="checkbox"
+                      checked={marketingConsent}
+                      onChange={(e) => setMarketingConsent(e.target.checked)}
+                      className="sr-only peer"
+                    />
+                    <div className="w-5 h-5 rounded border-2 border-[var(--border-default)] bg-[var(--color-bg-card)] peer-checked:bg-primary peer-checked:border-primary transition-all flex items-center justify-center">
+                      {marketingConsent && (
+                        <svg
+                          className="w-3 h-3 text-white"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          stroke="currentColor"
+                          strokeWidth={3}
+                        >
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                        </svg>
+                      )}
+                    </div>
+                  </div>
+                  <span className="text-xs text-text-muted group-hover:text-text-secondary transition-colors leading-relaxed">
+                    I&apos;d like to receive updates about new features, tips, and community news
+                    (optional)
+                  </span>
+                </motion.label>
 
                 {/* Action buttons */}
                 <motion.div
@@ -272,7 +376,7 @@ export default function OnboardingPage() {
                   </button>
                   <button
                     onClick={handleBack}
-                    className="w-full px-6 py-3 rounded-xl text-text-muted text-sm hover:text-text-secondary transition-colors"
+                    className="w-full px-6 py-3 rounded-xl text-text-muted text-sm border border-[var(--border-default)] hover:text-text-secondary hover:border-[var(--border-strong)] transition-colors"
                   >
                     Choose Different Country
                   </button>

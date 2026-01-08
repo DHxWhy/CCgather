@@ -8,6 +8,7 @@ export interface CliConfig {
   verbose: boolean;
   lastSync?: string;
   userId?: string;
+  username?: string;
 }
 
 const defaults: CliConfig = {

@@ -8,6 +8,7 @@ const UpdateProfileSchema = z.object({
   country_code: z.string().length(2).optional(),
   timezone: z.string().optional(),
   onboarding_completed: z.boolean().optional(),
+  marketing_consent: z.boolean().optional(),
 });
 
 export async function GET() {
@@ -79,6 +80,12 @@ export async function PATCH(request: NextRequest) {
     let user;
     let error;
 
+    // Prepare update data with marketing consent timestamp
+    const updateData: Record<string, unknown> = { ...parsed.data };
+    if (parsed.data.marketing_consent !== undefined) {
+      updateData.marketing_consent_at = new Date().toISOString();
+    }
+
     if (!existingUser) {
       // User doesn't exist, create them with the profile data
       const clerkUser = await currentUser();
@@ -97,7 +104,7 @@ export async function PATCH(request: NextRequest) {
         display_name: displayName,
         avatar_url: clerkUser.imageUrl,
         email: clerkUser.emailAddresses[0]?.emailAddress,
-        ...parsed.data,
+        ...updateData,
       });
 
       if (insertError) {
@@ -122,7 +129,7 @@ export async function PATCH(request: NextRequest) {
       const { error: updateError } = await supabase
         .from("users")
         .update({
-          ...parsed.data,
+          ...updateData,
           updated_at: new Date().toISOString(),
         })
         .eq("clerk_id", userId);

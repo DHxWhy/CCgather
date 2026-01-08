@@ -25,7 +25,12 @@ program
   .option("--no-menu", "Skip interactive menu (direct submit)");
 
 // Scan command (generate ccgather.json)
-program.command("scan").description("Scan Claude Code usage and create ccgather.json").action(scan);
+program
+  .command("scan")
+  .description("Scan Claude Code usage and create ccgather.json")
+  .option("-a, --all", "Scan all-time usage (no date limit)")
+  .option("-d, --days <number>", "Number of days to scan (default: 30)", parseInt)
+  .action((opts) => scan(opts));
 
 // Rank command (view ranking)
 program
@@ -72,7 +77,31 @@ async function showInteractiveMenu(): Promise<void> {
   // Print header with logo
   printHeader(VERSION);
 
-  // Check authentication and show welcome box if authenticated
+  // Check authentication - if not authenticated, start auth flow
+  if (!isAuthenticated()) {
+    console.log(colors.warning("\n  🔐 Authentication required\n"));
+    console.log(colors.dim("  To submit your Claude Code usage, you need to log in first.\n"));
+
+    const { startAuth } = await inquirer.prompt([
+      {
+        type: "confirm",
+        name: "startAuth",
+        message: "Would you like to authenticate now?",
+        default: true,
+      },
+    ]);
+
+    if (startAuth) {
+      const { auth } = await import("./commands/auth.js");
+      await auth({});
+      // After auth, continue to menu
+      console.log();
+    } else {
+      console.log(colors.dim("\n  You can authenticate later by running: npx ccgather auth\n"));
+    }
+  }
+
+  // Show welcome box if authenticated
   if (isAuthenticated()) {
     try {
       const result = await getStatus();
@@ -94,8 +123,6 @@ async function showInteractiveMenu(): Promise<void> {
     } catch {
       // Silently fail, continue without welcome box
     }
-  } else {
-    console.log(colors.dim('  Not logged in. Run "ccgather auth" to authenticate.\n'));
   }
 
   // Interactive menu
@@ -249,22 +276,30 @@ function showHelp(): void {
   console.log(colors.primary.bold("  CCgather CLI Commands"));
   console.log(colors.dim("  ─".repeat(25)));
   console.log();
-  console.log(`  ${colors.white("npx ccgather")}          Interactive menu (default)`);
-  console.log(`  ${colors.white("npx ccgather scan")}     Scan local Claude Code usage`);
-  console.log(`  ${colors.white("npx ccgather rank")}     View your current rank`);
-  console.log(`  ${colors.white("npx ccgather sync")}     Sync usage data`);
-  console.log(`  ${colors.white("npx ccgather auth")}     Authenticate with CCgather`);
-  console.log(`  ${colors.white("npx ccgather reset")}    Reset all settings`);
+  console.log(`  ${colors.white("npx ccgather")}              Interactive menu (default)`);
+  console.log(
+    `  ${colors.white("npx ccgather scan")}         Scan local Claude Code usage (last 30 days)`
+  );
+  console.log(`  ${colors.white("npx ccgather scan --all")}   Scan all-time usage (no date limit)`);
+  console.log(`  ${colors.white("npx ccgather scan -d 90")}   Scan last 90 days of usage`);
+  console.log(`  ${colors.white("npx ccgather rank")}         View your current rank`);
+  console.log(`  ${colors.white("npx ccgather sync")}         Sync usage data`);
+  console.log(`  ${colors.white("npx ccgather auth")}         Authenticate with CCgather`);
+  console.log(`  ${colors.white("npx ccgather reset")}        Reset all settings`);
   console.log();
   console.log(colors.dim("  ─".repeat(25)));
-  console.log(`  ${colors.muted("Options:")}`);
+  console.log(`  ${colors.muted("Scan Options:")}`);
+  console.log(`  ${colors.white("-a, --all")}             Scan all-time usage (no date limit)`);
+  console.log(`  ${colors.white("-d, --days <n>")}        Scan last N days (default: 30)`);
+  console.log();
+  console.log(`  ${colors.muted("General Options:")}`);
   console.log(`  ${colors.white("-y, --yes")}             Skip confirmation prompts`);
   console.log(`  ${colors.white("--auto")}                Enable auto-sync`);
   console.log(`  ${colors.white("--manual")}              Disable auto-sync`);
   console.log(`  ${colors.white("--no-menu")}             Skip interactive menu`);
   console.log();
-  console.log(`  ${colors.muted("Documentation:")} ${link("https://ccgather.dev/docs")}`);
-  console.log(`  ${colors.muted("Leaderboard:")}   ${link("https://ccgather.dev/leaderboard")}`);
+  console.log(`  ${colors.muted("Documentation:")} ${link("https://ccgather.com/docs")}`);
+  console.log(`  ${colors.muted("Leaderboard:")}   ${link("https://ccgather.com/leaderboard")}`);
   console.log();
 }
 

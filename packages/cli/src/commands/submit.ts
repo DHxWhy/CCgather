@@ -2,7 +2,7 @@ import ora from "ora";
 import * as fs from "fs";
 import * as path from "path";
 import * as os from "os";
-import { getApiUrl } from "../lib/config.js";
+import { getApiUrl, getConfig, isAuthenticated } from "../lib/config.js";
 import {
   readCCGatherJson,
   scanAndSave,
@@ -14,10 +14,8 @@ import {
   formatNumber,
   formatCost,
   header,
-  divider,
   success,
   error,
-  warning,
   link,
   createBox,
   printCompactHeader,
@@ -198,51 +196,27 @@ function parseUsageFromJsonl(): UsageData | null {
 }
 
 /**
- * Detect GitHub username from git config or repo
- */
-async function detectGitHubUsername(): Promise<string | null> {
-  try {
-    const { execSync } = await import("child_process");
-
-    // Try to get from git config
-    try {
-      const username = execSync("git config --get user.name", { encoding: "utf-8" }).trim();
-      if (username) return username;
-    } catch {
-      // Ignore
-    }
-
-    // Try to get from remote origin
-    try {
-      const remote = execSync("git remote get-url origin", { encoding: "utf-8" }).trim();
-      const match = remote.match(/github\.com[:/]([^/]+)/);
-      if (match) return match[1];
-    } catch {
-      // Ignore
-    }
-  } catch {
-    // Ignore
-  }
-  return null;
-}
-
-/**
- * Submit data to CCgather API
+ * Submit data to CCgather API with token authentication
  */
 async function submitToServer(
-  username: string,
   data: UsageData
 ): Promise<{ success: boolean; profileUrl?: string; rank?: number; error?: string }> {
   const apiUrl = getApiUrl();
+  const config = getConfig();
+  const apiToken = config.get("apiToken");
+
+  if (!apiToken) {
+    return { success: false, error: "Not authenticated. Please run 'ccgather auth' first." };
+  }
 
   try {
     const response = await fetch(`${apiUrl}/cli/submit`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        Authorization: `Bearer ${apiToken}`,
       },
       body: JSON.stringify({
-        username,
         totalTokens: data.totalTokens,
         totalSpent: data.totalCost,
         inputTokens: data.inputTokens,
@@ -257,11 +231,11 @@ async function submitToServer(
     });
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
+      const errorData = (await response.json().catch(() => ({}))) as { error?: string };
       return { success: false, error: errorData.error || `HTTP ${response.status}` };
     }
 
-    const result = await response.json();
+    const result = (await response.json()) as { profileUrl?: string; rank?: number };
     return { success: true, profileUrl: result.profileUrl, rank: result.rank };
   } catch (err) {
     return { success: false, error: err instanceof Error ? err.message : "Unknown error" };
@@ -275,30 +249,19 @@ export async function submit(options: SubmitOptions): Promise<void> {
   printCompactHeader("1.2.1");
   console.log(header("Submit Usage Data", "📤"));
 
-  // Detect GitHub username
-  const spinner = ora({
-    text: "Detecting GitHub username...",
-    color: "cyan",
-  }).start();
-  let username = await detectGitHubUsername();
-  spinner.stop();
-
-  if (username) {
-    console.log(`\n  ${colors.muted("Detected:")} ${colors.white(username)}`);
+  // Check authentication first
+  if (!isAuthenticated()) {
+    console.log(`\n  ${error("Not authenticated.")}`);
+    console.log(`  ${colors.muted("Please run:")} ${colors.white("npx ccgather auth")}\n`);
+    process.exit(1);
   }
 
-  // Prompt for username confirmation
-  const inquirer = await import("inquirer");
-  const { confirmedUsername } = await inquirer.default.prompt([
-    {
-      type: "input",
-      name: "confirmedUsername",
-      message: colors.muted("GitHub username:"),
-      default: username || "",
-      validate: (input: string) => input.trim().length > 0 || "Username is required",
-    },
-  ]);
-  username = confirmedUsername.trim();
+  const config = getConfig();
+  const username = config.get("username");
+
+  if (username) {
+    console.log(`\n  ${colors.muted("Logged in as:")} ${colors.white(username)}`);
+  }
 
   // Find usage data - Priority: ccgather.json > cc.json > JSONL scan
   let usageData: UsageData | null = null;
@@ -324,6 +287,7 @@ export async function submit(options: SubmitOptions): Promise<void> {
   if (!usageData) {
     const ccJsonPath = findCcJson();
     if (ccJsonPath) {
+      const inquirer = await import("inquirer");
       const { useCcJson } = await inquirer.default.prompt([
         {
           type: "confirm",
@@ -370,6 +334,7 @@ export async function submit(options: SubmitOptions): Promise<void> {
 
   // Prompt for CCplan selection if not detected
   if (!usageData.ccplan) {
+    const inquirer = await import("inquirer");
     const { selectedCCplan } = await inquirer.default.prompt([
       {
         type: "list",
@@ -379,7 +344,7 @@ export async function submit(options: SubmitOptions): Promise<void> {
           { name: "🚀 Max", value: "max" },
           { name: "⚡ Pro", value: "pro" },
           { name: "⚪ Free", value: "free" },
-          { name: "👥 Team", value: "team" },
+          { name: "👥 Team / Enterprise", value: "team" },
           { name: "⏭️  Skip", value: null },
         ],
         default: "free",
@@ -407,6 +372,7 @@ export async function submit(options: SubmitOptions): Promise<void> {
 
   // Confirm submission
   if (!options.yes) {
+    const inquirer = await import("inquirer");
     const { confirmSubmit } = await inquirer.default.prompt([
       {
         type: "confirm",
@@ -427,7 +393,7 @@ export async function submit(options: SubmitOptions): Promise<void> {
     text: "Submitting to CCgather...",
     color: "cyan",
   }).start();
-  const result = await submitToServer(username, usageData);
+  const result = await submitToServer(usageData);
 
   if (result.success) {
     submitSpinner.succeed(colors.success("Successfully submitted to CCgather!"));
@@ -437,7 +403,7 @@ export async function submit(options: SubmitOptions): Promise<void> {
     const successLines = [
       `${colors.success("✓")} ${colors.white.bold("Submission Complete!")}`,
       "",
-      `${colors.muted("Profile:")} ${link(result.profileUrl || `https://ccgather.dev/u/${username}`)}`,
+      `${colors.muted("Profile:")} ${link(result.profileUrl || `https://ccgather.com/u/${username}`)}`,
     ];
 
     if (result.rank) {
@@ -446,11 +412,17 @@ export async function submit(options: SubmitOptions): Promise<void> {
 
     console.log(createBox(successLines));
     console.log();
-    console.log(`  ${colors.dim("View leaderboard:")} ${link("https://ccgather.dev/leaderboard")}`);
+    console.log(`  ${colors.dim("View leaderboard:")} ${link("https://ccgather.com/leaderboard")}`);
     console.log();
   } else {
     submitSpinner.fail(colors.error("Failed to submit"));
-    console.log(`\n  ${error(result.error || "Unknown error")}\n`);
+    console.log(`\n  ${error(result.error || "Unknown error")}`);
+
+    // If authentication error, suggest re-auth
+    if (result.error?.includes("auth") || result.error?.includes("token")) {
+      console.log(`\n  ${colors.muted("Try running:")} ${colors.white("npx ccgather auth")}`);
+    }
+    console.log();
     process.exit(1);
   }
 }

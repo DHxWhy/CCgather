@@ -1,8 +1,8 @@
-'use client';
+"use client";
 
-import { useState, useEffect } from 'react';
-import { X, Copy, Check, Terminal } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { useState, useEffect } from "react";
+import { X, Copy, Check, Terminal } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 interface CLIModalProps {
   isOpen: boolean;
@@ -37,17 +37,17 @@ export function CLIModal({ isOpen, onClose }: CLIModalProps) {
   // Close on escape key
   useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
+      if (e.key === "Escape") onClose();
     };
 
     if (isOpen) {
-      document.addEventListener('keydown', handleEscape);
-      document.body.style.overflow = 'hidden';
+      document.addEventListener("keydown", handleEscape);
+      document.body.style.overflow = "hidden";
     }
 
     return () => {
-      document.removeEventListener('keydown', handleEscape);
-      document.body.style.overflow = '';
+      document.removeEventListener("keydown", handleEscape);
+      document.body.style.overflow = "";
     };
   }, [isOpen, onClose]);
 
@@ -56,19 +56,16 @@ export function CLIModal({ isOpen, onClose }: CLIModalProps) {
   return (
     <>
       {/* Backdrop */}
-      <div
-        className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm"
-        onClick={onClose}
-      />
+      <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm" onClick={onClose} />
 
       {/* Modal */}
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none">
         <div
           className={cn(
-            'pointer-events-auto w-full max-w-lg',
-            'bg-[var(--color-bg-secondary)] border border-[var(--border-default)]',
-            'rounded-2xl shadow-2xl',
-            'animate-in fade-in zoom-in-95 duration-200'
+            "pointer-events-auto w-full max-w-lg",
+            "bg-[var(--color-bg-secondary)] border border-[var(--border-default)]",
+            "rounded-2xl shadow-2xl",
+            "animate-in fade-in zoom-in-95 duration-200"
           )}
           onClick={(e) => e.stopPropagation()}
         >
@@ -97,8 +94,8 @@ export function CLIModal({ isOpen, onClose }: CLIModalProps) {
               </p>
               <div className="flex items-center justify-between bg-black/40 rounded-lg p-3">
                 <code className="text-sm font-mono">
-                  <span className="text-[var(--color-text-muted)]">$</span>{' '}
-                  <span className="text-[var(--color-claude-coral)]">npx</span>{' '}
+                  <span className="text-[var(--color-text-muted)]">$</span>{" "}
+                  <span className="text-[var(--color-claude-coral)]">npx</span>{" "}
                   <span className="text-[var(--color-text-primary)]">ccgather</span>
                 </code>
                 <CopyButton text="npx ccgather" />
@@ -114,19 +111,23 @@ export function CLIModal({ isOpen, onClose }: CLIModalProps) {
                 <div className="flex items-start gap-3">
                   <span className="text-[var(--color-claude-coral)] font-mono text-xs">1.</span>
                   <span className="text-[var(--color-text-muted)]">
-                    Run <code className="text-[var(--color-claude-coral)]">npx ccgather</code> in your terminal
+                    Run <code className="text-[var(--color-claude-coral)]">npx ccgather scan</code>{" "}
+                    to scan your usage
                   </span>
                 </div>
                 <div className="flex items-start gap-3">
                   <span className="text-[var(--color-claude-coral)] font-mono text-xs">2.</span>
                   <span className="text-[var(--color-text-muted)]">
-                    Detects your Claude Code usage (cc.json or logs)
+                    Scans{" "}
+                    <code className="text-[var(--color-claude-coral)]">~/.claude/projects/</code>{" "}
+                    session logs
                   </span>
                 </div>
                 <div className="flex items-start gap-3">
                   <span className="text-[var(--color-claude-coral)] font-mono text-xs">3.</span>
                   <span className="text-[var(--color-text-muted)]">
-                    Confirm and submit to the leaderboard
+                    Run <code className="text-[var(--color-claude-coral)]">npx ccgather</code> to
+                    submit to leaderboard
                   </span>
                 </div>
               </div>
@@ -139,12 +140,44 @@ export function CLIModal({ isOpen, onClose }: CLIModalProps) {
               </p>
               <div className="space-y-1.5 text-xs font-mono">
                 {[
-                  { cmd: 'npx ccgather', desc: 'Submit to leaderboard' },
-                  { cmd: 'npx ccgather status', desc: 'View your ranking' },
-                  { cmd: 'npx ccgather sync', desc: 'Manual sync' },
+                  { cmd: "npx ccgather", desc: "Interactive menu (default)" },
+                  { cmd: "npx ccgather scan", desc: "Scan usage (last 30 days)" },
+                  { cmd: "npx ccgather scan --all", desc: "Scan all-time usage" },
+                  { cmd: "npx ccgather scan -d 90", desc: "Scan last 90 days" },
+                  { cmd: "npx ccgather rank", desc: "View your ranking" },
+                  { cmd: "npx ccgather sync", desc: "Sync usage data" },
+                  { cmd: "npx ccgather auth", desc: "Authenticate account" },
+                  { cmd: "npx ccgather reset", desc: "Reset all settings" },
                 ].map((item) => (
-                  <div key={item.cmd} className="flex items-center justify-between py-1.5 px-2 rounded bg-black/20">
+                  <div
+                    key={item.cmd}
+                    className="flex items-center justify-between py-1.5 px-2 rounded bg-black/20"
+                  >
                     <code className="text-[var(--color-claude-coral)]">{item.cmd}</code>
+                    <span className="text-[var(--color-text-muted)] font-sans">{item.desc}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Options */}
+            <div>
+              <p className="text-xs text-[var(--color-text-muted)] uppercase tracking-wider mb-2">
+                Options
+              </p>
+              <div className="space-y-1.5 text-xs font-mono">
+                {[
+                  { opt: "-a, --all", desc: "Scan all-time usage" },
+                  { opt: "-d, --days <n>", desc: "Scan last N days" },
+                  { opt: "-y, --yes", desc: "Skip confirmations" },
+                  { opt: "--auto", desc: "Enable auto-sync" },
+                  { opt: "--manual", desc: "Disable auto-sync" },
+                ].map((item) => (
+                  <div
+                    key={item.opt}
+                    className="flex items-center justify-between py-1.5 px-2 rounded bg-black/20"
+                  >
+                    <code className="text-[var(--color-text-secondary)]">{item.opt}</code>
                     <span className="text-[var(--color-text-muted)] font-sans">{item.desc}</span>
                   </div>
                 ))}
@@ -157,8 +190,14 @@ export function CLIModal({ isOpen, onClose }: CLIModalProps) {
                 Data Sources
               </p>
               <div className="text-xs text-[var(--color-text-muted)] space-y-1">
-                <div><code className="text-[var(--color-claude-coral)]">cc.json</code> - Usage summary file</div>
-                <div><code className="text-[var(--color-claude-coral)]">~/.claude/projects/</code> - Session logs</div>
+                <div>
+                  <code className="text-[var(--color-claude-coral)]">~/.claude/projects/</code> -
+                  Claude Code session logs
+                </div>
+                <div>
+                  <code className="text-[var(--color-claude-coral)]">~/.claude/ccgather.json</code>{" "}
+                  - Scanned usage data
+                </div>
               </div>
             </div>
           </div>

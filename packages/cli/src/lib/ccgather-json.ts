@@ -43,7 +43,7 @@ export interface CCGatherData {
   >;
   dailyUsage: DailyUsage[];
   account?: {
-    ccplan: "free" | "pro" | "max" | "team" | null;
+    ccplan: string | null;
     rateLimitTier: string | null;
   };
 }
@@ -136,14 +136,30 @@ function estimateCost(model: string, inputTokens: number, outputTokens: number):
   return Math.round((inputCost + outputCost) * 100) / 100;
 }
 
+export interface ScanOptions {
+  days?: number; // Number of days to include (default: 30, 0 = all)
+}
+
 /**
  * Scan JSONL files and generate ccgather.json data
+ * @param options.days - Number of days to include (default: 30, 0 or undefined with all flag = all time)
  */
-export function scanUsageData(): CCGatherData | null {
+export function scanUsageData(options: ScanOptions = {}): CCGatherData | null {
   const projectsDir = getClaudeProjectsDir();
 
   if (!fs.existsSync(projectsDir)) {
     return null;
+  }
+
+  // Calculate cutoff date (default: 30 days, 0 = no limit)
+  const days = options.days ?? 30;
+  let cutoffDate: string | null = null;
+
+  if (days > 0) {
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - days);
+    cutoff.setHours(0, 0, 0, 0);
+    cutoffDate = cutoff.toISOString();
   }
 
   let totalInputTokens = 0;
@@ -204,6 +220,11 @@ export function scanUsageData(): CCGatherData | null {
           const event = JSON.parse(line);
 
           if (event.type === "assistant" && event.message?.usage) {
+            // Skip events older than cutoff date (if set)
+            if (cutoffDate && event.timestamp && event.timestamp < cutoffDate) {
+              continue;
+            }
+
             const usage = event.message.usage;
             const model = event.message.model || "unknown";
             const inputTokens = usage.input_tokens || 0;
@@ -363,8 +384,8 @@ export function writeCCGatherJson(data: CCGatherData): void {
 /**
  * Scan and save ccgather.json
  */
-export function scanAndSave(): CCGatherData | null {
-  const data = scanUsageData();
+export function scanAndSave(options: ScanOptions = {}): CCGatherData | null {
+  const data = scanUsageData(options);
 
   if (data) {
     writeCCGatherJson(data);

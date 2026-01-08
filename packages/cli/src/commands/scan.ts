@@ -1,5 +1,10 @@
 import ora from "ora";
-import { scanAndSave, getCCGatherJsonPath, CCGatherData } from "../lib/ccgather-json.js";
+import {
+  scanAndSave,
+  getCCGatherJsonPath,
+  CCGatherData,
+  ScanOptions,
+} from "../lib/ccgather-json.js";
 import {
   colors,
   formatNumber,
@@ -11,6 +16,11 @@ import {
   printCompactHeader,
   getCCplanBadge,
 } from "../lib/ui.js";
+
+export interface ScanCommandOptions {
+  all?: boolean;
+  days?: number;
+}
 
 /**
  * Display scan results
@@ -120,16 +130,29 @@ function displayResults(data: CCGatherData): void {
 /**
  * Scan command - scans JSONL files and creates ccgather.json
  */
-export async function scan(): Promise<void> {
+export async function scan(options: ScanCommandOptions = {}): Promise<void> {
   printCompactHeader("1.2.1");
   console.log(header("Scan Claude Code Usage", "🔍"));
+
+  // Determine days to scan
+  let days: number;
+  if (options.all) {
+    days = 0; // 0 = no limit (all time)
+    console.log(`  ${colors.muted("Mode:")} ${colors.primary("All time")} (no date limit)\n`);
+  } else if (options.days) {
+    days = options.days;
+    console.log(`  ${colors.muted("Mode:")} ${colors.primary(`Last ${days} days`)}\n`);
+  } else {
+    days = 30; // Default: 30 days
+    console.log(`  ${colors.muted("Mode:")} ${colors.primary("Last 30 days")} (default)\n`);
+  }
 
   const spinner = ora({
     text: "Scanning JSONL files...",
     color: "cyan",
   }).start();
 
-  const data = scanAndSave();
+  const data = scanAndSave({ days });
 
   if (!data) {
     spinner.fail(colors.error("No usage data found"));
@@ -148,6 +171,11 @@ export async function scan(): Promise<void> {
 
   // Next steps
   console.log(`  ${colors.muted("Next:")} Run ${colors.white("npx ccgather")} to submit your data`);
+  console.log();
+  console.log(colors.dim("  ─".repeat(25)));
+  console.log(
+    `  ${colors.muted("Tip:")} Use ${colors.white("--all")} for all-time data or ${colors.white("--days <n>")} for custom range`
+  );
   console.log();
 }
 
