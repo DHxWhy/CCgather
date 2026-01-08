@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Search, Command, X, Globe2, Sparkles } from "lucide-react";
+import { Search, Command, X, Globe2 } from "lucide-react";
 import { type Country } from "@/lib/constants/countries";
 import { FlagIcon } from "@/components/ui/FlagIcon";
 
@@ -10,14 +10,12 @@ interface CountrySearchPaletteProps {
   countries: Country[];
   selectedCountry: string;
   onSelectCountry: (code: string) => void;
-  topCountries: Country[];
 }
 
 export function CountrySearchPalette({
   countries,
   selectedCountry,
   onSelectCountry,
-  topCountries,
 }: CountrySearchPaletteProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -26,14 +24,14 @@ export function CountrySearchPalette({
   const listRef = useRef<HTMLDivElement>(null);
 
   const filteredCountries = useMemo(() => {
-    if (!query.trim()) return [];
+    if (!query.trim()) return countries; // Show all countries when no search
     const q = query.toLowerCase();
     return countries.filter(
       (c) => c.name.toLowerCase().includes(q) || c.code.toLowerCase().includes(q)
     );
   }, [countries, query]);
 
-  const displayList = query.trim() ? filteredCountries : topCountries;
+  const displayList = filteredCountries;
 
   // Keyboard shortcut to open
   useEffect(() => {
@@ -171,19 +169,11 @@ export function CountrySearchPalette({
 
                 {/* Category hint */}
                 <div className="px-4 pb-2 flex items-center gap-2">
-                  {!query ? (
-                    <>
-                      <Sparkles className="w-3.5 h-3.5 text-primary" />
-                      <span className="text-xs text-text-muted">Popular countries</span>
-                    </>
-                  ) : (
-                    <>
-                      <Globe2 className="w-3.5 h-3.5 text-text-muted" />
-                      <span className="text-xs text-text-muted">
-                        {filteredCountries.length} result{filteredCountries.length !== 1 ? "s" : ""}
-                      </span>
-                    </>
-                  )}
+                  <Globe2 className="w-3.5 h-3.5 text-text-muted" />
+                  <span className="text-xs text-text-muted">
+                    {filteredCountries.length} {query ? "result" : "countrie"}
+                    {filteredCountries.length !== 1 ? "s" : ""}
+                  </span>
                 </div>
               </div>
 

@@ -2,7 +2,7 @@
 
 import { motion } from "framer-motion";
 import { type Country } from "@/lib/constants/countries";
-import { Trophy, TrendingUp, Check } from "lucide-react";
+import { Check } from "lucide-react";
 import { FlagIcon } from "@/components/ui/FlagIcon";
 
 interface CountryCardProps {
@@ -10,14 +10,9 @@ interface CountryCardProps {
   isSelected: boolean;
   onClick: () => void;
   index: number;
-  stats?: {
-    users: number;
-    rank: number;
-    trending?: boolean;
-  };
 }
 
-export function CountryCard({ country, isSelected, onClick, index, stats }: CountryCardProps) {
+export function CountryCard({ country, isSelected, onClick, index }: CountryCardProps) {
   return (
     <motion.button
       onClick={onClick}
@@ -59,12 +54,7 @@ export function CountryCard({ country, isSelected, onClick, index, stats }: Coun
             <FlagIcon countryCode={country.code} size="lg" />
           </motion.div>
           <div className="flex-1 min-w-0">
-            <h3 className="font-semibold text-text-primary truncate text-sm sm:text-base">
-              {country.name}
-            </h3>
-            {stats && (
-              <p className="text-xs text-text-muted">{stats.users.toLocaleString()} vibe coders</p>
-            )}
+            <h3 className="font-semibold text-text-primary text-xs sm:text-sm">{country.name}</h3>
           </div>
 
           {/* Selection indicator */}
@@ -83,22 +73,6 @@ export function CountryCard({ country, isSelected, onClick, index, stats }: Coun
             {isSelected && <Check className="w-3.5 h-3.5" />}
           </motion.div>
         </div>
-
-        {/* Stats row */}
-        {stats && (
-          <div className="flex items-center gap-4 text-xs text-text-secondary">
-            <div className="flex items-center gap-1.5">
-              <Trophy className="w-3.5 h-3.5 text-amber-500/70" />
-              <span>#{stats.rank} Global</span>
-            </div>
-            {stats.trending && (
-              <div className="flex items-center gap-1 text-emerald-400">
-                <TrendingUp className="w-3.5 h-3.5" />
-                <span>Trending</span>
-              </div>
-            )}
-          </div>
-        )}
       </div>
 
       {/* Bottom glow line when selected */}
@@ -115,12 +89,7 @@ export function CountryCard({ country, isSelected, onClick, index, stats }: Coun
 }
 
 // Compact version for the scrollable list
-export function CountryCardCompact({
-  country,
-  isSelected,
-  onClick,
-  index,
-}: Omit<CountryCardProps, "stats">) {
+export function CountryCardCompact({ country, isSelected, onClick, index }: CountryCardProps) {
   return (
     <motion.button
       onClick={onClick}
@@ -137,7 +106,7 @@ export function CountryCardCompact({
     >
       <FlagIcon countryCode={country.code} size="sm" />
       <span
-        className={`flex-1 truncate ${isSelected ? "text-text-primary font-medium" : "text-text-secondary"}`}
+        className={`flex-1 ${isSelected ? "text-text-primary font-medium" : "text-text-secondary"}`}
       >
         {country.name}
       </span>

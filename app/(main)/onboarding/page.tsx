@@ -123,8 +123,8 @@ export default function OnboardingPage() {
             transition={{ duration: 0.5, delay: 0.2 }}
             className="text-text-muted text-sm sm:text-base max-w-md mx-auto"
           >
-            Select your country to compete in regional leaderboards and represent your nation in the
-            global Claude Code championship.
+            Select your country to join regional leaderboards and track your Claude Code usage with
+            developers worldwide.
           </motion.p>
         </header>
 
@@ -146,7 +146,6 @@ export default function OnboardingPage() {
                     countries={ALL_COUNTRIES}
                     selectedCountry={selectedCountry}
                     onSelectCountry={handleSelectCountry}
-                    topCountries={TOP_COUNTRIES}
                   />
                 </div>
 
