@@ -1,8 +1,8 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@clerk/nextjs/server';
-import { createClient } from '@/lib/supabase/server';
-import { z } from 'zod';
-import { randomBytes } from 'crypto';
+import { NextRequest, NextResponse } from "next/server";
+import { auth } from "@clerk/nextjs/server";
+import { createClient } from "@/lib/supabase/server";
+import { z } from "zod";
+import { randomBytes } from "crypto";
 
 const UpdateProfileSchema = z.object({
   country_code: z.string().length(2).optional(),
@@ -14,13 +14,13 @@ export async function GET() {
   const { userId } = await auth();
 
   if (!userId) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   const supabase = await createClient();
 
   const { data: user, error } = await supabase
-    .from('users')
+    .from("users")
     .select(
       `
       id,
@@ -39,11 +39,11 @@ export async function GET() {
       created_at
     `
     )
-    .eq('clerk_id', userId)
+    .eq("clerk_id", userId)
     .single();
 
   if (error || !user) {
-    return NextResponse.json({ error: 'User not found' }, { status: 404 });
+    return NextResponse.json({ error: "User not found" }, { status: 404 });
   }
 
   return NextResponse.json({ user });
@@ -53,7 +53,7 @@ export async function PATCH(request: NextRequest) {
   const { userId } = await auth();
 
   if (!userId) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   try {
@@ -62,7 +62,7 @@ export async function PATCH(request: NextRequest) {
 
     if (!parsed.success) {
       return NextResponse.json(
-        { error: 'Invalid request body', details: parsed.error.issues },
+        { error: "Invalid request body", details: parsed.error.issues },
         { status: 400 }
       );
     }
@@ -75,27 +75,38 @@ export async function PATCH(request: NextRequest) {
     };
 
     const { data: user, error } = await supabase
-      .from('users')
+      .from("users")
       .update(updateData)
-      .eq('clerk_id', userId)
+      .eq("clerk_id", userId)
       .select()
       .single();
 
     if (error) {
-      console.error('Failed to update user:', error);
+      console.error("Failed to update user:", error);
+      // Check if user doesn't exist
+      if (error.code === "PGRST116") {
+        return NextResponse.json(
+          { error: "User not found. Please sign out and sign in again." },
+          { status: 404 }
+        );
+      }
       return NextResponse.json(
-        { error: 'Failed to update profile' },
+        { error: `Failed to update profile: ${error.message}` },
         { status: 500 }
+      );
+    }
+
+    if (!user) {
+      return NextResponse.json(
+        { error: "User not found. Please sign out and sign in again." },
+        { status: 404 }
       );
     }
 
     return NextResponse.json({ user });
   } catch (error) {
-    console.error('PATCH /api/me error:', error);
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    );
+    console.error("PATCH /api/me error:", error);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }
 
@@ -103,7 +114,7 @@ export async function POST(request: NextRequest) {
   const { userId } = await auth();
 
   if (!userId) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   const supabase = await createClient();
@@ -112,36 +123,30 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const action = body.action;
 
-    if (action === 'generate_api_key') {
-      const apiKey = `ccg_${randomBytes(32).toString('hex')}`;
+    if (action === "generate_api_key") {
+      const apiKey = `ccg_${randomBytes(32).toString("hex")}`;
 
       const { data: user, error } = await supabase
-        .from('users')
+        .from("users")
         .update({
           api_key: apiKey,
           updated_at: new Date().toISOString(),
         })
-        .eq('clerk_id', userId)
-        .select('api_key')
+        .eq("clerk_id", userId)
+        .select("api_key")
         .single();
 
       if (error) {
-        console.error('Failed to generate API key:', error);
-        return NextResponse.json(
-          { error: 'Failed to generate API key' },
-          { status: 500 }
-        );
+        console.error("Failed to generate API key:", error);
+        return NextResponse.json({ error: "Failed to generate API key" }, { status: 500 });
       }
 
       return NextResponse.json({ api_key: user.api_key });
     }
 
-    return NextResponse.json({ error: 'Unknown action' }, { status: 400 });
+    return NextResponse.json({ error: "Unknown action" }, { status: 400 });
   } catch (error) {
-    console.error('POST /api/me error:', error);
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    );
+    console.error("POST /api/me error:", error);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }

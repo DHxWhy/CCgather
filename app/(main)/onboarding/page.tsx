@@ -51,12 +51,12 @@ export default function OnboardingPage() {
         router.replace("/leaderboard");
       } else {
         const data = await response.json().catch(() => ({}));
-        console.error("Failed to update profile:", data);
-        alert("Failed to join league. Please try again.");
+        console.error("Failed to update profile:", response.status, data);
+        alert(`리그 가입 실패 (${response.status}): ${data.error || "알 수 없는 오류"}`);
       }
     } catch (error) {
       console.error("Failed to update profile:", error);
-      alert("Network error. Please try again.");
+      alert(`네트워크 오류: ${error instanceof Error ? error.message : "연결 실패"}`);
     } finally {
       setIsSubmitting(false);
     }
