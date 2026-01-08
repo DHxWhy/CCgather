@@ -7,6 +7,7 @@ import { ALL_COUNTRIES, TOP_COUNTRIES } from "@/lib/constants/countries";
 import { CountryCard } from "@/components/onboarding/CountryCard";
 import { CountrySearchPalette } from "@/components/onboarding/CountrySearchPalette";
 import { Confetti, SparkleEffect } from "@/components/onboarding/Confetti";
+import { CLIModal } from "@/components/cli/CLIModal";
 import { Globe2, Users, Trophy, ChevronRight, Sparkles } from "lucide-react";
 import dynamic from "next/dynamic";
 
@@ -21,6 +22,7 @@ export default function OnboardingPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showConfetti, setShowConfetti] = useState(false);
   const [step, setStep] = useState<"select" | "confirm">("select");
+  const [showCLIModal, setShowCLIModal] = useState(false);
 
   const selectedCountryData = useMemo(() => {
     return ALL_COUNTRIES.find((c) => c.code === selectedCountry);
@@ -51,9 +53,8 @@ export default function OnboardingPage() {
       });
 
       if (response.ok) {
-        // Small delay to ensure DB update is committed
-        await new Promise((resolve) => setTimeout(resolve, 500));
-        router.replace("/leaderboard");
+        // Show CLI guide modal instead of immediately redirecting
+        setShowCLIModal(true);
       } else {
         const data = await response.json().catch(() => ({}));
         console.error("Failed to update profile:", response.status, data);
@@ -72,8 +73,16 @@ export default function OnboardingPage() {
     setStep("select");
   };
 
+  const handleCLIModalClose = () => {
+    setShowCLIModal(false);
+    router.replace("/leaderboard");
+  };
+
   return (
     <div className="min-h-screen bg-bg-primary relative overflow-hidden">
+      {/* CLI Guide Modal */}
+      <CLIModal isOpen={showCLIModal} onClose={handleCLIModalClose} />
+
       {/* Confetti celebration */}
       <Confetti active={showConfetti} />
       <SparkleEffect active={step === "confirm"} />

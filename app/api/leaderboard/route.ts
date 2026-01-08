@@ -68,7 +68,8 @@ export async function GET(request: NextRequest) {
       `,
         { count: "exact" }
       )
-      .eq("onboarding_completed", true);
+      .eq("onboarding_completed", true)
+      .gt("total_tokens", 0); // Only show users who have submitted usage data
 
     // Apply ccplan filter
     if (ccplan !== "all") {
