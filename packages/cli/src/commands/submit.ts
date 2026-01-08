@@ -400,24 +400,16 @@ export async function submit(options: SubmitOptions): Promise<void> {
     submitSpinner.fail(colors.error("Failed to submit"));
     console.log(`\n  ${error(result.error || "Unknown error")}`);
 
-    // If authentication error, offer to re-auth automatically
+    // If authentication error, automatically re-authenticate
     if (result.error?.includes("auth") || result.error?.includes("token")) {
       console.log();
-      const inquirer = await import("inquirer");
-      const { reauth } = await inquirer.default.prompt([
-        {
-          type: "confirm",
-          name: "reauth",
-          message: "Would you like to re-authenticate now?",
-          default: true,
-        },
-      ]);
-
-      if (reauth) {
-        const { auth } = await import("./auth.js");
-        await auth({});
-        return; // auth will handle submit after successful authentication
-      }
+      console.log(`  ${colors.muted("Starting re-authentication...")}`);
+      // Clear invalid token before re-auth
+      config.delete("apiToken");
+      config.delete("userId");
+      const { auth } = await import("./auth.js");
+      await auth({});
+      return; // auth will handle submit after successful authentication
     }
     console.log();
     process.exit(1);

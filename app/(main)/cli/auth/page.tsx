@@ -34,8 +34,24 @@ export default function CLIAuthPage() {
     setStatus("checking");
 
     try {
-      // Check if user has completed onboarding
-      const meResponse = await fetch("/api/me");
+      // Skip onboarding check if just completed (prevents race condition)
+      const justCompleted = sessionStorage.getItem("onboarding_just_completed");
+      if (justCompleted) {
+        sessionStorage.removeItem("onboarding_just_completed");
+        // Proceed directly to authorization
+        if (userCode) {
+          await authorizeDevice(userCode);
+        } else {
+          setStatus("success");
+        }
+        return;
+      }
+
+      // Check if user has completed onboarding (with cache busting)
+      const meResponse = await fetch("/api/me", {
+        cache: "no-store",
+        headers: { "Cache-Control": "no-cache" },
+      });
 
       if (!meResponse.ok) {
         // User might not exist yet - redirect to onboarding
