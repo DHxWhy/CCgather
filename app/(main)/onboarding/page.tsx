@@ -8,7 +8,7 @@ import { CountryCard } from "@/components/onboarding/CountryCard";
 import { CountrySearchPalette } from "@/components/onboarding/CountrySearchPalette";
 import { Confetti, SparkleEffect } from "@/components/onboarding/Confetti";
 import { CLIModal } from "@/components/cli/CLIModal";
-import { Globe2, Users, Trophy, ChevronRight, Sparkles } from "lucide-react";
+import { ChevronRight, Sparkles } from "lucide-react";
 import dynamic from "next/dynamic";
 
 const ReactCountryFlag = dynamic(() => import("react-country-flag"), {
@@ -395,15 +395,15 @@ export default function OnboardingPage() {
         >
           <div className="max-w-4xl mx-auto flex flex-wrap items-center justify-center gap-x-8 gap-y-2 text-xs text-text-muted">
             <div className="flex items-center gap-2">
-              <Users className="w-4 h-4 text-primary" />
+              <span>👥</span>
               <span>Global community</span>
             </div>
             <div className="flex items-center gap-2">
-              <Globe2 className="w-4 h-4 text-primary" />
+              <span>🌍</span>
               <span>270+ countries</span>
             </div>
             <div className="flex items-center gap-2">
-              <Trophy className="w-4 h-4 text-primary" />
+              <span>🏆</span>
               <span>Real-time rankings</span>
             </div>
           </div>

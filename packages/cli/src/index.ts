@@ -11,7 +11,7 @@ import { printHeader, createWelcomeBox, colors, link, getLevelInfo } from "./lib
 import { getConfig, isAuthenticated } from "./lib/config.js";
 import { getStatus } from "./lib/api.js";
 
-const VERSION = "1.2.1";
+const VERSION = "1.3.1";
 
 const program = new Command();
 

@@ -1,11 +1,11 @@
-import chalk from 'chalk';
-import ora from 'ora';
-import * as http from 'http';
-import * as fs from 'fs';
-import * as path from 'path';
-import * as os from 'os';
-import { getConfig } from '../lib/config.js';
-import { getApiUrl } from '../lib/config.js';
+import chalk from "chalk";
+import ora from "ora";
+import * as http from "http";
+import * as fs from "fs";
+import * as path from "path";
+import * as os from "os";
+import { getConfig } from "../lib/config.js";
+import { getApiUrl } from "../lib/config.js";
 
 const CALLBACK_PORT = 9876;
 
@@ -19,14 +19,14 @@ interface AuthCallbackData {
  * Get the Claude Code settings directory
  */
 function getClaudeSettingsDir(): string {
-  return path.join(os.homedir(), '.claude');
+  return path.join(os.homedir(), ".claude");
 }
 
 /**
  * Open URL in default browser
  */
 async function openBrowser(url: string): Promise<void> {
-  const { default: open } = await import('open');
+  const { default: open } = await import("open");
   await open(url);
 }
 
@@ -36,16 +36,16 @@ async function openBrowser(url: string): Promise<void> {
 function createCallbackServer(): Promise<AuthCallbackData> {
   return new Promise((resolve, reject) => {
     const server = http.createServer((req, res) => {
-      const url = new URL(req.url || '', `http://localhost:${CALLBACK_PORT}`);
+      const url = new URL(req.url || "", `http://localhost:${CALLBACK_PORT}`);
 
-      if (url.pathname === '/callback') {
-        const token = url.searchParams.get('token');
-        const userId = url.searchParams.get('userId');
-        const username = url.searchParams.get('username');
-        const error = url.searchParams.get('error');
+      if (url.pathname === "/callback") {
+        const token = url.searchParams.get("token");
+        const userId = url.searchParams.get("userId");
+        const username = url.searchParams.get("username");
+        const error = url.searchParams.get("error");
 
         if (error) {
-          res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+          res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
           res.end(`
             <html>
               <head><title>CCgather - Error</title></head>
@@ -64,7 +64,7 @@ function createCallbackServer(): Promise<AuthCallbackData> {
         }
 
         if (token && userId && username) {
-          res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+          res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
           res.end(`
             <html>
               <head><title>CCgather - Success</title></head>
@@ -80,12 +80,12 @@ function createCallbackServer(): Promise<AuthCallbackData> {
           server.close();
           resolve({ token, userId, username });
         } else {
-          res.writeHead(400, { 'Content-Type': 'text/plain' });
-          res.end('Missing required parameters');
+          res.writeHead(400, { "Content-Type": "text/plain" });
+          res.end("Missing required parameters");
         }
       } else {
-        res.writeHead(404, { 'Content-Type': 'text/plain' });
-        res.end('Not found');
+        res.writeHead(404, { "Content-Type": "text/plain" });
+        res.end("Not found");
       }
     });
 
@@ -93,15 +93,18 @@ function createCallbackServer(): Promise<AuthCallbackData> {
       // Server started
     });
 
-    server.on('error', (err) => {
+    server.on("error", (err) => {
       reject(new Error(`Failed to start callback server: ${err.message}`));
     });
 
     // Timeout after 5 minutes
-    setTimeout(() => {
-      server.close();
-      reject(new Error('Authentication timed out'));
-    }, 5 * 60 * 1000);
+    setTimeout(
+      () => {
+        server.close();
+        reject(new Error("Authentication timed out"));
+      },
+      5 * 60 * 1000
+    );
   });
 }
 
@@ -273,7 +276,7 @@ if (usageData) {
  */
 function installStopHook(): { success: boolean; message: string } {
   const claudeDir = getClaudeSettingsDir();
-  const settingsPath = path.join(claudeDir, 'settings.json');
+  const settingsPath = path.join(claudeDir, "settings.json");
 
   // Ensure .claude directory exists
   if (!fs.existsSync(claudeDir)) {
@@ -284,7 +287,7 @@ function installStopHook(): { success: boolean; message: string } {
   let settings: Record<string, unknown> = {};
   try {
     if (fs.existsSync(settingsPath)) {
-      const content = fs.readFileSync(settingsPath, 'utf-8');
+      const content = fs.readFileSync(settingsPath, "utf-8");
       settings = JSON.parse(content);
     }
   } catch {
@@ -292,14 +295,14 @@ function installStopHook(): { success: boolean; message: string } {
   }
 
   // Ensure hooks object exists
-  if (!settings.hooks || typeof settings.hooks !== 'object') {
+  if (!settings.hooks || typeof settings.hooks !== "object") {
     settings.hooks = {};
   }
 
   const hooks = settings.hooks as Record<string, unknown[]>;
 
   // Check if our hook already exists
-  const syncScriptPath = path.join(claudeDir, 'ccgather-sync.js');
+  const syncScriptPath = path.join(claudeDir, "ccgather-sync.js");
   const hookCommand = `node "${syncScriptPath}"`;
 
   if (!hooks.Stop || !Array.isArray(hooks.Stop)) {
@@ -308,20 +311,21 @@ function installStopHook(): { success: boolean; message: string } {
 
   // Check if hook already registered
   const existingHook = hooks.Stop.find(
-    (h: unknown) => typeof h === 'object' && h !== null && (h as Record<string, unknown>).command === hookCommand
+    (h: unknown) =>
+      typeof h === "object" && h !== null && (h as Record<string, unknown>).command === hookCommand
   );
 
   if (!existingHook) {
     hooks.Stop.push({
       command: hookCommand,
-      background: true
+      background: true,
     });
   }
 
   // Write settings back
   fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2));
 
-  return { success: true, message: 'Stop hook installed' };
+  return { success: true, message: "Stop hook installed" };
 }
 
 /**
@@ -329,14 +333,14 @@ function installStopHook(): { success: boolean; message: string } {
  */
 function saveSyncScript(apiUrl: string, apiToken: string): void {
   const claudeDir = getClaudeSettingsDir();
-  const scriptPath = path.join(claudeDir, 'ccgather-sync.js');
+  const scriptPath = path.join(claudeDir, "ccgather-sync.js");
 
   const scriptContent = generateSyncScript(apiUrl, apiToken);
   fs.writeFileSync(scriptPath, scriptContent);
 
   // Make executable on Unix
-  if (os.platform() !== 'win32') {
-    fs.chmodSync(scriptPath, '755');
+  if (os.platform() !== "win32") {
+    fs.chmodSync(scriptPath, "755");
   }
 }
 
@@ -351,68 +355,70 @@ interface SetupOptions {
 export async function setupAuto(options: SetupOptions = {}): Promise<void> {
   // If --manual flag, remove auto-sync
   if (options.manual) {
-    console.log(chalk.bold('\n🔧 Disabling Auto-Sync\n'));
+    console.log(chalk.bold("\n🔧 Disabling Auto-Sync\n"));
 
-    const { reset } = await import('./reset.js');
+    const { reset } = await import("./reset.js");
     await reset();
 
-    console.log(chalk.green('✓ Auto-sync disabled. Use `npx ccgather` to submit manually.'));
+    console.log(chalk.green("✓ Auto-sync disabled. Use `npx ccgather` to submit manually."));
     return;
   }
 
   // Show info about auto mode
-  console.log(chalk.bold('\n⚠️  Auto-Sync Mode (Optional)\n'));
-  console.log(chalk.gray('This will install a hook that automatically syncs'));
-  console.log(chalk.gray('your usage data when Claude Code sessions end.'));
+  console.log(chalk.bold("\n⚠️  Auto-Sync Mode (Optional)\n"));
+  console.log(chalk.gray("This will install a hook that automatically syncs"));
+  console.log(chalk.gray("your usage data when Claude Code sessions end."));
   console.log();
-  console.log(chalk.yellow('Note: Manual submission (`npx ccgather`) is recommended for most users.'));
+  console.log(
+    chalk.yellow("Note: Manual submission (`npx ccgather`) is recommended for most users.")
+  );
   console.log();
 
-  const inquirer = await import('inquirer');
+  const inquirer = await import("inquirer");
   const { proceed } = await inquirer.default.prompt([
     {
-      type: 'confirm',
-      name: 'proceed',
-      message: 'Continue with auto-sync setup?',
+      type: "confirm",
+      name: "proceed",
+      message: "Continue with auto-sync setup?",
       default: false,
     },
   ]);
 
   if (!proceed) {
-    console.log(chalk.gray('\nSetup cancelled. Use `npx ccgather` to submit manually.'));
+    console.log(chalk.gray("\nSetup cancelled. Use `npx ccgather` to submit manually."));
     return;
   }
 
   const config = getConfig();
   const apiUrl = getApiUrl();
 
-  console.log(chalk.bold('\n🌐 CCgather Setup\n'));
+  console.log(chalk.bold("\n🌐 CCgather Setup\n"));
 
   // Check if already set up
-  const existingToken = config.get('apiToken');
+  const existingToken = config.get("apiToken");
   if (existingToken) {
-    const inquirer = await import('inquirer');
+    const inquirer = await import("inquirer");
     const { reconfigure } = await inquirer.default.prompt([
       {
-        type: 'confirm',
-        name: 'reconfigure',
-        message: 'You are already set up. Do you want to reconfigure?',
+        type: "confirm",
+        name: "reconfigure",
+        message: "You are already set up. Do you want to reconfigure?",
         default: false,
       },
     ]);
 
     if (!reconfigure) {
-      console.log(chalk.gray('Setup cancelled.'));
+      console.log(chalk.gray("Setup cancelled."));
       return;
     }
   }
 
   // Start OAuth flow
-  console.log(chalk.gray('Opening browser for GitHub authentication...\n'));
+  console.log(chalk.gray("Opening browser for GitHub authentication...\n"));
 
   const callbackUrl = `http://localhost:${CALLBACK_PORT}/callback`;
   // Remove /api from apiUrl for page route
-  const baseUrl = apiUrl.replace('/api', '');
+  const baseUrl = apiUrl.replace("/api", "");
   const authUrl = `${baseUrl}/cli/auth?callback=${encodeURIComponent(callbackUrl)}`;
 
   // Start callback server
@@ -422,59 +428,58 @@ export async function setupAuto(options: SetupOptions = {}): Promise<void> {
   try {
     await openBrowser(authUrl);
   } catch {
-    console.log(chalk.yellow('Could not open browser automatically.'));
-    console.log(chalk.gray('Please open this URL manually:'));
+    console.log(chalk.yellow("Could not open browser automatically."));
+    console.log(chalk.gray("Please open this URL manually:"));
     console.log(chalk.cyan(authUrl));
     console.log();
   }
 
-  const spinner = ora('Waiting for authentication...').start();
+  const spinner = ora("Waiting for authentication...").start();
 
   try {
     const authData = await serverPromise;
-    spinner.succeed(chalk.green('Authentication successful!'));
+    spinner.succeed(chalk.green("Authentication successful!"));
 
     // Save credentials
-    config.set('apiToken', authData.token);
-    config.set('userId', authData.userId);
+    config.set("apiToken", authData.token);
+    config.set("userId", authData.userId);
 
     // Install hook
-    const hookSpinner = ora('Installing Claude Code hook...').start();
+    const hookSpinner = ora("Installing Claude Code hook...").start();
 
     try {
       saveSyncScript(apiUrl, authData.token);
       const hookResult = installStopHook();
 
       if (hookResult.success) {
-        hookSpinner.succeed(chalk.green('Hook installed successfully!'));
+        hookSpinner.succeed(chalk.green("Hook installed successfully!"));
       } else {
-        hookSpinner.fail(chalk.red('Failed to install hook'));
+        hookSpinner.fail(chalk.red("Failed to install hook"));
         console.log(chalk.red(hookResult.message));
       }
     } catch (err) {
-      hookSpinner.fail(chalk.red('Failed to install hook'));
-      console.log(chalk.red(err instanceof Error ? err.message : 'Unknown error'));
+      hookSpinner.fail(chalk.red("Failed to install hook"));
+      console.log(chalk.red(err instanceof Error ? err.message : "Unknown error"));
     }
 
     // Success message
     console.log();
-    console.log(chalk.green.bold('✅ Setup complete!'));
+    console.log(chalk.green.bold("✅ Setup complete!"));
     console.log();
     console.log(chalk.gray(`Welcome, ${chalk.white(authData.username)}!`));
     console.log();
-    console.log(chalk.gray('Your Claude Code usage will now be automatically synced'));
-    console.log(chalk.gray('to the leaderboard when each session ends.'));
+    console.log(chalk.gray("Your Claude Code usage will now be automatically synced"));
+    console.log(chalk.gray("to the leaderboard when each session ends."));
     console.log();
-    console.log(chalk.gray('View your stats:'));
-    console.log(chalk.cyan('  npx ccgather status'));
+    console.log(chalk.gray("View your stats:"));
+    console.log(chalk.cyan("  npx ccgather status"));
     console.log();
-    console.log(chalk.gray('View the leaderboard:'));
-    console.log(chalk.cyan('  https://ccgather.dev/leaderboard'));
+    console.log(chalk.gray("View the leaderboard:"));
+    console.log(chalk.cyan("  https://ccgather.com/leaderboard"));
     console.log();
-
   } catch (err) {
-    spinner.fail(chalk.red('Authentication failed'));
-    console.log(chalk.red(err instanceof Error ? err.message : 'Unknown error'));
+    spinner.fail(chalk.red("Authentication failed"));
+    console.log(chalk.red(err instanceof Error ? err.message : "Unknown error"));
     process.exit(1);
   }
 }

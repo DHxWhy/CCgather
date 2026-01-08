@@ -106,7 +106,7 @@ export async function status(options: StatusOptions): Promise<void> {
   // Footer
   console.log();
   console.log(colors.dim("  ─".repeat(25)));
-  console.log(`  ${colors.muted("View leaderboard:")} ${link("https://ccgather.dev/leaderboard")}`);
+  console.log(`  ${colors.muted("View leaderboard:")} ${link("https://ccgather.com/leaderboard")}`);
   console.log();
 }
 

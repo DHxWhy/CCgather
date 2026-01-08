@@ -40,7 +40,7 @@ export const SLOGAN = colors.dim("                Gather. Compete. Rise.");
 
 // Version display
 export function getVersionLine(version: string): string {
-  return colors.dim(`                    v${version} • ccgather.dev`);
+  return colors.dim(`                    v${version} • ccgather.com`);
 }
 
 // Box drawing characters
