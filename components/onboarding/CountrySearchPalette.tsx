@@ -181,7 +181,7 @@ export function CountrySearchPalette({
               <div ref={listRef} className="max-h-[60vh] overflow-y-auto p-2">
                 {displayList.length > 0 ? (
                   displayList.map((country, index) => (
-                    <motion.button
+                    <button
                       key={country.code}
                       data-country-item
                       onClick={() => {
@@ -200,9 +200,6 @@ export function CountrySearchPalette({
                               : "text-text-secondary hover:bg-white/[0.03]"
                         }
                       `}
-                      initial={{ opacity: 0, y: 5 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: index * 0.02 }}
                     >
                       <FlagIcon countryCode={country.code} size="sm" />
                       <span className="flex-1">{country.name}</span>
@@ -211,7 +208,7 @@ export function CountrySearchPalette({
                           Selected
                         </span>
                       )}
-                    </motion.button>
+                    </button>
                   ))
                 ) : query ? (
                   <div className="py-12 text-center">
