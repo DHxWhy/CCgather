@@ -149,11 +149,11 @@ export default function OnboardingPage() {
                   />
                 </div>
 
-                {/* Popular Leagues */}
+                {/* Recommended Leagues */}
                 <div className="flex-1">
                   <div className="flex items-center gap-2 mb-4">
                     <Sparkles className="w-4 h-4 text-primary" />
-                    <span className="text-sm font-medium text-text-secondary">Popular Leagues</span>
+                    <span className="text-sm font-medium text-text-secondary">추천 리그</span>
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                     {TOP_COUNTRIES.map((country, index) => (
