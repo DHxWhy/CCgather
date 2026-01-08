@@ -116,7 +116,7 @@ export default function OnboardingPage() {
             className="text-3xl sm:text-4xl md:text-5xl font-bold text-text-primary mb-3"
           >
             Join Your{" "}
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary to-[#E8A087]">
+            <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#F4A68C] to-[#FFD0B8]">
               Nation&apos;s League
             </span>
           </motion.h1>
