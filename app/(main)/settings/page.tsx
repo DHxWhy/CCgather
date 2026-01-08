@@ -247,7 +247,7 @@ function ProfileTab({ user: _user }: { user: ReturnType<typeof useUser>["user"] 
               formFieldLabel: "text-text-secondary",
               userPreviewMainIdentifier: "text-text-primary",
               userPreviewSecondaryIdentifier: "text-text-muted",
-              userButtonPopoverCard: "bg-bg-elevated border border-white/[0.08]",
+              userButtonPopoverCard: "bg-[var(--color-bg-card)] border border-white/[0.08]",
               avatarBox: "w-16 h-16 rounded-xl",
               badge: "bg-primary/20 text-primary",
               accordionTriggerButton: "hover:bg-white/[0.03] rounded-xl",

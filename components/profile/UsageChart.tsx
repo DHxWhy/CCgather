@@ -1,6 +1,6 @@
-'use client';
+"use client";
 
-import { useMemo } from 'react';
+import { useMemo } from "react";
 
 interface UsageDataPoint {
   date: string;
@@ -20,7 +20,7 @@ function formatNumber(num: number): string {
 
 function formatDate(dateStr: string): string {
   const date = new Date(dateStr);
-  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
 export function UsageChart({ data, height = 200 }: UsageChartProps) {
@@ -46,10 +46,7 @@ export function UsageChart({ data, height = 200 }: UsageChartProps) {
 
   if (data.length === 0) {
     return (
-      <div
-        className="flex items-center justify-center text-text-muted"
-        style={{ height }}
-      >
+      <div className="flex items-center justify-center text-text-muted" style={{ height }}>
         No usage data available
       </div>
     );
@@ -82,20 +79,14 @@ export function UsageChart({ data, height = 200 }: UsageChartProps) {
           {/* Bars */}
           <div className="relative h-full flex items-end gap-[2px]">
             {chartData.bars.map((bar) => (
-              <div
-                key={bar.date}
-                className="flex-1 group relative"
-                style={{ height: '100%' }}
-              >
+              <div key={bar.date} className="flex-1 group relative" style={{ height: "100%" }}>
                 <div
                   className="absolute bottom-0 left-0 right-0 bg-primary/60 hover:bg-primary transition-colors rounded-t cursor-pointer"
                   style={{ height: `${bar.height}%`, minHeight: bar.tokens > 0 ? 2 : 0 }}
                 >
                   {/* Tooltip */}
-                  <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 bg-bg-elevated rounded text-xs whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
-                    <div className="font-medium text-text-primary">
-                      {formatNumber(bar.tokens)}
-                    </div>
+                  <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 bg-[var(--color-bg-card)] rounded text-xs whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
+                    <div className="font-medium text-text-primary">{formatNumber(bar.tokens)}</div>
                     <div className="text-text-muted">{formatDate(bar.date)}</div>
                   </div>
                 </div>

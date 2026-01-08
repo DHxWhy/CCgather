@@ -110,7 +110,7 @@ export function ProfileDropdown({ align = "right" }: ProfileDropdownProps) {
             exit={{ opacity: 0, y: -10, scale: 0.95 }}
             transition={{ duration: 0.15, ease: "easeOut" }}
           >
-            <div className="bg-bg-elevated border border-white/[0.08] rounded-2xl shadow-2xl shadow-black/50 overflow-hidden">
+            <div className="bg-[var(--color-bg-card)] border border-white/[0.08] rounded-2xl shadow-2xl shadow-black/50 overflow-hidden">
               {/* User Info Header */}
               <div className="p-4 bg-gradient-to-br from-primary/10 via-transparent to-transparent">
                 <div className="flex items-center gap-3">

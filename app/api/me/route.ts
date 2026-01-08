@@ -47,7 +47,17 @@ export async function GET() {
     return NextResponse.json({ error: "User not found" }, { status: 404 });
   }
 
-  return NextResponse.json({ user });
+  // Add cache control headers to prevent stale data
+  return NextResponse.json(
+    { user },
+    {
+      headers: {
+        "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
+        Pragma: "no-cache",
+        Expires: "0",
+      },
+    }
+  );
 }
 
 export async function PATCH(request: NextRequest) {
@@ -78,7 +88,6 @@ export async function PATCH(request: NextRequest) {
       .maybeSingle();
 
     let user;
-    let error;
 
     // Prepare update data with marketing consent timestamp
     const updateData: Record<string, unknown> = { ...parsed.data };
@@ -98,14 +107,19 @@ export async function PATCH(request: NextRequest) {
         clerkUser.username ||
         "Anonymous";
 
-      const { error: insertError } = await supabase.from("users").insert({
-        clerk_id: userId,
-        username: clerkUser.username || `user_${userId.slice(0, 8)}`,
-        display_name: displayName,
-        avatar_url: clerkUser.imageUrl,
-        email: clerkUser.emailAddresses[0]?.emailAddress,
-        ...updateData,
-      });
+      // Use INSERT with RETURNING to get the created user directly
+      const { data: newUser, error: insertError } = await supabase
+        .from("users")
+        .insert({
+          clerk_id: userId,
+          username: clerkUser.username || `user_${userId.slice(0, 8)}`,
+          display_name: displayName,
+          avatar_url: clerkUser.imageUrl,
+          email: clerkUser.emailAddresses[0]?.emailAddress,
+          ...updateData,
+        })
+        .select("*")
+        .single();
 
       if (insertError) {
         console.error("Failed to create user:", insertError);
@@ -115,24 +129,27 @@ export async function PATCH(request: NextRequest) {
         );
       }
 
-      // Fetch the created user
-      const { data: newUser, error: fetchError } = await supabase
-        .from("users")
-        .select("*")
-        .eq("clerk_id", userId)
-        .maybeSingle();
-
       user = newUser;
-      error = fetchError;
+
+      // Verify onboarding_completed was set correctly
+      if (parsed.data.onboarding_completed && !newUser?.onboarding_completed) {
+        console.error("Onboarding verification failed - INSERT:", {
+          requested: parsed.data.onboarding_completed,
+          actual: newUser?.onboarding_completed,
+          user_id: newUser?.id,
+        });
+      }
     } else {
-      // User exists, update them
-      const { error: updateError } = await supabase
+      // User exists, update them with RETURNING to verify update
+      const { data: updatedUser, error: updateError } = await supabase
         .from("users")
         .update({
           ...updateData,
           updated_at: new Date().toISOString(),
         })
-        .eq("clerk_id", userId);
+        .eq("clerk_id", userId)
+        .select("*")
+        .single();
 
       if (updateError) {
         console.error("Failed to update user:", updateError);
@@ -142,23 +159,41 @@ export async function PATCH(request: NextRequest) {
         );
       }
 
-      // Fetch the updated user
-      const { data: updatedUser, error: fetchError } = await supabase
-        .from("users")
-        .select("*")
-        .eq("clerk_id", userId)
-        .maybeSingle();
+      // Verify the update actually happened
+      if (!updatedUser) {
+        console.error("Update returned no user - possible race condition:", {
+          clerk_id: userId,
+          updateData,
+        });
+        return NextResponse.json(
+          { error: "Failed to update profile: No user found after update" },
+          { status: 500 }
+        );
+      }
 
-      user = updatedUser;
-      error = fetchError;
-    }
+      // Verify onboarding_completed was set correctly
+      if (parsed.data.onboarding_completed && !updatedUser.onboarding_completed) {
+        console.error("Onboarding verification failed - UPDATE:", {
+          requested: parsed.data.onboarding_completed,
+          actual: updatedUser.onboarding_completed,
+          user_id: updatedUser.id,
+        });
+        // Force another attempt with explicit value
+        const { data: retryUser, error: retryError } = await supabase
+          .from("users")
+          .update({ onboarding_completed: true, updated_at: new Date().toISOString() })
+          .eq("id", updatedUser.id)
+          .select("*")
+          .single();
 
-    if (error) {
-      console.error("Failed to update user:", error);
-      return NextResponse.json(
-        { error: `Failed to update profile: ${error.message}` },
-        { status: 500 }
-      );
+        if (!retryError && retryUser) {
+          user = retryUser;
+        } else {
+          user = updatedUser;
+        }
+      } else {
+        user = updatedUser;
+      }
     }
 
     return NextResponse.json({ user });
