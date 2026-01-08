@@ -246,7 +246,7 @@ async function submitToServer(
  * Main submit command
  */
 export async function submit(options: SubmitOptions): Promise<void> {
-  printCompactHeader("1.2.1");
+  printCompactHeader("1.3.4");
   console.log(header("Submit Usage Data", "📤"));
 
   // Check authentication first
@@ -332,26 +332,8 @@ export async function submit(options: SubmitOptions): Promise<void> {
     console.log(`\n  ${success(`Using ${dataSource}`)}`);
   }
 
-  // Prompt for CCplan selection if not detected
-  if (!usageData.ccplan) {
-    const inquirer = await import("inquirer");
-    const { selectedCCplan } = await inquirer.default.prompt([
-      {
-        type: "list",
-        name: "selectedCCplan",
-        message: colors.muted("Select your Claude plan:"),
-        choices: [
-          { name: "🚀 Max", value: "max" },
-          { name: "⚡ Pro", value: "pro" },
-          { name: "⚪ Free", value: "free" },
-          { name: "👥 Team / Enterprise", value: "team" },
-          { name: "⏭️  Skip", value: null },
-        ],
-        default: "free",
-      },
-    ]);
-    usageData.ccplan = selectedCCplan;
-  }
+  // CCplan is no longer user-selectable to prevent manipulation
+  // It can be detected from usage patterns or set via account settings
 
   // Show summary in a box
   console.log();
