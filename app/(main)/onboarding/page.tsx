@@ -93,6 +93,8 @@ export default function OnboardingPage() {
 
       if (response.ok) {
         setCliAuthStatus("success");
+        // Set flag to skip OnboardingGuard check
+        sessionStorage.setItem("onboarding_just_completed", "true");
         // Show success briefly then redirect
         setTimeout(() => {
           router.replace("/leaderboard");
@@ -118,6 +120,8 @@ export default function OnboardingPage() {
 
   const handleCLIModalClose = () => {
     setShowCLIModal(false);
+    // Set flag to skip OnboardingGuard check (prevents race condition)
+    sessionStorage.setItem("onboarding_just_completed", "true");
     router.replace("/leaderboard");
   };
 

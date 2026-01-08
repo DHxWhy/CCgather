@@ -35,6 +35,13 @@ export function OnboardingGuard({ children }: OnboardingGuardProps) {
         return;
       }
 
+      // Skip check if just completed onboarding (prevents race condition)
+      if (typeof window !== "undefined" && sessionStorage.getItem("onboarding_just_completed")) {
+        sessionStorage.removeItem("onboarding_just_completed");
+        setIsChecking(false);
+        return;
+      }
+
       try {
         const response = await fetch("/api/me", {
           cache: "no-store",
