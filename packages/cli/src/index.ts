@@ -3,6 +3,7 @@
 import { Command } from "commander";
 import inquirer from "inquirer";
 import chalk from "chalk";
+import updateNotifier from "update-notifier";
 import { submit } from "./commands/submit.js";
 import { status } from "./commands/status.js";
 import { setupAuto } from "./commands/setup-auto.js";
@@ -11,7 +12,23 @@ import { printHeader, createWelcomeBox, colors, link, getLevelInfo } from "./lib
 import { getConfig, isAuthenticated } from "./lib/config.js";
 import { getStatus } from "./lib/api.js";
 
-const VERSION = "1.3.1";
+const VERSION = "1.3.2";
+
+// Check for updates
+const pkg = { name: "ccgather", version: VERSION };
+const notifier = updateNotifier({ pkg, updateCheckInterval: 1000 * 60 * 60 }); // Check every hour
+
+notifier.notify({
+  message:
+    `${chalk.yellow("Update")} available ${chalk.dim(VERSION)} → ${chalk.yellow(notifier.update?.latest || "")}\n` +
+    `${chalk.yellow("Run")} ${chalk.cyan("npx ccgather@latest")} to update`,
+  boxenOptions: {
+    padding: 1,
+    margin: 1,
+    borderStyle: "round",
+    borderColor: "yellow",
+  },
+});
 
 const program = new Command();
 
