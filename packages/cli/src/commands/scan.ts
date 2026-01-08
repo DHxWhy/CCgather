@@ -131,7 +131,7 @@ function displayResults(data: CCGatherData): void {
  * Scan command - scans JSONL files and creates ccgather.json
  */
 export async function scan(options: ScanCommandOptions = {}): Promise<void> {
-  printCompactHeader("1.2.1");
+  printCompactHeader("1.3.4");
   console.log(header("Scan Claude Code Usage", "🔍"));
 
   // Determine days to scan

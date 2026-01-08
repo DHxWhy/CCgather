@@ -61,7 +61,7 @@ export async function status(options: StatusOptions): Promise<void> {
   spinner?.succeed(colors.success("Status retrieved"));
 
   // Print header
-  printCompactHeader("1.2.1");
+  printCompactHeader("1.3.4");
   console.log(header("Your CCgather Stats", "📊"));
 
   // Level info
