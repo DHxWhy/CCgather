@@ -368,6 +368,26 @@ export async function submit(options: SubmitOptions): Promise<void> {
     console.log(`\n  ${success(`Using ${dataSource}`)}`);
   }
 
+  // Prompt for CCplan selection if not detected
+  if (!usageData.ccplan) {
+    const { selectedCCplan } = await inquirer.default.prompt([
+      {
+        type: "list",
+        name: "selectedCCplan",
+        message: colors.muted("Select your Claude plan:"),
+        choices: [
+          { name: "🚀 Max", value: "max" },
+          { name: "⚡ Pro", value: "pro" },
+          { name: "⚪ Free", value: "free" },
+          { name: "👥 Team", value: "team" },
+          { name: "⏭️  Skip", value: null },
+        ],
+        default: "free",
+      },
+    ]);
+    usageData.ccplan = selectedCCplan;
+  }
+
   // Show summary in a box
   console.log();
   const summaryLines = [
