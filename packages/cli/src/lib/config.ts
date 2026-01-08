@@ -1,4 +1,4 @@
-import Conf from 'conf';
+import Conf from "conf";
 
 export interface CliConfig {
   apiToken?: string;
@@ -11,7 +11,7 @@ export interface CliConfig {
 }
 
 const defaults: CliConfig = {
-  apiUrl: 'https://ccgather.dev/api',
+  apiUrl: "https://ccgather.com/api",
   autoSync: false,
   syncInterval: 60,
   verbose: false,
@@ -22,7 +22,7 @@ let configInstance: Conf<CliConfig> | null = null;
 export function getConfig(): Conf<CliConfig> {
   if (!configInstance) {
     configInstance = new Conf<CliConfig>({
-      projectName: 'ccgather',
+      projectName: "ccgather",
       defaults,
     });
   }
@@ -39,10 +39,10 @@ export function resetConfig(): void {
 
 export function isAuthenticated(): boolean {
   const config = getConfig();
-  return !!config.get('apiToken');
+  return !!config.get("apiToken");
 }
 
 export function getApiUrl(): string {
   const config = getConfig();
-  return config.get('apiUrl') || defaults.apiUrl;
+  return config.get("apiUrl") || defaults.apiUrl;
 }
