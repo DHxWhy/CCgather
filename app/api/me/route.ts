@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth, currentUser } from "@clerk/nextjs/server";
-import { createClient } from "@/lib/supabase/server";
+import { createServiceClient } from "@/lib/supabase/server";
 import { z } from "zod";
 import { randomBytes } from "crypto";
 
@@ -17,7 +17,7 @@ export async function GET() {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const supabase = await createClient();
+  const supabase = createServiceClient();
 
   const { data: user, error } = await supabase
     .from("users")
@@ -67,17 +67,20 @@ export async function PATCH(request: NextRequest) {
       );
     }
 
-    const supabase = await createClient();
+    const supabase = createServiceClient();
 
     // First, check if user exists
     const { data: existingUser } = await supabase
       .from("users")
       .select("id")
       .eq("clerk_id", userId)
-      .single();
+      .maybeSingle();
 
-    // If user doesn't exist, create them first
+    let user;
+    let error;
+
     if (!existingUser) {
+      // User doesn't exist, create them with the profile data
       const clerkUser = await currentUser();
       if (!clerkUser) {
         return NextResponse.json({ error: "Failed to get user info" }, { status: 500 });
@@ -94,26 +97,54 @@ export async function PATCH(request: NextRequest) {
         display_name: displayName,
         avatar_url: clerkUser.imageUrl,
         email: clerkUser.emailAddresses[0]?.emailAddress,
+        ...parsed.data,
       });
 
       if (insertError) {
         console.error("Failed to create user:", insertError);
-        return NextResponse.json({ error: "Failed to create user" }, { status: 500 });
+        return NextResponse.json(
+          { error: `Failed to create user: ${insertError.message}` },
+          { status: 500 }
+        );
       }
+
+      // Fetch the created user
+      const { data: newUser, error: fetchError } = await supabase
+        .from("users")
+        .select("*")
+        .eq("clerk_id", userId)
+        .maybeSingle();
+
+      user = newUser;
+      error = fetchError;
+    } else {
+      // User exists, update them
+      const { error: updateError } = await supabase
+        .from("users")
+        .update({
+          ...parsed.data,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("clerk_id", userId);
+
+      if (updateError) {
+        console.error("Failed to update user:", updateError);
+        return NextResponse.json(
+          { error: `Failed to update profile: ${updateError.message}` },
+          { status: 500 }
+        );
+      }
+
+      // Fetch the updated user
+      const { data: updatedUser, error: fetchError } = await supabase
+        .from("users")
+        .select("*")
+        .eq("clerk_id", userId)
+        .maybeSingle();
+
+      user = updatedUser;
+      error = fetchError;
     }
-
-    // Now update the user
-    const updateData = {
-      ...parsed.data,
-      updated_at: new Date().toISOString(),
-    };
-
-    const { data: user, error } = await supabase
-      .from("users")
-      .update(updateData)
-      .eq("clerk_id", userId)
-      .select()
-      .single();
 
     if (error) {
       console.error("Failed to update user:", error);
@@ -137,7 +168,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const supabase = await createClient();
+  const supabase = createServiceClient();
 
   try {
     const body = await request.json();

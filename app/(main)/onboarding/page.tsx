@@ -187,7 +187,7 @@ export default function OnboardingPage() {
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: 20 }}
                 transition={{ duration: 0.3 }}
-                className="flex-1 flex flex-col items-center justify-center max-w-lg mx-auto w-full"
+                className="flex-1 flex flex-col items-center justify-start pt-8 max-w-lg mx-auto w-full"
               >
                 {/* Selected Country Display */}
                 <motion.div
