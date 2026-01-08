@@ -36,7 +36,12 @@ export function OnboardingGuard({ children }: OnboardingGuardProps) {
       }
 
       try {
-        const response = await fetch("/api/me");
+        const response = await fetch("/api/me", {
+          cache: "no-store",
+          headers: {
+            "Cache-Control": "no-cache",
+          },
+        });
 
         if (response.status === 404) {
           // User doesn't exist in DB yet - redirect to onboarding
@@ -58,9 +63,8 @@ export function OnboardingGuard({ children }: OnboardingGuardProps) {
         }
       } catch (error) {
         console.error("Failed to check onboarding status:", error);
-        // On error, redirect to onboarding as a safe fallback
-        router.replace("/onboarding");
-        return;
+        // On error, let the user through instead of blocking
+        // They can try again if needed
       } finally {
         setIsChecking(false);
       }

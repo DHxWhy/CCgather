@@ -45,7 +45,9 @@ export default function OnboardingPage() {
       });
 
       if (response.ok) {
-        router.push("/leaderboard");
+        // Small delay to ensure DB update is committed
+        await new Promise((resolve) => setTimeout(resolve, 500));
+        router.replace("/leaderboard");
       } else {
         const data = await response.json().catch(() => ({}));
         console.error("Failed to update profile:", data);

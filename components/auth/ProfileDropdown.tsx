@@ -139,7 +139,7 @@ export function ProfileDropdown({ align = "right" }: ProfileDropdownProps) {
                 {countryData && (
                   <div className="mt-3 flex items-center gap-2 px-3 py-2 rounded-xl bg-white/[0.05] border border-white/[0.05]">
                     <span className="text-lg">{countryData.flag}</span>
-                    <span className="text-sm text-text-secondary">{countryData.name} League</span>
+                    <span className="text-sm text-text-secondary">{countryData.name} 리그</span>
                   </div>
                 )}
               </div>
@@ -151,14 +151,14 @@ export function ProfileDropdown({ align = "right" }: ProfileDropdownProps) {
                     <Trophy className="w-3.5 h-3.5" />
                     <span className="text-sm font-semibold">#--</span>
                   </div>
-                  <p className="text-xs text-text-muted">Global Rank</p>
+                  <p className="text-xs text-text-muted">글로벌 랭킹</p>
                 </div>
                 <div className="p-2 rounded-lg bg-white/[0.02] text-center">
                   <div className="flex items-center justify-center gap-1 text-emerald-400 mb-1">
                     <Zap className="w-3.5 h-3.5" />
                     <span className="text-sm font-semibold">0</span>
                   </div>
-                  <p className="text-xs text-text-muted">Tokens Today</p>
+                  <p className="text-xs text-text-muted">오늘 토큰</p>
                 </div>
               </div>
 
@@ -166,17 +166,18 @@ export function ProfileDropdown({ align = "right" }: ProfileDropdownProps) {
               <div className="p-2 border-t border-white/[0.05]">
                 <MenuItem
                   icon={User}
-                  label="View Profile"
+                  label="프로필 보기"
                   onClick={() => handleNavigation(`/u/${user.username}`)}
                 />
                 <MenuItem
                   icon={Settings}
-                  label="Settings"
+                  label="설정"
+                  shortcut="⌘K"
                   onClick={() => handleNavigation("/settings")}
                 />
                 <MenuItem
                   icon={Globe2}
-                  label="Leaderboard"
+                  label="리더보드"
                   onClick={() => handleNavigation("/leaderboard")}
                 />
               </div>
@@ -188,7 +189,7 @@ export function ProfileDropdown({ align = "right" }: ProfileDropdownProps) {
                   className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-red-400 hover:bg-red-500/10 transition-colors"
                 >
                   <LogOut className="w-4 h-4" />
-                  <span className="text-sm font-medium">Sign Out</span>
+                  <span className="text-sm font-medium">로그아웃</span>
                 </button>
               </div>
             </div>
@@ -204,11 +205,13 @@ function MenuItem({
   icon: Icon,
   label,
   onClick,
+  shortcut,
   external = false,
 }: {
   icon: React.ElementType;
   label: string;
   onClick: () => void;
+  shortcut?: string;
   external?: boolean;
 }) {
   return (
@@ -218,6 +221,7 @@ function MenuItem({
     >
       <Icon className="w-4 h-4" />
       <span className="flex-1 text-left text-sm font-medium">{label}</span>
+      {shortcut && <kbd className="text-xs text-text-muted">{shortcut}</kbd>}
       {external ? (
         <ExternalLink className="w-3.5 h-3.5 opacity-0 group-hover:opacity-100 transition-opacity" />
       ) : (

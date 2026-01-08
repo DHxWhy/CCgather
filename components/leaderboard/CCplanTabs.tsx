@@ -12,7 +12,7 @@ const CCPLAN_ORDER: CCPlanFilter[] = ["all", "max", "pro", "free"];
 
 export function CCplanTabs({ value, onChange }: CCplanTabsProps) {
   return (
-    <div className="flex p-1 bg-[var(--color-filter-bg)] rounded-lg gap-1">
+    <div className="flex p-1 bg-[var(--color-filter-bg)] border border-[var(--border-default)] rounded-lg gap-1">
       {/* ALL tab */}
       <button
         onClick={() => onChange("all")}
