@@ -178,7 +178,7 @@ export function CountrySearchPalette({
               </div>
 
               {/* Results */}
-              <div ref={listRef} className="max-h-80 overflow-y-auto p-2">
+              <div ref={listRef} className="max-h-[60vh] overflow-y-auto p-2">
                 {displayList.length > 0 ? (
                   displayList.map((country, index) => (
                     <motion.button
