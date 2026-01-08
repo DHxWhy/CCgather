@@ -12,7 +12,7 @@ import { printHeader, createWelcomeBox, colors, link, getLevelInfo } from "./lib
 import { getConfig, isAuthenticated } from "./lib/config.js";
 import { getStatus } from "./lib/api.js";
 
-const VERSION = "1.3.2";
+const VERSION = "1.3.3";
 
 // Check for updates
 const pkg = { name: "ccgather", version: VERSION };

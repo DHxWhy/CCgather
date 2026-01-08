@@ -3,6 +3,7 @@ import ora from "ora";
 import inquirer from "inquirer";
 import open from "open";
 import { getConfig, getApiUrl } from "../lib/config.js";
+import { submit } from "./submit.js";
 
 interface AuthOptions {
   token?: string;
@@ -112,9 +113,11 @@ export async function auth(options: AuthOptions): Promise<void> {
           config.set("userId", pollData.userId);
           config.set("username", pollData.username);
 
-          console.log(chalk.gray(`\nWelcome, ${chalk.white(pollData.username)}!`));
-          console.log(chalk.gray("\nYou can now submit your usage data:"));
-          console.log(chalk.cyan("  npx ccgather submit\n"));
+          console.log(chalk.gray(`\nWelcome, ${chalk.white(pollData.username)}!\n`));
+
+          // Automatically submit usage data
+          console.log(chalk.bold("📊 Submitting your usage data...\n"));
+          await submit({ yes: true });
           return;
         }
 
@@ -172,9 +175,11 @@ async function authenticateWithToken(token: string): Promise<void> {
     config.set("username", data.username);
 
     spinner.succeed(chalk.green("Authentication successful!"));
-    console.log(chalk.gray(`\nWelcome, ${chalk.white(data.username)}!`));
-    console.log(chalk.gray("\nNext step: Submit your usage data:"));
-    console.log(chalk.cyan("  npx ccgather submit\n"));
+    console.log(chalk.gray(`\nWelcome, ${chalk.white(data.username)}!\n`));
+
+    // Automatically submit usage data
+    console.log(chalk.bold("📊 Submitting your usage data...\n"));
+    await submit({ yes: true });
   } catch (error) {
     spinner.fail(chalk.red("Authentication failed"));
     console.log(chalk.red(`\nError: ${error instanceof Error ? error.message : "Unknown error"}`));
