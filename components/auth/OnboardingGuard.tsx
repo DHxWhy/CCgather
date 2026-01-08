@@ -14,8 +14,19 @@ export function OnboardingGuard({ children }: OnboardingGuardProps) {
   const { isSignedIn, isLoaded } = useUser();
   const [isChecking, setIsChecking] = useState(true);
 
-  // Pages that don't require onboarding check
-  const skipOnboardingCheck = ["/onboarding", "/sign-in", "/sign-up", "/cli/auth"];
+  // Pages that don't require onboarding check (public pages + auth pages)
+  const skipOnboardingCheck = [
+    "/onboarding",
+    "/sign-in",
+    "/sign-up",
+    "/cli/auth",
+    "/leaderboard",
+    "/u/",
+    "/league/",
+    "/news",
+    "/terms",
+    "/privacy",
+  ];
 
   const shouldSkipCheck = skipOnboardingCheck.some((path) => pathname.startsWith(path));
 
