@@ -107,7 +107,7 @@ export async function POST(request: NextRequest) {
     // Insert usage_stats record for today
     const today = new Date().toISOString().split("T")[0];
 
-    await supabase.from("usage_stats").upsert(
+    const { error: statsError } = await supabase.from("usage_stats").upsert(
       {
         user_id: authenticatedUser.id,
         date: today,
@@ -118,10 +118,16 @@ export async function POST(request: NextRequest) {
         cache_write_tokens: body.cacheWriteTokens || 0,
         cost_usd: body.totalSpent,
         primary_model: "claude-sonnet-4",
-        updated_at: new Date().toISOString(),
+        submitted_at: new Date().toISOString(),
+        submission_source: "cli",
       },
       { onConflict: "user_id,date" }
     );
+
+    if (statsError) {
+      console.error("[CLI Submit] Usage stats upsert error:", statsError);
+      // Continue anyway - user stats were updated successfully
+    }
 
     // Calculate rank
     const { data: rankData } = await supabase
