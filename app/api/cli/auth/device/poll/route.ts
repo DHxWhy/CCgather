@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { createServiceClient } from "@/lib/supabase/server";
 
 /**
  * Poll for device code authorization status
@@ -18,7 +18,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "device_code is required" }, { status: 400 });
     }
 
-    const supabase = await createClient();
+    const supabase = createServiceClient();
 
     // Find the device code
     const { data: deviceData, error: findError } = await supabase

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth, currentUser } from "@clerk/nextjs/server";
-import { createClient } from "@/lib/supabase/server";
+import { createServiceClient } from "@/lib/supabase/server";
 import { randomBytes } from "crypto";
 
 /**
@@ -25,7 +25,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "user_code is required" }, { status: 400 });
     }
 
-    const supabase = await createClient();
+    const supabase = createServiceClient();
     const user = await currentUser();
 
     // Find the device code

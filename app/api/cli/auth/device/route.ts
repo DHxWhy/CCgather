@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { createServiceClient } from "@/lib/supabase/server";
 import { randomBytes } from "crypto";
 
 /**
@@ -10,7 +10,7 @@ import { randomBytes } from "crypto";
  */
 export async function POST() {
   try {
-    const supabase = await createClient();
+    const supabase = createServiceClient();
 
     // Generate codes
     const deviceCode = randomBytes(32).toString("hex");
