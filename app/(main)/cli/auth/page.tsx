@@ -43,9 +43,9 @@ export default function CLIAuthPage() {
         return;
       }
 
-      const userData = await meResponse.json();
+      const { user: userData } = await meResponse.json();
 
-      if (!userData.onboarding_completed) {
+      if (!userData?.onboarding_completed) {
         // Redirect to onboarding with CLI code
         redirectToOnboarding();
         return;
