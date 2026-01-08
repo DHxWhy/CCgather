@@ -62,6 +62,19 @@ export default function OnboardingPage() {
       });
 
       if (response.ok) {
+        const data = await response.json();
+
+        // Verify the save was successful
+        if (!data.user?.onboarding_completed) {
+          console.error("Onboarding save verification failed:", data);
+          alert("Failed to save onboarding status. Please try again.");
+          return;
+        }
+
+        // Store in localStorage as backup (prevents infinite redirect loop)
+        localStorage.setItem("ccgather_onboarding_completed", "true");
+        sessionStorage.setItem("onboarding_just_completed", "true");
+
         // If coming from CLI auth flow, authorize the CLI first
         if (cliCode) {
           await authorizeCLI(cliCode);

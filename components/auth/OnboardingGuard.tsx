@@ -47,10 +47,18 @@ export function OnboardingGuard({ children }: OnboardingGuardProps) {
       }
 
       // Skip check if just completed onboarding (prevents race condition)
-      if (typeof window !== "undefined" && sessionStorage.getItem("onboarding_just_completed")) {
-        sessionStorage.removeItem("onboarding_just_completed");
-        setIsChecking(false);
-        return;
+      if (typeof window !== "undefined") {
+        if (sessionStorage.getItem("onboarding_just_completed")) {
+          sessionStorage.removeItem("onboarding_just_completed");
+          setIsChecking(false);
+          return;
+        }
+
+        // Check localStorage backup (prevents infinite redirect loop if DB has issues)
+        if (localStorage.getItem("ccgather_onboarding_completed") === "true") {
+          setIsChecking(false);
+          return;
+        }
       }
 
       try {
@@ -75,9 +83,14 @@ export function OnboardingGuard({ children }: OnboardingGuardProps) {
 
           // User needs onboarding if they don't have a country or haven't completed onboarding
           if (!hasCountry || !onboardingDone) {
+            // Clear any stale localStorage
+            localStorage.removeItem("ccgather_onboarding_completed");
             router.replace("/onboarding");
             return;
           }
+
+          // Store in localStorage for future checks (reduces API calls)
+          localStorage.setItem("ccgather_onboarding_completed", "true");
         }
       } catch (error) {
         console.error("Failed to check onboarding status:", error);
