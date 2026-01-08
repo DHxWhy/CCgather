@@ -221,30 +221,6 @@ export function CountrySearchPalette({
                   </div>
                 ) : null}
               </div>
-
-              {/* Footer */}
-              <div className="border-t border-white/[0.08] px-4 py-2.5 flex items-center justify-between text-xs text-text-muted">
-                <div className="flex items-center gap-3">
-                  <span className="flex items-center gap-1">
-                    <kbd className="px-1.5 py-0.5 rounded bg-white/[0.05] border border-white/[0.1]">
-                      ↑↓
-                    </kbd>
-                    <span>Navigate</span>
-                  </span>
-                  <span className="flex items-center gap-1">
-                    <kbd className="px-1.5 py-0.5 rounded bg-white/[0.05] border border-white/[0.1]">
-                      ↵
-                    </kbd>
-                    <span>Select</span>
-                  </span>
-                </div>
-                <span className="flex items-center gap-1">
-                  <kbd className="px-1.5 py-0.5 rounded bg-white/[0.05] border border-white/[0.1]">
-                    Esc
-                  </kbd>
-                  <span>Close</span>
-                </span>
-              </div>
             </motion.div>
           </motion.div>
         )}
