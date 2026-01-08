@@ -5,9 +5,6 @@
 # Internal 폴더 (크롤링, AI, 어드민)
 /internal/
 
-# Admin 페이지 (비공개)
-/app/(admin)/
-
 # Docs (비공개)
 /docs/
 
