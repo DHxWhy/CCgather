@@ -49,11 +49,18 @@ Your Claude Code usage will be synced automatically.
 ## CLI Commands
 
 ```bash
-npx ccgather              # Default run (submit)
-npx ccgather status       # Check current ranking
-npx ccgather sync         # Manual sync
-npx ccgather --help       # Help
+npx ccgather                  # Interactive menu (default)
+npx ccgather scan             # Scan usage (last 30 days)
+npx ccgather scan --all       # Scan all-time usage
+npx ccgather scan -d 90       # Scan last 90 days
+npx ccgather rank             # Check current ranking
+npx ccgather sync             # Sync usage data
+npx ccgather auth             # Authenticate account
+npx ccgather reset            # Reset all settings
+npx ccgather --help           # Help
 ```
+
+See [CLI Documentation](docs/CLI.md) for detailed usage.
 
 <br/>
 
