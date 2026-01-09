@@ -11,14 +11,14 @@
 
 @theme {
   /* ========================================
-     RESPONSIVE BREAKPOINTS
-     - Mobile: < 768px (sm, default)
-     - Tablet: 768px ~ 1023px (md)
-     - Desktop: >= 1024px (lg, xl, 2xl)
+     RESPONSIVE BREAKPOINTS (3-tier)
+     - Mobile: < 640px (default)
+     - Tablet: 640px ~ 1039px (sm, md)
+     - PC: >= 1040px (lg, xl, 2xl)
      ======================================== */
   --breakpoint-sm: 640px;
   --breakpoint-md: 768px;
-  --breakpoint-lg: 1024px;
+  --breakpoint-lg: 1040px;
   --breakpoint-xl: 1280px;
   --breakpoint-2xl: 1536px;
 

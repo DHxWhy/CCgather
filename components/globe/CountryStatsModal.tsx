@@ -5,6 +5,7 @@ import { motion, AnimatePresence, useSpring, useTransform } from "framer-motion"
 import { X } from "lucide-react";
 import { Globe } from "./Globe";
 import { FlagIcon } from "@/components/ui/FlagIcon";
+import { ShootingStars } from "@/components/ui/shooting-stars";
 
 // Animated number component with rolling count effect
 function AnimatedNumber({
@@ -160,7 +161,7 @@ export function CountryStatsModal({
                 exit={{ opacity: 0 }}
                 transition={{ duration: 0.4, ease: "easeOut" }}
                 style={{
-                  background: "rgba(20, 20, 25, 0.85)",
+                  background: "rgba(8, 8, 12, 0.95)",
                   backdropFilter: "blur(20px)",
                   WebkitBackdropFilter: "blur(20px)",
                 }}
@@ -174,11 +175,37 @@ export function CountryStatsModal({
                 exit={{ opacity: 0 }}
                 transition={{ duration: 0.5, delay: 0.1, ease: "easeOut" }}
                 style={{
-                  border: "1px solid rgba(255, 255, 255, 0.1)",
+                  border: "1px solid rgba(255, 255, 255, 0.05)",
                   boxShadow:
-                    "0 0 40px rgba(229, 115, 89, 0.15), inset 0 0 60px rgba(255, 255, 255, 0.02)",
+                    "0 0 30px rgba(229, 115, 89, 0.08), inset 0 0 40px rgba(255, 255, 255, 0.01)",
                 }}
               />
+
+              {/* Shooting stars effect */}
+              <div className="absolute inset-0 overflow-hidden rounded-2xl">
+                <ShootingStars
+                  starColor="#e57359"
+                  trailColor="#ffb088"
+                  minSpeed={8}
+                  maxSpeed={20}
+                  minDelay={2000}
+                  maxDelay={5000}
+                  starWidth={12}
+                  starHeight={1}
+                  className="opacity-60"
+                />
+                <ShootingStars
+                  starColor="#10b981"
+                  trailColor="#6ee7b7"
+                  minSpeed={6}
+                  maxSpeed={15}
+                  minDelay={3000}
+                  maxDelay={7000}
+                  starWidth={8}
+                  starHeight={1}
+                  className="opacity-40"
+                />
+              </div>
 
               {/* Content */}
               <div className="relative p-4 sm:p-6">
