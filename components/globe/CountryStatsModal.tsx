@@ -291,7 +291,7 @@ export function CountryStatsModal({
                             initial={{ opacity: 0, x: 20 }}
                             animate={{ opacity: 1, x: 0 }}
                             transition={{ delay: index * 0.03 }}
-                            className={`group relative ${isUserCountry ? "bg-emerald-500/10 rounded-lg ring-1 ring-emerald-500/30 ring-inset py-2 px-3" : "py-1.5"}`}
+                            className={`group relative px-3 ${isUserCountry ? "bg-emerald-500/10 rounded-lg ring-1 ring-emerald-500/30 ring-inset py-2" : "py-1.5"}`}
                           >
                             {/* PC only: Single row layout (lg+) */}
                             <div className="hidden lg:flex items-center gap-2">
