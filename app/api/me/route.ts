@@ -44,7 +44,103 @@ export async function GET() {
     .single();
 
   if (error || !user) {
-    return NextResponse.json({ error: "User not found" }, { status: 404 });
+    // User not found - auto-create from Clerk data (webhook may have failed/delayed)
+    const clerkUser = await currentUser();
+    if (!clerkUser) {
+      return NextResponse.json({ error: "Failed to get user info" }, { status: 500 });
+    }
+
+    const displayName =
+      [clerkUser.firstName, clerkUser.lastName].filter(Boolean).join(" ") ||
+      clerkUser.username ||
+      "Anonymous";
+
+    const { data: newUser, error: insertError } = await supabase
+      .from("users")
+      .insert({
+        clerk_id: userId,
+        username: clerkUser.username || `user_${userId.slice(0, 8)}`,
+        display_name: displayName,
+        avatar_url: clerkUser.imageUrl,
+        email: clerkUser.emailAddresses[0]?.emailAddress,
+        onboarding_completed: false, // New user needs onboarding
+      })
+      .select(
+        `
+        id,
+        username,
+        display_name,
+        avatar_url,
+        country_code,
+        timezone,
+        level,
+        global_rank,
+        country_rank,
+        total_tokens,
+        total_cost,
+        onboarding_completed,
+        is_admin,
+        created_at
+      `
+      )
+      .single();
+
+    if (insertError) {
+      // Handle unique constraint violation (user was created between check and insert)
+      if (insertError.code === "23505") {
+        // Retry fetch
+        const { data: existingUser } = await supabase
+          .from("users")
+          .select(
+            `
+            id,
+            username,
+            display_name,
+            avatar_url,
+            country_code,
+            timezone,
+            level,
+            global_rank,
+            country_rank,
+            total_tokens,
+            total_cost,
+            onboarding_completed,
+            is_admin,
+            created_at
+          `
+          )
+          .eq("clerk_id", userId)
+          .single();
+
+        if (existingUser) {
+          return NextResponse.json(
+            { user: existingUser },
+            {
+              headers: {
+                "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
+                Pragma: "no-cache",
+                Expires: "0",
+              },
+            }
+          );
+        }
+      }
+      console.error("Failed to auto-create user:", insertError);
+      return NextResponse.json({ error: "User not found" }, { status: 404 });
+    }
+
+    console.log("Auto-created user from /api/me GET:", { clerk_id: userId, user_id: newUser?.id });
+
+    return NextResponse.json(
+      { user: newUser },
+      {
+        headers: {
+          "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
+          Pragma: "no-cache",
+          Expires: "0",
+        },
+      }
+    );
   }
 
   // Add cache control headers to prevent stale data

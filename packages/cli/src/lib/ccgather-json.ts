@@ -9,6 +9,8 @@ export interface DailyUsage {
   cost: number;
   inputTokens: number;
   outputTokens: number;
+  cacheWriteTokens: number;
+  cacheReadTokens: number;
   sessions: number;
   models: Record<string, number>;
 }
@@ -110,15 +112,24 @@ function findJsonlFiles(dir: string): string[] {
 }
 
 /**
- * Estimate cost based on model and tokens
+ * Estimate cost based on model and tokens (including cache tokens)
  */
-function estimateCost(model: string, inputTokens: number, outputTokens: number): number {
-  // Pricing per million tokens (approximate)
-  const pricing: Record<string, { input: number; output: number }> = {
-    "claude-opus-4": { input: 15, output: 75 },
-    "claude-sonnet-4": { input: 3, output: 15 },
-    "claude-haiku": { input: 0.25, output: 1.25 },
-    default: { input: 3, output: 15 },
+function estimateCost(
+  model: string,
+  inputTokens: number,
+  outputTokens: number,
+  cacheWriteTokens: number = 0,
+  cacheReadTokens: number = 0
+): number {
+  // Pricing per million tokens (official Claude pricing)
+  const pricing: Record<
+    string,
+    { input: number; output: number; cacheWrite: number; cacheRead: number }
+  > = {
+    "claude-opus-4": { input: 15, output: 75, cacheWrite: 18.75, cacheRead: 1.5 },
+    "claude-sonnet-4": { input: 3, output: 15, cacheWrite: 3.75, cacheRead: 0.3 },
+    "claude-haiku": { input: 0.25, output: 1.25, cacheWrite: 0.3125, cacheRead: 0.025 },
+    default: { input: 3, output: 15, cacheWrite: 3.75, cacheRead: 0.3 },
   };
 
   let modelKey = "default";
@@ -132,12 +143,15 @@ function estimateCost(model: string, inputTokens: number, outputTokens: number):
   const price = pricing[modelKey];
   const inputCost = (inputTokens / 1_000_000) * price.input;
   const outputCost = (outputTokens / 1_000_000) * price.output;
+  const cacheWriteCost = (cacheWriteTokens / 1_000_000) * price.cacheWrite;
+  const cacheReadCost = (cacheReadTokens / 1_000_000) * price.cacheRead;
 
-  return Math.round((inputCost + outputCost) * 100) / 100;
+  return Math.round((inputCost + outputCost + cacheWriteCost + cacheReadCost) * 100) / 100;
 }
 
 export interface ScanOptions {
   days?: number; // Number of days to include (default: 30, 0 = all)
+  onProgress?: (current: number, total: number) => void; // Progress callback
 }
 
 /**
@@ -187,6 +201,8 @@ export function scanUsageData(options: ScanOptions = {}): CCGatherData | null {
       cost: number;
       inputTokens: number;
       outputTokens: number;
+      cacheWriteTokens: number;
+      cacheReadTokens: number;
       sessions: Set<string>;
       models: Record<string, number>;
     }
@@ -196,8 +212,15 @@ export function scanUsageData(options: ScanOptions = {}): CCGatherData | null {
 
   const jsonlFiles = findJsonlFiles(projectsDir);
   sessionsCount = jsonlFiles.length;
+  const { onProgress } = options;
 
-  for (const filePath of jsonlFiles) {
+  for (let i = 0; i < jsonlFiles.length; i++) {
+    const filePath = jsonlFiles[i];
+
+    // Call progress callback if provided
+    if (onProgress) {
+      onProgress(i + 1, jsonlFiles.length);
+    }
     const projectName = extractProjectName(filePath);
 
     // Initialize project if not exists
@@ -229,18 +252,26 @@ export function scanUsageData(options: ScanOptions = {}): CCGatherData | null {
             const model = event.message.model || "unknown";
             const inputTokens = usage.input_tokens || 0;
             const outputTokens = usage.output_tokens || 0;
+            const cacheWrite = usage.cache_creation_input_tokens || 0;
+            const cacheRead = usage.cache_read_input_tokens || 0;
 
             totalInputTokens += inputTokens;
             totalOutputTokens += outputTokens;
-            totalCacheRead += usage.cache_read_input_tokens || 0;
-            totalCacheWrite += usage.cache_creation_input_tokens || 0;
+            totalCacheRead += cacheRead;
+            totalCacheWrite += cacheWrite;
 
-            // Calculate cost for this message
-            const messageCost = estimateCost(model, inputTokens, outputTokens);
+            // Calculate cost for this message (including cache tokens)
+            const messageCost = estimateCost(
+              model,
+              inputTokens,
+              outputTokens,
+              cacheWrite,
+              cacheRead
+            );
             totalCost += messageCost;
 
-            // Track model usage (global)
-            const totalModelTokens = inputTokens + outputTokens;
+            // Track model usage (global) - includes cache tokens
+            const totalModelTokens = inputTokens + outputTokens + cacheWrite + cacheRead;
             models[model] = (models[model] || 0) + totalModelTokens;
 
             // Track project usage
@@ -261,6 +292,8 @@ export function scanUsageData(options: ScanOptions = {}): CCGatherData | null {
                   cost: 0,
                   inputTokens: 0,
                   outputTokens: 0,
+                  cacheWriteTokens: 0,
+                  cacheReadTokens: 0,
                   sessions: new Set(),
                   models: {},
                 };
@@ -271,6 +304,8 @@ export function scanUsageData(options: ScanOptions = {}): CCGatherData | null {
               dailyData[date].cost += messageCost;
               dailyData[date].inputTokens += inputTokens;
               dailyData[date].outputTokens += outputTokens;
+              dailyData[date].cacheWriteTokens += cacheWrite;
+              dailyData[date].cacheReadTokens += cacheRead;
               dailyData[date].sessions.add(filePath);
               dailyData[date].models[model] =
                 (dailyData[date].models[model] || 0) + totalModelTokens;
@@ -293,7 +328,8 @@ export function scanUsageData(options: ScanOptions = {}): CCGatherData | null {
     }
   }
 
-  const totalTokens = totalInputTokens + totalOutputTokens;
+  // Total tokens includes cache tokens (matches ccusage calculation)
+  const totalTokens = totalInputTokens + totalOutputTokens + totalCacheWrite + totalCacheRead;
 
   if (totalTokens === 0) {
     return null;
@@ -312,6 +348,8 @@ export function scanUsageData(options: ScanOptions = {}): CCGatherData | null {
       cost: Math.round(data.cost * 100) / 100,
       inputTokens: data.inputTokens,
       outputTokens: data.outputTokens,
+      cacheWriteTokens: data.cacheWriteTokens,
+      cacheReadTokens: data.cacheReadTokens,
       sessions: data.sessions.size,
       models: data.models,
     }))
@@ -392,4 +430,15 @@ export function scanAndSave(options: ScanOptions = {}): CCGatherData | null {
   }
 
   return data;
+}
+
+/**
+ * Get total number of session files (for progress calculation)
+ */
+export function getSessionFileCount(): number {
+  const projectsDir = getClaudeProjectsDir();
+  if (!fs.existsSync(projectsDir)) {
+    return 0;
+  }
+  return findJsonlFiles(projectsDir).length;
 }

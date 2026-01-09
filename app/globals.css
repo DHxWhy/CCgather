@@ -439,6 +439,42 @@ body {
   animation: slideOutRight 0.3s ease-in forwards;
 }
 
+/* Globe User Country Pulse Ring */
+@keyframes pulse-ring {
+  0% {
+    transform: translate(-50%, -50%) scale(0.8);
+    opacity: 0.8;
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(2.5);
+    opacity: 0;
+  }
+}
+
+.animate-pulse-ring {
+  animation: pulse-ring 2s ease-out infinite;
+}
+
+/* Globe User Country Glow Pulse */
+@keyframes pulse-glow {
+  0%,
+  100% {
+    box-shadow:
+      0 0 6px #10b981,
+      0 0 12px #10b981;
+  }
+  50% {
+    box-shadow:
+      0 0 12px #10b981,
+      0 0 24px #10b981,
+      0 0 36px #10b981;
+  }
+}
+
+.animate-pulse-glow {
+  animation: pulse-glow 2s ease-in-out infinite;
+}
+
 /* ========================================
    RESPONSIVE TYPOGRAPHY
    ======================================== */

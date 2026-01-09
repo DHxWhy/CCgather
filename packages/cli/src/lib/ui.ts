@@ -1,4 +1,22 @@
 import chalk from "chalk";
+import { readFileSync } from "fs";
+import { dirname, join } from "path";
+import { fileURLToPath } from "url";
+
+// Dynamic version from package.json
+function getVersion(): string {
+  try {
+    // For bundled output in dist/index.js
+    const __dirname = dirname(fileURLToPath(import.meta.url));
+    const pkgPath = join(__dirname, "../package.json");
+    const pkg = JSON.parse(readFileSync(pkgPath, "utf-8"));
+    return pkg.version;
+  } catch {
+    // Fallback
+    return "1.3.18";
+  }
+}
+export const VERSION: string = getVersion();
 
 // Brand colors
 export const colors = {
@@ -18,6 +36,12 @@ export const colors = {
   team: chalk.hex("#8B5CF6"), // Purple
   free: chalk.hex("#6B7280"), // Gray
 };
+
+// Create clickable hyperlink (OSC 8 escape sequence)
+// Supported in: Windows Terminal, iTerm2, Hyper, VS Code terminal, etc.
+export function hyperlink(text: string, url: string): string {
+  return `\u001B]8;;${url}\u0007${text}\u001B]8;;\u0007`;
+}
 
 // ASCII Art Logo
 export const LOGO = `
@@ -43,7 +67,19 @@ export function getVersionLine(version: string): string {
   return colors.dim(`                    v${version} • ccgather.com`);
 }
 
-// Box drawing characters
+// Box drawing characters (rounded for header)
+const boxRound = {
+  topLeft: "╭",
+  topRight: "╮",
+  bottomLeft: "╰",
+  bottomRight: "╯",
+  horizontal: "─",
+  vertical: "│",
+  leftT: "├",
+  rightT: "┤",
+};
+
+// Box drawing characters (square for content)
 const box = {
   topLeft: "┌",
   topRight: "┐",
@@ -54,6 +90,83 @@ const box = {
   leftT: "├",
   rightT: "┤",
 };
+
+const HEADER_WIDTH = 46;
+
+// Center text within width
+function centerText(text: string, width: number): string {
+  const len = stripAnsi(text).length;
+  const pad = width - len;
+  return (
+    " ".repeat(Math.max(0, Math.floor(pad / 2))) +
+    text +
+    " ".repeat(Math.max(0, pad - Math.floor(pad / 2)))
+  );
+}
+
+// Right-align text within width
+function rightAlignText(text: string, width: number): string {
+  const len = stripAnsi(text).length;
+  const pad = width - len;
+  return " ".repeat(Math.max(0, pad)) + text;
+}
+
+// Create professional boxed header (medium block logo)
+export function createProfessionalHeader(): string[] {
+  const lines: string[] = [];
+  const v = boxRound.vertical;
+  const h = boxRound.horizontal;
+
+  lines.push(colors.dim(`  ${boxRound.topLeft}${h.repeat(HEADER_WIDTH)}${boxRound.topRight}`));
+
+  // CCGATHER logo (3 rows, same height)
+  const logoLines = [
+    `  ${colors.primary("▄█▀▀ ▄█▀▀")} ${colors.secondary("▄█▀▀  ▄█▀█▄ ▀█▀ █  █ █▀▀ █▀█")}  `,
+    `  ${colors.primary("█    █   ")} ${colors.secondary("█  ▀█ █▀▀█▀  █  █▀▀█ █▀▀ ██▀")}  `,
+    `  ${colors.primary("▀█▄▄ ▀█▄▄")} ${colors.secondary("▀█▄▄▀ █  █   █  █  █ █▄▄ █ █")}  `,
+  ];
+  for (const l of logoLines) {
+    lines.push(
+      colors.dim(`  ${v}`) +
+        l +
+        " ".repeat(Math.max(0, HEADER_WIDTH - stripAnsi(l).length)) +
+        colors.dim(v)
+    );
+  }
+
+  // Version right-aligned (2-space padding)
+  const versionStr = `v${VERSION}`;
+  const versionPad = HEADER_WIDTH - versionStr.length - 2;
+  lines.push(
+    colors.dim(`  ${v}`) + " ".repeat(versionPad) + colors.dim(versionStr) + "  " + colors.dim(v)
+  );
+
+  lines.push(colors.dim(`  ${boxRound.leftT}${h.repeat(HEADER_WIDTH)}${boxRound.rightT}`));
+  lines.push(
+    colors.dim(`  ${v}`) +
+      centerText(colors.muted("Where Claude Code Developers Gather"), HEADER_WIDTH) +
+      colors.dim(v)
+  );
+  lines.push(
+    colors.dim(`  ${v}`) +
+      centerText(colors.dim("Gather · Compete · Rise"), HEADER_WIDTH) +
+      colors.dim(v)
+  );
+  lines.push(colors.dim(`  ${v}`) + " ".repeat(HEADER_WIDTH) + colors.dim(v));
+
+  // Bottom border with clickable ccgather.com link
+  const siteLabel = " 🌐 ccgather.com ";
+  const siteLink = hyperlink(colors.secondary(siteLabel), "https://ccgather.com");
+  const leftDashes = 13;
+  const rightDashes = HEADER_WIDTH - leftDashes - siteLabel.length;
+  lines.push(
+    colors.dim(`  ${boxRound.bottomLeft}${h.repeat(leftDashes)}`) +
+      siteLink +
+      colors.dim(`${h.repeat(rightDashes)}${boxRound.bottomRight}`)
+  );
+
+  return lines;
+}
 
 // Create a box around content
 export function createBox(lines: string[], width: number = 47): string {
@@ -125,6 +238,18 @@ export function getCCplanBadge(ccplan: string | null): string {
   return badges[ccplan.toLowerCase()] || "";
 }
 
+// Level thresholds - single source of truth
+const LEVELS = [
+  { min: 0, level: 1, name: "Novice", icon: "🌱", color: colors.dim },
+  { min: 100_000, level: 2, name: "Apprentice", icon: "📚", color: colors.muted },
+  { min: 500_000, level: 3, name: "Journeyman", icon: "⚡", color: colors.cyan },
+  { min: 1_000_000, level: 4, name: "Expert", icon: "💎", color: colors.pro },
+  { min: 5_000_000, level: 5, name: "Master", icon: "🔥", color: colors.warning },
+  { min: 10_000_000, level: 6, name: "Grandmaster", icon: "👑", color: colors.max },
+  { min: 50_000_000, level: 7, name: "Legend", icon: "🌟", color: colors.primary },
+  { min: 100_000_000, level: 8, name: "Mythic", icon: "🏆", color: colors.secondary },
+];
+
 // Get level info
 export function getLevelInfo(tokens: number): {
   level: number;
@@ -132,23 +257,72 @@ export function getLevelInfo(tokens: number): {
   icon: string;
   color: typeof colors.primary;
 } {
-  const levels = [
-    { min: 0, level: 1, name: "Novice", icon: "🌱", color: colors.dim },
-    { min: 100_000, level: 2, name: "Apprentice", icon: "📚", color: colors.muted },
-    { min: 500_000, level: 3, name: "Journeyman", icon: "⚡", color: colors.cyan },
-    { min: 1_000_000, level: 4, name: "Expert", icon: "💎", color: colors.pro },
-    { min: 5_000_000, level: 5, name: "Master", icon: "🔥", color: colors.warning },
-    { min: 10_000_000, level: 6, name: "Grandmaster", icon: "👑", color: colors.max },
-    { min: 50_000_000, level: 7, name: "Legend", icon: "🌟", color: colors.primary },
-    { min: 100_000_000, level: 8, name: "Mythic", icon: "🏆", color: colors.secondary },
-  ];
-
-  for (let i = levels.length - 1; i >= 0; i--) {
-    if (tokens >= levels[i].min) {
-      return levels[i];
+  for (let i = LEVELS.length - 1; i >= 0; i--) {
+    if (tokens >= LEVELS[i].min) {
+      return LEVELS[i];
     }
   }
-  return levels[0];
+  return LEVELS[0];
+}
+
+// Get detailed level progress info
+export function getLevelProgress(tokens: number): {
+  current: {
+    level: number;
+    name: string;
+    icon: string;
+    color: typeof colors.primary;
+  };
+  next: {
+    level: number;
+    name: string;
+    icon: string;
+    threshold: number;
+  } | null;
+  progress: number; // 0-100
+  tokensToNext: number;
+  isMaxLevel: boolean;
+} {
+  let currentIndex = 0;
+  for (let i = LEVELS.length - 1; i >= 0; i--) {
+    if (tokens >= LEVELS[i].min) {
+      currentIndex = i;
+      break;
+    }
+  }
+
+  const current = LEVELS[currentIndex];
+  const isMaxLevel = currentIndex === LEVELS.length - 1;
+
+  if (isMaxLevel) {
+    return {
+      current,
+      next: null,
+      progress: 100,
+      tokensToNext: 0,
+      isMaxLevel: true,
+    };
+  }
+
+  const nextLevel = LEVELS[currentIndex + 1];
+  const currentMin = current.min;
+  const nextMin = nextLevel.min;
+  const progressInLevel = tokens - currentMin;
+  const levelRange = nextMin - currentMin;
+  const progress = Math.min(100, Math.round((progressInLevel / levelRange) * 100));
+
+  return {
+    current,
+    next: {
+      level: nextLevel.level,
+      name: nextLevel.name,
+      icon: nextLevel.icon,
+      threshold: nextLevel.min,
+    },
+    progress,
+    tokensToNext: nextMin - tokens,
+    isMaxLevel: false,
+  };
 }
 
 // Create welcome box for authenticated user
@@ -261,12 +435,155 @@ export function printCompactHeader(version: string): void {
   console.log();
 }
 
-// Link display
+// Link display (clickable in supported terminals)
 export function link(url: string): string {
-  return colors.cyan.underline(url);
+  return hyperlink(colors.cyan.underline(url), url);
 }
 
 // Highlight text
 export function highlight(text: string): string {
   return colors.primary.bold(text);
+}
+
+// ============================================
+// Animation Utilities
+// ============================================
+
+// Sleep utility
+export function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+// Typewriter effect - prints text character by character (50% faster)
+export async function typewriter(
+  text: string,
+  delay: number = 15,
+  prefix: string = ""
+): Promise<void> {
+  process.stdout.write(prefix);
+  for (const char of text) {
+    process.stdout.write(char);
+    await sleep(delay);
+  }
+  console.log();
+}
+
+// Line by line fade in effect (50% faster)
+export async function fadeInLines(lines: string[], delay: number = 40): Promise<void> {
+  for (const line of lines) {
+    console.log(line);
+    await sleep(delay);
+  }
+}
+
+// Dot animation (50% faster)
+export async function dotAnimation(
+  message: string,
+  durationMs: number = 400,
+  speed: "slow" | "normal" | "fast" = "fast"
+): Promise<void> {
+  const frames = [".", "..", "..."];
+  const frameDelays = { slow: 100, normal: 60, fast: 40 };
+  const frameDelay = frameDelays[speed];
+  const iterations = Math.ceil(durationMs / (frames.length * frameDelay));
+
+  for (let i = 0; i < iterations; i++) {
+    for (const frame of frames) {
+      process.stdout.write(`\r  ${colors.muted(message)}${colors.primary(frame)}   `);
+      await sleep(frameDelay);
+    }
+  }
+  process.stdout.write("\r" + " ".repeat(message.length + 10) + "\r");
+}
+
+// Progress bar for scanning operations
+export async function progressBar(
+  current: number,
+  total: number,
+  message: string = "Processing"
+): Promise<void> {
+  const width = 24;
+  const percent = Math.round((current / total) * 100);
+  const filled = Math.round((current / total) * width);
+  const empty = width - filled;
+
+  const bar = colors.primary("█".repeat(filled)) + colors.dim("░".repeat(empty));
+  const percentStr = colors.white(`${percent}%`);
+
+  process.stdout.write(`\r  ${colors.muted(message)} [${bar}] ${percentStr}  `);
+
+  if (current >= total) {
+    console.log();
+  }
+}
+
+// Animated logo display with professional boxed design
+export async function printAnimatedHeader(): Promise<void> {
+  console.log();
+  const headerLines = createProfessionalHeader();
+  for (const line of headerLines) {
+    console.log(line);
+    await sleep(20);
+  }
+  console.log();
+}
+
+// Animated welcome box (typewriter style for username)
+export async function printAnimatedWelcomeBox(user: {
+  username: string;
+  level?: number;
+  levelName?: string;
+  levelIcon?: string;
+  globalRank?: number;
+  countryRank?: number;
+  countryCode?: string;
+  ccplan?: string;
+}): Promise<void> {
+  const lines: string[] = [];
+
+  // Build lines
+  const welcomeLine = `👋 ${colors.white.bold(`Welcome back, ${user.username}!`)}`;
+  lines.push(welcomeLine);
+
+  const levelInfo =
+    user.level && user.levelName && user.levelIcon
+      ? `${user.levelIcon} Level ${user.level} • ${user.levelName}`
+      : "";
+  const ccplanBadge = user.ccplan ? getCCplanBadge(user.ccplan) : "";
+
+  if (levelInfo || ccplanBadge) {
+    lines.push(`${levelInfo}${ccplanBadge ? `  ${ccplanBadge}` : ""}`);
+  }
+
+  if (user.globalRank) {
+    lines.push(`🌍 Global Rank: ${colors.primary(`#${user.globalRank}`)}`);
+  }
+
+  if (user.countryRank && user.countryCode) {
+    const flag = countryCodeToFlag(user.countryCode);
+    lines.push(`${flag} Country Rank: ${colors.primary(`#${user.countryRank}`)}`);
+  }
+
+  // Calculate box width
+  const maxVisibleLength = Math.max(...lines.map((l) => stripAnsi(l).length));
+  const boxWidth = Math.max(maxVisibleLength + 4, 47);
+
+  // Print box with animation
+  const top = colors.dim(`  ${box.topLeft}${box.horizontal.repeat(boxWidth)}${box.topRight}`);
+  const bottom = colors.dim(
+    `  ${box.bottomLeft}${box.horizontal.repeat(boxWidth)}${box.bottomRight}`
+  );
+
+  console.log(top);
+  await sleep(20);
+
+  for (const line of lines) {
+    const visibleLength = stripAnsi(line).length;
+    const padding = boxWidth - 2 - visibleLength;
+    const paddedLine = `${box.vertical} ${line}${" ".repeat(Math.max(0, padding))} ${box.vertical}`;
+    console.log(colors.dim("  ") + paddedLine);
+    await sleep(25);
+  }
+
+  console.log(bottom);
 }

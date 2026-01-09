@@ -1,5 +1,5 @@
 import ora from "ora";
-import { isAuthenticated } from "../lib/config.js";
+import { getConfig, isAuthenticated } from "../lib/config.js";
 import { getStatus as getApiStatus } from "../lib/api.js";
 import {
   colors,
@@ -8,75 +8,69 @@ import {
   getRankMedal,
   getCCplanBadge,
   getLevelInfo,
+  countryCodeToFlag,
   header,
   createBox,
-  divider,
   error,
   link,
-  printCompactHeader,
 } from "../lib/ui.js";
 
 interface StatusOptions {
-  json?: boolean;
+  // Reserved for future use
 }
 
 export async function status(options: StatusOptions): Promise<void> {
   // Check authentication
   if (!isAuthenticated()) {
-    if (options.json) {
-      console.log(JSON.stringify({ error: "Not authenticated" }));
-    } else {
-      console.log(`\n  ${error("Not authenticated.")}`);
-      console.log(`  ${colors.muted("Run:")} ${colors.white("npx ccgather auth")}\n`);
-    }
+    console.log(`\n  ${error("Not authenticated.")}`);
     process.exit(1);
   }
 
-  const spinner = options.json
-    ? null
-    : ora({
-        text: "Fetching your stats...",
-        color: "cyan",
-      }).start();
+  const spinner = ora({
+    text: "Fetching your stats...",
+    color: "cyan",
+  }).start();
 
   const result = await getApiStatus();
 
   if (!result.success) {
-    if (spinner) spinner.fail(colors.error("Failed to fetch status"));
-    if (options.json) {
-      console.log(JSON.stringify({ error: result.error }));
-    } else {
-      console.log(`\n  ${error(result.error || "Unknown error")}\n`);
-    }
+    spinner.fail(colors.error("Failed to fetch status"));
+    console.log(`\n  ${error(result.error || "Unknown error")}\n`);
     process.exit(1);
   }
 
   const stats = result.data!;
+  const config = getConfig();
+  const username = config.get("username");
 
-  if (options.json) {
-    console.log(JSON.stringify(stats, null, 2));
-    return;
-  }
-
-  spinner?.succeed(colors.success("Status retrieved"));
+  spinner.succeed(colors.success("Status retrieved"));
 
   // Print header
-  printCompactHeader("1.3.4");
   console.log(header("Your CCgather Stats", "📊"));
 
   // Level info
   const levelInfo = getLevelInfo(stats.totalTokens);
 
-  // Rank display
+  // Rank display - Global
   const medal = getRankMedal(stats.rank);
   console.log();
-  console.log(`  ${medal} ${colors.white.bold(`Rank #${stats.rank}`)}`);
-  console.log(`  ${colors.dim(`Top ${stats.percentile.toFixed(1)}% of all users`)}`);
+  console.log(`  🌍 ${colors.muted("Global")}   ${medal} ${colors.white.bold(`#${stats.rank}`)}`);
+
+  // Rank display - Country (if available)
+  if (stats.countryRank && stats.countryCode) {
+    const countryFlag = countryCodeToFlag(stats.countryCode);
+    const countryMedal = getRankMedal(stats.countryRank);
+    console.log(
+      `  ${countryFlag} ${colors.muted("Country")}  ${countryMedal} ${colors.white.bold(`#${stats.countryRank}`)}`
+    );
+  }
+
+  console.log(`  ${colors.dim(`Top ${stats.percentile.toFixed(1)}% globally`)}`);
 
   // Level display
   console.log();
   console.log(
-    `  ${levelInfo.icon} ${levelInfo.color(`Level ${levelInfo.level} • ${levelInfo.name}`)}`
+    `  ${levelInfo.icon} ${levelInfo.color(`Level ${levelInfo.level} - ${levelInfo.name}`)}`
   );
 
   // CCplan badge
@@ -92,7 +86,7 @@ export async function status(options: StatusOptions): Promise<void> {
   const statsLines = [
     `${colors.muted("Total Tokens")}   ${colors.primary(formatNumber(stats.totalTokens))}`,
     `${colors.muted("Total Spent")}    ${colors.success(formatCost(stats.totalSpent))}`,
-    `${colors.muted("Tier")}           ${colors.cyan(stats.tier || "Unknown")}`,
+    `${colors.muted("CCplan")}         ${colors.cyan(stats.tier || "Unknown")}`,
   ];
   console.log(createBox(statsLines));
 
@@ -103,10 +97,11 @@ export async function status(options: StatusOptions): Promise<void> {
     console.log(`  ${stats.badges.join("  ")}`);
   }
 
-  // Footer
+  // Footer with user-specific leaderboard URL
+  const leaderboardUrl = `https://ccgather.com/leaderboard?u=${username}`;
   console.log();
   console.log(colors.dim("  ─".repeat(25)));
-  console.log(`  ${colors.muted("View leaderboard:")} ${link("https://ccgather.com/leaderboard")}`);
+  console.log(`  ${colors.muted("View on leaderboard:")} ${link(leaderboardUrl)}`);
   console.log();
 }
 

@@ -90,7 +90,7 @@ export function CLIModal({ isOpen, onClose }: CLIModalProps) {
             {/* Quick Install */}
             <div>
               <p className="text-xs text-[var(--color-text-muted)] uppercase tracking-wider mb-2">
-                Quick Install
+                Run
               </p>
               <div className="flex items-center justify-between bg-black/40 rounded-lg p-3">
                 <code className="text-sm font-mono">
@@ -111,73 +111,42 @@ export function CLIModal({ isOpen, onClose }: CLIModalProps) {
                 <div className="flex items-start gap-3">
                   <span className="text-[var(--color-claude-coral)] font-mono text-xs">1.</span>
                   <span className="text-[var(--color-text-muted)]">
-                    Run <code className="text-[var(--color-claude-coral)]">npx ccgather scan</code>{" "}
-                    to scan your usage
+                    Run <code className="text-[var(--color-claude-coral)]">npx ccgather</code>
                   </span>
                 </div>
                 <div className="flex items-start gap-3">
                   <span className="text-[var(--color-claude-coral)] font-mono text-xs">2.</span>
                   <span className="text-[var(--color-text-muted)]">
-                    Scans{" "}
-                    <code className="text-[var(--color-claude-coral)]">~/.claude/projects/</code>{" "}
-                    session logs
+                    Authenticate with your GitHub account (first time only)
                   </span>
                 </div>
                 <div className="flex items-start gap-3">
                   <span className="text-[var(--color-claude-coral)] font-mono text-xs">3.</span>
                   <span className="text-[var(--color-text-muted)]">
-                    Run <code className="text-[var(--color-claude-coral)]">npx ccgather</code> to
-                    submit to leaderboard
+                    Select &quot;Submit usage data&quot; to sync your stats
                   </span>
                 </div>
               </div>
             </div>
 
-            {/* Commands */}
+            {/* Menu Options */}
             <div>
               <p className="text-xs text-[var(--color-text-muted)] uppercase tracking-wider mb-2">
-                Commands
+                Menu Options
               </p>
               <div className="space-y-1.5 text-xs font-mono">
                 {[
-                  { cmd: "npx ccgather", desc: "Interactive menu (default)" },
-                  { cmd: "npx ccgather scan", desc: "Scan usage (last 30 days)" },
-                  { cmd: "npx ccgather scan --all", desc: "Scan all-time usage" },
-                  { cmd: "npx ccgather scan -d 90", desc: "Scan last 90 days" },
-                  { cmd: "npx ccgather rank", desc: "View your ranking" },
-                  { cmd: "npx ccgather sync", desc: "Sync usage data" },
-                  { cmd: "npx ccgather auth", desc: "Authenticate account" },
-                  { cmd: "npx ccgather reset", desc: "Reset all settings" },
+                  { icon: "📤", name: "Submit usage data", desc: "Scan & submit to leaderboard" },
+                  { icon: "📊", name: "View my rank", desc: "Check your current ranking" },
+                  { icon: "⚙️", name: "Settings", desc: "Re-authenticate or disconnect" },
                 ].map((item) => (
                   <div
-                    key={item.cmd}
+                    key={item.name}
                     className="flex items-center justify-between py-1.5 px-2 rounded bg-black/20"
                   >
-                    <code className="text-[var(--color-claude-coral)]">{item.cmd}</code>
-                    <span className="text-[var(--color-text-muted)] font-sans">{item.desc}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Options */}
-            <div>
-              <p className="text-xs text-[var(--color-text-muted)] uppercase tracking-wider mb-2">
-                Options
-              </p>
-              <div className="space-y-1.5 text-xs font-mono">
-                {[
-                  { opt: "-a, --all", desc: "Scan all-time usage" },
-                  { opt: "-d, --days <n>", desc: "Scan last N days" },
-                  { opt: "-y, --yes", desc: "Skip confirmations" },
-                  { opt: "--auto", desc: "Enable auto-sync" },
-                  { opt: "--manual", desc: "Disable auto-sync" },
-                ].map((item) => (
-                  <div
-                    key={item.opt}
-                    className="flex items-center justify-between py-1.5 px-2 rounded bg-black/20"
-                  >
-                    <code className="text-[var(--color-text-secondary)]">{item.opt}</code>
+                    <span className="text-[var(--color-text-primary)] font-sans">
+                      {item.icon} {item.name}
+                    </span>
                     <span className="text-[var(--color-text-muted)] font-sans">{item.desc}</span>
                   </div>
                 ))}

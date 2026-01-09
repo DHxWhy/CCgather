@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo, useEffect, useCallback } from "react";
+import { useSearchParams } from "next/navigation";
 import ReactCountryFlag from "react-country-flag";
 import { useUser } from "@clerk/nextjs";
 import { ProfileSidePanel } from "@/components/leaderboard/ProfileSidePanel";
@@ -29,14 +30,14 @@ function CountryFlag({ countryCode, size = 16 }: { countryCode: string; size?: n
 
   return (
     <div
-      className="relative inline-flex items-center justify-center"
+      className="relative inline-block leading-none"
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
     >
       <ReactCountryFlag
         countryCode={countryCode}
         svg
-        style={{ width: `${size}px`, height: `${size}px` }}
+        style={{ width: `${size}px`, height: `${size}px`, display: "block" }}
       />
       {isHovered && (
         <div className="absolute right-full mr-1.5 top-1/2 -translate-y-1/2 z-50 px-1.5 py-0.5 bg-[var(--color-bg-secondary)] border border-white/10 rounded shadow-lg whitespace-nowrap">
@@ -126,6 +127,8 @@ interface DisplayUser extends LeaderboardUser {
 
 export default function LeaderboardPage() {
   const { user: clerkUser } = useUser();
+  const searchParams = useSearchParams();
+  const highlightUsername = searchParams.get("u");
   const [selectedUser, setSelectedUser] = useState<DisplayUser | null>(null);
   const [isPanelOpen, setIsPanelOpen] = useState(false);
   const [periodFilter, setPeriodFilter] = useState<PeriodFilter>("all");
@@ -138,6 +141,8 @@ export default function LeaderboardPage() {
   const [, setIsOverlayMode] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
   const [highlightMyRank, setHighlightMyRank] = useState(false);
+  const [highlightedUsername, setHighlightedUsername] = useState<string | null>(null);
+  const [myRankInfo, setMyRankInfo] = useState<{ rank: number; page: number } | null>(null);
 
   // API state
   const [users, setUsers] = useState<DisplayUser[]>([]);
@@ -223,9 +228,10 @@ export default function LeaderboardPage() {
     clerkUser?.id,
   ]);
 
-  // Fetch current user's country
+  // Fetch current user's country and username
+  const [currentUsername, setCurrentUsername] = useState<string | null>(null);
   useEffect(() => {
-    async function fetchUserCountry() {
+    async function fetchUserInfo() {
       if (!clerkUser?.id) return;
       try {
         const response = await fetch("/api/me");
@@ -234,13 +240,48 @@ export default function LeaderboardPage() {
           if (data.user?.country_code) {
             setCurrentUserCountry(data.user.country_code);
           }
+          if (data.user?.username) {
+            setCurrentUsername(data.user.username);
+          }
         }
       } catch {
-        // Keep default country
+        // Keep defaults
       }
     }
-    fetchUserCountry();
+    fetchUserInfo();
   }, [clerkUser?.id]);
+
+  // Fetch current user's rank for "My Rank" button
+  useEffect(() => {
+    async function fetchMyRank() {
+      if (!currentUsername) return;
+
+      try {
+        const params = new URLSearchParams();
+        params.set("findUser", currentUsername);
+        params.set("limit", String(ITEMS_PER_PAGE));
+        if (ccplanFilter !== "all") {
+          params.set("ccplan", ccplanFilter);
+        }
+        if (scopeFilter === "country" && currentUserCountry) {
+          params.set("country", currentUserCountry);
+        }
+
+        const response = await fetch(`/api/leaderboard?${params}`);
+        const data = await response.json();
+
+        if (data.found && data.user) {
+          setMyRankInfo({ rank: data.user.rank, page: data.user.page });
+        } else {
+          setMyRankInfo(null);
+        }
+      } catch {
+        setMyRankInfo(null);
+      }
+    }
+
+    fetchMyRank();
+  }, [currentUsername, ccplanFilter, scopeFilter, currentUserCountry]);
 
   // Fetch data on filter/page change
   useEffect(() => {
@@ -276,6 +317,59 @@ export default function LeaderboardPage() {
     setIsAnimating(true);
   }, []);
 
+  // Handle ?u=username query parameter for highlighting
+  useEffect(() => {
+    if (!highlightUsername) return;
+
+    // First, try to find user in current page
+    const targetUser = users.find(
+      (u) => u.username.toLowerCase() === highlightUsername.toLowerCase()
+    );
+
+    if (targetUser) {
+      setHighlightedUsername(highlightUsername.toLowerCase());
+      // Clear highlight after 5 seconds
+      const timer = setTimeout(() => {
+        setHighlightedUsername(null);
+      }, 5000);
+      return () => clearTimeout(timer);
+    }
+
+    // If not found on current page, search for user's page
+    async function findUserPage() {
+      if (!highlightUsername) return;
+
+      try {
+        const params = new URLSearchParams();
+        params.set("findUser", highlightUsername);
+        params.set("limit", String(ITEMS_PER_PAGE));
+        if (ccplanFilter !== "all") {
+          params.set("ccplan", ccplanFilter);
+        }
+        if (scopeFilter === "country" && currentUserCountry) {
+          params.set("country", currentUserCountry);
+        }
+
+        const response = await fetch(`/api/leaderboard?${params}`);
+        const data = await response.json();
+
+        if (data.found && data.user?.page) {
+          // Navigate to the user's page
+          setCurrentPage(data.user.page);
+          setHighlightedUsername(highlightUsername.toLowerCase());
+        }
+      } catch {
+        // User not found, ignore
+      }
+    }
+
+    if (users.length > 0 && !targetUser) {
+      findUserPage();
+    }
+
+    return undefined;
+  }, [highlightUsername, users, ccplanFilter, scopeFilter, currentUserCountry]);
+
   // Pagination
   const totalPages = Math.ceil(total / ITEMS_PER_PAGE);
 
@@ -286,12 +380,15 @@ export default function LeaderboardPage() {
 
   // Go to my rank
   const goToMyRank = useCallback(() => {
-    if (currentUserData) {
+    if (myRankInfo) {
+      setCurrentPage(myRankInfo.page);
+      setHighlightMyRank(true);
+    } else if (currentUserData) {
       const myPage = Math.ceil(currentUserData.rank / ITEMS_PER_PAGE);
       setCurrentPage(myPage);
       setHighlightMyRank(true);
     }
-  }, [currentUserData]);
+  }, [myRankInfo, currentUserData]);
 
   // Reset page on filter change
   useEffect(() => {
@@ -359,10 +456,11 @@ export default function LeaderboardPage() {
                 </p>
               </div>
               {/* Live Stats Ticker */}
-              <div className="hidden lg:block">
+              <div className="w-full lg:w-auto">
                 <LiveStatsTicker
                   variant="compact"
-                  className="px-3 py-2 rounded-lg bg-[var(--color-filter-bg)] border border-[var(--border-default)]"
+                  className="px-2 sm:px-3 py-2 rounded-lg bg-[var(--color-filter-bg)] border border-[var(--border-default)] justify-center lg:justify-start"
+                  userCountryCode={currentUserCountry}
                 />
               </div>
             </div>
@@ -374,13 +472,13 @@ export default function LeaderboardPage() {
           </div>
 
           {/* Filters */}
-          <div className="flex items-center justify-between gap-2 md:gap-3 mb-6">
-            <div className="flex items-center gap-2 md:gap-3">
+          <div className="flex items-center justify-between gap-1.5 sm:gap-2 md:gap-3 mb-6">
+            <div className="flex items-center gap-1.5 sm:gap-2 md:gap-3">
               {/* Scope Filter */}
-              <div className="flex p-1 bg-[var(--color-filter-bg)] border border-[var(--border-default)] rounded-lg gap-1">
+              <div className="flex p-0.5 sm:p-1 bg-[var(--color-filter-bg)] border border-[var(--border-default)] rounded-lg gap-0.5 sm:gap-1">
                 <button
                   onClick={() => setScopeFilter("global")}
-                  className={`px-2.5 py-1.5 rounded-md text-sm md:text-xs font-medium transition-colors ${
+                  className={`px-2 sm:px-2.5 py-1 sm:py-1.5 rounded-md text-sm md:text-xs font-medium transition-colors ${
                     scopeFilter === "global"
                       ? "bg-[var(--color-claude-coral)] text-white"
                       : "text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-filter-hover)]"
@@ -390,7 +488,7 @@ export default function LeaderboardPage() {
                 </button>
                 <button
                   onClick={() => setScopeFilter("country")}
-                  className={`px-2.5 py-1.5 rounded-md text-sm md:text-xs font-medium transition-colors flex items-center justify-center ${
+                  className={`px-2 sm:px-2.5 py-1 sm:py-1.5 rounded-md text-sm md:text-xs font-medium transition-colors flex items-center justify-center ${
                     scopeFilter === "country"
                       ? "bg-[var(--color-claude-coral)] text-white"
                       : "text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-filter-hover)]"
@@ -404,20 +502,21 @@ export default function LeaderboardPage() {
                 </button>
               </div>
 
-              <div className="h-6 w-px bg-[var(--border-default)]" />
+              {/* Divider - hidden on smallest screens */}
+              <div className="hidden sm:block h-6 w-px bg-[var(--border-default)]" />
 
               {/* Period Filter */}
-              <div className="flex p-1 bg-[var(--color-filter-bg)] border border-[var(--border-default)] rounded-lg gap-1">
+              <div className="flex p-0.5 sm:p-1 bg-[var(--color-filter-bg)] border border-[var(--border-default)] rounded-lg gap-0.5 sm:gap-1">
                 {[
                   { value: "today", label: "1D", labelFull: "Today" },
                   { value: "7d", label: "7D" },
                   { value: "30d", label: "30D" },
-                  { value: "all", label: "All", labelFull: "All Time" },
+                  { value: "all", label: "∞", labelFull: "All Time" },
                 ].map((period) => (
                   <button
                     key={period.value}
                     onClick={() => setPeriodFilter(period.value as PeriodFilter)}
-                    className={`px-2.5 md:px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                    className={`px-1.5 sm:px-2 md:px-3 py-1 sm:py-1.5 rounded-md text-xs font-medium transition-colors ${
                       periodFilter === period.value
                         ? "bg-[var(--color-filter-active)] text-[var(--color-text-primary)]"
                         : "text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-filter-hover)]"
@@ -431,24 +530,24 @@ export default function LeaderboardPage() {
             </div>
 
             {/* Right side - My Rank & Sort */}
-            <div className="flex items-center gap-2 md:gap-3">
-              {currentUserData && (
+            <div className="flex items-center gap-1.5 sm:gap-2 md:gap-3">
+              {(myRankInfo || currentUserData) && (
                 <button
                   onClick={goToMyRank}
-                  className="flex items-center gap-1.5 px-2.5 md:px-3 py-1.5 bg-[var(--color-filter-bg)] border border-[var(--border-default)] hover:bg-[var(--color-filter-hover)] rounded-lg text-xs font-medium text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] transition-colors"
+                  className="flex items-center gap-1 sm:gap-1.5 px-1.5 sm:px-2.5 md:px-3 py-1 sm:py-1.5 bg-[var(--color-filter-bg)] border border-[var(--border-default)] hover:bg-[var(--color-filter-hover)] rounded-lg text-xs font-medium text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] transition-colors"
                 >
                   <span>📍</span>
                   <span className="hidden md:inline">My Rank</span>
                   <span className="text-[var(--color-claude-coral)] font-semibold">
-                    #{currentUserData.rank}
+                    #{myRankInfo?.rank || currentUserData?.rank}
                   </span>
                 </button>
               )}
 
-              <div className="flex p-1 bg-[var(--color-filter-bg)] border border-[var(--border-default)] rounded-lg gap-1">
+              <div className="flex p-0.5 sm:p-1 bg-[var(--color-filter-bg)] border border-[var(--border-default)] rounded-lg gap-0.5 sm:gap-1">
                 <button
                   onClick={() => setSortBy("cost")}
-                  className={`px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                  className={`px-2 sm:px-2.5 py-1 sm:py-1.5 rounded-md text-xs font-medium transition-colors ${
                     sortBy === "cost"
                       ? "bg-[var(--color-cost)] text-white"
                       : "text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-filter-hover)]"
@@ -458,7 +557,7 @@ export default function LeaderboardPage() {
                 </button>
                 <button
                   onClick={() => setSortBy("tokens")}
-                  className={`px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                  className={`px-2 sm:px-2.5 py-1 sm:py-1.5 rounded-md text-xs font-medium transition-colors ${
                     sortBy === "tokens"
                       ? "bg-[var(--color-claude-coral)] text-white"
                       : "text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-filter-hover)]"
@@ -516,29 +615,28 @@ export default function LeaderboardPage() {
                 <div className="overflow-x-auto">
                   <table className="w-full table-fixed">
                     <colgroup>
-                      <col className="w-[42px] md:w-[60px]" />
-                      <col className="w-[32px] md:w-[44px]" />
+                      <col className="w-[40px] md:w-[60px]" />
+                      <col className="w-[28px] md:w-[44px]" />
                       <col />
-                      <col className="w-[36px] md:w-[70px]" />
-                      <col className="w-[58px] md:w-[90px]" />
+                      <col className="hidden md:table-column w-[70px]" />
+                      <col className="w-[50px] md:w-[90px]" />
                       <col className="w-[52px] md:w-[70px]" />
                     </colgroup>
                     <thead>
                       <tr className="border-b border-[var(--border-default)]">
-                        <th className="text-center text-text-secondary font-medium text-xs py-2.5 px-1">
+                        <th className="text-center text-text-secondary font-medium text-xs py-2.5 px-0.5 md:px-1">
                           Rank
                         </th>
-                        <th className="text-center text-text-secondary font-medium text-xs py-2.5 px-1">
+                        <th className="text-center text-text-secondary font-medium text-xs py-2.5 px-0.5 md:px-1">
                           C
                         </th>
                         <th className="text-left text-text-secondary font-medium text-xs py-2.5 px-1">
                           User
                         </th>
-                        <th className="text-center text-text-secondary font-medium text-xs py-2.5 px-1">
-                          <span className="md:hidden">Lv</span>
-                          <span className="hidden md:inline">Level</span>
+                        <th className="hidden md:table-cell text-center text-text-secondary font-medium text-xs py-2.5 px-1">
+                          Level
                         </th>
-                        <th className="text-center text-text-secondary font-medium text-xs py-2.5 px-1">
+                        <th className="text-center text-text-secondary font-medium text-xs py-2.5 px-0.5 md:px-1">
                           <span className="md:hidden">$</span>
                           <span className="hidden md:inline">Cost</span>
                         </th>
@@ -585,12 +683,21 @@ export default function LeaderboardPage() {
                               user.isCurrentUser && highlightMyRank
                                 ? "!bg-[var(--color-claude-coral)]/20 ring-2 ring-[var(--color-claude-coral)]"
                                 : ""
+                            } ${
+                              highlightedUsername &&
+                              user.username.toLowerCase() === highlightedUsername
+                                ? "!bg-[var(--color-claude-coral)]/20 ring-2 ring-[var(--color-claude-coral)] animate-pulse"
+                                : ""
                             }`}
                             style={{
                               backgroundColor:
                                 !user.isCurrentUser &&
                                 !(selectedUser?.id === user.id && isPanelOpen) &&
                                 !highlightMyRank &&
+                                !(
+                                  highlightedUsername &&
+                                  user.username.toLowerCase() === highlightedUsername
+                                ) &&
                                 index % 2 === 1
                                   ? "var(--color-table-row-even)"
                                   : undefined,
@@ -600,16 +707,20 @@ export default function LeaderboardPage() {
                                   : "none",
                             }}
                           >
-                            <td className={`${rowPadding} px-1 md:px-2 text-center`}>
-                              <span className={`text-text-primary font-mono ${rankSize}`}>
+                            <td className={`${rowPadding} px-1 md:px-2 text-center align-middle`}>
+                              <span
+                                className={`text-text-primary font-mono ${rankSize} leading-none`}
+                              >
                                 {user.rank <= 3
                                   ? ["🥇", "🥈", "🥉"][user.rank - 1]
                                   : `#${user.rank}`}
                               </span>
                             </td>
-                            <td className={`${rowPadding} px-1 text-center`}>
+                            <td className={`${rowPadding} px-1 text-center align-middle`}>
                               {user.country_code && (
-                                <CountryFlag countryCode={user.country_code} size={flagSize} />
+                                <span className="inline-block translate-y-[3px]">
+                                  <CountryFlag countryCode={user.country_code} size={flagSize} />
+                                </span>
                               )}
                             </td>
                             <td className={`${rowPadding} px-1 md:px-2`}>
@@ -637,15 +748,10 @@ export default function LeaderboardPage() {
                               </div>
                             </td>
                             <td
-                              className={`${rowPadding} px-1 text-center`}
+                              className={`hidden md:table-cell ${rowPadding} px-1 text-center`}
                               onClick={(e) => e.stopPropagation()}
                             >
-                              <span className="md:hidden">
-                                {getLevelByTokens(user.total_tokens).icon}
-                              </span>
-                              <span className="hidden md:inline">
-                                <LevelBadge tokens={user.total_tokens} />
-                              </span>
+                              <LevelBadge tokens={user.total_tokens} />
                             </td>
                             <td className={`${rowPadding} px-0.5 md:px-2 text-center`}>
                               <span className={`text-[var(--color-cost)] font-mono ${valueSize}`}>

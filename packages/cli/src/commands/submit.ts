@@ -1,13 +1,11 @@
 import ora from "ora";
-import * as fs from "fs";
-import * as path from "path";
-import * as os from "os";
+import inquirer from "inquirer";
 import { getApiUrl, getConfig, isAuthenticated } from "../lib/config.js";
 import {
-  readCCGatherJson,
-  scanAndSave,
-  getCCGatherJsonPath,
+  scanUsageData,
+  getSessionFileCount,
   CCGatherData,
+  DailyUsage,
 } from "../lib/ccgather-json.js";
 import {
   colors,
@@ -18,7 +16,9 @@ import {
   error,
   link,
   createBox,
-  printCompactHeader,
+  progressBar,
+  sleep,
+  getLevelProgress,
 } from "../lib/ui.js";
 
 interface UsageData {
@@ -31,10 +31,32 @@ interface UsageData {
   daysTracked: number;
   ccplan?: string | null;
   rateLimitTier?: string | null;
+  dailyUsage: DailyUsage[];
 }
 
 interface SubmitOptions {
-  yes?: boolean;
+  // Reserved for future use
+}
+
+interface BadgeInfo {
+  id: string;
+  name: string;
+  icon: string;
+  description: string;
+  praise?: string;
+  rarity: "common" | "rare" | "epic" | "legendary";
+  category: "streak" | "tokens" | "rank" | "model" | "social";
+  earnedAt?: string;
+}
+
+interface SubmitResponse {
+  success: boolean;
+  profileUrl?: string;
+  rank?: number;
+  countryRank?: number;
+  newBadges?: BadgeInfo[];
+  totalBadges?: number;
+  error?: string;
 }
 
 /**
@@ -51,162 +73,20 @@ function ccgatherToUsageData(data: CCGatherData): UsageData {
     daysTracked: data.stats.daysTracked,
     ccplan: data.account?.ccplan || null,
     rateLimitTier: data.account?.rateLimitTier || null,
-  };
-}
-
-/**
- * Find cc.json file (Claude Code usage summary) - legacy support
- */
-function findCcJson(): string | null {
-  const possiblePaths = [
-    path.join(process.cwd(), "cc.json"),
-    path.join(os.homedir(), "cc.json"),
-    path.join(os.homedir(), ".claude", "cc.json"),
-  ];
-
-  for (const p of possiblePaths) {
-    if (fs.existsSync(p)) {
-      return p;
-    }
-  }
-  return null;
-}
-
-/**
- * Parse cc.json file - legacy support
- */
-function parseCcJson(filePath: string): UsageData | null {
-  try {
-    const content = fs.readFileSync(filePath, "utf-8");
-    const data = JSON.parse(content);
-
-    return {
-      totalTokens: data.totalTokens || data.total_tokens || 0,
-      totalCost: data.totalCost || data.total_cost || data.costUSD || 0,
-      inputTokens: data.inputTokens || data.input_tokens || 0,
-      outputTokens: data.outputTokens || data.output_tokens || 0,
-      cacheReadTokens: data.cacheReadTokens || data.cache_read_tokens || 0,
-      cacheWriteTokens: data.cacheWriteTokens || data.cache_write_tokens || 0,
-      daysTracked: data.daysTracked || data.days_tracked || calculateDaysTracked(data),
-    };
-  } catch {
-    return null;
-  }
-}
-
-/**
- * Calculate days tracked from data
- */
-function calculateDaysTracked(data: Record<string, unknown>): number {
-  if (data.dailyStats && Array.isArray(data.dailyStats)) {
-    return data.dailyStats.length;
-  }
-  if (data.daily && typeof data.daily === "object") {
-    return Object.keys(data.daily).length;
-  }
-  return 1;
-}
-
-/**
- * Parse usage from Claude Code JSONL files
- */
-function parseUsageFromJsonl(): UsageData | null {
-  const projectsDir = path.join(os.homedir(), ".claude", "projects");
-
-  if (!fs.existsSync(projectsDir)) {
-    return null;
-  }
-
-  let totalInputTokens = 0;
-  let totalOutputTokens = 0;
-  let totalCacheRead = 0;
-  let totalCacheWrite = 0;
-  const dates = new Set<string>();
-
-  function findJsonlFiles(dir: string): string[] {
-    const files: string[] = [];
-    try {
-      const entries = fs.readdirSync(dir, { withFileTypes: true });
-      for (const entry of entries) {
-        const fullPath = path.join(dir, entry.name);
-        if (entry.isDirectory()) {
-          files.push(...findJsonlFiles(fullPath));
-        } else if (entry.name.endsWith(".jsonl")) {
-          files.push(fullPath);
-        }
-      }
-    } catch {
-      // Ignore permission errors
-    }
-    return files;
-  }
-
-  const jsonlFiles = findJsonlFiles(projectsDir);
-
-  for (const filePath of jsonlFiles) {
-    try {
-      const content = fs.readFileSync(filePath, "utf-8");
-      const lines = content.split("\n").filter((line) => line.trim());
-
-      for (const line of lines) {
-        try {
-          const event = JSON.parse(line);
-
-          if (event.type === "assistant" && event.message?.usage) {
-            const usage = event.message.usage;
-            totalInputTokens += usage.input_tokens || 0;
-            totalOutputTokens += usage.output_tokens || 0;
-            totalCacheRead += usage.cache_read_input_tokens || 0;
-            totalCacheWrite += usage.cache_creation_input_tokens || 0;
-
-            // Track unique dates
-            if (event.timestamp) {
-              const date = new Date(event.timestamp).toISOString().split("T")[0];
-              dates.add(date);
-            }
-          }
-        } catch {
-          // Skip invalid JSON lines
-        }
-      }
-    } catch {
-      // Skip unreadable files
-    }
-  }
-
-  const totalTokens = totalInputTokens + totalOutputTokens;
-
-  if (totalTokens === 0) {
-    return null;
-  }
-
-  // Estimate cost (rough approximation based on Claude pricing)
-  const costPerMillion = 3;
-  const totalCost = (totalTokens / 1000000) * costPerMillion;
-
-  return {
-    totalTokens,
-    totalCost: Math.round(totalCost * 100) / 100,
-    inputTokens: totalInputTokens,
-    outputTokens: totalOutputTokens,
-    cacheReadTokens: totalCacheRead,
-    cacheWriteTokens: totalCacheWrite,
-    daysTracked: dates.size || 1,
+    dailyUsage: data.dailyUsage || [],
   };
 }
 
 /**
  * Submit data to CCgather API with token authentication
  */
-async function submitToServer(
-  data: UsageData
-): Promise<{ success: boolean; profileUrl?: string; rank?: number; error?: string }> {
+async function submitToServer(data: UsageData): Promise<SubmitResponse> {
   const apiUrl = getApiUrl();
   const config = getConfig();
   const apiToken = config.get("apiToken");
 
   if (!apiToken) {
-    return { success: false, error: "Not authenticated. Please run 'ccgather auth' first." };
+    return { success: false, error: "Not authenticated." };
   }
 
   try {
@@ -227,6 +107,7 @@ async function submitToServer(
         ccplan: data.ccplan,
         rateLimitTier: data.rateLimitTier,
         timestamp: new Date().toISOString(),
+        dailyUsage: data.dailyUsage,
       }),
     });
 
@@ -235,10 +116,59 @@ async function submitToServer(
       return { success: false, error: errorData.error || `HTTP ${response.status}` };
     }
 
-    const result = (await response.json()) as { profileUrl?: string; rank?: number };
-    return { success: true, profileUrl: result.profileUrl, rank: result.rank };
+    const result = (await response.json()) as SubmitResponse;
+    return { ...result, success: true };
   } catch (err) {
     return { success: false, error: err instanceof Error ? err.message : "Unknown error" };
+  }
+}
+
+/**
+ * Get rarity color for badge
+ */
+function getRarityColor(rarity: string): (text: string) => string {
+  switch (rarity) {
+    case "legendary":
+      return colors.max; // Gold
+    case "epic":
+      return colors.team; // Purple
+    case "rare":
+      return colors.pro; // Blue
+    default:
+      return colors.muted; // Gray
+  }
+}
+
+/**
+ * Format date for display
+ */
+function formatBadgeDate(dateStr?: string): string {
+  if (!dateStr) return new Date().toISOString().split("T")[0].replace(/-/g, ".");
+  return dateStr.split("T")[0].replace(/-/g, ".");
+}
+
+/**
+ * Display newly earned badges
+ */
+function displayNewBadges(badges: BadgeInfo[]): void {
+  if (badges.length === 0) return;
+
+  console.log();
+  for (const badge of badges) {
+    const rarityColor = getRarityColor(badge.rarity);
+    const rarityLabel = badge.rarity.toUpperCase();
+
+    console.log(
+      `     ${badge.icon} ${colors.white.bold(badge.name)} ${rarityColor(`[${rarityLabel}]`)}`
+    );
+    console.log(`        ${colors.muted(badge.description)}`);
+    if (badge.praise) {
+      console.log(`        ${colors.cyan(`"${badge.praise}"`)}`);
+    }
+    // Show achieved date for rank badges
+    if (badge.category === "rank") {
+      console.log(`        ${colors.dim(`📅 Achieved: ${formatBadgeDate(badge.earnedAt)}`)}`);
+    }
   }
 }
 
@@ -246,13 +176,11 @@ async function submitToServer(
  * Main submit command
  */
 export async function submit(options: SubmitOptions): Promise<void> {
-  printCompactHeader("1.3.4");
   console.log(header("Submit Usage Data", "📤"));
 
   // Check authentication first
   if (!isAuthenticated()) {
     console.log(`\n  ${error("Not authenticated.")}`);
-    console.log(`  ${colors.muted("Please run:")} ${colors.white("npx ccgather auth")}\n`);
     process.exit(1);
   }
 
@@ -263,79 +191,43 @@ export async function submit(options: SubmitOptions): Promise<void> {
     console.log(`\n  ${colors.muted("Logged in as:")} ${colors.white(username)}`);
   }
 
-  // Find usage data - Priority: ccgather.json > cc.json > JSONL scan
+  // Always scan fresh data
   let usageData: UsageData | null = null;
-  let dataSource = "";
+  const totalFiles = getSessionFileCount();
 
-  // 1. Try ccgather.json first
-  const ccgatherData = readCCGatherJson();
-  if (ccgatherData) {
-    usageData = ccgatherToUsageData(ccgatherData);
-    dataSource = "ccgather.json";
-    console.log(`\n  ${success(`Found ${dataSource}`)}`);
+  if (totalFiles > 0) {
     console.log(
-      `  ${colors.dim(`Last scanned: ${new Date(ccgatherData.lastScanned).toLocaleString()}`)}`
+      `\n  ${colors.muted("Scanning")} ${colors.white(totalFiles.toString())} ${colors.muted("sessions...")}`
     );
 
-    // Show CCplan if detected
-    if (usageData.ccplan) {
-      console.log(`  ${colors.dim("CCplan:")} ${colors.primary(usageData.ccplan.toUpperCase())}`);
-    }
-  }
+    // Scan with progress bar (no file save - send directly to server)
+    const scannedData = scanUsageData({
+      onProgress: (current, total) => {
+        progressBar(current, total, "Scanning");
+      },
+    });
 
-  // 2. Try legacy cc.json
-  if (!usageData) {
-    const ccJsonPath = findCcJson();
-    if (ccJsonPath) {
-      const inquirer = await import("inquirer");
-      const { useCcJson } = await inquirer.default.prompt([
-        {
-          type: "confirm",
-          name: "useCcJson",
-          message: "Found existing cc.json. Use this file?",
-          default: true,
-        },
-      ]);
-
-      if (useCcJson) {
-        usageData = parseCcJson(ccJsonPath);
-        dataSource = "cc.json";
-      }
-    }
-  }
-
-  // 3. Scan JSONL files and create ccgather.json
-  if (!usageData) {
-    const parseSpinner = ora({
-      text: "Scanning Claude Code usage data...",
-      color: "cyan",
-    }).start();
-    const scannedData = scanAndSave();
-    parseSpinner.stop();
+    await sleep(200); // Brief pause after progress bar completes
 
     if (scannedData) {
       usageData = ccgatherToUsageData(scannedData);
-      dataSource = "Claude Code logs";
-      console.log(`\n  ${success("Scanned and saved to ccgather.json")}`);
-      console.log(`  ${colors.dim(`Path: ${getCCGatherJsonPath()}`)}`);
+      console.log(`  ${success("Scan complete!")}`);
+    }
+  } else {
+    const scannedData = scanUsageData();
+    if (scannedData) {
+      usageData = ccgatherToUsageData(scannedData);
+      console.log(`\n  ${success("Scan complete!")}`);
     }
   }
 
   if (!usageData) {
     console.log(`\n  ${error("No usage data found.")}`);
-    console.log(`  ${colors.muted("Make sure you have used Claude Code.")}`);
-    console.log(`  ${colors.muted("Run:")} ${colors.white("npx ccgather scan")}\n`);
+    console.log(`  ${colors.muted("Make sure you have used Claude Code at least once.")}\n`);
     process.exit(1);
   }
 
-  if (dataSource && dataSource !== "Claude Code logs") {
-    console.log(`\n  ${success(`Using ${dataSource}`)}`);
-  }
-
-  // CCplan is no longer user-selectable to prevent manipulation
-  // It can be detected from usage patterns or set via account settings
-
-  // Show summary in a box
+  // Show summary
   console.log();
   const summaryLines = [
     `${colors.muted("Total Cost")}     ${colors.success(formatCost(usageData.totalCost))}`,
@@ -353,21 +245,18 @@ export async function submit(options: SubmitOptions): Promise<void> {
   console.log();
 
   // Confirm submission
-  if (!options.yes) {
-    const inquirer = await import("inquirer");
-    const { confirmSubmit } = await inquirer.default.prompt([
-      {
-        type: "confirm",
-        name: "confirmSubmit",
-        message: "Submit to CCgather leaderboard?",
-        default: true,
-      },
-    ]);
+  const { confirmSubmit } = await inquirer.prompt([
+    {
+      type: "confirm",
+      name: "confirmSubmit",
+      message: "Submit to CCgather leaderboard?",
+      default: true,
+    },
+  ]);
 
-    if (!confirmSubmit) {
-      console.log(`\n  ${colors.muted("Submission cancelled.")}\n`);
-      return;
-    }
+  if (!confirmSubmit) {
+    console.log(`\n  ${colors.muted("Submission cancelled.")}\n`);
+    return;
   }
 
   // Submit to server
@@ -375,41 +264,104 @@ export async function submit(options: SubmitOptions): Promise<void> {
     text: "Submitting to CCgather...",
     color: "cyan",
   }).start();
+
   const result = await submitToServer(usageData);
 
   if (result.success) {
-    submitSpinner.succeed(colors.success("Successfully submitted to CCgather!"));
+    submitSpinner.succeed(colors.success("Successfully submitted!"));
     console.log();
 
-    // Success box
-    const successLines = [
-      `${colors.success("✓")} ${colors.white.bold("Submission Complete!")}`,
-      "",
-      `${colors.muted("Profile:")} ${link(result.profileUrl || `https://ccgather.com/u/${username}`)}`,
-    ];
+    // Section header with trailing line
+    const sectionHeader = (icon: string, title: string) => {
+      const text = `${icon} ${title} `;
+      const lineLength = 40 - text.length;
+      return `  ${colors.white.bold(text)}${colors.dim("─".repeat(Math.max(0, lineLength)))}`;
+    };
 
-    if (result.rank) {
-      successLines.push(`${colors.muted("Rank:")}    ${colors.warning(`#${result.rank}`)}`);
+    // ═══════════════════════════════════════
+    // 1. RANK (Most Important)
+    // ═══════════════════════════════════════
+    if (result.rank || result.countryRank) {
+      console.log();
+      console.log(sectionHeader("📊", "Your Ranking"));
+      console.log();
+      if (result.rank) {
+        const medal =
+          result.rank === 1
+            ? "🥇"
+            : result.rank === 2
+              ? "🥈"
+              : result.rank === 3
+                ? "🥉"
+                : result.rank <= 10
+                  ? "🏅"
+                  : "🌍";
+        console.log(
+          `     ${medal} ${colors.muted("Global:")} ${colors.primary.bold(`#${result.rank}`)}`
+        );
+      }
+      if (result.countryRank) {
+        const countryMedal =
+          result.countryRank === 1 ? "🥇" : result.countryRank <= 3 ? "🏆" : "🏠";
+        console.log(
+          `     ${countryMedal} ${colors.muted("Country:")} ${colors.primary.bold(`#${result.countryRank}`)}`
+        );
+      }
     }
 
-    console.log(createBox(successLines));
+    // ═══════════════════════════════════════
+    // 2. LEVEL PROGRESS
+    // ═══════════════════════════════════════
     console.log();
-    console.log(`  ${colors.dim("View leaderboard:")} ${link("https://ccgather.com/leaderboard")}`);
+    console.log(sectionHeader("⬆️", "Level Progress"));
+    console.log();
+
+    const levelProgress = getLevelProgress(usageData.totalTokens);
+    const currentLevel = levelProgress.current;
+
+    console.log(
+      `     ${currentLevel.icon} ${currentLevel.color(`Level ${currentLevel.level}`)} ${colors.muted("•")} ${colors.white(currentLevel.name)}`
+    );
+
+    if (!levelProgress.isMaxLevel && levelProgress.next) {
+      const barWidth = 20;
+      const filled = Math.round((levelProgress.progress / 100) * barWidth);
+      const empty = barWidth - filled;
+      const bar = colors.primary("█".repeat(filled)) + colors.dim("░".repeat(empty));
+
+      console.log(`     [${bar}] ${colors.white(`${levelProgress.progress}%`)}`);
+      console.log(
+        `     ${colors.dim("→")} ${levelProgress.next.icon} ${colors.white(levelProgress.next.name)} ${colors.muted("in")} ${colors.primary(formatNumber(levelProgress.tokensToNext))}`
+      );
+    } else {
+      console.log(`     ${colors.max("★")} ${colors.max("MAX LEVEL ACHIEVED!")}`);
+    }
+
+    // ═══════════════════════════════════════
+    // 3. BADGES - Only show when newly earned
+    // ═══════════════════════════════════════
+    if (result.newBadges && result.newBadges.length > 0) {
+      console.log();
+      console.log(sectionHeader("🎉", "New Badge Unlocked"));
+      displayNewBadges(result.newBadges);
+    }
+
+    // ═══════════════════════════════════════
+    // Footer
+    // ═══════════════════════════════════════
+    console.log();
+    const leaderboardUrl = `https://ccgather.com/leaderboard?u=${username}`;
+    console.log(`  ${colors.dim("─".repeat(40))}`);
+    console.log(`  ${colors.muted("View full stats:")} ${link(leaderboardUrl)}`);
     console.log();
   } else {
     submitSpinner.fail(colors.error("Failed to submit"));
     console.log(`\n  ${error(result.error || "Unknown error")}`);
 
-    // If authentication error, automatically re-authenticate
+    // If authentication error, suggest re-auth
     if (result.error?.includes("auth") || result.error?.includes("token")) {
       console.log();
-      console.log(`  ${colors.muted("Starting re-authentication...")}`);
-      // Clear invalid token before re-auth
-      config.delete("apiToken");
-      config.delete("userId");
-      const { auth } = await import("./auth.js");
-      await auth({});
-      return; // auth will handle submit after successful authentication
+      console.log(`  ${colors.muted("Try re-authenticating from Settings menu.")}`);
     }
     console.log();
     process.exit(1);

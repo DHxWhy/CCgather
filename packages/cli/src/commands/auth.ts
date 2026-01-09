@@ -3,7 +3,6 @@ import ora from "ora";
 import inquirer from "inquirer";
 import open from "open";
 import { getConfig, getApiUrl } from "../lib/config.js";
-import { submit } from "./submit.js";
 
 interface AuthOptions {
   token?: string;
@@ -44,7 +43,7 @@ export async function auth(options: AuthOptions): Promise<void> {
     ]);
 
     if (!overwrite) {
-      console.log(chalk.gray("Authentication cancelled."));
+      console.log(chalk.gray("Authentication cancelled.\n"));
       return;
     }
   }
@@ -67,7 +66,7 @@ export async function auth(options: AuthOptions): Promise<void> {
 
     if (!response.ok) {
       spinner.fail(chalk.red("Failed to initialize authentication"));
-      console.log(chalk.red("\nPlease check your internet connection and try again."));
+      console.log(chalk.red("\nPlease check your internet connection and try again.\n"));
       process.exit(1);
     }
 
@@ -86,7 +85,7 @@ export async function auth(options: AuthOptions): Promise<void> {
     } catch {
       // Browser might not be available
       console.log(chalk.yellow("  Could not open browser automatically."));
-      console.log(chalk.yellow("  Please open the URL above manually."));
+      console.log(chalk.yellow("  Please open the URL above manually.\n"));
     }
 
     // Poll for authorization
@@ -113,17 +112,14 @@ export async function auth(options: AuthOptions): Promise<void> {
           config.set("userId", pollData.userId);
           config.set("username", pollData.username);
 
-          console.log(chalk.gray(`\nWelcome, ${chalk.white(pollData.username)}!\n`));
-
-          // Automatically submit usage data
-          console.log(chalk.bold("📊 Submitting your usage data...\n"));
-          await submit({ yes: true });
+          console.log(chalk.gray(`\nWelcome, ${chalk.white(pollData.username)}!`));
+          console.log(chalk.dim("You can now submit your usage data.\n"));
           return;
         }
 
         if (pollData.status === "expired" || pollData.status === "used") {
           pollSpinner.fail(chalk.red("Authentication expired or already used"));
-          console.log(chalk.gray('\nPlease run "ccgather auth" to try again.\n'));
+          console.log(chalk.gray("\nPlease try again.\n"));
           process.exit(1);
         }
 
@@ -136,11 +132,13 @@ export async function auth(options: AuthOptions): Promise<void> {
     }
 
     pollSpinner.fail(chalk.red("Authentication timed out"));
-    console.log(chalk.gray('\nPlease run "ccgather auth" to try again.\n'));
+    console.log(chalk.gray("\nPlease try again.\n"));
     process.exit(1);
   } catch (error) {
     spinner.fail(chalk.red("Authentication failed"));
-    console.log(chalk.red(`\nError: ${error instanceof Error ? error.message : "Unknown error"}`));
+    console.log(
+      chalk.red(`\nError: ${error instanceof Error ? error.message : "Unknown error"}\n`)
+    );
     process.exit(1);
   }
 }
@@ -163,7 +161,7 @@ async function authenticateWithToken(token: string): Promise<void> {
       spinner.fail(chalk.red("Authentication failed"));
       const errorData = (await response.json().catch(() => ({}))) as { error?: string };
       console.log(chalk.red(`Error: ${errorData.error || "Invalid token"}`));
-      console.log(chalk.gray("\nMake sure your token is correct and try again."));
+      console.log(chalk.gray("\nMake sure your token is correct and try again.\n"));
       process.exit(1);
     }
 
@@ -175,14 +173,13 @@ async function authenticateWithToken(token: string): Promise<void> {
     config.set("username", data.username);
 
     spinner.succeed(chalk.green("Authentication successful!"));
-    console.log(chalk.gray(`\nWelcome, ${chalk.white(data.username)}!\n`));
-
-    // Automatically submit usage data
-    console.log(chalk.bold("📊 Submitting your usage data...\n"));
-    await submit({ yes: true });
+    console.log(chalk.gray(`\nWelcome, ${chalk.white(data.username)}!`));
+    console.log(chalk.dim("You can now submit your usage data.\n"));
   } catch (error) {
     spinner.fail(chalk.red("Authentication failed"));
-    console.log(chalk.red(`\nError: ${error instanceof Error ? error.message : "Unknown error"}`));
+    console.log(
+      chalk.red(`\nError: ${error instanceof Error ? error.message : "Unknown error"}\n`)
+    );
     process.exit(1);
   }
 }

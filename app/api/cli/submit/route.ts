@@ -1,5 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/server";
+import { checkAndAwardBadges } from "@/lib/services/badgeService";
+
+interface DailyUsage {
+  date: string;
+  tokens: number;
+  cost: number;
+  inputTokens?: number;
+  outputTokens?: number;
+  sessions?: number;
+}
 
 interface SubmitPayload {
   username?: string; // Now optional - use token auth instead
@@ -13,6 +23,7 @@ interface SubmitPayload {
   ccplan?: string | null;
   rateLimitTier?: string | null;
   timestamp: string;
+  dailyUsage?: DailyUsage[]; // NEW: Array of daily usage data
 }
 
 interface AuthenticatedUser {
@@ -20,6 +31,7 @@ interface AuthenticatedUser {
   username: string;
   total_tokens: number | null;
   total_cost: number | null;
+  country_code?: string;
 }
 
 export async function POST(request: NextRequest) {
@@ -62,7 +74,7 @@ export async function POST(request: NextRequest) {
     // Find user by API token
     const { data: user, error: tokenError } = await supabase
       .from("users")
-      .select("id, username, total_tokens, total_cost")
+      .select("id, username, total_tokens, total_cost, country_code")
       .eq("api_key", token)
       .maybeSingle();
 
@@ -104,29 +116,58 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Failed to update stats" }, { status: 500 });
     }
 
-    // Insert usage_stats record for today
-    const today = new Date().toISOString().split("T")[0];
-
-    const { error: statsError } = await supabase.from("usage_stats").upsert(
-      {
+    // Insert usage_stats records
+    if (body.dailyUsage && body.dailyUsage.length > 0) {
+      // Bulk insert daily usage data
+      const usageRecords = body.dailyUsage.map((day) => ({
         user_id: authenticatedUser.id,
-        date: today,
-        total_tokens: body.totalTokens,
-        input_tokens: body.inputTokens || 0,
-        output_tokens: body.outputTokens || 0,
-        cache_read_tokens: body.cacheReadTokens || 0,
-        cache_write_tokens: body.cacheWriteTokens || 0,
-        cost_usd: body.totalSpent,
+        date: day.date,
+        total_tokens: day.tokens,
+        input_tokens: day.inputTokens || 0,
+        output_tokens: day.outputTokens || 0,
+        cache_read_tokens: 0,
+        cache_write_tokens: 0,
+        cost_usd: day.cost,
         primary_model: "claude-sonnet-4",
         submitted_at: new Date().toISOString(),
         submission_source: "cli",
-      },
-      { onConflict: "user_id,date" }
-    );
+      }));
 
-    if (statsError) {
-      console.error("[CLI Submit] Usage stats upsert error:", statsError);
-      // Continue anyway - user stats were updated successfully
+      const { error: statsError } = await supabase
+        .from("usage_stats")
+        .upsert(usageRecords, { onConflict: "user_id,date" });
+
+      if (statsError) {
+        console.error("[CLI Submit] Bulk usage stats upsert error:", statsError);
+      } else {
+        console.log(
+          `[CLI Submit] Inserted ${usageRecords.length} daily usage records for user ${authenticatedUser.username}`
+        );
+      }
+    } else {
+      // Fallback: Insert only today's record (legacy behavior)
+      const today = new Date().toISOString().split("T")[0];
+
+      const { error: statsError } = await supabase.from("usage_stats").upsert(
+        {
+          user_id: authenticatedUser.id,
+          date: today,
+          total_tokens: body.totalTokens,
+          input_tokens: body.inputTokens || 0,
+          output_tokens: body.outputTokens || 0,
+          cache_read_tokens: body.cacheReadTokens || 0,
+          cache_write_tokens: body.cacheWriteTokens || 0,
+          cost_usd: body.totalSpent,
+          primary_model: "claude-sonnet-4",
+          submitted_at: new Date().toISOString(),
+          submission_source: "cli",
+        },
+        { onConflict: "user_id,date" }
+      );
+
+      if (statsError) {
+        console.error("[CLI Submit] Usage stats upsert error:", statsError);
+      }
     }
 
     // Calculate rank
@@ -144,10 +185,61 @@ export async function POST(request: NextRequest) {
       await supabase.from("users").update({ global_rank: rank }).eq("id", authenticatedUser.id);
     }
 
+    // Get country rank for badge calculation
+    let countryRank: number | undefined;
+    if (authenticatedUser.country_code) {
+      const { data: countryRankData } = await supabase
+        .from("users")
+        .select("id")
+        .eq("country_code", authenticatedUser.country_code)
+        .gt("total_tokens", 0)
+        .order("total_tokens", { ascending: false });
+
+      const foundRank =
+        (countryRankData?.findIndex((u: { id: string }) => u.id === authenticatedUser.id) ?? -1) +
+        1;
+
+      if (foundRank > 0) {
+        countryRank = foundRank;
+        await supabase
+          .from("users")
+          .update({ country_rank: countryRank })
+          .eq("id", authenticatedUser.id);
+      }
+    }
+
+    // Check and award badges
+    const usageHistory = body.dailyUsage?.map((d) => ({ date: d.date, tokens: d.tokens })) || [];
+    const { newBadges, allBadges } = await checkAndAwardBadges(
+      authenticatedUser.id,
+      {
+        id: authenticatedUser.id,
+        total_tokens: Math.max(authenticatedUser.total_tokens || 0, body.totalTokens),
+        total_cost: Math.max(authenticatedUser.total_cost || 0, body.totalSpent),
+        global_rank: rank || 9999,
+        country_rank: countryRank,
+        country_code: authenticatedUser.country_code,
+      },
+      usageHistory
+    );
+
     return NextResponse.json({
       success: true,
       profileUrl: `https://ccgather.com/u/${authenticatedUser.username}`,
       rank: rank || undefined,
+      countryRank: countryRank || undefined,
+      // Badge information
+      newBadges: newBadges.map((b) => ({
+        id: b.id,
+        name: b.name,
+        icon: b.icon,
+        description: b.description,
+        praise: b.praise,
+        rarity: b.rarity,
+        category: b.category,
+        earnedAt: new Date().toISOString(),
+      })),
+      totalBadges: allBadges.length,
     });
   } catch (error) {
     console.error("[CLI Submit] Error:", error);

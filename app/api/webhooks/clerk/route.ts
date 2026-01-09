@@ -47,20 +47,26 @@ export async function POST(req: Request) {
 
   switch (eventType) {
     case "user.created": {
-      const { id, username, first_name, last_name, image_url, email_addresses } = evt.data;
+      const { id, username, first_name, last_name, image_url, email_addresses, external_accounts } =
+        evt.data;
       const email = email_addresses[0]?.email_address;
-      const displayName =
-        [first_name, last_name].filter(Boolean).join(" ") || username || "Anonymous";
 
-      const { error } = await getSupabaseAdmin()
-        .from("users")
-        .insert({
-          clerk_id: id,
-          username: username || `user_${id.slice(0, 8)}`,
-          display_name: displayName,
-          avatar_url: image_url,
-          email: email,
-        });
+      // Use GitHub username (preserves case) if available, otherwise fall back to Clerk username
+      const githubAccount = external_accounts?.find(
+        (acc: { provider: string }) => acc.provider === "oauth_github"
+      );
+      const finalUsername = githubAccount?.username || username || `user_${id.slice(0, 8)}`;
+
+      const displayName =
+        [first_name, last_name].filter(Boolean).join(" ") || finalUsername || "Anonymous";
+
+      const { error } = await getSupabaseAdmin().from("users").insert({
+        clerk_id: id,
+        username: finalUsername,
+        display_name: displayName,
+        avatar_url: image_url,
+        email: email,
+      });
 
       if (error) {
         console.error("Failed to create user:", error);
@@ -70,15 +76,23 @@ export async function POST(req: Request) {
     }
 
     case "user.updated": {
-      const { id, username, first_name, last_name, image_url, email_addresses } = evt.data;
+      const { id, username, first_name, last_name, image_url, email_addresses, external_accounts } =
+        evt.data;
       const email = email_addresses[0]?.email_address;
+
+      // Use GitHub username (preserves case) if available
+      const githubAccount = external_accounts?.find(
+        (acc: { provider: string }) => acc.provider === "oauth_github"
+      );
+      const finalUsername = githubAccount?.username || username;
+
       const displayName =
-        [first_name, last_name].filter(Boolean).join(" ") || username || "Anonymous";
+        [first_name, last_name].filter(Boolean).join(" ") || finalUsername || "Anonymous";
 
       const { error } = await getSupabaseAdmin()
         .from("users")
         .update({
-          username: username || undefined,
+          username: finalUsername || undefined,
           display_name: displayName,
           avatar_url: image_url,
           email: email,

@@ -9,6 +9,8 @@ export interface SyncPayload {
 
 export interface UserStats {
   rank: number;
+  countryRank: number | null;
+  countryCode: string | null;
   totalTokens: number;
   totalSpent: number;
   tier: string;

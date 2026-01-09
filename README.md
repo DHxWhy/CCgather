@@ -46,19 +46,16 @@ Your Claude Code usage will be synced automatically.
 
 <br/>
 
-## CLI Commands
+## CLI
 
 ```bash
-npx ccgather                  # Interactive menu (default)
-npx ccgather scan             # Scan usage (last 30 days)
-npx ccgather scan --all       # Scan all-time usage
-npx ccgather scan -d 90       # Scan last 90 days
-npx ccgather rank             # Check current ranking
-npx ccgather sync             # Sync usage data
-npx ccgather auth             # Authenticate account
-npx ccgather reset            # Reset all settings
-npx ccgather --help           # Help
+npx ccgather
 ```
+
+One command, three options:
+- 📤 **Submit usage data** - Scan and submit your Claude Code usage
+- 📊 **View my rank** - Check your current ranking
+- ⚙️ **Settings** - Re-authenticate or disconnect
 
 See [CLI Documentation](docs/CLI.md) for detailed usage.
 
@@ -132,8 +129,8 @@ Country-based league system for a sense of belonging. Connect with developers fr
 | Opus Connoisseur | 70%+ on Opus | 🟣 |
 | Recruiter ~ Social Legend | 5~50 referrals | ⚪~🟡 |
 
-### ⚡ CLI Auto-Sync
-One command to install, automatic usage sync.
+### ⚡ Simple CLI
+One command to submit your usage.
 
 ```bash
 npx ccgather

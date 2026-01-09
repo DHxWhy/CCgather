@@ -43,9 +43,47 @@ export async function GET(request: NextRequest) {
   const page = parseInt(searchParams.get("page") || "1", 10);
   const limit = parseInt(searchParams.get("limit") || "50", 10);
   const offset = (page - 1) * limit;
+  const findUser = searchParams.get("findUser") || null; // Username to find
 
   const supabase = await createClient();
   const dateRange = getPeriodDateRange(period);
+
+  // If findUser is provided, return the user's rank info
+  if (findUser && !dateRange) {
+    let rankQuery = supabase
+      .from("users")
+      .select("id, username, global_rank, country_rank, country_code, ccplan_rank")
+      .eq("onboarding_completed", true)
+      .gt("total_tokens", 0)
+      .ilike("username", findUser)
+      .single();
+
+    const { data: foundUser, error: findError } = await rankQuery;
+
+    if (findError || !foundUser) {
+      return NextResponse.json({ found: false });
+    }
+
+    // Get the appropriate rank based on filters
+    let rank = foundUser.global_rank;
+    if (ccplan !== "all") {
+      rank = foundUser.ccplan_rank;
+    } else if (country) {
+      rank = foundUser.country_rank;
+    }
+
+    const userPage = Math.ceil((rank || 1) / limit);
+
+    return NextResponse.json({
+      found: true,
+      user: {
+        id: foundUser.id,
+        username: foundUser.username,
+        rank,
+        page: userPage,
+      },
+    });
+  }
 
   // If period is 'all', use existing simple query
   if (!dateRange) {
