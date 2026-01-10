@@ -79,8 +79,7 @@ export default function OnboardingPage() {
           return;
         }
 
-        // Store in localStorage as backup (prevents infinite redirect loop)
-        localStorage.setItem("ccgather_onboarding_completed", "true");
+        // Mark onboarding just completed (prevents race condition redirect)
         sessionStorage.setItem("onboarding_just_completed", "true");
 
         // Close agreement modal
