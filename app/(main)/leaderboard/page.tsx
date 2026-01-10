@@ -143,6 +143,7 @@ export default function LeaderboardPage() {
   const [highlightMyRank, setHighlightMyRank] = useState(false);
   const [highlightedUsername, setHighlightedUsername] = useState<string | null>(null);
   const [myRankInfo, setMyRankInfo] = useState<{ rank: number; page: number } | null>(null);
+  const [pendingMyRankScroll, setPendingMyRankScroll] = useState(false);
 
   // API state
   const [users, setUsers] = useState<DisplayUser[]>([]);
@@ -409,12 +410,35 @@ export default function LeaderboardPage() {
     if (myRankInfo) {
       setCurrentPage(myRankInfo.page);
       setHighlightMyRank(true);
+      setPendingMyRankScroll(true);
     } else if (currentUserData) {
       const myPage = Math.ceil(currentUserData.rank / ITEMS_PER_PAGE);
       setCurrentPage(myPage);
       setHighlightMyRank(true);
+      setPendingMyRankScroll(true);
     }
   }, [myRankInfo, currentUserData]);
+
+  // Scroll to current user and open panel when My Rank is clicked
+  useEffect(() => {
+    if (pendingMyRankScroll && !loading && users.length > 0) {
+      const currentUser = users.find((u) => u.isCurrentUser);
+      if (currentUser) {
+        // Open the detail panel
+        setSelectedUser(currentUser);
+        setIsPanelOpen(true);
+
+        // Scroll to the row
+        setTimeout(() => {
+          const row = document.querySelector(`[data-user-id="${currentUser.id}"]`);
+          if (row) {
+            row.scrollIntoView({ behavior: "smooth", block: "center" });
+          }
+        }, 100);
+      }
+      setPendingMyRankScroll(false);
+    }
+  }, [pendingMyRankScroll, loading, users]);
 
   // Reset page on filter change
   useEffect(() => {
@@ -702,6 +726,7 @@ export default function LeaderboardPage() {
                         return (
                           <tr
                             key={`${scopeFilter}-${periodFilter}-${sortBy}-${user.id}`}
+                            data-user-id={user.id}
                             onClick={() => handleRowClick(user)}
                             className={`border-b border-[var(--border-default)] transition-all cursor-pointer hover:!bg-[var(--color-table-row-hover)] ${
                               user.isCurrentUser ? "bg-primary/5" : ""

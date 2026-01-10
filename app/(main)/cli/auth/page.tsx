@@ -9,7 +9,7 @@ export default function CLIAuthPage() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const [status, setStatus] = useState<
-    "loading" | "authenticating" | "checking" | "authorizing" | "success" | "error"
+    "loading" | "authenticating" | "authorizing" | "success" | "error"
   >("loading");
   const [error, setError] = useState<string | null>(null);
 
@@ -26,68 +26,29 @@ export default function CLIAuthPage() {
       return;
     }
 
-    // Check onboarding status first
-    checkOnboardingAndAuthorize();
+    // Proceed directly to authorization (no onboarding check needed for CLI)
+    authorizeDirectly();
   }, [isLoaded, isSignedIn, userCode, callback]);
 
-  async function checkOnboardingAndAuthorize() {
-    setStatus("checking");
-
-    try {
-      // Skip onboarding check if just completed (prevents race condition)
-      const justCompleted = sessionStorage.getItem("onboarding_just_completed");
-      if (justCompleted) {
-        sessionStorage.removeItem("onboarding_just_completed");
-        // Proceed directly to authorization
-        if (userCode) {
-          await authorizeDevice(userCode);
-        } else {
-          setStatus("success");
-        }
-        return;
-      }
-
-      // Check if user has completed onboarding (with cache busting)
-      const meResponse = await fetch("/api/me", {
-        cache: "no-store",
-        headers: { "Cache-Control": "no-cache" },
-      });
-
-      if (!meResponse.ok) {
-        // User might not exist yet - redirect to onboarding
-        redirectToOnboarding();
-        return;
-      }
-
-      const { user: userData } = await meResponse.json();
-
-      if (!userData?.onboarding_completed) {
-        // Redirect to onboarding with CLI code
-        redirectToOnboarding();
-        return;
-      }
-
-      // User is onboarded - proceed with authorization
-      if (userCode) {
-        await authorizeDevice(userCode);
-      } else if (callback) {
-        await generateTokenAndRedirect();
-      } else {
-        // No code provided - show success (user might have come from onboarding)
-        setStatus("success");
-      }
-    } catch (err) {
-      console.error("Error checking onboarding:", err);
-      setStatus("error");
-      setError("Failed to verify account status");
+  // Redirect to leaderboard after success (unless callback flow)
+  useEffect(() => {
+    if (status === "success" && !callback) {
+      const timer = setTimeout(() => {
+        router.push("/leaderboard");
+      }, 2000);
+      return () => clearTimeout(timer);
     }
-  }
+  }, [status, callback, router]);
 
-  function redirectToOnboarding() {
-    const onboardingUrl = userCode
-      ? `/onboarding?cli_code=${encodeURIComponent(userCode)}`
-      : "/onboarding";
-    router.push(onboardingUrl);
+  async function authorizeDirectly() {
+    if (userCode) {
+      await authorizeDevice(userCode);
+    } else if (callback) {
+      await generateTokenAndRedirect();
+    } else {
+      // No code provided - show success
+      setStatus("success");
+    }
   }
 
   async function authorizeDevice(code: string) {
@@ -102,6 +63,11 @@ export default function CLIAuthPage() {
       const data = await response.json();
 
       if (!response.ok) {
+        // If code was already used or expired, treat as success (user already authorized)
+        if (response.status === 410) {
+          setStatus("success");
+          return;
+        }
         throw new Error(data.error || "Failed to authorize");
       }
 
@@ -179,12 +145,10 @@ export default function CLIAuthPage() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-[var(--color-bg-primary)]">
       <div className="max-w-md w-full mx-4 text-center">
-        {(status === "loading" || status === "checking") && (
+        {status === "loading" && (
           <>
             <div className="w-12 h-12 border-4 border-[var(--color-claude-coral)] border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-            <p className="text-[var(--color-text-muted)]">
-              {status === "checking" ? "Checking account status..." : "Preparing authentication..."}
-            </p>
+            <p className="text-[var(--color-text-muted)]">Preparing authentication...</p>
           </>
         )}
 
@@ -203,15 +167,11 @@ export default function CLIAuthPage() {
             <div className="text-6xl mb-4">✅</div>
             <h1 className="text-2xl font-bold text-green-400 mb-2">CLI Authorized!</h1>
             <p className="text-[var(--color-text-muted)] mb-4">
-              {callback
-                ? "Redirecting to CLI..."
-                : "You can close this window and return to your terminal."}
+              {callback ? "Redirecting to CLI..." : "Redirecting to leaderboard..."}
             </p>
-            {!callback && (
-              <p className="text-sm text-[var(--color-text-muted)]">
-                The CLI will automatically detect the authorization.
-              </p>
-            )}
+            <p className="text-sm text-[var(--color-text-muted)]">
+              Return to your terminal to submit usage data.
+            </p>
           </div>
         )}
 
@@ -226,7 +186,7 @@ export default function CLIAuthPage() {
               onClick={() => {
                 setStatus("loading");
                 setError(null);
-                checkOnboardingAndAuthorize();
+                authorizeDirectly();
               }}
               className="px-6 py-2.5 bg-[var(--color-claude-coral)] hover:bg-[var(--color-claude-coral-hover)] text-white font-medium rounded-lg transition-colors"
             >

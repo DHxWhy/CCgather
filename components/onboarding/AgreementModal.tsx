@@ -87,7 +87,7 @@ export function AgreementModal({ isOpen, onClose, onAgree, isSubmitting }: Agree
                 {/* Profile Visibility Section */}
                 <div className="space-y-3">
                   <div className="flex items-center gap-2 text-sm font-medium text-[var(--color-text-primary)]">
-                    <Github className="w-4 h-4 text-primary" />
+                    <Github className="w-4 h-4 text-[#E8A087]" />
                     Public Developer Profile
                   </div>
 
@@ -97,27 +97,27 @@ export function AgreementModal({ isOpen, onClose, onAgree, isSubmitting }: Agree
                     </p>
                     <div className="grid grid-cols-2 gap-2 text-xs">
                       <div className="flex items-center gap-2 text-[var(--color-text-secondary)]">
-                        <span className="w-1.5 h-1.5 rounded-full bg-primary" />
+                        <span className="w-1.5 h-1.5 rounded-full bg-[#E8A087]" />
                         GitHub profile (required)
                       </div>
                       <div className="flex items-center gap-2 text-[var(--color-text-secondary)]">
-                        <span className="w-1.5 h-1.5 rounded-full bg-primary" />
+                        <span className="w-1.5 h-1.5 rounded-full bg-[#E8A087]" />
                         Usage statistics & rank
                       </div>
                       <div className="flex items-center gap-2 text-[var(--color-text-secondary)]">
-                        <span className="w-1.5 h-1.5 rounded-full bg-white/30" />X (Twitter) -
+                        <span className="w-1.5 h-1.5 rounded-full bg-white/60" />X (Twitter) -
                         optional
                       </div>
                       <div className="flex items-center gap-2 text-[var(--color-text-secondary)]">
-                        <span className="w-1.5 h-1.5 rounded-full bg-primary" />
+                        <span className="w-1.5 h-1.5 rounded-full bg-[#E8A087]" />
                         Earned badges
                       </div>
                       <div className="flex items-center gap-2 text-[var(--color-text-secondary)]">
-                        <span className="w-1.5 h-1.5 rounded-full bg-white/30" />
+                        <span className="w-1.5 h-1.5 rounded-full bg-white/60" />
                         LinkedIn - optional
                       </div>
                       <div className="flex items-center gap-2 text-[var(--color-text-secondary)]">
-                        <span className="w-1.5 h-1.5 rounded-full bg-primary" />
+                        <span className="w-1.5 h-1.5 rounded-full bg-[#E8A087]" />
                         Country & level
                       </div>
                     </div>
@@ -158,9 +158,9 @@ export function AgreementModal({ isOpen, onClose, onAgree, isSubmitting }: Agree
                 {/* Community Updates Section */}
                 <div className="space-y-3">
                   <div className="flex items-center gap-2 text-sm font-medium text-[var(--color-text-primary)]">
-                    <Bell className="w-4 h-4 text-primary" />
+                    <Bell className="w-4 h-4 text-[#E8A087]" />
                     Community Updates
-                    <span className="px-1.5 py-0.5 text-[10px] font-medium bg-primary/20 text-primary rounded">
+                    <span className="px-1.5 py-0.5 text-[10px] font-medium bg-[#E8A087]/20 text-[#E8A087] rounded">
                       Coming Soon
                     </span>
                   </div>
@@ -171,15 +171,15 @@ export function AgreementModal({ isOpen, onClose, onAgree, isSubmitting }: Agree
                     </p>
                     <div className="grid grid-cols-1 gap-2 text-xs text-[var(--color-text-muted)]">
                       <div className="flex items-center gap-2">
-                        <Mail className="w-3.5 h-3.5 text-primary/50" />
+                        <Mail className="w-3.5 h-3.5 text-white/50" />
                         Weekly rankings & personal insights
                       </div>
                       <div className="flex items-center gap-2">
-                        <Mail className="w-3.5 h-3.5 text-primary/50" />
+                        <Mail className="w-3.5 h-3.5 text-white/50" />
                         Developer news & opportunities
                       </div>
                       <div className="flex items-center gap-2">
-                        <Mail className="w-3.5 h-3.5 text-primary/50" />
+                        <Mail className="w-3.5 h-3.5 text-white/50" />
                         Feature announcements & community highlights
                       </div>
                     </div>
@@ -224,7 +224,7 @@ export function AgreementModal({ isOpen, onClose, onAgree, isSubmitting }: Agree
                     <Link
                       href="/terms"
                       target="_blank"
-                      className="text-primary hover:underline inline-flex items-center gap-0.5"
+                      className="text-[var(--color-text-primary)] underline hover:text-primary inline-flex items-center gap-0.5"
                     >
                       Terms of Service <ExternalLink className="w-3 h-3" />
                     </Link>{" "}
@@ -232,7 +232,7 @@ export function AgreementModal({ isOpen, onClose, onAgree, isSubmitting }: Agree
                     <Link
                       href="/privacy"
                       target="_blank"
-                      className="text-primary hover:underline inline-flex items-center gap-0.5"
+                      className="text-[var(--color-text-primary)] underline hover:text-primary inline-flex items-center gap-0.5"
                     >
                       Privacy Policy <ExternalLink className="w-3 h-3" />
                     </Link>

@@ -214,19 +214,89 @@ async function displayNewBadges(badges: BadgeInfo[]): Promise<void> {
 }
 
 /**
+ * Verify token validity with server
+ */
+async function verifyToken(): Promise<{ valid: boolean; username?: string }> {
+  const apiUrl = getApiUrl();
+  const config = getConfig();
+  const apiToken = config.get("apiToken");
+
+  if (!apiToken) {
+    return { valid: false };
+  }
+
+  try {
+    const response = await fetch(`${apiUrl}/cli/verify`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiToken}`,
+      },
+    });
+
+    if (!response.ok) {
+      return { valid: false };
+    }
+
+    const data = (await response.json()) as { userId: string; username: string };
+    return { valid: true, username: data.username };
+  } catch {
+    return { valid: false };
+  }
+}
+
+/**
  * Main submit command
  */
 export async function submit(options: SubmitOptions): Promise<void> {
   console.log(header("Submit Usage Data", "📤"));
 
-  // Check authentication first
-  if (!isAuthenticated()) {
-    console.log(`\n  ${error("Not authenticated.")}`);
-    process.exit(1);
+  const config = getConfig();
+
+  // Verify token with server FIRST (before any scanning)
+  const verifySpinner = ora({
+    text: "Verifying authentication...",
+    color: "cyan",
+  }).start();
+
+  const tokenCheck = await verifyToken();
+
+  if (!tokenCheck.valid) {
+    verifySpinner.stop();
+
+    // Clear invalid token from local config
+    config.delete("apiToken");
+    config.delete("userId");
+    config.delete("username");
+
+    console.log();
+    console.log(`  ${colors.warning("🔐")} ${colors.muted("Authentication required")}`);
+    console.log();
+
+    const { startAuth } = await inquirer.prompt([
+      {
+        type: "confirm",
+        name: "startAuth",
+        message: "Would you like to authenticate now?",
+        default: true,
+      },
+    ]);
+
+    if (startAuth) {
+      const { auth } = await import("./auth.js");
+      await auth({});
+      console.log();
+      console.log(
+        `  ${colors.muted("Please run")} ${colors.primary("npx ccgather")} ${colors.muted("again to submit.")}`
+      );
+      console.log();
+    }
+    process.exit(0);
   }
 
-  const config = getConfig();
-  const username = config.get("username");
+  verifySpinner.succeed(colors.success("Authenticated"));
+
+  const username = tokenCheck.username || config.get("username");
 
   if (username) {
     console.log(`\n  ${colors.muted("Logged in as:")} ${colors.white(username)}`);
@@ -445,11 +515,6 @@ export async function submit(options: SubmitOptions): Promise<void> {
       console.log(
         `  ${colors.warning("⏳")} ${colors.muted("Try again in")} ${colors.white(`${result.retryAfterMinutes} minute${result.retryAfterMinutes !== 1 ? "s" : ""}`)}`
       );
-    }
-    // If authentication error, suggest re-auth
-    else if (result.error?.includes("auth") || result.error?.includes("token")) {
-      console.log();
-      console.log(`  ${colors.muted("Try re-authenticating from Settings menu.")}`);
     }
     console.log();
     process.exit(1);

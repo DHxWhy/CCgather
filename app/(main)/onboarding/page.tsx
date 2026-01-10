@@ -238,7 +238,7 @@ export default function OnboardingPage() {
             className="text-3xl sm:text-4xl md:text-5xl font-bold text-text-primary mb-3"
           >
             Join Your{" "}
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary to-[#E8A087]">
+            <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#E8A087] to-[#F5C4B0]">
               Nation&apos;s League
             </span>
           </motion.h1>
@@ -338,7 +338,7 @@ export default function OnboardingPage() {
                 >
                   <h2 className="text-2xl sm:text-3xl font-bold text-text-primary mb-2">
                     Welcome to{" "}
-                    <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary to-[#E8A087]">
+                    <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#E8A087] to-[#F5C4B0]">
                       {selectedCountryData?.name}
                     </span>
                   </h2>
