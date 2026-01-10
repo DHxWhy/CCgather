@@ -147,7 +147,7 @@ export function AgreementModal({ isOpen, onClose, onAgree, isSubmitting }: Agree
                       </div>
                     </div>
                     <div>
-                      <span className="text-sm font-medium text-[var(--color-text-primary)] group-hover:text-primary transition-colors">
+                      <span className="text-sm font-medium text-[var(--color-text-primary)]">
                         I agree to make my developer profile visible
                       </span>
                       <span className="ml-2 text-xs text-primary">[Required]</span>
@@ -160,23 +160,26 @@ export function AgreementModal({ isOpen, onClose, onAgree, isSubmitting }: Agree
                   <div className="flex items-center gap-2 text-sm font-medium text-[var(--color-text-primary)]">
                     <Bell className="w-4 h-4 text-primary" />
                     Community Updates
+                    <span className="px-1.5 py-0.5 text-[10px] font-medium bg-primary/20 text-primary rounded">
+                      Coming Soon
+                    </span>
                   </div>
 
                   <div className="p-4 bg-[var(--color-bg-tertiary)] border border-[var(--border-default)] rounded-xl space-y-2">
                     <p className="text-xs text-[var(--color-text-muted)] mb-3">
                       As a community member, you will receive:
                     </p>
-                    <div className="grid grid-cols-1 gap-2 text-xs">
-                      <div className="flex items-center gap-2 text-[var(--color-text-secondary)]">
-                        <Mail className="w-3.5 h-3.5 text-primary" />
+                    <div className="grid grid-cols-1 gap-2 text-xs text-[var(--color-text-muted)]">
+                      <div className="flex items-center gap-2">
+                        <Mail className="w-3.5 h-3.5 text-primary/50" />
                         Weekly rankings & personal insights
                       </div>
-                      <div className="flex items-center gap-2 text-[var(--color-text-secondary)]">
-                        <Mail className="w-3.5 h-3.5 text-primary" />
+                      <div className="flex items-center gap-2">
+                        <Mail className="w-3.5 h-3.5 text-primary/50" />
                         Developer news & opportunities
                       </div>
-                      <div className="flex items-center gap-2 text-[var(--color-text-secondary)]">
-                        <Mail className="w-3.5 h-3.5 text-primary" />
+                      <div className="flex items-center gap-2">
+                        <Mail className="w-3.5 h-3.5 text-primary/50" />
                         Feature announcements & community highlights
                       </div>
                     </div>
@@ -206,7 +209,7 @@ export function AgreementModal({ isOpen, onClose, onAgree, isSubmitting }: Agree
                       </div>
                     </div>
                     <div>
-                      <span className="text-sm font-medium text-[var(--color-text-primary)] group-hover:text-primary transition-colors">
+                      <span className="text-sm font-medium text-[var(--color-text-primary)]">
                         I agree to receive community updates
                       </span>
                       <span className="ml-2 text-xs text-primary">[Required]</span>
