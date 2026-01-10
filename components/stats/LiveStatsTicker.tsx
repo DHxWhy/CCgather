@@ -87,44 +87,57 @@ export function LiveStatsTicker({
       <>
         <button
           onClick={handleClick}
-          className={`flex items-center gap-2 sm:gap-3 cursor-pointer hover:bg-white/5 transition-colors rounded-lg ${className}`}
+          className={`cursor-pointer hover:bg-white/5 transition-colors rounded-lg ${className}`}
         >
-          {/* Globe icon for mobile */}
-          <span className="text-base sm:hidden">🌍</span>
-          {/* Global Stats */}
-          <div className="flex items-center gap-1 sm:gap-1.5 text-xs text-text-muted">
-            <Sparkles className="w-3 h-3 text-primary" />
-            <span className="text-text-primary font-medium">{formatNumber(totalTokens)}</span>
-            <span className="hidden sm:inline">tokens</span>
-          </div>
-          <span className="text-white/20">|</span>
-          <div className="flex items-center gap-1 sm:gap-1.5 text-xs text-text-muted">
-            <Coins className="w-3 h-3 text-emerald-400" />
-            <span className="text-text-primary font-medium">{formatCost(totalCost)}</span>
-            <span className="hidden sm:inline">spent</span>
-          </div>
-          {/* Country Ticker - hidden on mobile */}
-          <span className="hidden md:inline text-white/20">|</span>
-          <div className="hidden md:block relative h-5 w-36 overflow-hidden">
-            <AnimatePresence mode="wait">
-              <motion.div
-                key={currentIndex}
-                className="absolute inset-0 flex items-center gap-1.5"
-                initial={{ y: 20, opacity: 0 }}
-                animate={{ y: 0, opacity: 1 }}
-                exit={{ y: -20, opacity: 0 }}
-                transition={{ duration: 0.3 }}
-              >
-                <FlagIcon countryCode={currentStat.code} size="xs" />
-                <span className="text-xs text-text-secondary truncate">{currentStat.name}</span>
-                <span className="text-xs text-text-primary font-medium">
-                  {formatNumber(currentStat.tokens)}
+          {/* 2-row vertical layout */}
+          <div className="flex flex-col gap-1 text-[11px]">
+            {/* Row 1: Global stats (tokens + spent) */}
+            <div className="flex items-center gap-2">
+              <span className="flex items-center gap-1">
+                <span>🌍</span>
+                <span className="text-text-primary font-medium tabular-nums">
+                  {formatNumber(totalTokens)}
                 </span>
-              </motion.div>
-            </AnimatePresence>
+              </span>
+              <span className="text-white/20">│</span>
+              <span className="text-emerald-400 font-medium tabular-nums">
+                {formatCost(totalCost)}
+              </span>
+            </div>
+            {/* Row 2: Country ticker */}
+            <div className="flex items-center justify-between gap-2">
+              <div className="relative h-4 flex-1 overflow-hidden">
+                <AnimatePresence mode="wait">
+                  <motion.div
+                    key={currentIndex}
+                    className="absolute inset-0 flex items-center gap-1"
+                    initial={{ y: 12, opacity: 0 }}
+                    animate={{ y: 0, opacity: 1 }}
+                    exit={{ y: -12, opacity: 0 }}
+                    transition={{ duration: 0.3 }}
+                  >
+                    <FlagIcon countryCode={currentStat.code} size="xs" />
+                    <span className="text-text-secondary truncate">{currentStat.name}</span>
+                  </motion.div>
+                </AnimatePresence>
+              </div>
+              <div className="flex items-center gap-1">
+                <AnimatePresence mode="wait">
+                  <motion.span
+                    key={currentIndex}
+                    className="text-text-primary font-medium tabular-nums"
+                    initial={{ y: 12, opacity: 0 }}
+                    animate={{ y: 0, opacity: 1 }}
+                    exit={{ y: -12, opacity: 0 }}
+                    transition={{ duration: 0.3 }}
+                  >
+                    {formatNumber(currentStat.tokens)}
+                  </motion.span>
+                </AnimatePresence>
+                <ChevronDown className="w-3 h-3 text-white/30" />
+              </div>
+            </div>
           </div>
-          {/* Expand indicator */}
-          <ChevronDown className="w-3 h-3 text-white/30" />
         </button>
 
         {/* Country Stats Modal */}

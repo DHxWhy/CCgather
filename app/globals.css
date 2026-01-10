@@ -475,6 +475,59 @@ body {
   animation: pulse-glow 2s ease-in-out infinite;
 }
 
+/* Globe Particle Emanation Effect */
+@keyframes globe-stream-rotate {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes globe-particle-travel {
+  0% {
+    transform: translate(-50%, -50%);
+    opacity: 0;
+  }
+  10% {
+    opacity: 0.8;
+  }
+  100% {
+    transform: translate(
+      calc(-50% + var(--distance-x) * 1px),
+      calc(-50% + var(--distance-y) * 1px)
+    );
+    opacity: 0;
+  }
+}
+
+@keyframes globe-particle-glow {
+  0% {
+    background: rgba(255, 255, 255, 0.9);
+    box-shadow: 0 0 2px rgba(255, 255, 255, 0.8);
+  }
+  50% {
+    background: rgba(218, 119, 86, 0.8);
+    box-shadow: 0 0 4px rgba(218, 119, 86, 0.6);
+  }
+  100% {
+    background: rgba(218, 119, 86, 0.3);
+    box-shadow: 0 0 2px rgba(218, 119, 86, 0.2);
+  }
+}
+
+.globe-particle {
+  background: rgba(255, 255, 255, 0.8);
+  box-shadow:
+    0 0 3px rgba(255, 255, 255, 0.6),
+    0 0 6px rgba(218, 119, 86, 0.4);
+  animation:
+    globe-particle-travel 15s ease-out infinite,
+    globe-particle-glow 15s ease-out infinite;
+  transform: translate(-50%, -50%);
+}
+
 /* ========================================
    RESPONSIVE TYPOGRAPHY
    ======================================== */
@@ -563,6 +616,16 @@ body {
 * {
   scrollbar-width: thin;
   scrollbar-color: var(--border-default) var(--color-bg-secondary);
+}
+
+/* Hide scrollbar utility */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
 }
 
 /* ========================================

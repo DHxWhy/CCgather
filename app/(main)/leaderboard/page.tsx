@@ -80,7 +80,7 @@ function LevelBadge({ tokens }: { tokens: number }) {
         {currentLevel.icon} Lv.{currentLevel.level}
       </span>
       {isHovered && (
-        <div className="absolute left-0 top-full mt-1 z-50 w-56 p-2 bg-[var(--color-bg-secondary)] border border-[var(--border-default)] rounded-lg shadow-xl">
+        <div className="absolute left-0 bottom-full mb-1 z-50 w-56 p-2 bg-[var(--color-bg-secondary)] border border-[var(--border-default)] rounded-lg shadow-xl">
           <div className="text-[9px] text-[var(--color-text-muted)] uppercase tracking-wide mb-1.5">
             Level System
           </div>
@@ -150,6 +150,7 @@ export default function LeaderboardPage() {
   const [error, setError] = useState<string | null>(null);
   const [total, setTotal] = useState(0);
   const [currentUserCountry, setCurrentUserCountry] = useState<string>("KR");
+  const [userInfoLoaded, setUserInfoLoaded] = useState(false);
 
   // Fetch leaderboard data
   const fetchLeaderboard = useCallback(async () => {
@@ -243,9 +244,13 @@ export default function LeaderboardPage() {
           if (data.user?.username) {
             setCurrentUsername(data.user.username);
           }
+          // Mark user info as loaded to trigger leaderboard refresh
+          // This ensures social_links (auto-populated from OAuth) are fetched
+          setUserInfoLoaded(true);
         }
       } catch {
         // Keep defaults
+        setUserInfoLoaded(true);
       }
     }
     fetchUserInfo();
@@ -288,20 +293,41 @@ export default function LeaderboardPage() {
     fetchLeaderboard();
   }, [fetchLeaderboard]);
 
-  // Panel width handling
+  // Refetch leaderboard after user info is loaded (to get updated social_links from OAuth)
+  useEffect(() => {
+    if (userInfoLoaded) {
+      fetchLeaderboard();
+    }
+  }, [userInfoLoaded]);
+
+  // Update selectedUser when users array changes (to reflect updated social_links)
+  useEffect(() => {
+    if (selectedUser && users.length > 0) {
+      const updatedUser = users.find((u) => u.id === selectedUser.id);
+      if (
+        updatedUser &&
+        JSON.stringify(updatedUser.social_links) !== JSON.stringify(selectedUser.social_links)
+      ) {
+        setSelectedUser(updatedUser);
+      }
+    }
+  }, [users, selectedUser]);
+
+  // Panel width handling - 3-tier breakpoint system
+  // Mobile: < 640px | Tablet: 640-1039px | PC: >= 1040px
   useEffect(() => {
     const updatePanelWidth = () => {
       const width = window.innerWidth;
-      if (width >= 1880) {
-        setPanelWidth(0);
-        setIsOverlayMode(true);
-      } else if (width >= 1440) {
-        setPanelWidth(450);
+      if (width >= 1040) {
+        // PC: push 440px
+        setPanelWidth(440);
         setIsOverlayMode(false);
-      } else if (width >= 1024) {
-        setPanelWidth(390);
+      } else if (width >= 640) {
+        // Tablet: push 320px (ensures 320px+ content area)
+        setPanelWidth(320);
         setIsOverlayMode(false);
       } else {
+        // Mobile: overlay mode (full screen panel)
         setPanelWidth(0);
         setIsOverlayMode(true);
       }
@@ -430,39 +456,39 @@ export default function LeaderboardPage() {
         >
           {/* Header */}
           <div className="mb-6">
-            <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
-              <div>
-                <p className="text-xs text-[var(--color-claude-coral)] font-medium tracking-wide uppercase mb-3">
-                  Rankings
-                </p>
-                <h1 className="text-2xl md:text-3xl font-semibold text-[var(--color-text-primary)] mb-2 flex items-center gap-2">
-                  {scopeFilter === "global" ? (
-                    "Global"
-                  ) : (
-                    <>
-                      <ReactCountryFlag
-                        countryCode={currentUserCountry}
-                        svg
-                        style={{ width: "24px", height: "24px" }}
-                      />
-                      Country
-                    </>
-                  )}{" "}
-                  Leaderboard
-                </h1>
-                <p className="text-sm text-[var(--color-text-muted)]">
-                  Top Claude Code developers ranked by{" "}
-                  {sortBy === "tokens" ? "token usage" : "spending"}
-                </p>
-              </div>
-              {/* Live Stats Ticker */}
-              <div className="w-full lg:w-auto">
-                <LiveStatsTicker
-                  variant="compact"
-                  className="px-2 sm:px-3 py-2 rounded-lg bg-[var(--color-filter-bg)] border border-[var(--border-default)] justify-center lg:justify-start"
-                  userCountryCode={currentUserCountry}
-                />
-              </div>
+            {/* Top row: Rankings label + Stats ticker */}
+            <div className="flex items-start justify-between mb-3">
+              <p className="text-xs text-[var(--color-claude-coral)] font-medium tracking-wide uppercase pt-1">
+                Rankings
+              </p>
+              {/* Live Stats Ticker - always top-right */}
+              <LiveStatsTicker
+                variant="compact"
+                className="px-3 py-2 rounded-lg bg-[var(--color-filter-bg)] border border-[var(--border-default)] min-w-[120px]"
+                userCountryCode={currentUserCountry}
+              />
+            </div>
+            {/* Title and description */}
+            <div>
+              <h1 className="text-2xl md:text-3xl font-semibold text-[var(--color-text-primary)] mb-2 flex items-center gap-2">
+                {scopeFilter === "global" ? (
+                  "Global"
+                ) : (
+                  <>
+                    <ReactCountryFlag
+                      countryCode={currentUserCountry}
+                      svg
+                      style={{ width: "24px", height: "24px" }}
+                    />
+                    Country
+                  </>
+                )}{" "}
+                Leaderboard
+              </h1>
+              <p className="text-sm text-[var(--color-text-muted)]">
+                Top Claude Code developers ranked by{" "}
+                {sortBy === "tokens" ? "token usage" : "spending"}
+              </p>
             </div>
           </div>
 
@@ -611,8 +637,8 @@ export default function LeaderboardPage() {
           {/* Leaderboard Table */}
           {!loading && !error && users.length > 0 && (
             <>
-              <div className="glass rounded-2xl overflow-hidden border border-[var(--border-default)]">
-                <div className="overflow-x-auto">
+              <div className="glass rounded-2xl overflow-visible border border-[var(--border-default)]">
+                <div className="overflow-x-auto rounded-2xl">
                   <table className="w-full table-fixed">
                     <colgroup>
                       <col className="w-[40px] md:w-[60px]" />

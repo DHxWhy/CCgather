@@ -355,7 +355,7 @@ export function Globe({ markers = [], size = 400, className = "", userCountryCod
       mapBrightness: 4,
       baseColor: [0.12, 0.18, 0.28],
       markerColor: [1, 0.5, 0.2],
-      glowColor: [0.3, 0.3, 0.3],
+      glowColor: [0.5, 0.5, 0.5],
       markers: globeMarkers,
       onRender: (state) => {
         if (!pointerInteracting.current) {

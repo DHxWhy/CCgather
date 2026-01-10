@@ -4,6 +4,8 @@ import { getApiUrl, getConfig, isAuthenticated } from "../lib/config.js";
 import {
   scanUsageData,
   getSessionFileCount,
+  hasProjectSessions,
+  getCurrentProjectName,
   CCGatherData,
   DailyUsage,
 } from "../lib/ccgather-json.js";
@@ -19,6 +21,9 @@ import {
   progressBar,
   sleep,
   getLevelProgress,
+  slotMachineRank,
+  animatedProgressBar,
+  suspenseDots,
 } from "../lib/ui.js";
 
 interface UsageData {
@@ -29,6 +34,8 @@ interface UsageData {
   cacheReadTokens: number;
   cacheWriteTokens: number;
   daysTracked: number;
+  firstUsed: string | null;
+  lastUsed: string | null;
   ccplan?: string | null;
   rateLimitTier?: string | null;
   dailyUsage: DailyUsage[];
@@ -57,6 +64,7 @@ interface SubmitResponse {
   newBadges?: BadgeInfo[];
   totalBadges?: number;
   error?: string;
+  retryAfterMinutes?: number;
 }
 
 /**
@@ -71,6 +79,8 @@ function ccgatherToUsageData(data: CCGatherData): UsageData {
     cacheReadTokens: data.usage.cacheReadTokens,
     cacheWriteTokens: data.usage.cacheWriteTokens,
     daysTracked: data.stats.daysTracked,
+    firstUsed: data.stats.firstUsed,
+    lastUsed: data.stats.lastUsed,
     ccplan: data.account?.ccplan || null,
     rateLimitTier: data.account?.rateLimitTier || null,
     dailyUsage: data.dailyUsage || [],
@@ -112,7 +122,21 @@ async function submitToServer(data: UsageData): Promise<SubmitResponse> {
     });
 
     if (!response.ok) {
-      const errorData = (await response.json().catch(() => ({}))) as { error?: string };
+      const errorData = (await response.json().catch(() => ({}))) as {
+        error?: string;
+        retryAfterMinutes?: number;
+        hint?: string;
+      };
+
+      // Handle rate limit error specially
+      if (response.status === 429 && errorData.retryAfterMinutes) {
+        return {
+          success: false,
+          error: errorData.error || "Rate limit exceeded",
+          retryAfterMinutes: errorData.retryAfterMinutes,
+        };
+      }
+
       return { success: false, error: errorData.error || `HTTP ${response.status}` };
     }
 
@@ -148,26 +172,43 @@ function formatBadgeDate(dateStr?: string): string {
 }
 
 /**
- * Display newly earned badges
+ * Display newly earned badges with animation
  */
-function displayNewBadges(badges: BadgeInfo[]): void {
+async function displayNewBadges(badges: BadgeInfo[]): Promise<void> {
   if (badges.length === 0) return;
 
   console.log();
-  for (const badge of badges) {
+
+  // Show suspense before revealing badges
+  await suspenseDots("Checking achievements", 800);
+
+  for (let i = 0; i < badges.length; i++) {
+    const badge = badges[i];
     const rarityColor = getRarityColor(badge.rarity);
     const rarityLabel = badge.rarity.toUpperCase();
 
+    // Dramatic pause before each badge
+    if (i > 0) {
+      await sleep(300);
+    }
+
+    // Badge name with sparkle effect
     console.log(
-      `     ${badge.icon} ${colors.white.bold(badge.name)} ${rarityColor(`[${rarityLabel}]`)}`
+      `     ✨ ${badge.icon} ${colors.white.bold(badge.name)} ${rarityColor(`[${rarityLabel}]`)}`
     );
+    await sleep(100);
     console.log(`        ${colors.muted(badge.description)}`);
+    await sleep(80);
+
     if (badge.praise) {
       console.log(`        ${colors.cyan(`"${badge.praise}"`)}`);
+      await sleep(80);
     }
+
     // Show achieved date for rank badges
     if (badge.category === "rank") {
       console.log(`        ${colors.dim(`📅 Achieved: ${formatBadgeDate(badge.earnedAt)}`)}`);
+      await sleep(80);
     }
   }
 }
@@ -191,13 +232,29 @@ export async function submit(options: SubmitOptions): Promise<void> {
     console.log(`\n  ${colors.muted("Logged in as:")} ${colors.white(username)}`);
   }
 
-  // Always scan fresh data
+  // Check if current project has Claude Code sessions
+  const projectName = getCurrentProjectName();
+
+  if (!hasProjectSessions()) {
+    console.log(`\n  ${error("No Claude Code sessions found for this project.")}`);
+    console.log(`  ${colors.muted("Project:")} ${colors.white(projectName)}`);
+    console.log();
+    console.log(`  ${colors.muted("Make sure you:")}`);
+    console.log(`  ${colors.muted("  1. Run this command from a project directory")}`);
+    console.log(`  ${colors.muted("  2. Have used Claude Code in this project at least once")}`);
+    console.log();
+    process.exit(1);
+  }
+
+  // Always scan fresh data (current project only)
   let usageData: UsageData | null = null;
   const totalFiles = getSessionFileCount();
 
+  console.log(`\n  ${colors.muted("Project:")} ${colors.white(projectName)}`);
+
   if (totalFiles > 0) {
     console.log(
-      `\n  ${colors.muted("Scanning")} ${colors.white(totalFiles.toString())} ${colors.muted("sessions...")}`
+      `  ${colors.muted("Scanning")} ${colors.white(totalFiles.toString())} ${colors.muted("sessions...")}`
     );
 
     // Scan with progress bar (no file save - send directly to server)
@@ -229,10 +286,30 @@ export async function submit(options: SubmitOptions): Promise<void> {
 
   // Show summary
   console.log();
+
+  // Format date range (YYMMDD format)
+  const formatDate = (dateStr: string | null): string => {
+    if (!dateStr) return "------";
+    const d = new Date(dateStr);
+    const yy = String(d.getFullYear()).slice(2);
+    const mm = String(d.getMonth() + 1).padStart(2, "0");
+    const dd = String(d.getDate()).padStart(2, "0");
+    return `${yy}${mm}${dd}`;
+  };
+
+  const dateRange =
+    usageData.firstUsed && usageData.lastUsed
+      ? `${formatDate(usageData.firstUsed)} ~ ${formatDate(usageData.lastUsed)}`
+      : "";
+
+  const daysTrackedDisplay = dateRange
+    ? `${usageData.daysTracked} days ${colors.dim(`(${dateRange})`)}`
+    : usageData.daysTracked.toString();
+
   const summaryLines = [
     `${colors.muted("Total Cost")}     ${colors.success(formatCost(usageData.totalCost))}`,
     `${colors.muted("Total Tokens")}   ${colors.primary(formatNumber(usageData.totalTokens))}`,
-    `${colors.muted("Days Tracked")}   ${colors.warning(usageData.daysTracked.toString())}`,
+    `${colors.muted("Period")}         ${colors.warning(daysTrackedDisplay)}`,
   ];
 
   if (usageData.ccplan) {
@@ -243,6 +320,11 @@ export async function submit(options: SubmitOptions): Promise<void> {
 
   console.log(createBox(summaryLines));
   console.log();
+
+  // Debug: Show daily usage count
+  if (usageData.dailyUsage.length > 0) {
+    console.log(`  ${colors.dim(`Daily records: ${usageData.dailyUsage.length} days`)}`);
+  }
 
   // Confirm submission
   const { confirmSubmit } = await inquirer.prompt([
@@ -279,12 +361,13 @@ export async function submit(options: SubmitOptions): Promise<void> {
     };
 
     // ═══════════════════════════════════════
-    // 1. RANK (Most Important)
+    // 1. RANK (Most Important) - Slot Machine Animation
     // ═══════════════════════════════════════
     if (result.rank || result.countryRank) {
       console.log();
       console.log(sectionHeader("📊", "Your Ranking"));
       console.log();
+
       if (result.rank) {
         const medal =
           result.rank === 1
@@ -296,21 +379,17 @@ export async function submit(options: SubmitOptions): Promise<void> {
                 : result.rank <= 10
                   ? "🏅"
                   : "🌍";
-        console.log(
-          `     ${medal} ${colors.muted("Global:")} ${colors.primary.bold(`#${result.rank}`)}`
-        );
+        await slotMachineRank(result.rank, "Global:", medal);
       }
       if (result.countryRank) {
         const countryMedal =
           result.countryRank === 1 ? "🥇" : result.countryRank <= 3 ? "🏆" : "🏠";
-        console.log(
-          `     ${countryMedal} ${colors.muted("Country:")} ${colors.primary.bold(`#${result.countryRank}`)}`
-        );
+        await slotMachineRank(result.countryRank, "Country:", countryMedal, 10);
       }
     }
 
     // ═══════════════════════════════════════
-    // 2. LEVEL PROGRESS
+    // 2. LEVEL PROGRESS - Animated Progress Bar
     // ═══════════════════════════════════════
     console.log();
     console.log(sectionHeader("⬆️", "Level Progress"));
@@ -319,31 +398,33 @@ export async function submit(options: SubmitOptions): Promise<void> {
     const levelProgress = getLevelProgress(usageData.totalTokens);
     const currentLevel = levelProgress.current;
 
+    // Show level with slight delay
+    await sleep(200);
     console.log(
       `     ${currentLevel.icon} ${currentLevel.color(`Level ${currentLevel.level}`)} ${colors.muted("•")} ${colors.white(currentLevel.name)}`
     );
 
     if (!levelProgress.isMaxLevel && levelProgress.next) {
-      const barWidth = 20;
-      const filled = Math.round((levelProgress.progress / 100) * barWidth);
-      const empty = barWidth - filled;
-      const bar = colors.primary("█".repeat(filled)) + colors.dim("░".repeat(empty));
+      // Animated progress bar filling up
+      await animatedProgressBar(levelProgress.progress, 20, 30);
+      console.log(); // New line after progress bar animation
 
-      console.log(`     [${bar}] ${colors.white(`${levelProgress.progress}%`)}`);
+      await sleep(150);
       console.log(
         `     ${colors.dim("→")} ${levelProgress.next.icon} ${colors.white(levelProgress.next.name)} ${colors.muted("in")} ${colors.primary(formatNumber(levelProgress.tokensToNext))}`
       );
     } else {
+      await sleep(300);
       console.log(`     ${colors.max("★")} ${colors.max("MAX LEVEL ACHIEVED!")}`);
     }
 
     // ═══════════════════════════════════════
-    // 3. BADGES - Only show when newly earned
+    // 3. BADGES - Only show when newly earned (Animated)
     // ═══════════════════════════════════════
     if (result.newBadges && result.newBadges.length > 0) {
       console.log();
       console.log(sectionHeader("🎉", "New Badge Unlocked"));
-      displayNewBadges(result.newBadges);
+      await displayNewBadges(result.newBadges);
     }
 
     // ═══════════════════════════════════════
@@ -358,8 +439,15 @@ export async function submit(options: SubmitOptions): Promise<void> {
     submitSpinner.fail(colors.error("Failed to submit"));
     console.log(`\n  ${error(result.error || "Unknown error")}`);
 
+    // Handle rate limit error with retry time
+    if (result.retryAfterMinutes) {
+      console.log();
+      console.log(
+        `  ${colors.warning("⏳")} ${colors.muted("Try again in")} ${colors.white(`${result.retryAfterMinutes} minute${result.retryAfterMinutes !== 1 ? "s" : ""}`)}`
+      );
+    }
     // If authentication error, suggest re-auth
-    if (result.error?.includes("auth") || result.error?.includes("token")) {
+    else if (result.error?.includes("auth") || result.error?.includes("token")) {
       console.log();
       console.log(`  ${colors.muted("Try re-authenticating from Settings menu.")}`);
     }

@@ -117,7 +117,7 @@ export function CLIModal({ isOpen, onClose }: CLIModalProps) {
                 <div className="flex items-start gap-3">
                   <span className="text-[var(--color-claude-coral)] font-mono text-xs">2.</span>
                   <span className="text-[var(--color-text-muted)]">
-                    Authenticate with your GitHub account (first time only)
+                    Sign in via browser (first time only)
                   </span>
                 </div>
                 <div className="flex items-start gap-3">
@@ -156,17 +156,10 @@ export function CLIModal({ isOpen, onClose }: CLIModalProps) {
             {/* Data Sources */}
             <div>
               <p className="text-xs text-[var(--color-text-muted)] uppercase tracking-wider mb-2">
-                Data Sources
+                Data Source
               </p>
-              <div className="text-xs text-[var(--color-text-muted)] space-y-1">
-                <div>
-                  <code className="text-[var(--color-claude-coral)]">~/.claude/projects/</code> -
-                  Claude Code session logs
-                </div>
-                <div>
-                  <code className="text-[var(--color-claude-coral)]">~/.claude/ccgather.json</code>{" "}
-                  - Scanned usage data
-                </div>
+              <div className="text-xs text-[var(--color-text-muted)]">
+                Scans session logs from your current project folder
               </div>
             </div>
           </div>

@@ -91,6 +91,70 @@ function getClaudeProjectsDir(): string {
 }
 
 /**
+ * Encode a path the same way Claude Code does
+ * Claude Code replaces special chars and non-ASCII with '-'
+ */
+function encodePathLikeClaude(inputPath: string): string {
+  // Replace non-ASCII characters (like Korean, Chinese, etc.) with '-'
+  // Replace special characters (/, \, :, spaces) with '-'
+  return inputPath
+    .split("")
+    .map((char) => {
+      const code = char.charCodeAt(0);
+      // Keep ASCII alphanumeric and some safe chars
+      if (
+        (code >= 48 && code <= 57) || // 0-9
+        (code >= 65 && code <= 90) || // A-Z
+        (code >= 97 && code <= 122) || // a-z
+        char === "-" ||
+        char === "_" ||
+        char === "."
+      ) {
+        return char;
+      }
+      // Replace everything else with '-'
+      return "-";
+    })
+    .join("");
+}
+
+/**
+ * Get the current project's session directory
+ * Claude Code encodes project paths and stores them in ~/.claude/projects/{encoded-path}/
+ */
+function getCurrentProjectDir(): string | null {
+  const projectsDir = getClaudeProjectsDir();
+  if (!fs.existsSync(projectsDir)) {
+    return null;
+  }
+
+  const cwd = process.cwd();
+  const encodedCwd = encodePathLikeClaude(cwd);
+
+  try {
+    const entries = fs.readdirSync(projectsDir, { withFileTypes: true });
+
+    for (const entry of entries) {
+      if (!entry.isDirectory()) continue;
+
+      // Direct match with encoded path
+      if (entry.name === encodedCwd) {
+        return path.join(projectsDir, entry.name);
+      }
+
+      // Case-insensitive match (Windows paths)
+      if (entry.name.toLowerCase() === encodedCwd.toLowerCase()) {
+        return path.join(projectsDir, entry.name);
+      }
+    }
+  } catch {
+    return null;
+  }
+
+  return null;
+}
+
+/**
  * Recursively find all .jsonl files
  */
 function findJsonlFiles(dir: string): string[] {
@@ -156,12 +220,14 @@ export interface ScanOptions {
 
 /**
  * Scan JSONL files and generate ccgather.json data
+ * Only scans the current project directory (based on cwd)
  * @param options.days - Number of days to include (default: 30, 0 or undefined with all flag = all time)
  */
 export function scanUsageData(options: ScanOptions = {}): CCGatherData | null {
-  const projectsDir = getClaudeProjectsDir();
+  // Get current project directory only
+  const currentProjectDir = getCurrentProjectDir();
 
-  if (!fs.existsSync(projectsDir)) {
+  if (!currentProjectDir) {
     return null;
   }
 
@@ -210,7 +276,7 @@ export function scanUsageData(options: ScanOptions = {}): CCGatherData | null {
   let firstTimestamp: string | null = null;
   let lastTimestamp: string | null = null;
 
-  const jsonlFiles = findJsonlFiles(projectsDir);
+  const jsonlFiles = findJsonlFiles(currentProjectDir);
   sessionsCount = jsonlFiles.length;
   const { onProgress } = options;
 
@@ -280,7 +346,7 @@ export function scanUsageData(options: ScanOptions = {}): CCGatherData | null {
             projects[projectName].models[model] =
               (projects[projectName].models[model] || 0) + totalModelTokens;
 
-            // Track dates and daily usage
+            // Track dates and daily usage (UTC timezone for global consistency)
             if (event.timestamp) {
               const date = new Date(event.timestamp).toISOString().split("T")[0];
               dates.add(date);
@@ -433,12 +499,27 @@ export function scanAndSave(options: ScanOptions = {}): CCGatherData | null {
 }
 
 /**
- * Get total number of session files (for progress calculation)
+ * Get total number of session files for current project (for progress calculation)
  */
 export function getSessionFileCount(): number {
-  const projectsDir = getClaudeProjectsDir();
-  if (!fs.existsSync(projectsDir)) {
+  const currentProjectDir = getCurrentProjectDir();
+  if (!currentProjectDir) {
     return 0;
   }
-  return findJsonlFiles(projectsDir).length;
+  return findJsonlFiles(currentProjectDir).length;
+}
+
+/**
+ * Check if current directory has Claude Code sessions
+ */
+export function hasProjectSessions(): boolean {
+  return getCurrentProjectDir() !== null;
+}
+
+/**
+ * Get current project name from cwd
+ */
+export function getCurrentProjectName(): string {
+  const cwd = process.cwd();
+  return path.basename(cwd);
 }

@@ -1,22 +1,8 @@
 import chalk from "chalk";
-import { readFileSync } from "fs";
-import { dirname, join } from "path";
-import { fileURLToPath } from "url";
 
-// Dynamic version from package.json
-function getVersion(): string {
-  try {
-    // For bundled output in dist/index.js
-    const __dirname = dirname(fileURLToPath(import.meta.url));
-    const pkgPath = join(__dirname, "../package.json");
-    const pkg = JSON.parse(readFileSync(pkgPath, "utf-8"));
-    return pkg.version;
-  } catch {
-    // Fallback
-    return "1.3.18";
-  }
-}
-export const VERSION: string = getVersion();
+// Version injected at build time by tsup
+declare const __VERSION__: string;
+export const VERSION: string = typeof __VERSION__ !== "undefined" ? __VERSION__ : "0.0.0";
 
 // Brand colors
 export const colors = {
@@ -239,15 +225,18 @@ export function getCCplanBadge(ccplan: string | null): string {
 }
 
 // Level thresholds - single source of truth
+// Max user benchmark: ~1B tokens per 3 days
 const LEVELS = [
   { min: 0, level: 1, name: "Novice", icon: "🌱", color: colors.dim },
-  { min: 100_000, level: 2, name: "Apprentice", icon: "📚", color: colors.muted },
-  { min: 500_000, level: 3, name: "Journeyman", icon: "⚡", color: colors.cyan },
-  { min: 1_000_000, level: 4, name: "Expert", icon: "💎", color: colors.pro },
-  { min: 5_000_000, level: 5, name: "Master", icon: "🔥", color: colors.warning },
-  { min: 10_000_000, level: 6, name: "Grandmaster", icon: "👑", color: colors.max },
-  { min: 50_000_000, level: 7, name: "Legend", icon: "🌟", color: colors.primary },
-  { min: 100_000_000, level: 8, name: "Mythic", icon: "🏆", color: colors.secondary },
+  { min: 50_000_000, level: 2, name: "Apprentice", icon: "📚", color: colors.muted },
+  { min: 200_000_000, level: 3, name: "Journeyman", icon: "⚡", color: colors.cyan },
+  { min: 500_000_000, level: 4, name: "Expert", icon: "💎", color: colors.pro },
+  { min: 1_000_000_000, level: 5, name: "Master", icon: "🔥", color: colors.warning },
+  { min: 3_000_000_000, level: 6, name: "Grandmaster", icon: "👑", color: colors.max },
+  { min: 10_000_000_000, level: 7, name: "Legend", icon: "🌟", color: colors.primary },
+  { min: 30_000_000_000, level: 8, name: "Mythic", icon: "🏆", color: colors.secondary },
+  { min: 50_000_000_000, level: 9, name: "Immortal", icon: "💫", color: colors.team },
+  { min: 100_000_000_000, level: 10, name: "Transcendent", icon: "🌌", color: colors.white },
 ];
 
 // Get level info
@@ -526,6 +515,70 @@ export async function printAnimatedHeader(): Promise<void> {
     await sleep(20);
   }
   console.log();
+}
+
+// Slot machine animation for rank reveal
+export async function slotMachineRank(
+  finalRank: number,
+  label: string,
+  medal: string,
+  iterations: number = 12
+): Promise<void> {
+  const maxRank = Math.max(finalRank * 3, 100);
+
+  for (let i = 0; i < iterations; i++) {
+    const fakeRank = Math.floor(Math.random() * maxRank) + 1;
+    const speed = Math.min(30 + i * 15, 150); // Slow down gradually
+    process.stdout.write(
+      `\r     ${medal} ${colors.muted(label)} ${colors.dim(`#${fakeRank}`)}    `
+    );
+    await sleep(speed);
+  }
+
+  // Final reveal with color
+  process.stdout.write(
+    `\r     ${medal} ${colors.muted(label)} ${colors.primary.bold(`#${finalRank}`)}    \n`
+  );
+}
+
+// Animated progress bar that fills from 0 to target
+export async function animatedProgressBar(
+  targetPercent: number,
+  barWidth: number = 20,
+  stepDelay: number = 25
+): Promise<string> {
+  const steps = Math.min(targetPercent, 20); // Max 20 animation steps
+  const stepSize = targetPercent / steps;
+
+  for (let i = 0; i <= steps; i++) {
+    const currentPercent = Math.round(i * stepSize);
+    const filled = Math.round((currentPercent / 100) * barWidth);
+    const empty = barWidth - filled;
+    const bar = colors.primary("█".repeat(filled)) + colors.dim("░".repeat(empty));
+
+    process.stdout.write(`\r     [${bar}] ${colors.white(`${currentPercent}%`)}  `);
+    await sleep(stepDelay);
+  }
+
+  // Return final bar for subsequent use
+  const finalFilled = Math.round((targetPercent / 100) * barWidth);
+  const finalEmpty = barWidth - finalFilled;
+  return colors.primary("█".repeat(finalFilled)) + colors.dim("░".repeat(finalEmpty));
+}
+
+// Suspense dots before reveal
+export async function suspenseDots(message: string, durationMs: number = 600): Promise<void> {
+  const frames = ["", ".", "..", "..."];
+  const frameDelay = 100;
+  const iterations = Math.ceil(durationMs / (frames.length * frameDelay));
+
+  for (let i = 0; i < iterations; i++) {
+    for (const frame of frames) {
+      process.stdout.write(`\r     ${colors.muted(message)}${colors.primary(frame)}     `);
+      await sleep(frameDelay);
+    }
+  }
+  process.stdout.write("\r" + " ".repeat(50) + "\r");
 }
 
 // Animated welcome box (typewriter style for username)

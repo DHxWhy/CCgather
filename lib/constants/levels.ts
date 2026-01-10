@@ -7,86 +7,88 @@ export interface Level {
   color: string;
 }
 
+// Level thresholds - synced with CLI (packages/cli/src/lib/ui.ts)
+// Max user benchmark: ~1B tokens per 3 days
 export const LEVELS: Level[] = [
   {
     level: 1,
-    name: 'Rookie',
-    icon: '🌱',
+    name: "Novice",
+    icon: "🌱",
     minTokens: 0,
-    maxTokens: 10_000_000,
-    color: '#22C55E',
+    maxTokens: 50_000_000,
+    color: "#6B7280", // Gray
   },
   {
     level: 2,
-    name: 'Coder',
-    icon: '⚡',
-    minTokens: 10_000_000,
-    maxTokens: 50_000_000,
-    color: '#3B82F6',
+    name: "Apprentice",
+    icon: "📚",
+    minTokens: 50_000_000,
+    maxTokens: 200_000_000,
+    color: "#71717A", // Muted
   },
   {
     level: 3,
-    name: 'Builder',
-    icon: '🔨',
-    minTokens: 50_000_000,
-    maxTokens: 200_000_000,
-    color: '#8B5CF6',
+    name: "Journeyman",
+    icon: "⚡",
+    minTokens: 200_000_000,
+    maxTokens: 500_000_000,
+    color: "#06B6D4", // Cyan
   },
   {
     level: 4,
-    name: 'Architect',
-    icon: '🏗️',
-    minTokens: 200_000_000,
-    maxTokens: 500_000_000,
-    color: '#EC4899',
+    name: "Expert",
+    icon: "💎",
+    minTokens: 500_000_000,
+    maxTokens: 1_000_000_000,
+    color: "#3B82F6", // Blue
   },
   {
     level: 5,
-    name: 'Expert',
-    icon: '💎',
-    minTokens: 500_000_000,
-    maxTokens: 1_000_000_000,
-    color: '#06B6D4',
+    name: "Master",
+    icon: "🔥",
+    minTokens: 1_000_000_000,
+    maxTokens: 3_000_000_000,
+    color: "#F59E0B", // Amber
   },
   {
     level: 6,
-    name: 'Master',
-    icon: '🔥',
-    minTokens: 1_000_000_000,
-    maxTokens: 3_000_000_000,
-    color: '#F97316',
+    name: "Grandmaster",
+    icon: "👑",
+    minTokens: 3_000_000_000,
+    maxTokens: 10_000_000_000,
+    color: "#EAB308", // Gold
   },
   {
     level: 7,
-    name: 'Grandmaster',
-    icon: '⚔️',
-    minTokens: 3_000_000_000,
-    maxTokens: 10_000_000_000,
-    color: '#EF4444',
+    name: "Legend",
+    icon: "🌟",
+    minTokens: 10_000_000_000,
+    maxTokens: 30_000_000_000,
+    color: "#DA7756", // Coral
   },
   {
     level: 8,
-    name: 'Legend',
-    icon: '👑',
-    minTokens: 10_000_000_000,
-    maxTokens: 30_000_000_000,
-    color: '#EAB308',
+    name: "Mythic",
+    icon: "🏆",
+    minTokens: 30_000_000_000,
+    maxTokens: 50_000_000_000,
+    color: "#F97316", // Orange
   },
   {
     level: 9,
-    name: 'Titan',
-    icon: '🌟',
-    minTokens: 30_000_000_000,
+    name: "Immortal",
+    icon: "💫",
+    minTokens: 50_000_000_000,
     maxTokens: 100_000_000_000,
-    color: '#A855F7',
+    color: "#8B5CF6", // Purple
   },
   {
     level: 10,
-    name: 'Immortal',
-    icon: '🏆',
+    name: "Transcendent",
+    icon: "🌌",
     minTokens: 100_000_000_000,
     maxTokens: Infinity,
-    color: '#FFD700',
+    color: "#FFFFFF", // White
   },
 ];
 
@@ -111,7 +113,6 @@ export function getProgressToNextLevel(tokens: number): number {
   const next = LEVELS[current.level];
   if (!next) return 100;
 
-  const progress =
-    ((tokens - current.minTokens) / (next.minTokens - current.minTokens)) * 100;
+  const progress = ((tokens - current.minTokens) / (next.minTokens - current.minTokens)) * 100;
   return Math.min(Math.max(progress, 0), 100);
 }

@@ -27,10 +27,10 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     return NextResponse.json({ error: "Failed to fetch user history" }, { status: 500 });
   }
 
-  // Fetch user basic info
+  // Fetch user basic info including social_links
   const { data: user, error: userError } = await supabase
     .from("users")
-    .select("id, username, total_tokens, total_cost")
+    .select("id, username, total_tokens, total_cost, social_links")
     .eq("id", id)
     .single();
 
@@ -63,6 +63,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       username: user.username,
       total_tokens: user.total_tokens,
       total_cost: user.total_cost,
+      social_links: user.social_links,
     },
   });
 }

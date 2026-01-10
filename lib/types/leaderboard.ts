@@ -22,6 +22,14 @@ export const CCPLAN_CONFIG: Record<
   free: { name: "Free League", icon: "⚪", color: "#6B7280" },
 };
 
+// Social links structure
+export interface SocialLinks {
+  github?: string;
+  twitter?: string;
+  linkedin?: string;
+  website?: string;
+}
+
 export interface LeaderboardUser {
   id: string;
   username: string;
@@ -40,6 +48,8 @@ export interface LeaderboardUser {
   // CCplan fields
   ccplan?: CCPlanFilter | null;
   ccplan_rank?: number | null;
+  // Social links
+  social_links?: SocialLinks | null;
 }
 
 export interface LeaderboardResponse {

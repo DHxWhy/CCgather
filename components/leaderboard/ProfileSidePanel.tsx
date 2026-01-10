@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useMemo, useCallback } from "react";
-import { X } from "lucide-react";
+import { X as CloseIcon, Github, Linkedin, Globe } from "lucide-react";
 import ReactCountryFlag from "react-country-flag";
 import {
   LineChart,
@@ -23,6 +23,7 @@ import type {
   PeriodFilter,
   ScopeFilter,
   CCPlanFilter,
+  SocialLinks,
 } from "@/lib/types";
 
 // Extended user type for panel display
@@ -293,7 +294,7 @@ function BadgeItem({
   badge,
   isEarned,
   columnIndex,
-  totalInCategory,
+  totalInCategory: _totalInCategory,
   userCountry,
 }: {
   badge: Badge;
@@ -304,13 +305,6 @@ function BadgeItem({
 }) {
   const [isHovered, setIsHovered] = useState(false);
 
-  const RARITY_COLORS: Record<Badge["rarity"], string> = {
-    common: "border-gray-500/30",
-    rare: "border-blue-500/30",
-    epic: "border-purple-500/30",
-    legendary: "border-yellow-500/30",
-  };
-
   const RARITY_TEXT_COLOR = "text-[var(--color-text-primary)]";
 
   const RARITY_BG_COLORS: Record<Badge["rarity"], string> = {
@@ -320,20 +314,8 @@ function BadgeItem({
     legendary: "bg-[var(--color-claude-coral)]/30",
   };
 
-  const isLeftSide = columnIndex <= 1;
-  const isRightSide = columnIndex >= totalInCategory - 2;
-
-  const popoverPositionClass = isLeftSide
-    ? "left-0"
-    : isRightSide
-      ? "right-0"
-      : "left-1/2 -translate-x-1/2";
-
-  const arrowPositionClass = isLeftSide
-    ? "left-4"
-    : isRightSide
-      ? "right-4"
-      : "left-1/2 -translate-x-1/2";
+  // Show popover on the left side of the badge for easier vertical navigation
+  const isRightColumn = columnIndex >= 3; // Right half of 5 columns
 
   return (
     <div
@@ -342,9 +324,9 @@ function BadgeItem({
       onMouseLeave={() => setIsHovered(false)}
     >
       <div
-        className={`w-full aspect-square flex items-center justify-center rounded border border-[var(--border-default)] text-center transition-colors cursor-default ${
+        className={`w-full aspect-square flex items-center justify-center rounded text-center transition-colors cursor-default ${
           isEarned
-            ? `bg-[var(--color-section-bg)] ${RARITY_COLORS[badge.rarity]} hover:bg-white/10`
+            ? `bg-[var(--color-section-bg)] hover:bg-white/10`
             : "bg-[var(--color-section-bg)] opacity-50"
         }`}
       >
@@ -359,10 +341,23 @@ function BadgeItem({
 
       {isHovered && (
         <div
-          className={`absolute top-full ${popoverPositionClass} mt-2 z-[100] w-48 p-2.5 bg-[var(--color-bg-secondary)] border border-[var(--border-default)] rounded-lg shadow-xl`}
+          className={`absolute top-1/2 -translate-y-1/2 z-[100] w-48 p-2.5 bg-[var(--color-bg-secondary)] border border-[var(--border-default)] rounded-lg shadow-xl ${
+            isRightColumn ? "right-full mr-2" : "left-full ml-2"
+          }`}
         >
-          <div className={`absolute bottom-full ${arrowPositionClass} mb-[-1px]`}>
-            <div className="border-8 border-transparent border-b-[var(--color-bg-secondary)]" />
+          {/* Arrow pointing to badge */}
+          <div
+            className={`absolute top-1/2 -translate-y-1/2 ${
+              isRightColumn ? "left-full ml-[-1px]" : "right-full mr-[-1px]"
+            }`}
+          >
+            <div
+              className={`border-8 border-transparent ${
+                isRightColumn
+                  ? "border-l-[var(--color-bg-secondary)]"
+                  : "border-r-[var(--color-bg-secondary)]"
+              }`}
+            />
           </div>
           <div className="flex items-center gap-2 mb-1.5">
             <span className="text-lg">
@@ -395,14 +390,94 @@ function BadgeItem({
   );
 }
 
+// X (formerly Twitter) icon component
+function XIcon({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" className={className} fill="currentColor">
+      <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
+    </svg>
+  );
+}
+
+// Social Links Quick Access (Header Icons)
+function SocialLinksQuickAccess({ socialLinks }: { socialLinks: SocialLinks | null | undefined }) {
+  if (!socialLinks) return null;
+
+  const links = [
+    {
+      key: "github",
+      icon: Github,
+      prefix: "https://github.com/",
+      hoverColor: "hover:text-white hover:bg-white/20",
+    },
+    {
+      key: "twitter",
+      icon: XIcon,
+      prefix: "https://x.com/",
+      hoverColor: "hover:text-white hover:bg-white/20",
+    },
+    {
+      key: "linkedin",
+      icon: Linkedin,
+      prefix: "https://linkedin.com/in/",
+      hoverColor: "hover:text-[#0A66C2] hover:bg-[#0A66C2]/20",
+    },
+    {
+      key: "website",
+      icon: Globe,
+      prefix: "",
+      hoverColor: "hover:text-[var(--color-claude-coral)] hover:bg-[var(--color-claude-coral)]/20",
+    },
+  ] as const;
+
+  const activeLinks = links.filter((link) => {
+    const value = socialLinks[link.key as keyof SocialLinks];
+    return value && value.trim() !== "";
+  });
+
+  if (activeLinks.length === 0) return null;
+
+  const getFullUrl = (link: (typeof links)[number], value: string): string => {
+    if (link.key === "website") {
+      return value.startsWith("http") ? value : `https://${value}`;
+    }
+    // For github, twitter, linkedin - just prepend the prefix
+    return `${link.prefix}${value.replace(/^@/, "")}`;
+  };
+
+  return (
+    <div className="flex items-center gap-1 mt-1.5">
+      {activeLinks.map((link) => {
+        const value = socialLinks[link.key as keyof SocialLinks] || "";
+        const Icon = link.icon;
+        const url = getFullUrl(link, value);
+
+        return (
+          <a
+            key={link.key}
+            href={url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className={`p-1.5 rounded-md text-[var(--color-text-muted)] transition-all ${link.hoverColor}`}
+            title={link.key === "website" ? new URL(url).hostname : value}
+          >
+            <Icon className="w-3.5 h-3.5" />
+          </a>
+        );
+      })}
+    </div>
+  );
+}
+
 // Category labels with icons
-const CATEGORY_LABELS: Record<Badge["category"], { icon: string; label: string }> = {
-  streak: { icon: "🔥", label: "Streak" },
-  tokens: { icon: "💎", label: "Tokens" },
-  rank: { icon: "🏆", label: "Rank" },
-  model: { icon: "🎭", label: "Model" },
-  social: { icon: "🤝", label: "Social" },
-};
+const CATEGORY_LABELS: Record<Badge["category"], { icon: string; label: string; bgTint: string }> =
+  {
+    streak: { icon: "🔥", label: "Streak", bgTint: "bg-orange-500/5" },
+    tokens: { icon: "💎", label: "Tokens", bgTint: "bg-blue-500/5" },
+    rank: { icon: "🏆", label: "Rank", bgTint: "bg-yellow-500/5" },
+    model: { icon: "🎭", label: "Model", bgTint: "bg-purple-500/5" },
+    social: { icon: "🤝", label: "Social", bgTint: "bg-emerald-500/5" },
+  };
 
 // Rarity order for sorting
 const RARITY_ORDER: Record<Badge["rarity"], number> = {
@@ -430,13 +505,11 @@ function BadgeGrid({ badgeIds, userCountry }: { badgeIds: string[]; userCountry:
   return (
     <div className="flex gap-1">
       {badgesByCategory.map(({ category, badges }, colIndex) => {
-        const { icon } = CATEGORY_LABELS[category];
+        const { icon, bgTint } = CATEGORY_LABELS[category];
 
         return (
-          <div key={category} className="flex-1 flex flex-col gap-1">
-            <div className="text-center text-[10px] pb-0.5 border-b border-[var(--border-default)]">
-              {icon}
-            </div>
+          <div key={category} className={`flex-1 flex flex-col gap-1 p-1 rounded-lg ${bgTint}`}>
+            <div className="text-center text-[10px] pb-0.5">{icon}</div>
             {badges.map((badge) => (
               <BadgeItem
                 key={badge.id}
@@ -481,29 +554,32 @@ export function ProfileSidePanel({
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const [isTabletPortrait, setIsTabletPortrait] = useState(false);
-  const [isTablet, setIsTablet] = useState(false);
   const [isNarrow, setIsNarrow] = useState(false);
   const [showCompactStats, setShowCompactStats] = useState(false);
 
   // API data state
   const [usageHistory, setUsageHistory] = useState<UsageHistoryPoint[]>([]);
   const [userBadges, setUserBadges] = useState<string[]>([]);
+  const [freshSocialLinks, setFreshSocialLinks] = useState<SocialLinks | null>(null);
   const [historyLoading, setHistoryLoading] = useState(false);
 
-  const isOverlayPanel = isMobile || isTabletPortrait;
+  // Only mobile uses overlay mode, tablet uses push mode
+  const isOverlayPanel = isMobile;
 
   // Swipe gesture state
-  const [touchStart, setTouchStart] = useState<number | null>(null);
-  const [touchCurrent, setTouchCurrent] = useState<number | null>(null);
+  const [touchStartX, setTouchStartX] = useState<number | null>(null);
+  const [touchStartY, setTouchStartY] = useState<number | null>(null);
+  const [touchCurrentX, setTouchCurrentX] = useState<number | null>(null);
   const [isDragging, setIsDragging] = useState(false);
+  const [isVerticalScroll, setIsVerticalScroll] = useState(false);
 
-  // Detect viewport size
+  // Detect viewport size - 3-tier breakpoint system
+  // Mobile: < 640px | Tablet: 640-1039px | PC: >= 1040px
   useEffect(() => {
     const checkScreenSize = () => {
       const width = window.innerWidth;
-      setIsMobile(width < 768);
-      setIsTabletPortrait(width >= 768 && width < 1024);
-      setIsTablet(width >= 1024 && width < 1440);
+      setIsMobile(width < 640);
+      setIsTabletPortrait(width >= 640 && width < 1040);
       setIsNarrow(width < 400);
     };
     checkScreenSize();
@@ -511,53 +587,74 @@ export function ProfileSidePanel({
     return () => window.removeEventListener("resize", checkScreenSize);
   }, []);
 
-  // Calculate swipe offset
+  // Calculate swipe offset (only for horizontal swipe, not vertical scroll)
   const swipeOffset = useMemo(() => {
-    if (!isDragging || touchStart === null || touchCurrent === null) return 0;
-    const diff = touchCurrent - touchStart;
+    if (!isDragging || isVerticalScroll || touchStartX === null || touchCurrentX === null) return 0;
+    const diff = touchCurrentX - touchStartX;
     return Math.max(0, diff);
-  }, [isDragging, touchStart, touchCurrent]);
+  }, [isDragging, isVerticalScroll, touchStartX, touchCurrentX]);
 
-  // Touch handlers
+  // Touch handlers with vertical scroll detection
   const handleTouchStart = useCallback((e: React.TouchEvent) => {
     const touch = e.touches[0];
     if (touch) {
-      setTouchStart(touch.clientX);
-      setTouchCurrent(touch.clientX);
-      setIsDragging(true);
+      setTouchStartX(touch.clientX);
+      setTouchStartY(touch.clientY);
+      setTouchCurrentX(touch.clientX);
+      setIsDragging(false); // Don't start dragging until we determine direction
+      setIsVerticalScroll(false);
     }
   }, []);
 
   const handleTouchMove = useCallback(
     (e: React.TouchEvent) => {
-      if (!isDragging) return;
       const touch = e.touches[0];
-      if (touch) {
-        setTouchCurrent(touch.clientX);
+      if (!touch || touchStartX === null || touchStartY === null) return;
+
+      const deltaX = touch.clientX - touchStartX;
+      const deltaY = touch.clientY - touchStartY;
+
+      // Determine scroll direction on first significant movement
+      if (!isDragging && !isVerticalScroll) {
+        const minThreshold = 10; // Minimum movement before deciding direction
+        if (Math.abs(deltaX) > minThreshold || Math.abs(deltaY) > minThreshold) {
+          // If vertical movement is greater than horizontal, it's a vertical scroll
+          if (Math.abs(deltaY) > Math.abs(deltaX)) {
+            setIsVerticalScroll(true);
+            return;
+          } else {
+            // Horizontal movement - start dragging
+            setIsDragging(true);
+          }
+        }
+      }
+
+      // Only update horizontal position if we're in drag mode
+      if (isDragging && !isVerticalScroll) {
+        setTouchCurrentX(touch.clientX);
       }
     },
-    [isDragging]
+    [isDragging, isVerticalScroll, touchStartX, touchStartY]
   );
 
   const handleTouchEnd = useCallback(() => {
-    if (!isDragging || touchStart === null || touchCurrent === null) {
-      setIsDragging(false);
-      setTouchStart(null);
-      setTouchCurrent(null);
-      return;
+    // Only close if it was a horizontal swipe (not vertical scroll)
+    if (isDragging && !isVerticalScroll && touchStartX !== null && touchCurrentX !== null) {
+      const diff = touchCurrentX - touchStartX;
+      const threshold = 100;
+
+      if (diff > threshold) {
+        onClose();
+      }
     }
 
-    const diff = touchCurrent - touchStart;
-    const threshold = 100;
-
-    if (diff > threshold) {
-      onClose();
-    }
-
+    // Reset all touch state
     setIsDragging(false);
-    setTouchStart(null);
-    setTouchCurrent(null);
-  }, [isDragging, touchStart, touchCurrent, onClose]);
+    setTouchStartX(null);
+    setTouchStartY(null);
+    setTouchCurrentX(null);
+    setIsVerticalScroll(false);
+  }, [isDragging, isVerticalScroll, touchStartX, touchCurrentX, onClose]);
 
   // Fetch user history and badges when user changes
   useEffect(() => {
@@ -565,12 +662,17 @@ export function ProfileSidePanel({
       if (!user) return;
 
       setHistoryLoading(true);
+      setFreshSocialLinks(null); // Reset on user change
       try {
-        // Fetch history
+        // Fetch history (includes fresh social_links)
         const historyResponse = await fetch(`/api/users/${user.id}/history?days=365`);
         if (historyResponse.ok) {
           const data = await historyResponse.json();
           setUsageHistory(data.history || []);
+          // Use fresh social_links from API
+          if (data.user?.social_links) {
+            setFreshSocialLinks(data.user.social_links);
+          }
         }
 
         // Fetch badges (from user_badges table)
@@ -739,12 +841,8 @@ export function ProfileSidePanel({
           isDragging ? "" : "transition-transform duration-300 ease-out"
         } ${isOpen ? "translate-x-0" : "translate-x-full"}`}
         style={{
-          width: isMobile ? "calc(100% - 56px)" : isTabletPortrait || isTablet ? "380px" : "440px",
-          maxWidth: isMobile
-            ? "calc(100% - 56px)"
-            : isTabletPortrait || isTablet
-              ? "380px"
-              : "440px",
+          width: isMobile ? "calc(100% - 56px)" : isTabletPortrait ? "320px" : "440px",
+          maxWidth: isMobile ? "calc(100% - 56px)" : isTabletPortrait ? "320px" : "440px",
           transform: isOpen ? `translateX(${swipeOffset}px)` : "translateX(100%)",
         }}
         onTouchStart={isOverlayPanel ? handleTouchStart : undefined}
@@ -762,7 +860,7 @@ export function ProfileSidePanel({
               onClick={onClose}
               className="p-1.5 rounded-md hover:bg-white/10 transition-colors text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]"
             >
-              <X className="w-4 h-4" />
+              <CloseIcon className="w-4 h-4" />
             </button>
           </div>
 
@@ -813,6 +911,12 @@ export function ProfileSidePanel({
                   )}
                   <span>@{currentUser.username.toLowerCase().replace(/\s+/g, "")}</span>
                 </p>
+                {/* Social Links Quick Access - use fresh data from API when available */}
+                {(freshSocialLinks || currentUser.social_links) && (
+                  <SocialLinksQuickAccess
+                    socialLinks={freshSocialLinks || currentUser.social_links}
+                  />
+                )}
               </div>
             </div>
           </div>
@@ -863,7 +967,7 @@ export function ProfileSidePanel({
         {/* Scrollable Content */}
         <div
           ref={scrollContainerRef}
-          className={`p-4 overflow-y-auto flex-1 transition-opacity duration-150 ${
+          className={`p-4 overflow-y-auto overflow-x-clip flex-1 transition-opacity duration-150 ${
             isTransitioning ? "opacity-30" : "opacity-100"
           }`}
         >
@@ -1057,23 +1161,23 @@ export function ProfileSidePanel({
             <div className="text-[10px] text-[var(--color-text-muted)] uppercase tracking-wide mb-3">
               📅 Activity (Last Year)
             </div>
-            <div className="overflow-x-auto pb-2">
-              {historyLoading ? (
-                <div className="h-20 flex items-center justify-center">
-                  <div className="w-6 h-6 border-2 border-[var(--color-claude-coral)] border-t-transparent rounded-full animate-spin" />
-                </div>
-              ) : (
-                <ActivityHeatmap data={usageHistory} periodDays={365} />
-              )}
-            </div>
+            {historyLoading ? (
+              <div className="h-20 flex items-center justify-center">
+                <div className="w-6 h-6 border-2 border-[var(--color-claude-coral)] border-t-transparent rounded-full animate-spin" />
+              </div>
+            ) : (
+              <ActivityHeatmap data={usageHistory} periodDays={365} />
+            )}
           </div>
 
           {/* Badges */}
-          <div className="p-3 pb-24 bg-[var(--color-section-bg)] rounded-lg border border-[var(--border-default)]">
+          <div className="p-3 pb-24 bg-[var(--color-section-bg)] rounded-lg border border-[var(--border-default)] overflow-visible">
             <div className="text-[10px] text-[var(--color-text-muted)] uppercase tracking-wide mb-2">
               🏅 Badges ({userBadges.length}/{BADGES.length})
             </div>
-            <BadgeGrid badgeIds={userBadges} userCountry={currentUser.country_code || "US"} />
+            <div className="overflow-visible">
+              <BadgeGrid badgeIds={userBadges} userCountry={currentUser.country_code || "US"} />
+            </div>
           </div>
         </div>
       </div>

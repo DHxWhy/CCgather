@@ -8,6 +8,7 @@ import { CountryCard } from "@/components/onboarding/CountryCard";
 import { CountrySearchPalette } from "@/components/onboarding/CountrySearchPalette";
 import { Confetti, SparkleEffect } from "@/components/onboarding/Confetti";
 import { CLIModal } from "@/components/cli/CLIModal";
+import { AgreementModal } from "@/components/onboarding/AgreementModal";
 import { ChevronRight, Sparkles } from "lucide-react";
 import dynamic from "next/dynamic";
 
@@ -24,7 +25,7 @@ export default function OnboardingPage() {
   const [showConfetti, setShowConfetti] = useState(false);
   const [step, setStep] = useState<"select" | "confirm">("select");
   const [showCLIModal, setShowCLIModal] = useState(false);
-  const [marketingConsent, setMarketingConsent] = useState(false);
+  const [showAgreementModal, setShowAgreementModal] = useState(false);
   const [cliAuthStatus, setCliAuthStatus] = useState<"idle" | "authorizing" | "success" | "error">(
     "idle"
   );
@@ -45,7 +46,13 @@ export default function OnboardingPage() {
     setTimeout(() => setShowConfetti(false), 3000);
   }, []);
 
-  const handleSubmit = async () => {
+  // Show agreement modal when user clicks Join League
+  const handleJoinClick = () => {
+    setShowAgreementModal(true);
+  };
+
+  // Handle agreement and submit
+  const handleAgree = async (profileConsent: boolean, communityConsent: boolean) => {
     if (!selectedCountry) return;
 
     setIsSubmitting(true);
@@ -57,7 +64,8 @@ export default function OnboardingPage() {
           country_code: selectedCountry,
           timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
           onboarding_completed: true,
-          marketing_consent: marketingConsent,
+          profile_visibility_consent: profileConsent,
+          community_updates_consent: communityConsent,
         }),
       });
 
@@ -74,6 +82,9 @@ export default function OnboardingPage() {
         // Store in localStorage as backup (prevents infinite redirect loop)
         localStorage.setItem("ccgather_onboarding_completed", "true");
         sessionStorage.setItem("onboarding_just_completed", "true");
+
+        // Close agreement modal
+        setShowAgreementModal(false);
 
         // If coming from CLI auth flow, authorize the CLI first
         if (cliCode) {
@@ -167,6 +178,14 @@ export default function OnboardingPage() {
 
   return (
     <div className="min-h-screen bg-bg-primary relative overflow-hidden">
+      {/* Agreement Modal */}
+      <AgreementModal
+        isOpen={showAgreementModal}
+        onClose={() => setShowAgreementModal(false)}
+        onAgree={handleAgree}
+        isSubmitting={isSubmitting}
+      />
+
       {/* CLI Guide Modal */}
       <CLIModal isOpen={showCLIModal} onClose={handleCLIModalClose} />
 
@@ -329,67 +348,19 @@ export default function OnboardingPage() {
                   </p>
                 </motion.div>
 
-                {/* Marketing consent checkbox */}
-                <motion.label
-                  className="flex items-start gap-3 w-full max-w-xs cursor-pointer group mb-4"
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.25 }}
-                >
-                  <div className="relative flex-shrink-0 mt-0.5">
-                    <input
-                      type="checkbox"
-                      checked={marketingConsent}
-                      onChange={(e) => setMarketingConsent(e.target.checked)}
-                      className="sr-only peer"
-                    />
-                    <div className="w-5 h-5 rounded border-2 border-[var(--border-default)] bg-[var(--color-bg-card)] peer-checked:bg-primary peer-checked:border-primary transition-all flex items-center justify-center">
-                      {marketingConsent && (
-                        <svg
-                          className="w-3 h-3 text-white"
-                          fill="none"
-                          viewBox="0 0 24 24"
-                          stroke="currentColor"
-                          strokeWidth={3}
-                        >
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                        </svg>
-                      )}
-                    </div>
-                  </div>
-                  <span className="text-xs text-text-muted group-hover:text-text-secondary transition-colors leading-relaxed">
-                    I&apos;d like to receive updates about new features, tips, and community news
-                    (optional)
-                  </span>
-                </motion.label>
-
                 {/* Action buttons */}
                 <motion.div
                   className="flex flex-col gap-3 w-full max-w-xs"
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.3 }}
+                  transition={{ delay: 0.25 }}
                 >
                   <button
-                    onClick={handleSubmit}
-                    disabled={isSubmitting}
-                    className="w-full flex items-center justify-center gap-2 px-6 py-3.5 rounded-xl bg-gradient-to-r from-primary to-[#B85C3D] text-white font-semibold hover:shadow-lg hover:shadow-primary/25 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                    onClick={handleJoinClick}
+                    className="w-full flex items-center justify-center gap-2 px-6 py-3.5 rounded-xl bg-gradient-to-r from-primary to-[#B85C3D] text-white font-semibold hover:shadow-lg hover:shadow-primary/25 transition-all"
                   >
-                    {isSubmitting ? (
-                      <>
-                        <motion.div
-                          className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full"
-                          animate={{ rotate: 360 }}
-                          transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-                        />
-                        <span>Joining...</span>
-                      </>
-                    ) : (
-                      <>
-                        <span>Join League</span>
-                        <ChevronRight className="w-5 h-5" />
-                      </>
-                    )}
+                    <span>Join League</span>
+                    <ChevronRight className="w-5 h-5" />
                   </button>
                   <button
                     onClick={handleBack}

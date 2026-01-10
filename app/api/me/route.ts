@@ -4,11 +4,23 @@ import { createServiceClient } from "@/lib/supabase/server";
 import { z } from "zod";
 import { randomBytes } from "crypto";
 
+const SocialLinksSchema = z
+  .object({
+    github: z.string().optional(),
+    twitter: z.string().optional(),
+    linkedin: z.string().optional(),
+    website: z.string().url().optional().or(z.literal("")),
+  })
+  .optional();
+
 const UpdateProfileSchema = z.object({
   country_code: z.string().length(2).optional(),
   timezone: z.string().optional(),
   onboarding_completed: z.boolean().optional(),
   marketing_consent: z.boolean().optional(),
+  profile_visibility_consent: z.boolean().optional(),
+  community_updates_consent: z.boolean().optional(),
+  social_links: SocialLinksSchema,
 });
 
 export async function GET() {
@@ -30,13 +42,14 @@ export async function GET() {
       avatar_url,
       country_code,
       timezone,
-      level,
+      current_level,
       global_rank,
       country_rank,
       total_tokens,
       total_cost,
       onboarding_completed,
       is_admin,
+      social_links,
       created_at
     `
     )
@@ -73,13 +86,14 @@ export async function GET() {
         avatar_url,
         country_code,
         timezone,
-        level,
+        current_level,
         global_rank,
         country_rank,
         total_tokens,
         total_cost,
         onboarding_completed,
         is_admin,
+        social_links,
         created_at
       `
       )
@@ -88,8 +102,8 @@ export async function GET() {
     if (insertError) {
       // Handle unique constraint violation (user was created between check and insert)
       if (insertError.code === "23505") {
-        // Retry fetch
-        const { data: existingUser } = await supabase
+        // Check if it's username conflict - try to find by clerk_id first
+        const { data: existingByClerkId } = await supabase
           .from("users")
           .select(
             `
@@ -99,22 +113,74 @@ export async function GET() {
             avatar_url,
             country_code,
             timezone,
-            level,
+            current_level,
             global_rank,
             country_rank,
             total_tokens,
             total_cost,
             onboarding_completed,
             is_admin,
+            social_links,
             created_at
           `
           )
           .eq("clerk_id", userId)
           .single();
 
-        if (existingUser) {
+        if (existingByClerkId) {
           return NextResponse.json(
-            { user: existingUser },
+            { user: existingByClerkId },
+            {
+              headers: {
+                "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
+                Pragma: "no-cache",
+                Expires: "0",
+              },
+            }
+          );
+        }
+
+        // If not found by clerk_id, username conflict with another user
+        // Try with a unique username suffix
+        const uniqueUsername = `${clerkUser.username || "user"}_${userId.slice(0, 8)}`;
+        const { data: retryUser, error: retryError } = await supabase
+          .from("users")
+          .insert({
+            clerk_id: userId,
+            username: uniqueUsername,
+            display_name: displayName,
+            avatar_url: clerkUser.imageUrl,
+            email: clerkUser.emailAddresses[0]?.emailAddress,
+            onboarding_completed: false,
+          })
+          .select(
+            `
+            id,
+            username,
+            display_name,
+            avatar_url,
+            country_code,
+            timezone,
+            current_level,
+            global_rank,
+            country_rank,
+            total_tokens,
+            total_cost,
+            onboarding_completed,
+            is_admin,
+            social_links,
+            created_at
+          `
+          )
+          .single();
+
+        if (!retryError && retryUser) {
+          console.log("Created user with unique username:", {
+            clerk_id: userId,
+            username: uniqueUsername,
+          });
+          return NextResponse.json(
+            { user: retryUser },
             {
               headers: {
                 "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
@@ -141,6 +207,61 @@ export async function GET() {
         },
       }
     );
+  }
+
+  // Auto-populate GitHub from Clerk OAuth if not set
+  const socialLinks = (user.social_links as Record<string, string> | null) || {};
+  if (!socialLinks.github) {
+    const clerkUser = await currentUser();
+
+    // Debug logging
+    console.log("[/api/me] Auto-populate GitHub check:", {
+      userId,
+      clerkUsername: clerkUser?.username,
+      externalAccounts: clerkUser?.externalAccounts?.map((a) => ({
+        provider: a.provider,
+        username: a.username,
+      })),
+      currentSocialLinks: socialLinks,
+    });
+
+    // Check for GitHub account - provider can be "github" or "oauth_github"
+    const githubAccount = clerkUser?.externalAccounts?.find((account) =>
+      account.provider.toLowerCase().includes("github")
+    );
+
+    // Get GitHub username from external account or Clerk username (often same as GitHub when using GitHub OAuth)
+    const githubUsername = githubAccount?.username || clerkUser?.username;
+
+    console.log("[/api/me] GitHub username resolved:", githubUsername);
+
+    if (githubUsername) {
+      const updatedSocialLinks = { ...socialLinks, github: githubUsername };
+
+      // Auto-save to database
+      const { error: updateError } = await supabase
+        .from("users")
+        .update({ social_links: updatedSocialLinks })
+        .eq("clerk_id", userId);
+
+      if (updateError) {
+        console.error("[/api/me] Failed to update social_links:", updateError);
+      } else {
+        console.log("[/api/me] Successfully updated social_links:", updatedSocialLinks);
+      }
+
+      // Return updated user data
+      return NextResponse.json(
+        { user: { ...user, social_links: updatedSocialLinks } },
+        {
+          headers: {
+            "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
+            Pragma: "no-cache",
+            Expires: "0",
+          },
+        }
+      );
+    }
   }
 
   // Add cache control headers to prevent stale data
@@ -185,10 +306,17 @@ export async function PATCH(request: NextRequest) {
 
     let user;
 
-    // Prepare update data with marketing consent timestamp
+    // Prepare update data with consent timestamps
     const updateData: Record<string, unknown> = { ...parsed.data };
+    const now = new Date().toISOString();
     if (parsed.data.marketing_consent !== undefined) {
-      updateData.marketing_consent_at = new Date().toISOString();
+      updateData.marketing_consent_at = now;
+    }
+    if (parsed.data.profile_visibility_consent !== undefined) {
+      updateData.profile_visibility_consent_at = now;
+    }
+    if (parsed.data.community_updates_consent !== undefined) {
+      updateData.community_updates_consent_at = now;
     }
 
     if (!existingUser) {

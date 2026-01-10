@@ -32,7 +32,12 @@ interface AuthenticatedUser {
   total_tokens: number | null;
   total_cost: number | null;
   country_code?: string;
+  last_submission_at?: string | null;
 }
+
+// Rate limit settings: 10 submissions per hour
+const RATE_LIMIT_WINDOW_HOURS = 1;
+const RATE_LIMIT_MAX_SUBMISSIONS = 10;
 
 export async function POST(request: NextRequest) {
   try {
@@ -74,7 +79,7 @@ export async function POST(request: NextRequest) {
     // Find user by API token
     const { data: user, error: tokenError } = await supabase
       .from("users")
-      .select("id, username, total_tokens, total_cost, country_code")
+      .select("id, username, total_tokens, total_cost, country_code, last_submission_at")
       .eq("api_key", token)
       .maybeSingle();
 
@@ -91,6 +96,45 @@ export async function POST(request: NextRequest) {
     }
 
     const authenticatedUser = user as AuthenticatedUser;
+
+    // Rate limit check: count submissions in the last hour
+    const oneHourAgo = new Date(
+      Date.now() - RATE_LIMIT_WINDOW_HOURS * 60 * 60 * 1000
+    ).toISOString();
+
+    const { count: recentSubmissions } = await supabase
+      .from("usage_stats")
+      .select("*", { count: "exact", head: true })
+      .eq("user_id", authenticatedUser.id)
+      .gte("submitted_at", oneHourAgo);
+
+    if ((recentSubmissions ?? 0) >= RATE_LIMIT_MAX_SUBMISSIONS) {
+      // Calculate when they can submit again
+      const { data: oldestRecentSubmission } = await supabase
+        .from("usage_stats")
+        .select("submitted_at")
+        .eq("user_id", authenticatedUser.id)
+        .gte("submitted_at", oneHourAgo)
+        .order("submitted_at", { ascending: true })
+        .limit(1)
+        .single();
+
+      let retryAfterMinutes = 60; // Default 60 minutes
+      if (oldestRecentSubmission?.submitted_at) {
+        const oldestTime = new Date(oldestRecentSubmission.submitted_at).getTime();
+        const windowEndTime = oldestTime + RATE_LIMIT_WINDOW_HOURS * 60 * 60 * 1000;
+        retryAfterMinutes = Math.ceil((windowEndTime - Date.now()) / (60 * 1000));
+      }
+
+      return NextResponse.json(
+        {
+          error: `Rate limit exceeded. Maximum ${RATE_LIMIT_MAX_SUBMISSIONS} submissions per hour.`,
+          retryAfterMinutes: Math.max(1, retryAfterMinutes),
+          hint: `Please try again in ${retryAfterMinutes} minute${retryAfterMinutes !== 1 ? "s" : ""}.`,
+        },
+        { status: 429 }
+      );
+    }
 
     // Update user stats (use max values to prevent lowering)
     const updateData: Record<string, unknown> = {

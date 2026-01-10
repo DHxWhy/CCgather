@@ -102,7 +102,8 @@ export async function GET(request: NextRequest) {
         total_tokens,
         total_cost,
         ccplan,
-        ccplan_rank
+        ccplan_rank,
+        social_links
       `,
         { count: "exact" }
       )
@@ -202,7 +203,7 @@ export async function GET(request: NextRequest) {
     });
   }
 
-  // Fetch user details
+  // Fetch user details (always include total_tokens for level calculation)
   let usersQuery = supabase
     .from("users")
     .select(
@@ -213,8 +214,11 @@ export async function GET(request: NextRequest) {
       avatar_url,
       country_code,
       current_level,
+      total_tokens,
+      total_cost,
       ccplan,
-      ccplan_rank
+      ccplan_rank,
+      social_links
     `
     )
     .in("id", userIds)

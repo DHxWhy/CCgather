@@ -5,7 +5,7 @@ import { motion, AnimatePresence, useSpring, useTransform } from "framer-motion"
 import { X } from "lucide-react";
 import { Globe } from "./Globe";
 import { FlagIcon } from "@/components/ui/FlagIcon";
-import { ShootingStars } from "@/components/ui/shooting-stars";
+import { GlobeParticles } from "@/components/ui/globe-particles";
 
 // Animated number component with rolling count effect
 function AnimatedNumber({
@@ -153,63 +153,35 @@ export function CountryStatsModal({
               exit={{ backdropFilter: "blur(0px)" }}
               transition={{ duration: 0.5, ease: "easeOut" }}
             >
-              {/* Glass effect background */}
+              {/* Glass effect background - Always dark theme */}
               <motion.div
-                className="absolute inset-0"
+                className="absolute inset-0 bg-[rgba(8,8,12,0.95)]"
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
                 transition={{ duration: 0.4, ease: "easeOut" }}
                 style={{
-                  background: "rgba(8, 8, 12, 0.95)",
                   backdropFilter: "blur(20px)",
                   WebkitBackdropFilter: "blur(20px)",
                 }}
               />
 
-              {/* Border glow */}
+              {/* Border glow - Always dark theme */}
               <motion.div
-                className="absolute inset-0 rounded-2xl pointer-events-none"
+                className="absolute inset-0 rounded-2xl pointer-events-none border border-white/10"
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
                 transition={{ duration: 0.5, delay: 0.1, ease: "easeOut" }}
                 style={{
-                  border: "1px solid rgba(255, 255, 255, 0.05)",
                   boxShadow:
                     "0 0 30px rgba(229, 115, 89, 0.08), inset 0 0 40px rgba(255, 255, 255, 0.01)",
                 }}
               />
 
-              {/* Shooting stars effect */}
-              <div className="absolute inset-0 overflow-hidden rounded-2xl">
-                <ShootingStars
-                  starColor="#e57359"
-                  trailColor="#ffb088"
-                  minSpeed={8}
-                  maxSpeed={20}
-                  minDelay={2000}
-                  maxDelay={5000}
-                  starWidth={12}
-                  starHeight={1}
-                  className="opacity-60"
-                />
-                <ShootingStars
-                  starColor="#10b981"
-                  trailColor="#6ee7b7"
-                  minSpeed={6}
-                  maxSpeed={15}
-                  minDelay={3000}
-                  maxDelay={7000}
-                  starWidth={8}
-                  starHeight={1}
-                  className="opacity-40"
-                />
-              </div>
-
               {/* Content */}
               <div className="relative p-4 sm:p-6">
-                {/* Header */}
+                {/* Header - Always dark theme */}
                 <div className="flex items-center justify-between mb-4 sm:mb-6">
                   <div>
                     <h2 className="text-lg sm:text-xl font-semibold text-white flex items-center gap-2">
@@ -225,7 +197,7 @@ export function CountryStatsModal({
                     onClick={onClose}
                     className="p-2 rounded-lg hover:bg-white/10 transition-colors"
                   >
-                    <X className="w-5 h-5 text-white/70" />
+                    <X className="w-5 h-5 text-white/50" />
                   </button>
                 </div>
 
@@ -233,28 +205,40 @@ export function CountryStatsModal({
                 <div className="flex flex-col lg:flex-row gap-4 lg:gap-6 items-center lg:items-end">
                   {/* Left: Globe + Stats below */}
                   <div className="flex-shrink-0 flex flex-col items-center lg:pl-[22px]">
-                    {/* PC Globe - lg+ */}
-                    <Globe
-                      markers={stats}
-                      size={350}
-                      className="mx-auto hidden lg:block"
-                      userCountryCode={userCountryCode}
-                    />
-                    {/* Tablet Globe - md to lg */}
-                    <Globe
-                      markers={stats}
-                      size={280}
-                      className="mx-auto hidden md:block lg:hidden"
-                      userCountryCode={userCountryCode}
-                    />
-                    {/* Mobile Globe - below md */}
-                    <Globe
-                      markers={stats}
-                      size={180}
-                      className="mx-auto md:hidden"
-                      userCountryCode={userCountryCode}
-                    />
-                    {/* Stats summary below globe */}
+                    {/* PC Globe with particles - lg+ */}
+                    <div className="relative hidden lg:block" style={{ width: 350, height: 350 }}>
+                      <GlobeParticles size={350} />
+                      <Globe
+                        markers={stats}
+                        size={350}
+                        className="mx-auto"
+                        userCountryCode={userCountryCode}
+                      />
+                    </div>
+                    {/* Tablet Globe with particles - md to lg */}
+                    <div
+                      className="relative hidden md:block lg:hidden"
+                      style={{ width: 280, height: 280 }}
+                    >
+                      <GlobeParticles size={280} />
+                      <Globe
+                        markers={stats}
+                        size={280}
+                        className="mx-auto"
+                        userCountryCode={userCountryCode}
+                      />
+                    </div>
+                    {/* Mobile Globe with particles - below md */}
+                    <div className="relative md:hidden" style={{ width: 180, height: 180 }}>
+                      <GlobeParticles size={180} />
+                      <Globe
+                        markers={stats}
+                        size={180}
+                        className="mx-auto"
+                        userCountryCode={userCountryCode}
+                      />
+                    </div>
+                    {/* Stats summary below globe - Always dark theme */}
                     <div className="flex gap-4 md:gap-6 mt-3 md:mt-4 justify-center">
                       <div className="text-center">
                         <p className="text-[9px] md:text-[10px] text-white/50 uppercase tracking-wider mb-0.5">
@@ -273,7 +257,7 @@ export function CountryStatsModal({
                         <p className="text-[9px] md:text-[10px] text-white/50 uppercase tracking-wider mb-0.5">
                           Spent
                         </p>
-                        <p className="text-base md:text-lg font-bold text-[var(--color-cost)]">
+                        <p className="text-base md:text-lg font-bold text-[#10b981]">
                           <AnimatedNumber
                             value={totalCost}
                             formatter={formatCost}
@@ -286,7 +270,7 @@ export function CountryStatsModal({
                         <p className="text-[9px] md:text-[10px] text-white/50 uppercase tracking-wider mb-0.5">
                           Tokens
                         </p>
-                        <p className="text-base md:text-lg font-bold text-[var(--color-claude-coral)]">
+                        <p className="text-base md:text-lg font-bold text-[#e57359]">
                           <AnimatedNumber
                             value={totalTokens}
                             formatter={formatNumber}
@@ -298,7 +282,7 @@ export function CountryStatsModal({
                     </div>
                   </div>
 
-                  {/* Right: Country Rankings */}
+                  {/* Right: Country Rankings - Always dark theme */}
                   <div className="flex-1 min-w-0 w-full lg:w-auto">
                     <div className="text-[10px] lg:text-xs text-white/50 uppercase tracking-wider mb-2">
                       Top Countries by Token Usage
@@ -322,7 +306,7 @@ export function CountryStatsModal({
                           >
                             {/* PC only: Single row layout (lg+) */}
                             <div className="hidden lg:flex items-center gap-2">
-                              <span className="w-5 text-xs font-mono text-white/40">
+                              <span className="w-5 text-xs font-mono text-white/50">
                                 #{index + 1}
                               </span>
                               <FlagIcon countryCode={stat.code} size="sm" />
@@ -332,22 +316,22 @@ export function CountryStatsModal({
                                 {stat.name}
                                 {isUserCountry && <span className="ml-1 text-xs">🟢</span>}
                               </span>
-                              <div className="flex-1 h-1 bg-white/5 rounded-full overflow-hidden mx-2">
+                              <div className="flex-1 h-1 bg-white/10 rounded-full overflow-hidden mx-2">
                                 <motion.div
                                   initial={{ width: 0 }}
                                   animate={{ width: `${barWidth}%` }}
                                   transition={{
-                                    duration: 1,
+                                    duration: 1.2,
                                     delay: 0.3 + index * 0.05,
                                     ease: "easeOut",
                                   }}
                                   className="h-full rounded-full"
                                   style={{
-                                    background: `linear-gradient(90deg, var(--color-claude-coral) 0%, rgba(229, 115, 89, 0.5) 100%)`,
+                                    background: `linear-gradient(90deg, #e57359 0%, rgba(229, 115, 89, 0.5) 100%)`,
                                   }}
                                 />
                               </div>
-                              <span className="text-xs font-mono text-[var(--color-claude-coral)] w-12 text-right">
+                              <span className="text-xs font-mono text-[#e57359] w-12 text-right">
                                 <AnimatedNumber
                                   value={stat.tokens}
                                   formatter={formatNumber}
@@ -355,7 +339,7 @@ export function CountryStatsModal({
                                   delay={0.3 + index * 0.05}
                                 />
                               </span>
-                              <span className="text-xs text-white/40 w-11 text-right">
+                              <span className="text-xs text-white/50 w-11 text-right">
                                 {percentage.toFixed(1)}%
                               </span>
                             </div>
@@ -364,7 +348,7 @@ export function CountryStatsModal({
                             <div className="flex lg:hidden flex-col gap-0.5">
                               {/* Row 1: Rank + Flag + Country name (full, no truncate) */}
                               <div className="flex items-center gap-1.5">
-                                <span className="shrink-0 w-6 text-[10px] font-mono text-white/40">
+                                <span className="shrink-0 w-6 text-[10px] font-mono text-white/50">
                                   #{index + 1}
                                 </span>
                                 <span className="shrink-0">
@@ -379,25 +363,25 @@ export function CountryStatsModal({
                               </div>
                               {/* Row 2: Gauge bar + Token + Percentage */}
                               <div className="flex items-center gap-2 ml-6">
-                                <div className="flex-1 h-1.5 bg-white/5 rounded-full overflow-hidden min-w-[60px]">
+                                <div className="flex-1 h-1.5 bg-white/10 rounded-full overflow-hidden min-w-[60px]">
                                   <motion.div
                                     initial={{ width: 0 }}
                                     animate={{ width: `${barWidth}%` }}
                                     transition={{
-                                      duration: 1,
+                                      duration: 1.2,
                                       delay: 0.3 + index * 0.05,
                                       ease: "easeOut",
                                     }}
                                     className="h-full rounded-full"
                                     style={{
-                                      background: `linear-gradient(90deg, var(--color-claude-coral) 0%, rgba(229, 115, 89, 0.5) 100%)`,
+                                      background: `linear-gradient(90deg, #e57359 0%, rgba(229, 115, 89, 0.5) 100%)`,
                                     }}
                                   />
                                 </div>
-                                <span className="shrink-0 text-[10px] font-mono text-[var(--color-claude-coral)]">
+                                <span className="shrink-0 text-[10px] font-mono text-[#e57359]">
                                   {formatNumber(stat.tokens)}
                                 </span>
-                                <span className="shrink-0 text-[10px] text-white/40">
+                                <span className="shrink-0 text-[10px] text-white/50">
                                   {percentage.toFixed(1)}%
                                 </span>
                               </div>
@@ -409,9 +393,9 @@ export function CountryStatsModal({
                   </div>
                 </div>
 
-                {/* Footer note */}
+                {/* Footer note - Always dark theme */}
                 <div className="mt-4 sm:mt-6 pt-3 sm:pt-4 border-t border-white/10 text-center">
-                  <p className="text-[10px] sm:text-xs text-white/30">
+                  <p className="text-[10px] sm:text-xs text-white/50">
                     Data updates in real-time as developers use Claude Code worldwide
                   </p>
                 </div>

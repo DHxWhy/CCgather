@@ -65,7 +65,7 @@ export default function HomePage() {
             </p>
             <div className="grid grid-cols-3 gap-4">
               {[
-                { num: "01", title: "Sign in", desc: "GitHub OAuth" },
+                { num: "01", title: "Sign in", desc: "Quick & secure" },
                 { num: "02", title: "Install", desc: "npx ccgather" },
                 { num: "03", title: "Track", desc: "Auto sync" },
               ].map((item) => (
@@ -110,7 +110,7 @@ export default function HomePage() {
                 Ready
               </span>
             </div>
-            <div className="bg-black/50 rounded-lg p-3 font-mono text-sm">
+            <div className="bg-[var(--color-bg-elevated)] rounded-lg p-3 font-mono text-sm">
               <span className="text-[var(--color-text-muted)]">$</span>{" "}
               <span className="text-[var(--color-claude-coral)]">npx</span>{" "}
               <span className="text-[var(--color-text-primary)]">ccgather</span>
@@ -120,8 +120,8 @@ export default function HomePage() {
           {/* CLI Features */}
           <div className="grid grid-cols-2 gap-3 mb-6">
             {[
-              { icon: "⚡", title: "Auto Sync", desc: "Hooks into Claude Code" },
-              { icon: "🔐", title: "Secure", desc: "GitHub OAuth" },
+              { icon: "⚡", title: "Auto Sync", desc: "Syncs your usage data" },
+              { icon: "🔐", title: "Secure", desc: "Browser-based login" },
               { icon: "📊", title: "Real-time", desc: "Instant updates" },
               { icon: "🎯", title: "Zero Config", desc: "Just works" },
             ].map((feature) => (

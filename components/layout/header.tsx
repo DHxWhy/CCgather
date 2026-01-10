@@ -4,14 +4,14 @@ import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@clerk/nextjs";
-import { Menu } from "lucide-react";
+import { Menu, Settings } from "lucide-react";
 import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { ThemeSwitcher } from "@/components/ui/theme-switcher";
 import { MobileDrawer } from "./MobileDrawer";
 import { Button } from "@/components/ui/Button";
 import { CLIModal } from "@/components/cli/CLIModal";
-import { ProfileDropdown } from "@/components/auth/ProfileDropdown";
+import { SettingsModal } from "@/components/settings/SettingsModal";
 import { AuthModal } from "@/components/auth/AuthModal";
 
 // ============================================
@@ -94,6 +94,7 @@ export function Header() {
   const pathname = usePathname();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [cliModalOpen, setCLIModalOpen] = useState(false);
+  const [settingsModalOpen, setSettingsModalOpen] = useState(false);
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const [clerkFailed, setClerkFailed] = useState(false);
 
@@ -124,7 +125,7 @@ export function Header() {
 
   return (
     <>
-      <header className="fixed top-0 left-0 right-0 z-50">
+      <header className="fixed top-0 left-0 right-0 z-[60]">
         {/* Glassmorphism Background */}
         <div
           className={cn(
@@ -196,7 +197,18 @@ export function Header() {
             )}
 
             {/* 로그인 상태: Clerk 로드 완료 + 로그인됨 */}
-            {isLoaded && isSignedIn && !clerkFailed && <ProfileDropdown align="right" />}
+            {isLoaded && isSignedIn && !clerkFailed && (
+              <button
+                onClick={() => setSettingsModalOpen(true)}
+                className="flex items-center justify-center w-8 h-8 rounded-full border border-[var(--border-default)] hover:border-[var(--color-text-muted)] transition-colors group"
+                aria-label="Settings"
+              >
+                <Settings
+                  size={14}
+                  className="text-[var(--color-text-muted)] group-hover:text-[var(--color-text-secondary)] transition-colors"
+                />
+              </button>
+            )}
           </div>
 
           {/* Mobile Menu Button */}
@@ -256,7 +268,7 @@ export function Header() {
 
           {/* Auth Section */}
           <div className="px-4 pt-4">
-            {showSignInButton && (
+            {showSignInButton ? (
               <Button
                 variant="primary"
                 size="lg"
@@ -268,6 +280,22 @@ export function Header() {
               >
                 Sign In
               </Button>
+            ) : (
+              <button
+                onClick={() => {
+                  closeMobileMenu();
+                  setSettingsModalOpen(true);
+                }}
+                className={cn(
+                  "w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl",
+                  "text-base font-medium transition-all duration-200",
+                  "text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]",
+                  "border border-[var(--border-default)] hover:border-[var(--color-text-muted)]"
+                )}
+              >
+                <Settings size={18} />
+                Settings
+              </button>
             )}
           </div>
         </div>
@@ -275,6 +303,9 @@ export function Header() {
 
       {/* CLI Modal */}
       <CLIModal isOpen={cliModalOpen} onClose={() => setCLIModalOpen(false)} />
+
+      {/* Settings Modal */}
+      <SettingsModal isOpen={settingsModalOpen} onClose={() => setSettingsModalOpen(false)} />
 
       {/* Auth Modal */}
       <AuthModal isOpen={authModalOpen} onClose={() => setAuthModalOpen(false)} />
