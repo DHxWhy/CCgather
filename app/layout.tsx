@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Inter, JetBrains_Mono } from "next/font/google";
+import { Analytics } from "@vercel/analytics/next";
 import { ClerkProvider } from "@clerk/nextjs";
 import { dark } from "@clerk/themes";
 import { Providers } from "./providers";
@@ -102,6 +103,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       >
         <body className="min-h-screen bg-bg-primary font-sans antialiased">
           <Providers>{children}</Providers>
+          <Analytics />
         </body>
       </html>
     </ClerkProvider>
