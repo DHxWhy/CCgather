@@ -829,9 +829,10 @@ export function ProfileSidePanel({
     <>
       {isOverlayPanel && (
         <div
-          className={`fixed inset-0 z-40 transition-opacity duration-300 lg:hidden pointer-events-none ${
-            isOpen ? "opacity-100" : "opacity-0"
+          className={`fixed inset-0 z-40 bg-black/50 transition-opacity duration-300 lg:hidden ${
+            isOpen ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"
           }`}
+          onClick={onClose}
         />
       )}
 

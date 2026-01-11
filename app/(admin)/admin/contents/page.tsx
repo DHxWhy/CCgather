@@ -105,7 +105,17 @@ export default function AdminContentsPage() {
       const response = await fetch("/api/admin/settings");
       if (response.ok) {
         const data = await response.json();
-        setSettings(data);
+        setSettings((prev) => ({
+          ...prev,
+          newsMode: data.newsMode || data.news_mode || prev.newsMode,
+          youtubeMode: data.youtubeMode || data.youtube_mode || prev.youtubeMode,
+          newsCrawlInterval:
+            data.newsCrawlInterval || data.news_crawl_interval || prev.newsCrawlInterval,
+          youtubeCrawlInterval:
+            data.youtubeCrawlInterval || data.youtube_crawl_interval || prev.youtubeCrawlInterval,
+          lastNewsCrawlAt: data.lastNewsCrawlAt || data.last_news_crawl_at,
+          lastYoutubeCrawlAt: data.lastYoutubeCrawlAt || data.last_youtube_crawl_at,
+        }));
       }
     } catch (error) {
       console.error("Failed to fetch settings:", error);
@@ -355,7 +365,7 @@ function NewsAutomationPanel({
   manualUrl: string;
   setManualUrl: (url: string) => void;
 }) {
-  const currentMode = settings.newsMode;
+  const currentMode = settings.newsMode || "confirm";
 
   return (
     <div className="bg-blue-500/5 rounded-xl p-6 border border-blue-500/20">
@@ -464,7 +474,7 @@ function YouTubeAutomationPanel({
   manualUrl: string;
   setManualUrl: (url: string) => void;
 }) {
-  const currentMode = settings.youtubeMode;
+  const currentMode = settings.youtubeMode || "confirm";
 
   return (
     <div className="bg-red-500/5 rounded-xl p-6 border border-red-500/20">

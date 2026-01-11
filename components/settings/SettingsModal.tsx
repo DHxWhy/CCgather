@@ -123,7 +123,10 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
           onClick={(e) => e.stopPropagation()}
         >
           {/* Mobile Header */}
-          <div className="md:hidden flex items-center justify-between p-4 border-b border-[var(--border-default)]">
+          <div
+            className="md:hidden flex items-center justify-between p-4 border-b border-[var(--border-default)]"
+            style={{ paddingTop: "max(1rem, env(safe-area-inset-top))" }}
+          >
             <h2 className="text-lg font-semibold text-text-primary">Settings</h2>
             <button
               onClick={onClose}

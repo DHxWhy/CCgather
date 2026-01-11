@@ -77,13 +77,6 @@ function extractProjectName(filePath: string): string {
 }
 
 /**
- * Get the path to ccgather.json
- */
-export function getCCGatherJsonPath(): string {
-  return path.join(os.homedir(), ".claude", "ccgather.json");
-}
-
-/**
  * Get Claude Code projects directory
  */
 function getClaudeProjectsDir(): string {
@@ -450,52 +443,6 @@ export function scanUsageData(options: ScanOptions = {}): CCGatherData | null {
       rateLimitTier: credentials.rateLimitTier,
     },
   };
-}
-
-/**
- * Read existing ccgather.json
- */
-export function readCCGatherJson(): CCGatherData | null {
-  const jsonPath = getCCGatherJsonPath();
-
-  if (!fs.existsSync(jsonPath)) {
-    return null;
-  }
-
-  try {
-    const content = fs.readFileSync(jsonPath, "utf-8");
-    return JSON.parse(content) as CCGatherData;
-  } catch {
-    return null;
-  }
-}
-
-/**
- * Write ccgather.json
- */
-export function writeCCGatherJson(data: CCGatherData): void {
-  const jsonPath = getCCGatherJsonPath();
-  const claudeDir = path.dirname(jsonPath);
-
-  // Ensure .claude directory exists
-  if (!fs.existsSync(claudeDir)) {
-    fs.mkdirSync(claudeDir, { recursive: true });
-  }
-
-  fs.writeFileSync(jsonPath, JSON.stringify(data, null, 2));
-}
-
-/**
- * Scan and save ccgather.json
- */
-export function scanAndSave(options: ScanOptions = {}): CCGatherData | null {
-  const data = scanUsageData(options);
-
-  if (data) {
-    writeCCGatherJson(data);
-  }
-
-  return data;
 }
 
 /**

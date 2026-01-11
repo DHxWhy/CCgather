@@ -38,6 +38,7 @@ export default function CLIAuthPage() {
       }, 2000);
       return () => clearTimeout(timer);
     }
+    return;
   }, [status, callback, router]);
 
   async function authorizeDirectly() {

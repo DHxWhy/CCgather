@@ -523,12 +523,12 @@ export default function LeaderboardPage() {
 
           {/* Filters */}
           <div className="flex items-center justify-between gap-1.5 sm:gap-2 md:gap-3 mb-6">
-            <div className="flex items-center gap-1.5 sm:gap-2 md:gap-3">
+            <div className="flex items-center gap-1.5 sm:gap-2 md:gap-3 flex-shrink-0">
               {/* Scope Filter */}
-              <div className="flex p-0.5 sm:p-1 bg-[var(--color-filter-bg)] border border-[var(--border-default)] rounded-lg gap-0.5 sm:gap-1">
+              <div className="flex p-0.5 sm:p-1 bg-[var(--color-filter-bg)] border border-[var(--border-default)] rounded-lg gap-0.5 sm:gap-1 flex-shrink-0">
                 <button
                   onClick={() => setScopeFilter("global")}
-                  className={`px-2 sm:px-2.5 py-1 sm:py-1.5 rounded-md text-sm md:text-xs font-medium transition-colors ${
+                  className={`min-w-[32px] px-2 sm:px-2.5 py-1.5 rounded-md text-sm md:text-xs font-medium transition-colors flex items-center justify-center ${
                     scopeFilter === "global"
                       ? "bg-[var(--color-claude-coral)] text-white"
                       : "text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-filter-hover)]"
@@ -538,7 +538,7 @@ export default function LeaderboardPage() {
                 </button>
                 <button
                   onClick={() => setScopeFilter("country")}
-                  className={`px-2 sm:px-2.5 py-1 sm:py-1.5 rounded-md text-sm md:text-xs font-medium transition-colors flex items-center justify-center ${
+                  className={`min-w-[32px] px-2 sm:px-2.5 py-1.5 rounded-md text-sm md:text-xs font-medium transition-colors flex items-center justify-center ${
                     scopeFilter === "country"
                       ? "bg-[var(--color-claude-coral)] text-white"
                       : "text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-filter-hover)]"
@@ -548,6 +548,7 @@ export default function LeaderboardPage() {
                     countryCode={currentUserCountry}
                     svg
                     style={{ width: "16px", height: "16px" }}
+                    className="flex-shrink-0"
                   />
                 </button>
               </div>
@@ -555,49 +556,67 @@ export default function LeaderboardPage() {
               {/* Divider - hidden on smallest screens */}
               <div className="hidden sm:block h-6 w-px bg-[var(--border-default)]" />
 
-              {/* Period Filter */}
-              <div className="flex p-0.5 sm:p-1 bg-[var(--color-filter-bg)] border border-[var(--border-default)] rounded-lg gap-0.5 sm:gap-1">
+              {/* Period Filter - Desktop/Tablet: buttons, Mobile: dropdown */}
+              {/* Desktop & Tablet: Button Group */}
+              <div className="hidden sm:flex p-0.5 sm:p-1 bg-[var(--color-filter-bg)] border border-[var(--border-default)] rounded-lg gap-0.5 sm:gap-1">
                 {[
+                  { value: "all", label: "∞", labelFull: "All Time" },
                   { value: "today", label: "1D", labelFull: "Today" },
                   { value: "7d", label: "7D" },
                   { value: "30d", label: "30D" },
-                  { value: "all", label: "∞", labelFull: "All Time" },
                 ].map((period) => (
                   <button
                     key={period.value}
                     onClick={() => setPeriodFilter(period.value as PeriodFilter)}
-                    className={`px-1.5 sm:px-2 md:px-3 py-1 sm:py-1.5 rounded-md text-xs font-medium transition-colors ${
+                    className={`px-2 lg:px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
                       periodFilter === period.value
                         ? "bg-[var(--color-filter-active)] text-[var(--color-text-primary)]"
                         : "text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-filter-hover)]"
                     }`}
                   >
-                    <span className="md:hidden">{period.label}</span>
-                    <span className="hidden md:inline">{period.labelFull || period.label}</span>
+                    {/* Tablet: icon only, PC: full text */}
+                    <span className="lg:hidden">{period.label}</span>
+                    <span className="hidden lg:inline">{period.labelFull || period.label}</span>
                   </button>
                 ))}
+              </div>
+              {/* Mobile: Dropdown */}
+              <div className="relative sm:hidden">
+                <select
+                  value={periodFilter}
+                  onChange={(e) => setPeriodFilter(e.target.value as PeriodFilter)}
+                  className="appearance-none px-3 py-1.5 pr-7 bg-[var(--color-filter-bg)] border border-[var(--border-default)] rounded-lg text-xs font-medium text-[var(--color-text-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--color-claude-coral)]"
+                >
+                  <option value="all">All Time</option>
+                  <option value="today">Today</option>
+                  <option value="7d">7D</option>
+                  <option value="30d">30D</option>
+                </select>
+                <span className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-[var(--color-text-muted)] text-[10px]">
+                  ▼
+                </span>
               </div>
             </div>
 
             {/* Right side - My Rank & Sort */}
-            <div className="flex items-center gap-1.5 sm:gap-2 md:gap-3">
+            <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
               {(myRankInfo || currentUserData) && (
                 <button
                   onClick={goToMyRank}
-                  className="flex items-center gap-1 sm:gap-1.5 px-1.5 sm:px-2.5 md:px-3 py-1 sm:py-1.5 bg-[var(--color-filter-bg)] border border-[var(--border-default)] hover:bg-[var(--color-filter-hover)] rounded-lg text-xs font-medium text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] transition-colors"
+                  className="flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 lg:px-3 py-1.5 bg-[var(--color-filter-bg)] border border-[var(--border-default)] hover:bg-[var(--color-filter-hover)] rounded-lg text-xs font-medium text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] transition-colors flex-shrink-0"
                 >
                   <span>📍</span>
-                  <span className="hidden md:inline">My Rank</span>
+                  <span className="hidden lg:inline">My Rank</span>
                   <span className="text-[var(--color-claude-coral)] font-semibold">
                     #{myRankInfo?.rank || currentUserData?.rank}
                   </span>
                 </button>
               )}
 
-              <div className="flex p-0.5 sm:p-1 bg-[var(--color-filter-bg)] border border-[var(--border-default)] rounded-lg gap-0.5 sm:gap-1">
+              <div className="flex p-0.5 sm:p-1 bg-[var(--color-filter-bg)] border border-[var(--border-default)] rounded-lg gap-0.5 sm:gap-1 flex-shrink-0">
                 <button
                   onClick={() => setSortBy("cost")}
-                  className={`px-2 sm:px-2.5 py-1 sm:py-1.5 rounded-md text-xs font-medium transition-colors ${
+                  className={`min-w-[32px] px-2 sm:px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors flex items-center justify-center ${
                     sortBy === "cost"
                       ? "bg-[var(--color-cost)] text-white"
                       : "text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-filter-hover)]"
@@ -607,7 +626,7 @@ export default function LeaderboardPage() {
                 </button>
                 <button
                   onClick={() => setSortBy("tokens")}
-                  className={`px-2 sm:px-2.5 py-1 sm:py-1.5 rounded-md text-xs font-medium transition-colors ${
+                  className={`min-w-[32px] px-2 sm:px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors flex items-center justify-center ${
                     sortBy === "tokens"
                       ? "bg-[var(--color-claude-coral)] text-white"
                       : "text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-filter-hover)]"
