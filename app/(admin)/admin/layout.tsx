@@ -9,6 +9,7 @@ const ADMIN_TABS = [
   { id: "users", label: "사용자 관리", href: "/admin", icon: "👥" },
   { id: "ai-usage", label: "AI 사용량", href: "/admin/ai-usage", icon: "🤖" },
   { id: "contents", label: "콘텐츠 관리", href: "/admin/contents", icon: "📰" },
+  { id: "automation", label: "뉴스 자동화", href: "/admin/automation", icon: "⚡" },
 ];
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
