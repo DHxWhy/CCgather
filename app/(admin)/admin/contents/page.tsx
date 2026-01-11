@@ -1,6 +1,9 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Image from "next/image";
+import ThumbnailManager from "@/components/admin/ThumbnailManager";
+import type { ThumbnailSource } from "@/types/automation";
 
 type ContentType = "news" | "youtube";
 type ContentStatus = "pending" | "ready" | "published" | "rejected";
@@ -9,10 +12,12 @@ type ContentTab = "news" | "youtube";
 interface ContentItem {
   id: string;
   type: ContentType;
+  content_type?: "version_update" | "official" | "press" | "community" | "youtube";
   title: string;
   source_url: string;
   source_name: string;
   thumbnail_url?: string;
+  thumbnail_source?: ThumbnailSource;
   summary_md?: string;
   key_points?: string[];
   category?: string;
@@ -156,7 +161,7 @@ export default function AdminContentsPage() {
         const data = await response.json();
         alert(`❌ ${data.error || "수집 실패"}`);
       }
-    } catch (error) {
+    } catch {
       alert("❌ 수집 오류");
     } finally {
       setCrawling(false);
@@ -604,8 +609,8 @@ function ContentCard({
       <div className="flex gap-4">
         {/* Thumbnail */}
         {item.thumbnail_url && (
-          <div className="w-40 h-24 rounded-lg overflow-hidden flex-shrink-0 bg-black">
-            <img src={item.thumbnail_url} alt="" className="w-full h-full object-cover" />
+          <div className="relative w-40 h-24 rounded-lg overflow-hidden flex-shrink-0 bg-black">
+            <Image src={item.thumbnail_url} alt="" fill className="object-cover" unoptimized />
             {item.duration && (
               <div className="absolute bottom-1 right-1 px-1 py-0.5 bg-black/80 rounded text-xs text-white">
                 {item.duration}
@@ -712,6 +717,15 @@ function ContentCard({
   );
 }
 
+// Content Type Options for dropdown
+const CONTENT_TYPE_OPTIONS = [
+  { value: "version_update", label: "버전 업데이트" },
+  { value: "official", label: "공식 발표" },
+  { value: "press", label: "언론 뉴스" },
+  { value: "community", label: "커뮤니티" },
+  { value: "youtube", label: "YouTube" },
+];
+
 // Edit Modal Component
 function EditContentModal({
   item,
@@ -725,14 +739,27 @@ function EditContentModal({
   const [title, setTitle] = useState(item.title);
   const [summary, setSummary] = useState(item.summary_md || "");
   const [category, setCategory] = useState(item.category || "");
+  const [contentType, setContentType] = useState<string>(item.content_type || "press");
   const [keyPoints, setKeyPoints] = useState(item.key_points?.join("\n") || "");
+  const [thumbnailUrl, setThumbnailUrl] = useState(item.thumbnail_url || "");
+  const [thumbnailSource, setThumbnailSource] = useState<ThumbnailSource | undefined>(
+    item.thumbnail_source
+  );
+
+  const handleThumbnailUpdate = (url: string, source: ThumbnailSource) => {
+    setThumbnailUrl(url);
+    setThumbnailSource(source);
+  };
 
   const handleSave = () => {
     onSave({
       title,
       summary_md: summary,
       category,
+      content_type: contentType as ContentItem["content_type"],
       key_points: keyPoints.split("\n").filter((p) => p.trim()),
+      thumbnail_url: thumbnailUrl || undefined,
+      thumbnail_source: thumbnailSource,
     });
   };
 
@@ -757,6 +784,21 @@ function EditContentModal({
             </div>
           )}
 
+          {/* Thumbnail Manager */}
+          {item.type === "news" && (
+            <div>
+              <label className="block text-sm font-medium text-white/60 mb-3">썸네일 이미지</label>
+              <ThumbnailManager
+                contentId={item.id}
+                currentThumbnail={thumbnailUrl}
+                thumbnailSource={thumbnailSource}
+                title={title}
+                summary={summary}
+                onThumbnailUpdate={handleThumbnailUpdate}
+              />
+            </div>
+          )}
+
           {/* Title */}
           <div>
             <label className="block text-sm font-medium text-white/60 mb-2">제목</label>
@@ -767,6 +809,24 @@ function EditContentModal({
               className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-[var(--color-claude-coral)]"
             />
           </div>
+
+          {/* Content Type (for news) */}
+          {item.type === "news" && (
+            <div>
+              <label className="block text-sm font-medium text-white/60 mb-2">콘텐츠 유형</label>
+              <select
+                value={contentType}
+                onChange={(e) => setContentType(e.target.value)}
+                className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-[var(--color-claude-coral)]"
+              >
+                {CONTENT_TYPE_OPTIONS.filter((opt) => opt.value !== "youtube").map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
 
           {/* Category */}
           <div>

@@ -234,6 +234,56 @@ export interface PublishOrderProps {
 }
 
 // ============================================
+// Content Types (News Tab Redesign)
+// ============================================
+
+export type ContentType = "news" | "youtube";
+export type ContentCategory = "version_update" | "official" | "press" | "community" | "youtube";
+export type ContentStatus = "pending" | "ready" | "published" | "rejected";
+export type ThumbnailSource = "gemini" | "og_image" | "manual" | "default";
+
+export interface ContentItem {
+  id: string;
+  type: ContentType;
+  content_type?: ContentCategory;
+  title: string;
+  source_url: string;
+  source_name?: string;
+  thumbnail_url?: string;
+  thumbnail_source?: ThumbnailSource;
+  thumbnail_generated_at?: string;
+  summary_md?: string;
+  key_points?: string[];
+  category?: string;
+  tags?: string[];
+  status: ContentStatus;
+  published_at?: string;
+  created_at: string;
+  updated_at?: string;
+  // YouTube specific
+  video_id?: string;
+  channel_name?: string;
+  channel_id?: string;
+  duration?: string;
+  view_count?: number;
+}
+
+export interface ThumbnailGenerationRequest {
+  content_id: string;
+  title: string;
+  summary?: string;
+  source_name?: string;
+  force_regenerate?: boolean;
+}
+
+export interface ThumbnailGenerationResponse {
+  success: boolean;
+  thumbnail_url?: string;
+  source: ThumbnailSource;
+  error?: string;
+}
+
+// ============================================
 // API Response Types
 // ============================================
 

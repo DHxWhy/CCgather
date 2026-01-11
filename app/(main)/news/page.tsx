@@ -1,6 +1,11 @@
 import Link from "next/link";
-import { Newspaper, RefreshCw, ArrowRight, ExternalLink, Clock } from "lucide-react";
+import { Newspaper, RefreshCw, ArrowRight, ExternalLink, Clock, Building2 } from "lucide-react";
 import { NEWS_ARTICLES, UPDATE_POSTS } from "@/lib/data/news-content";
+import { createClient } from "@/lib/supabase/server";
+import VersionCarousel from "@/components/news/VersionCarousel";
+import OfficialNewsCard from "@/components/news/OfficialNewsCard";
+import PressNewsCard from "@/components/news/PressNewsCard";
+import type { ContentItem } from "@/types/automation";
 
 // ===========================================
 // SEO Metadata
@@ -27,7 +32,45 @@ export const metadata = {
 };
 
 // ===========================================
-// News Card Component
+// Data Fetching
+// ===========================================
+
+async function getNewsContent() {
+  try {
+    const supabase = await createClient();
+
+    // Fetch official news
+    const { data: officialNews } = await supabase
+      .from("contents")
+      .select("*")
+      .eq("type", "news")
+      .eq("status", "published")
+      .eq("content_type", "official")
+      .order("published_at", { ascending: false, nullsFirst: false })
+      .limit(5);
+
+    // Fetch press news
+    const { data: pressNews } = await supabase
+      .from("contents")
+      .select("*")
+      .eq("type", "news")
+      .eq("status", "published")
+      .eq("content_type", "press")
+      .order("published_at", { ascending: false, nullsFirst: false })
+      .limit(9);
+
+    return {
+      official: (officialNews || []) as ContentItem[],
+      press: (pressNews || []) as ContentItem[],
+    };
+  } catch (error) {
+    console.error("Failed to fetch news content:", error);
+    return { official: [], press: [] };
+  }
+}
+
+// ===========================================
+// Fallback News Card (for static data)
 // ===========================================
 
 function NewsCard({ article }: { article: (typeof NEWS_ARTICLES)[0] }) {
@@ -52,7 +95,10 @@ function NewsCard({ article }: { article: (typeof NEWS_ARTICLES)[0] }) {
             {article.source}
           </a>
         )}
-        <span>{date}</span>
+        <span className="flex items-center gap-1">
+          <Clock className="w-3 h-3" />
+          {date}
+        </span>
       </div>
 
       {/* Title */}
@@ -67,54 +113,17 @@ function NewsCard({ article }: { article: (typeof NEWS_ARTICLES)[0] }) {
 }
 
 // ===========================================
-// Update Card Component
-// ===========================================
-
-function UpdateCard({ post }: { post: (typeof UPDATE_POSTS)[0] }) {
-  const date = new Date(post.publishedAt).toLocaleDateString("en-US", {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-  });
-
-  return (
-    <Link href={`/news/updates/${post.slug}`}>
-      <article className="group h-full p-5 rounded-xl border border-green-500/20 bg-gradient-to-br from-green-500/5 to-transparent hover:border-green-500/40 hover:from-green-500/10 transition-all cursor-pointer">
-        {/* Version Badge & Date */}
-        <div className="flex items-center justify-between mb-3">
-          <span className="px-2.5 py-1 rounded-md bg-green-500/20 text-green-400 text-xs font-mono font-medium">
-            {post.version}
-          </span>
-          <span className="text-xs text-text-muted flex items-center gap-1">
-            <Clock className="w-3 h-3" />
-            {date}
-          </span>
-        </div>
-
-        {/* Title */}
-        <h3 className="font-semibold text-[var(--color-text-primary)] mb-2 group-hover:text-green-400 transition-colors leading-snug">
-          {post.title}
-        </h3>
-
-        {/* Summary */}
-        <p className="text-sm text-text-secondary mb-4 leading-relaxed">{post.summary}</p>
-
-        {/* Read More */}
-        <span className="inline-flex items-center gap-1.5 text-sm text-green-400 font-medium group-hover:gap-2.5 transition-all">
-          Read more <ArrowRight className="w-4 h-4" />
-        </span>
-      </article>
-    </Link>
-  );
-}
-
-// ===========================================
 // Main Page Component
 // ===========================================
 
-export default function NewsPage() {
+export default async function NewsPage() {
+  const { official, press } = await getNewsContent();
+
+  // Use DB content if available, otherwise fallback to static
+  const hasDbContent = official.length > 0 || press.length > 0;
+
   return (
-    <div className="mx-auto max-w-4xl px-4 py-8 md:py-12">
+    <div className="mx-auto max-w-5xl px-4 py-8 md:py-12">
       {/* Header */}
       <header className="mb-10 md:mb-12">
         <h1 className="text-2xl md:text-3xl font-bold text-[var(--color-text-primary)] mb-2">
@@ -125,51 +134,85 @@ export default function NewsPage() {
         </p>
       </header>
 
-      {/* Updates Section */}
+      {/* Section 1: Version Updates (Carousel) */}
       <section className="mb-12 md:mb-16">
         <div className="flex items-center gap-3 mb-6">
           <div className="p-2.5 rounded-xl bg-green-500/10">
             <RefreshCw className="w-5 h-5 text-green-400" />
           </div>
           <div>
-            <h2 className="text-lg font-semibold text-[var(--color-text-primary)]">Updates</h2>
+            <h2 className="text-lg font-semibold text-[var(--color-text-primary)]">
+              Version Updates
+            </h2>
             <p className="text-xs text-text-muted">New features and how to use them</p>
           </div>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          {UPDATE_POSTS.map((post) => (
-            <UpdateCard key={post.slug} post={post} />
-          ))}
-        </div>
+        <VersionCarousel updates={UPDATE_POSTS} />
 
         <div className="mt-6 text-center">
           <Link
             href="/news/updates"
-            className="inline-flex items-center gap-1.5 text-sm text-text-muted hover:text-primary transition-colors font-medium"
+            className="inline-flex items-center gap-1.5 text-sm text-text-muted hover:text-green-400 transition-colors font-medium"
           >
             View all updates <ArrowRight className="w-4 h-4" />
           </Link>
         </div>
       </section>
 
-      {/* News Section */}
+      {/* Section 2: Anthropic Official */}
+      <section className="mb-12 md:mb-16">
+        <div className="flex items-center gap-3 mb-6">
+          <div className="p-2.5 rounded-xl bg-orange-500/10">
+            <Building2 className="w-5 h-5 text-orange-400" />
+          </div>
+          <div>
+            <h2 className="text-lg font-semibold text-[var(--color-text-primary)]">
+              Anthropic Official
+            </h2>
+            <p className="text-xs text-text-muted">Official announcements from Anthropic</p>
+          </div>
+        </div>
+
+        <div className="space-y-4">
+          {official.length > 0 ? (
+            official.map((article) => <OfficialNewsCard key={article.id} article={article} />)
+          ) : (
+            <div className="text-center py-8 text-white/40 bg-white/[0.02] rounded-xl border border-white/10">
+              <Building2 className="w-8 h-8 mx-auto mb-2 opacity-40" />
+              <p>No official announcements yet</p>
+              <p className="text-xs mt-1">Check back soon for updates from Anthropic</p>
+            </div>
+          )}
+        </div>
+      </section>
+
+      {/* Section 3: Press News */}
       <section>
         <div className="flex items-center gap-3 mb-6">
           <div className="p-2.5 rounded-xl bg-blue-500/10">
             <Newspaper className="w-5 h-5 text-blue-400" />
           </div>
           <div>
-            <h2 className="text-lg font-semibold text-[var(--color-text-primary)]">News</h2>
+            <h2 className="text-lg font-semibold text-[var(--color-text-primary)]">Press News</h2>
             <p className="text-xs text-text-muted">Claude Code in the headlines</p>
           </div>
         </div>
 
-        <div className="grid grid-cols-1 gap-4">
-          {NEWS_ARTICLES.map((article) => (
-            <NewsCard key={article.id} article={article} />
-          ))}
-        </div>
+        {hasDbContent && press.length > 0 ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {press.map((article) => (
+              <PressNewsCard key={article.id} article={article} />
+            ))}
+          </div>
+        ) : (
+          // Fallback to static data
+          <div className="grid grid-cols-1 gap-4">
+            {NEWS_ARTICLES.map((article) => (
+              <NewsCard key={article.id} article={article} />
+            ))}
+          </div>
+        )}
       </section>
     </div>
   );
