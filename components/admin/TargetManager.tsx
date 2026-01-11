@@ -343,7 +343,8 @@ export default function TargetManager({ onRefresh }: TargetManagerProps) {
                   </div>
                   <div className="text-sm text-white/40 truncate">{target.value}</div>
                   <div className="text-xs text-white/30 mt-1">
-                    수집 {target.crawl_count}회 | 성공률 {target.success_rate.toFixed(0)}%
+                    수집 {target.crawl_count ?? 0}회 | 성공률{" "}
+                    {(target.success_rate ?? 0).toFixed(0)}%
                     {target.last_crawled_at && (
                       <> | 마지막: {new Date(target.last_crawled_at).toLocaleDateString("ko-KR")}</>
                     )}
