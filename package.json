@@ -33,7 +33,6 @@
     "@anthropic-ai/sdk": "^0.52.0",
     "@clerk/nextjs": "^6.36.5",
     "@clerk/themes": "^2.4.47",
-    "@hookform/resolvers": "^5.2.2",
     "@radix-ui/react-popover": "^1.1.15",
     "@supabase/ssr": "^0.8.0",
     "@supabase/supabase-js": "^2.89.0",
@@ -44,7 +43,6 @@
     "@types/react-dom": "^19.2.3",
     "autoprefixer": "^10.4.23",
     "cheerio": "^1.0.0",
-    "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cobe": "^0.6.5",
     "date-fns": "^4.1.0",
@@ -57,15 +55,13 @@
     "react-country-flag": "^3.1.0",
     "react-day-picker": "^9.13.0",
     "react-dom": "^19.2.3",
-    "react-hook-form": "^7.70.0",
     "recharts": "^3.6.0",
     "svix": "^1.84.1",
     "tailwind-merge": "^3.4.0",
     "tailwindcss": "^4.1.18",
     "tw-animate-css": "^1.4.0",
     "typescript": "^5.9.3",
-    "zod": "^4.3.5",
-    "zustand": "^5.0.9"
+    "zod": "^4.3.5"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.3.3",

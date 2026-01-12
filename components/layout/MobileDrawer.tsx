@@ -59,6 +59,7 @@ export function MobileDrawer({
   // Touch handlers for swipe-to-close
   const handleTouchStart = useCallback((e: TouchEvent<HTMLDivElement>) => {
     const touch = e.touches[0];
+    if (!touch) return;
     setTouchStartX(touch.clientX);
     setTouchStartY(touch.clientY);
     setTouchCurrentX(touch.clientX);
@@ -71,6 +72,7 @@ export function MobileDrawer({
       if (touchStartX === null || touchStartY === null) return;
 
       const touch = e.touches[0];
+      if (!touch) return;
       const deltaX = touch.clientX - touchStartX;
       const deltaY = touch.clientY - touchStartY;
 
