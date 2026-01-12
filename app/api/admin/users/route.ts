@@ -2,6 +2,11 @@ import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { createServiceClient } from "@/lib/supabase/server";
 
+interface UserRow {
+  last_submission_at: string | null;
+  total_tokens: number | null;
+}
+
 // Admin check middleware
 async function isAdmin() {
   const { userId } = await auth();
@@ -54,12 +59,13 @@ export async function GET() {
     today.setHours(0, 0, 0, 0);
 
     const activeToday =
-      users?.filter((u) => {
+      users?.filter((u: UserRow) => {
         if (!u.last_submission_at) return false;
         return new Date(u.last_submission_at) >= today;
       }).length || 0;
 
-    const totalTokens = users?.reduce((sum, u) => sum + (u.total_tokens || 0), 0) || 0;
+    const totalTokens =
+      users?.reduce((sum: number, u: UserRow) => sum + (u.total_tokens || 0), 0) || 0;
 
     return NextResponse.json({
       users: users || [],

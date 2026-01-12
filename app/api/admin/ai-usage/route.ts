@@ -2,6 +2,17 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { createServiceClient } from "@/lib/supabase/server";
 
+// AI usage log entry type
+interface AIUsageLog {
+  id: string;
+  created_at: string;
+  model: string | null;
+  operation: string | null;
+  input_tokens: number | null;
+  output_tokens: number | null;
+  cost_usd: string | null;
+}
+
 // Token costs per 1M tokens (from lib/ai/types.ts)
 const TOKEN_COSTS: Record<string, { input: number; output: number }> = {
   "claude-3-5-haiku-20241022": { input: 0.8, output: 4.0 },
@@ -72,19 +83,28 @@ export async function GET(request: NextRequest) {
     }
 
     // Aggregate stats
-    const totalRequests = logs?.length || 0;
-    const totalInputTokens = logs?.reduce((sum: number, l) => sum + (l.input_tokens || 0), 0) || 0;
-    const totalOutputTokens =
-      logs?.reduce((sum: number, l) => sum + (l.output_tokens || 0), 0) || 0;
+    const typedLogs = (logs || []) as AIUsageLog[];
+    const totalRequests = typedLogs.length;
+    const totalInputTokens = typedLogs.reduce(
+      (sum: number, l: AIUsageLog) => sum + (l.input_tokens || 0),
+      0
+    );
+    const totalOutputTokens = typedLogs.reduce(
+      (sum: number, l: AIUsageLog) => sum + (l.output_tokens || 0),
+      0
+    );
     const totalTokensUsed = totalInputTokens + totalOutputTokens;
-    const totalCost = logs?.reduce((sum: number, l) => sum + parseFloat(l.cost_usd || "0"), 0) || 0;
+    const totalCost = typedLogs.reduce(
+      (sum: number, l: AIUsageLog) => sum + parseFloat(l.cost_usd || "0"),
+      0
+    );
 
     // Group by day
     const byDay = new Map<
       string,
       { count: number; tokens: number; inputTokens: number; outputTokens: number; cost: number }
     >();
-    logs?.forEach((log) => {
+    typedLogs.forEach((log: AIUsageLog) => {
       const date = new Date(log.created_at).toISOString().split("T")[0] ?? "";
       const existing = byDay.get(date) || {
         count: 0,
@@ -110,7 +130,7 @@ export async function GET(request: NextRequest) {
       string,
       { count: number; inputTokens: number; outputTokens: number; tokens: number; cost: number }
     >();
-    logs?.forEach((log) => {
+    typedLogs.forEach((log: AIUsageLog) => {
       const model = log.model || "unknown";
       const existing = byModel.get(model) || {
         count: 0,
@@ -141,7 +161,7 @@ export async function GET(request: NextRequest) {
       string,
       { count: number; inputTokens: number; outputTokens: number; cost: number }
     >();
-    logs?.forEach((log) => {
+    typedLogs.forEach((log: AIUsageLog) => {
       const operation = log.operation || "unknown";
       const existing = byOperation.get(operation) || {
         count: 0,
@@ -172,7 +192,7 @@ export async function GET(request: NextRequest) {
         cost: number;
       }
     >();
-    logs?.forEach((log) => {
+    typedLogs.forEach((log: AIUsageLog) => {
       const model = log.model || "unknown";
       const operation = log.operation || "unknown";
       const key = `${model}:${operation}`;

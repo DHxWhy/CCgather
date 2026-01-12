@@ -2,6 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/server";
 import type { BeginnersDictionaryItem } from "@/types/changelog";
 
+interface BeginnerItem {
+  verification_status: string;
+  is_featured: boolean;
+}
+
 /**
  * GET /api/admin/beginners
  * Admin용 beginners dictionary 관리
@@ -33,10 +38,15 @@ export async function GET(request: NextRequest) {
     // 통계 계산
     const stats = {
       total_items: (items || []).length,
-      pending_items: (items || []).filter((i) => i.verification_status === "pending").length,
-      approved_items: (items || []).filter((i) => i.verification_status === "approved").length,
-      rejected_items: (items || []).filter((i) => i.verification_status === "rejected").length,
-      featured_items: (items || []).filter((i) => i.is_featured).length,
+      pending_items: (items || []).filter((i: BeginnerItem) => i.verification_status === "pending")
+        .length,
+      approved_items: (items || []).filter(
+        (i: BeginnerItem) => i.verification_status === "approved"
+      ).length,
+      rejected_items: (items || []).filter(
+        (i: BeginnerItem) => i.verification_status === "rejected"
+      ).length,
+      featured_items: (items || []).filter((i: BeginnerItem) => i.is_featured).length,
     };
 
     // 카테고리별 그룹화

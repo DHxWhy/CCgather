@@ -13,6 +13,11 @@ import { NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/server";
 import { processChangelog, processAndSaveChangelog } from "@/lib/ai/changelog";
 
+interface GenerationLog {
+  result_status: string;
+  cost_usd: number | null;
+}
+
 // ============================================
 // POST: Generate changelog content
 // ============================================
@@ -145,9 +150,11 @@ export async function GET(request: Request) {
       totalGenerations: logs?.length || 0,
       successRate:
         logs && logs.length > 0
-          ? (logs.filter((l) => l.result_status === "success").length / logs.length) * 100
+          ? (logs.filter((l: GenerationLog) => l.result_status === "success").length /
+              logs.length) *
+            100
           : 0,
-      totalCost: logs?.reduce((sum, l) => sum + (l.cost_usd || 0), 0) || 0,
+      totalCost: logs?.reduce((sum: number, l: GenerationLog) => sum + (l.cost_usd || 0), 0) || 0,
     };
 
     return NextResponse.json({

@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/server";
 import type { ChangelogVersion, ChangelogItem } from "@/types/changelog";
 
+interface ChangelogItemRow {
+  verification_status: string;
+}
+
 /**
  * GET /api/admin/changelog
  * Admin용 changelog 관리 - 전체 버전 및 항목 조회 (검증 상태 포함)
@@ -43,9 +47,15 @@ export async function GET(request: NextRequest) {
     const stats = {
       total_versions: (versions || []).length,
       total_items: (items || []).length,
-      pending_items: (items || []).filter((i) => i.verification_status === "pending").length,
-      approved_items: (items || []).filter((i) => i.verification_status === "approved").length,
-      rejected_items: (items || []).filter((i) => i.verification_status === "rejected").length,
+      pending_items: (items || []).filter(
+        (i: ChangelogItemRow) => i.verification_status === "pending"
+      ).length,
+      approved_items: (items || []).filter(
+        (i: ChangelogItemRow) => i.verification_status === "approved"
+      ).length,
+      rejected_items: (items || []).filter(
+        (i: ChangelogItemRow) => i.verification_status === "rejected"
+      ).length,
     };
 
     return NextResponse.json({

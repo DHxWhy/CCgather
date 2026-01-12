@@ -2,6 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { createServiceClient } from "@/lib/supabase/server";
 
+interface ContentRow {
+  type: string;
+  status: string;
+}
+
 async function isAdmin() {
   const { userId } = await auth();
   if (!userId) return false;
@@ -53,12 +58,12 @@ export async function GET(request: NextRequest) {
 
     const stats = {
       total: statsData?.length || 0,
-      news: statsData?.filter((c) => c.type === "news").length || 0,
-      youtube: statsData?.filter((c) => c.type === "youtube").length || 0,
-      pending: statsData?.filter((c) => c.status === "pending").length || 0,
-      ready: statsData?.filter((c) => c.status === "ready").length || 0,
-      published: statsData?.filter((c) => c.status === "published").length || 0,
-      rejected: statsData?.filter((c) => c.status === "rejected").length || 0,
+      news: statsData?.filter((c: ContentRow) => c.type === "news").length || 0,
+      youtube: statsData?.filter((c: ContentRow) => c.type === "youtube").length || 0,
+      pending: statsData?.filter((c: ContentRow) => c.status === "pending").length || 0,
+      ready: statsData?.filter((c: ContentRow) => c.status === "ready").length || 0,
+      published: statsData?.filter((c: ContentRow) => c.status === "published").length || 0,
+      rejected: statsData?.filter((c: ContentRow) => c.status === "rejected").length || 0,
     };
 
     return NextResponse.json({
