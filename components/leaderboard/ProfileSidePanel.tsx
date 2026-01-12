@@ -904,7 +904,7 @@ export function ProfileSidePanel({
                       />
                     )}
                   </div>
-                  {/* Social Links - hidden on narrow mobile, shown on tablet+ */}
+                  {/* Social Links - shown on tablet/desktop only (right of name) */}
                   {!isMobile && (freshSocialLinks || currentUser.social_links) && (
                     <div className="flex-shrink-0">
                       <SocialLinksQuickAccess
@@ -913,29 +913,27 @@ export function ProfileSidePanel({
                     </div>
                   )}
                 </div>
-                {/* Username row - social icons on right for mobile */}
-                <div className="flex items-center justify-between mt-0.5">
-                  <p className="text-[10px] text-[var(--color-text-muted)] flex items-center gap-1.5">
-                    {currentUser.country_code && (
-                      <ReactCountryFlag
-                        countryCode={currentUser.country_code}
-                        svg
-                        style={{ width: "12px", height: "12px" }}
-                      />
-                    )}
-                    <span>@{currentUser.username.toLowerCase().replace(/\s+/g, "")}</span>
-                  </p>
-                  {/* Social Links - shown on mobile only */}
-                  {isMobile && (freshSocialLinks || currentUser.social_links) && (
-                    <div className="flex-shrink-0">
-                      <SocialLinksQuickAccess
-                        socialLinks={freshSocialLinks || currentUser.social_links}
-                      />
-                    </div>
+                {/* Username row */}
+                <p className="text-[10px] text-[var(--color-text-muted)] flex items-center gap-1.5 mt-0.5">
+                  {currentUser.country_code && (
+                    <ReactCountryFlag
+                      countryCode={currentUser.country_code}
+                      svg
+                      style={{ width: "12px", height: "12px" }}
+                    />
                   )}
-                </div>
+                  <span>@{currentUser.username.toLowerCase().replace(/\s+/g, "")}</span>
+                </p>
               </div>
             </div>
+            {/* Social Links - mobile only, full width below profile */}
+            {isMobile && (freshSocialLinks || currentUser.social_links) && (
+              <div className="mt-3 pt-3 border-t border-[var(--border-default)]">
+                <SocialLinksQuickAccess
+                  socialLinks={freshSocialLinks || currentUser.social_links}
+                />
+              </div>
+            )}
           </div>
 
           {/* Compact Stats Bar */}
