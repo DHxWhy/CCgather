@@ -1,8 +1,15 @@
-'use client';
+"use client";
 
-import { useState, useEffect } from 'react';
-import { UserRow } from './UserRow';
-import { FilterBar } from './FilterBar';
+import { useState, useEffect } from "react";
+import { UserRow } from "./UserRow";
+import { FilterBar } from "./FilterBar";
+
+export interface SocialLinks {
+  github?: string;
+  twitter?: string;
+  linkedin?: string;
+  website?: string;
+}
 
 export interface LeaderboardUser {
   id: string;
@@ -15,13 +22,14 @@ export interface LeaderboardUser {
   totalSpent: number;
   badges: string[];
   isCurrentUser?: boolean;
+  socialLinks?: SocialLinks | null;
 }
 
 export interface LeaderboardFilters {
   search: string;
   tier: string;
   country: string;
-  timeframe: 'all' | 'month' | 'week' | 'day';
+  timeframe: "all" | "month" | "week" | "day";
 }
 
 interface LeaderboardTableProps {
@@ -37,10 +45,10 @@ export function LeaderboardTable({
 }: LeaderboardTableProps) {
   const [users, setUsers] = useState<LeaderboardUser[]>(initialUsers);
   const [filters, setFilters] = useState<LeaderboardFilters>({
-    search: '',
-    tier: 'all',
-    country: 'all',
-    timeframe: 'all',
+    search: "",
+    tier: "all",
+    country: "all",
+    timeframe: "all",
   });
   const [loading, setLoading] = useState(false);
   const [page, setPage] = useState(1);
@@ -58,13 +66,13 @@ export function LeaderboardTable({
     setLoading(true);
     try {
       const params = new URLSearchParams();
-      params.set('page', loadMore ? String(page + 1) : '1');
-      params.set('pageSize', String(pageSize));
+      params.set("page", loadMore ? String(page + 1) : "1");
+      params.set("pageSize", String(pageSize));
 
-      if (filters.search) params.set('search', filters.search);
-      if (filters.tier !== 'all') params.set('tier', filters.tier);
-      if (filters.country !== 'all') params.set('country', filters.country);
-      if (filters.timeframe !== 'all') params.set('timeframe', filters.timeframe);
+      if (filters.search) params.set("search", filters.search);
+      if (filters.tier !== "all") params.set("tier", filters.tier);
+      if (filters.country !== "all") params.set("country", filters.country);
+      if (filters.timeframe !== "all") params.set("timeframe", filters.timeframe);
 
       const response = await fetch(`/api/leaderboard?${params}`);
       const data = await response.json();
@@ -76,8 +84,8 @@ export function LeaderboardTable({
         }));
 
         if (loadMore) {
-          setUsers(prev => [...prev, ...markedUsers]);
-          setPage(p => p + 1);
+          setUsers((prev) => [...prev, ...markedUsers]);
+          setPage((p) => p + 1);
         } else {
           setUsers(markedUsers);
           setPage(1);
@@ -85,24 +93,20 @@ export function LeaderboardTable({
         setHasMore(data.users.length === pageSize);
       }
     } catch (error) {
-      console.error('Failed to fetch leaderboard:', error);
+      console.error("Failed to fetch leaderboard:", error);
     } finally {
       setLoading(false);
     }
   }
 
   function handleFilterChange(newFilters: Partial<LeaderboardFilters>) {
-    setFilters(prev => ({ ...prev, ...newFilters }));
+    setFilters((prev) => ({ ...prev, ...newFilters }));
   }
 
   return (
     <div className="w-full">
       {showFilters && (
-        <FilterBar
-          filters={filters}
-          onFilterChange={handleFilterChange}
-          loading={loading}
-        />
+        <FilterBar filters={filters} onFilterChange={handleFilterChange} loading={loading} />
       )}
 
       <div className="mt-4 rounded-lg border border-white/10 overflow-hidden">
@@ -119,13 +123,9 @@ export function LeaderboardTable({
         {/* Rows */}
         <div className="divide-y divide-white/5">
           {users.length === 0 && !loading ? (
-            <div className="py-12 text-center text-text-muted">
-              No users found
-            </div>
+            <div className="py-12 text-center text-text-muted">No users found</div>
           ) : (
-            users.map((user) => (
-              <UserRow key={user.id} user={user} />
-            ))
+            users.map((user) => <UserRow key={user.id} user={user} />)
           )}
         </div>
 

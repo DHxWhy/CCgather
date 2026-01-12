@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
-import { createClient } from "@/lib/supabase/server";
+import { createServiceClient } from "@/lib/supabase/server";
 import type { CreateTargetInput } from "@/types/automation";
 
 async function isAdmin() {
@@ -22,7 +22,7 @@ export async function GET(request: NextRequest) {
     const category = searchParams.get("category");
     const activeOnly = searchParams.get("active") === "true";
 
-    const supabase = await createClient();
+    const supabase = createServiceClient();
 
     let query = supabase
       .from("automation_targets")
@@ -83,7 +83,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    const supabase = await createClient();
+    const supabase = createServiceClient();
 
     const { data: target, error } = await supabase
       .from("automation_targets")
@@ -125,7 +125,7 @@ export async function PATCH(request: NextRequest) {
 
     // Handle reorder operation
     if (body.reorder && Array.isArray(body.ids)) {
-      const supabase = await createClient();
+      const supabase = createServiceClient();
       const updates = body.ids.map((id: string, index: number) => ({
         id,
         priority: body.ids.length - index, // Higher priority first

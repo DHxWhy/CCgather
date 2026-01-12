@@ -1,29 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { createServiceClient } from "@/lib/supabase/server";
 import { generateThumbnail, updateContentThumbnail } from "@/lib/gemini/thumbnail-generator";
 
 export async function POST(request: NextRequest) {
   try {
-    // Verify admin auth
-    const supabase = await createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    // Check if user is admin
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("is_admin")
-      .eq("id", user.id)
-      .single();
-
-    if (!profile?.is_admin) {
-      return NextResponse.json({ error: "Admin access required" }, { status: 403 });
-    }
+    const supabase = createServiceClient();
 
     const body = await request.json();
     const { content_id, title, summary, force_regenerate } = body;

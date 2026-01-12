@@ -1,47 +1,50 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@clerk/nextjs/server';
-import { createClient } from '@/lib/supabase/server';
+import { NextRequest, NextResponse } from "next/server";
+import { auth } from "@clerk/nextjs/server";
+import { createServiceClient } from "@/lib/supabase/server";
 
 async function isAdmin() {
   const { userId } = await auth();
   if (!userId) return false;
-  if (process.env.NODE_ENV === 'development') return true;
+  if (process.env.NODE_ENV === "development") return true;
   return true;
 }
 
 interface CrawlRequest {
-  type: 'news' | 'youtube';
+  type: "news" | "youtube";
   url?: string; // For manual OFF mode - specific URL to crawl
 }
 
 export async function POST(request: NextRequest) {
   try {
     if (!(await isAdmin())) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     const body: CrawlRequest = await request.json();
     const { type, url } = body;
 
-    if (!type || !['news', 'youtube'].includes(type)) {
-      return NextResponse.json({ error: 'Invalid type. Must be "news" or "youtube"' }, { status: 400 });
+    if (!type || !["news", "youtube"].includes(type)) {
+      return NextResponse.json(
+        { error: 'Invalid type. Must be "news" or "youtube"' },
+        { status: 400 }
+      );
     }
 
-    const supabase = await createClient();
+    const supabase = createServiceClient();
 
     // Get current settings
     const { data: settings } = await supabase
-      .from('admin_settings')
-      .select('*')
-      .eq('id', 'default')
+      .from("admin_settings")
+      .select("*")
+      .eq("id", "default")
       .single();
 
-    const mode = type === 'news' ? settings?.news_mode : settings?.youtube_mode;
+    const mode = type === "news" ? settings?.news_mode : settings?.youtube_mode;
 
     // If mode is OFF, require a URL
-    if (mode === 'off' && !url) {
+    if (mode === "off" && !url) {
       return NextResponse.json(
-        { error: 'URL is required when automation is OFF' },
+        { error: "URL is required when automation is OFF" },
         { status: 400 }
       );
     }
@@ -51,7 +54,7 @@ export async function POST(request: NextRequest) {
       try {
         new URL(url);
       } catch {
-        return NextResponse.json({ error: 'Invalid URL format' }, { status: 400 });
+        return NextResponse.json({ error: "Invalid URL format" }, { status: 400 });
       }
     }
 
@@ -62,12 +65,12 @@ export async function POST(request: NextRequest) {
       const contentData: Record<string, unknown> = {
         type,
         source_url: url,
-        title: 'Pending...',
-        status: 'pending',
+        title: "Pending...",
+        status: "pending",
       };
 
       // Extract video ID for YouTube
-      if (type === 'youtube') {
+      if (type === "youtube") {
         const videoId = extractYouTubeVideoId(url);
         if (videoId) {
           contentData.video_id = videoId;
@@ -75,28 +78,25 @@ export async function POST(request: NextRequest) {
       }
 
       const { data: content, error } = await supabase
-        .from('contents')
+        .from("contents")
         .insert(contentData)
         .select()
         .single();
 
       if (error) {
-        if (error.code === '23505') {
-          return NextResponse.json(
-            { error: 'This URL has already been added' },
-            { status: 409 }
-          );
+        if (error.code === "23505") {
+          return NextResponse.json({ error: "This URL has already been added" }, { status: 409 });
         }
-        console.error('[Admin Crawl] Insert error:', error);
-        return NextResponse.json({ error: 'Failed to add content' }, { status: 500 });
+        console.error("[Admin Crawl] Insert error:", error);
+        return NextResponse.json({ error: "Failed to add content" }, { status: 500 });
       }
 
       // Update last crawl timestamp
-      const updateField = type === 'news' ? 'last_news_crawl_at' : 'last_youtube_crawl_at';
+      const updateField = type === "news" ? "last_news_crawl_at" : "last_youtube_crawl_at";
       await supabase
-        .from('admin_settings')
+        .from("admin_settings")
         .update({ [updateField]: new Date().toISOString() })
-        .eq('id', 'default');
+        .eq("id", "default");
 
       return NextResponse.json({
         success: true,
@@ -110,22 +110,22 @@ export async function POST(request: NextRequest) {
       // For now, return a success message indicating the crawl was triggered
 
       // Update last crawl timestamp
-      const updateField = type === 'news' ? 'last_news_crawl_at' : 'last_youtube_crawl_at';
+      const updateField = type === "news" ? "last_news_crawl_at" : "last_youtube_crawl_at";
       await supabase
-        .from('admin_settings')
+        .from("admin_settings")
         .update({ [updateField]: new Date().toISOString() })
-        .eq('id', 'default');
+        .eq("id", "default");
 
       return NextResponse.json({
         success: true,
-        message: `${type === 'news' ? 'News' : 'YouTube'} crawl triggered`,
+        message: `${type === "news" ? "News" : "YouTube"} crawl triggered`,
         mode,
-        sources: type === 'news' ? settings?.news_sources : settings?.youtube_keywords,
+        sources: type === "news" ? settings?.news_sources : settings?.youtube_keywords,
       });
     }
   } catch (error) {
-    console.error('[Admin Crawl] Unexpected error:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    console.error("[Admin Crawl] Unexpected error:", error);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }
 
@@ -149,48 +149,48 @@ function extractYouTubeVideoId(url: string): string | null {
 export async function GET() {
   try {
     if (!(await isAdmin())) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const supabase = await createClient();
+    const supabase = createServiceClient();
 
     // Get settings with last crawl times
     const { data: settings } = await supabase
-      .from('admin_settings')
-      .select('last_news_crawl_at, last_youtube_crawl_at, news_mode, youtube_mode')
-      .eq('id', 'default')
+      .from("admin_settings")
+      .select("last_news_crawl_at, last_youtube_crawl_at, news_mode, youtube_mode")
+      .eq("id", "default")
       .single();
 
     // Get recent pending contents count
     const { count: pendingCount } = await supabase
-      .from('contents')
-      .select('*', { count: 'exact', head: true })
-      .eq('status', 'pending');
+      .from("contents")
+      .select("*", { count: "exact", head: true })
+      .eq("status", "pending");
 
     // Get recent contents for each type
     const { data: recentNews } = await supabase
-      .from('contents')
-      .select('id, title, status, created_at')
-      .eq('type', 'news')
-      .order('created_at', { ascending: false })
+      .from("contents")
+      .select("id, title, status, created_at")
+      .eq("type", "news")
+      .order("created_at", { ascending: false })
       .limit(5);
 
     const { data: recentYoutube } = await supabase
-      .from('contents')
-      .select('id, title, status, created_at')
-      .eq('type', 'youtube')
-      .order('created_at', { ascending: false })
+      .from("contents")
+      .select("id, title, status, created_at")
+      .eq("type", "youtube")
+      .order("created_at", { ascending: false })
       .limit(5);
 
     return NextResponse.json({
       status: {
         news: {
-          mode: settings?.news_mode || 'confirm',
+          mode: settings?.news_mode || "confirm",
           lastCrawl: settings?.last_news_crawl_at,
           recentItems: recentNews || [],
         },
         youtube: {
-          mode: settings?.youtube_mode || 'confirm',
+          mode: settings?.youtube_mode || "confirm",
           lastCrawl: settings?.last_youtube_crawl_at,
           recentItems: recentYoutube || [],
         },
@@ -198,7 +198,7 @@ export async function GET() {
       },
     });
   } catch (error) {
-    console.error('[Admin Crawl] Unexpected error:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    console.error("[Admin Crawl] Unexpected error:", error);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }

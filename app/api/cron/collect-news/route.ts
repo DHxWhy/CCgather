@@ -1,6 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import type { CronConfig, CronLogEntry, RawArticle } from "@/types/automation";
+import { ContentPipeline, type PipelineResult } from "@/lib/ai";
+
+// Extended article type with AI processing results
+interface ProcessedArticle extends RawArticle {
+  pipelineResult?: PipelineResult;
+}
 
 // Vercel Cron requires GET method
 export async function GET(request: NextRequest) {
@@ -75,8 +81,27 @@ async function handleCronRequest(request: NextRequest, isManual: boolean) {
 
     log("info", `Found ${targets.length} active targets`);
 
+    // Initialize AI pipeline (only if ANTHROPIC_API_KEY is set)
+    let pipeline: ContentPipeline | undefined;
+    const hasApiKey = !!process.env.ANTHROPIC_API_KEY;
+
+    if (hasApiKey) {
+      pipeline = new ContentPipeline({
+        skipValidation: false,
+        minFactCheckScore: 0.7,
+      });
+      log("info", "AI Pipeline initialized");
+    } else {
+      log("warn", "ANTHROPIC_API_KEY not set - running in fallback mode");
+    }
+
+    // Track AI usage
+    let totalAiCost = 0;
+    let totalInputTokens = 0;
+    let totalOutputTokens = 0;
+
     // Collect articles from each target
-    const collectedArticles: RawArticle[] = [];
+    const collectedArticles: ProcessedArticle[] = [];
     let itemsSkipped = 0;
 
     for (const target of targets) {
@@ -90,8 +115,18 @@ async function handleCronRequest(request: NextRequest, isManual: boolean) {
 
         // Collect based on target type
         if (target.type === "url") {
-          const articles = await collectFromUrl(target.value, target.category);
+          const articles = await collectFromUrl(target.value, target.category, pipeline);
           collectedArticles.push(...articles);
+
+          // Track AI usage from pipeline results
+          for (const article of articles) {
+            if (article.pipelineResult?.aiUsage) {
+              totalAiCost += article.pipelineResult.aiUsage.costUsd;
+              totalInputTokens += article.pipelineResult.aiUsage.inputTokens;
+              totalOutputTokens += article.pipelineResult.aiUsage.outputTokens;
+            }
+          }
+
           log("info", `Collected ${articles.length} articles from URL`);
         } else if (target.type === "keyword") {
           const articles = await searchForKeyword(target.value);
@@ -146,23 +181,69 @@ async function handleCronRequest(request: NextRequest, isManual: boolean) {
 
     log("info", `New articles to save: ${newArticles.length}`);
 
-    // Save new articles
+    // Save new articles with rich content
     let savedCount = 0;
     for (const article of newArticles.slice(0, config.max_articles)) {
       try {
-        const { error } = await supabase.from("contents").insert({
+        const pipelineResult = (article as ProcessedArticle).pipelineResult;
+        const hasRichContent = pipelineResult?.success && pipelineResult?.summary;
+
+        // Build insert data
+        const insertData: Record<string, unknown> = {
           type: "news",
           source_url: article.source_url,
           source_name: article.source_name,
-          title: article.original_title,
+          title: hasRichContent
+            ? pipelineResult!.summary!.richContent.title.text
+            : article.original_title,
           thumbnail_url: article.thumbnail_url,
-          published_at: article.published_at, // Preserve original date
-          status: "pending",
+          published_at: article.published_at,
+          status: hasRichContent ? "published" : "pending",
           category: "news",
-        });
+        };
+
+        // Add rich content fields if AI processing succeeded
+        if (hasRichContent) {
+          insertData.summary = pipelineResult!.summary!.summaryPlain;
+          insertData.rich_content = pipelineResult!.summary!.richContent;
+          insertData.favicon_url = pipelineResult!.article?.favicon;
+          insertData.analogy = pipelineResult!.summary!.analogy;
+          insertData.difficulty = pipelineResult!.summary!.difficulty;
+          insertData.original_content = pipelineResult!.article?.content;
+
+          // Fact check results
+          if (pipelineResult!.factCheck) {
+            insertData.fact_check_score = pipelineResult!.factCheck.score;
+            insertData.fact_check_reason = pipelineResult!.factCheck.reason;
+          }
+
+          // AI usage metadata
+          insertData.ai_model_used = pipelineResult!.aiUsage.model;
+          insertData.ai_tokens_used =
+            pipelineResult!.aiUsage.inputTokens + pipelineResult!.aiUsage.outputTokens;
+          insertData.ai_cost_usd = pipelineResult!.aiUsage.costUsd;
+          insertData.ai_processed_at = new Date().toISOString();
+        }
+
+        const { error } = await supabase.from("contents").insert(insertData);
 
         if (!error) {
           savedCount++;
+
+          // Log AI usage if processed
+          if (hasRichContent && pipelineResult!.aiUsage.costUsd > 0) {
+            await supabase.from("ai_usage_log").insert({
+              model: pipelineResult!.aiUsage.model,
+              operation: "summarize",
+              input_tokens: pipelineResult!.aiUsage.inputTokens,
+              output_tokens: pipelineResult!.aiUsage.outputTokens,
+              cost_usd: pipelineResult!.aiUsage.costUsd,
+              metadata: {
+                source_url: article.source_url,
+                content_length: pipelineResult!.article?.content.length,
+              },
+            });
+          }
         } else {
           log("warn", `Failed to save article: ${article.source_url}`, { error: error.message });
         }
@@ -172,6 +253,12 @@ async function handleCronRequest(request: NextRequest, isManual: boolean) {
     }
 
     log("info", `Saved ${savedCount} new articles`);
+    if (totalAiCost > 0) {
+      log(
+        "info",
+        `AI Usage: ${totalInputTokens + totalOutputTokens} tokens, $${totalAiCost.toFixed(4)}`
+      );
+    }
 
     // Update job stats
     await supabase
@@ -190,6 +277,14 @@ async function handleCronRequest(request: NextRequest, isManual: boolean) {
           items_saved: savedCount,
           items_skipped: itemsSkipped,
           sources_crawled: targets.map((t) => t.value),
+          ai_usage: hasApiKey
+            ? {
+                total_tokens: totalInputTokens + totalOutputTokens,
+                input_tokens: totalInputTokens,
+                output_tokens: totalOutputTokens,
+                cost_usd: totalAiCost,
+              }
+            : null,
         },
       })
       .eq("id", "news-collector");
@@ -211,6 +306,12 @@ async function handleCronRequest(request: NextRequest, isManual: boolean) {
       success: true,
       collected: savedCount,
       duration_ms: Date.now() - startTime,
+      ai_usage: hasApiKey
+        ? {
+            total_tokens: totalInputTokens + totalOutputTokens,
+            cost_usd: totalAiCost,
+          }
+        : null,
     });
   } catch (error) {
     log("error", "Cron job failed", { error: String(error) });
@@ -237,19 +338,47 @@ async function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-async function collectFromUrl(url: string, _category?: string): Promise<RawArticle[]> {
-  // For now, create a placeholder article
-  // TODO: Implement actual web scraping with Claude Agent SDK
-  const hostname = new URL(url).hostname;
+async function collectFromUrl(
+  url: string,
+  category?: string,
+  pipeline?: ContentPipeline
+): Promise<ProcessedArticle[]> {
+  // Skip if no pipeline provided (fallback mode)
+  if (!pipeline) {
+    const hostname = new URL(url).hostname;
+    return [
+      {
+        source_url: url,
+        source_name: hostname,
+        original_title: `Article from ${hostname}`,
+        published_at: new Date().toISOString(),
+      },
+    ];
+  }
 
-  return [
-    {
-      source_url: url,
-      source_name: hostname,
-      original_title: `Article from ${hostname}`,
-      published_at: new Date().toISOString(),
-    },
-  ];
+  try {
+    // Process URL through AI pipeline
+    const result = await pipeline.process(url, category);
+
+    if (!result.success || !result.article) {
+      console.log(`[Cron] Pipeline failed for ${url}: ${result.error}`);
+      return [];
+    }
+
+    return [
+      {
+        source_url: result.article.url,
+        source_name: result.article.sourceName,
+        original_title: result.article.title,
+        thumbnail_url: result.article.thumbnail,
+        published_at: result.article.publishedAt,
+        pipelineResult: result,
+      },
+    ];
+  } catch (error) {
+    console.error(`[Cron] Error processing ${url}:`, error);
+    return [];
+  }
 }
 
 async function searchForKeyword(_keyword: string): Promise<RawArticle[]> {
@@ -258,7 +387,7 @@ async function searchForKeyword(_keyword: string): Promise<RawArticle[]> {
   return [];
 }
 
-function deduplicateArticles(articles: RawArticle[]): RawArticle[] {
+function deduplicateArticles<T extends RawArticle>(articles: T[]): T[] {
   const seen = new Set<string>();
   return articles.filter((article) => {
     if (seen.has(article.source_url)) {

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
-import { createClient } from "@/lib/supabase/server";
+import { createServiceClient } from "@/lib/supabase/server";
 import type { CronConfig } from "@/types/automation";
 
 async function isAdmin() {
@@ -22,7 +22,7 @@ export async function GET(request: NextRequest) {
     const includeHistory = searchParams.get("history") === "true";
     const historyLimit = parseInt(searchParams.get("limit") || "10", 10);
 
-    const supabase = await createClient();
+    const supabase = createServiceClient();
 
     // Get job details
     const { data: job, error: jobError } = await supabase
@@ -68,7 +68,7 @@ export async function PATCH(request: NextRequest) {
     const body = await request.json();
     const jobId = body.jobId || "news-collector";
 
-    const supabase = await createClient();
+    const supabase = createServiceClient();
 
     const updates: Record<string, unknown> = {};
 
@@ -136,7 +136,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const jobId = body.jobId || "news-collector";
 
-    const supabase = await createClient();
+    const supabase = createServiceClient();
 
     // Check if already running
     const { data: job } = await supabase
@@ -168,8 +168,13 @@ export async function POST(request: NextRequest) {
     // Mark job as running
     await supabase.from("cron_jobs").update({ is_running: true }).eq("id", jobId);
 
-    // Trigger the actual cron endpoint
-    const cronUrl = `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3002"}/api/cron/collect-news`;
+    // Trigger the actual cron endpoint based on jobId
+    const cronEndpoints: Record<string, string> = {
+      "news-collector": "/api/cron/collect-news",
+      "changelog-sync": "/api/cron/collect-changelog",
+    };
+    const cronPath = cronEndpoints[jobId] || "/api/cron/collect-news";
+    const cronUrl = `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3002"}${cronPath}`;
     const cronSecret = process.env.CRON_SECRET || "dev-secret";
 
     // Fire and forget - the cron endpoint handles the actual work

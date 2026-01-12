@@ -121,7 +121,7 @@ function ContentBlock({ block }: { block: UpdateContent }) {
             </span>
           </div>
           <pre className="p-4 bg-black/40 rounded-b-lg border border-white/10 overflow-x-auto">
-            <code className="text-sm font-mono text-green-400">{block.content}</code>
+            <code className="text-sm font-mono text-orange-400">{block.content}</code>
           </pre>
         </div>
       );
@@ -221,7 +221,7 @@ export default async function UpdateDetailPage({ params }: { params: Promise<{ s
           {/* CLI Promo */}
           <div className="flex items-center justify-between p-4 rounded-lg bg-white/[0.02] border border-white/5">
             <p className="text-sm text-text-muted">Track your Claude Code usage →</p>
-            <code className="px-3 py-1.5 rounded bg-black/30 text-green-400 font-mono text-xs">
+            <code className="px-3 py-1.5 rounded bg-gray-500/20 text-orange-400 font-mono text-xs">
               npx ccgather
             </code>
           </div>

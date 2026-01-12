@@ -253,6 +253,7 @@ export interface ContentItem {
   thumbnail_source?: ThumbnailSource;
   thumbnail_generated_at?: string;
   summary_md?: string;
+  summary?: string; // Plain text summary from AI
   key_points?: string[];
   category?: string;
   tags?: string[];
@@ -260,12 +261,59 @@ export interface ContentItem {
   published_at?: string;
   created_at: string;
   updated_at?: string;
+  // Rich Content from AI Pipeline
+  rich_content?: RichContentData;
+  favicon_url?: string;
+  fact_check_score?: number;
+  fact_check_reason?: string;
+  difficulty?: "easy" | "medium" | "hard";
+  analogy?: string;
+  ai_model_used?: string;
+  ai_tokens_used?: number;
+  ai_cost_usd?: number;
+  ai_processed_at?: string;
+  original_content?: string;
   // YouTube specific
   video_id?: string;
   channel_name?: string;
   channel_id?: string;
   duration?: string;
   view_count?: number;
+}
+
+// Rich Content structure from AI Pipeline
+export interface RichContentData {
+  title: {
+    text: string;
+    emoji?: string;
+  };
+  summary: {
+    text: string;
+    analogy?: {
+      text: string;
+      icon: string;
+    };
+  };
+  keyPoints: Array<{
+    icon: string;
+    text: string;
+    highlight?: string;
+  }>;
+  source: {
+    name: string;
+    url: string;
+    favicon?: string;
+    publishedAt: string;
+  };
+  meta: {
+    difficulty: "easy" | "medium" | "hard";
+    readTime: string;
+    category: string;
+  };
+  style: {
+    accentColor: string;
+    theme: "official" | "press" | "community" | "update";
+  };
 }
 
 export interface ThumbnailGenerationRequest {

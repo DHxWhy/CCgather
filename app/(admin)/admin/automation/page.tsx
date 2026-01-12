@@ -15,31 +15,28 @@ export default function AdminAutomationPage() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 max-w-6xl">
       {/* Header */}
       <div>
-        <h2 className="text-2xl font-bold text-white mb-2">뉴스 자동화</h2>
-        <p className="text-white/60">Claude Code 관련 뉴스를 자동으로 수집하고 관리합니다.</p>
+        <h1 className="text-lg font-semibold text-white">뉴스 자동화</h1>
+        <p className="text-[12px] text-white/50 mt-0.5">Claude Code 관련 뉴스 자동 수집 및 관리</p>
       </div>
 
       {/* Tab Navigation */}
-      <div className="flex gap-2 border-b border-white/10 pb-0">
+      <div className="flex gap-1 border-b border-white/[0.06]">
         <TabButton
           active={activeTab === "targets"}
           onClick={() => setActiveTab("targets")}
-          icon="🎯"
           label="수집 대상"
         />
         <TabButton
           active={activeTab === "cron"}
           onClick={() => setActiveTab("cron")}
-          icon="⏰"
           label="스케줄러"
         />
         <TabButton
           active={activeTab === "history"}
           onClick={() => setActiveTab("history")}
-          icon="📋"
           label="실행 기록"
         />
       </div>
@@ -57,24 +54,20 @@ export default function AdminAutomationPage() {
 function TabButton({
   active,
   onClick,
-  icon,
   label,
 }: {
   active: boolean;
   onClick: () => void;
-  icon: string;
   label: string;
 }) {
   return (
     <button
       onClick={onClick}
-      className={`px-6 py-4 text-sm font-medium relative transition-colors ${
+      className={`px-4 py-2.5 text-[12px] font-medium relative transition-colors ${
         active ? "text-white" : "text-white/40 hover:text-white/60"
       }`}
     >
-      <span className="flex items-center gap-2">
-        {icon} {label}
-      </span>
+      {label}
       {active && (
         <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[var(--color-claude-coral)]" />
       )}
@@ -83,7 +76,19 @@ function TabButton({
 }
 
 function HistoryView() {
-  const [history, setHistory] = useState<any[]>([]);
+  const [history, setHistory] = useState<
+    Array<{
+      id: string;
+      status: string;
+      started_at: string;
+      duration_ms?: number;
+      items_found: number;
+      items_valid: number;
+      items_saved: number;
+      items_skipped: number;
+      error_message?: string;
+    }>
+  >([]);
   const [loading, setLoading] = useState(true);
 
   useState(() => {
@@ -104,36 +109,38 @@ function HistoryView() {
   });
 
   if (loading) {
-    return <div className="text-center py-8 text-white/40">로딩 중...</div>;
+    return (
+      <div className="flex items-center justify-center py-8">
+        <div className="w-5 h-5 border-2 border-[var(--color-claude-coral)] border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
   }
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h3 className="text-lg font-semibold text-white">실행 기록</h3>
-      </div>
+    <div className="space-y-3">
+      <div className="text-[12px] text-white/50">실행 기록</div>
 
       {history.length === 0 ? (
-        <div className="text-center py-12 text-white/40">실행 기록이 없습니다.</div>
+        <div className="text-center py-8 text-[12px] text-white/30">실행 기록이 없습니다</div>
       ) : (
-        <div className="space-y-3">
+        <div className="space-y-2">
           {history.map((run) => (
-            <div key={run.id} className="bg-white/5 rounded-xl p-4 border border-white/10">
+            <div key={run.id} className="bg-[#161616] rounded-lg p-3 border border-white/[0.06]">
               <div className="flex items-center justify-between mb-2">
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2">
                   <StatusBadge status={run.status} />
-                  <span className="text-white font-medium">
+                  <span className="text-[12px] text-white">
                     {new Date(run.started_at).toLocaleString("ko-KR")}
                   </span>
                 </div>
                 {run.duration_ms && (
-                  <span className="text-sm text-white/40">
+                  <span className="text-[11px] text-white/40">
                     {(run.duration_ms / 1000).toFixed(1)}초
                   </span>
                 )}
               </div>
 
-              <div className="grid grid-cols-4 gap-4 text-sm">
+              <div className="grid grid-cols-4 gap-3 text-[11px]">
                 <div>
                   <div className="text-white/40">발견</div>
                   <div className="text-white font-medium">{run.items_found}개</div>
@@ -144,16 +151,16 @@ function HistoryView() {
                 </div>
                 <div>
                   <div className="text-white/40">저장</div>
-                  <div className="text-green-400 font-medium">{run.items_saved}개</div>
+                  <div className="text-emerald-400 font-medium">{run.items_saved}개</div>
                 </div>
                 <div>
                   <div className="text-white/40">스킵</div>
-                  <div className="text-white/60 font-medium">{run.items_skipped}개</div>
+                  <div className="text-white/50 font-medium">{run.items_skipped}개</div>
                 </div>
               </div>
 
               {run.error_message && (
-                <div className="mt-3 p-2 bg-red-500/10 rounded-lg text-sm text-red-400">
+                <div className="mt-2 p-2 bg-red-500/10 rounded text-[11px] text-red-400">
                   {run.error_message}
                 </div>
               )}
@@ -167,7 +174,7 @@ function HistoryView() {
 
 function StatusBadge({ status }: { status: string }) {
   const styles: Record<string, { bg: string; text: string; label: string }> = {
-    success: { bg: "bg-green-500/20", text: "text-green-400", label: "성공" },
+    success: { bg: "bg-emerald-500/20", text: "text-emerald-400", label: "성공" },
     failed: { bg: "bg-red-500/20", text: "text-red-400", label: "실패" },
     running: { bg: "bg-blue-500/20", text: "text-blue-400", label: "실행 중" },
     cancelled: { bg: "bg-yellow-500/20", text: "text-yellow-400", label: "취소됨" },
@@ -176,7 +183,7 @@ function StatusBadge({ status }: { status: string }) {
   const style = styles[status] ?? styles.running;
 
   return (
-    <span className={`px-2 py-0.5 rounded-full text-xs ${style?.bg ?? ""} ${style?.text ?? ""}`}>
+    <span className={`px-1.5 py-0.5 rounded text-[10px] ${style?.bg ?? ""} ${style?.text ?? ""}`}>
       {style?.label ?? status}
     </span>
   );

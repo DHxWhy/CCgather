@@ -1,50 +1,44 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@clerk/nextjs/server';
-import { createClient } from '@/lib/supabase/server';
+import { NextRequest, NextResponse } from "next/server";
+import { auth } from "@clerk/nextjs/server";
+import { createServiceClient } from "@/lib/supabase/server";
 
 async function isAdmin() {
   const { userId } = await auth();
   if (!userId) return false;
-  if (process.env.NODE_ENV === 'development') return true;
+  if (process.env.NODE_ENV === "development") return true;
   return true;
 }
 
-export async function GET(
-  _request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     if (!(await isAdmin())) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     const { id } = await params;
-    const supabase = await createClient();
+    const supabase = createServiceClient();
 
     const { data: content, error } = await supabase
-      .from('contents')
-      .select('*')
-      .eq('id', id)
+      .from("contents")
+      .select("*")
+      .eq("id", id)
       .single();
 
     if (error || !content) {
-      return NextResponse.json({ error: 'Content not found' }, { status: 404 });
+      return NextResponse.json({ error: "Content not found" }, { status: 404 });
     }
 
     return NextResponse.json({ content });
   } catch (error) {
-    console.error('[Admin Content] Unexpected error:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    console.error("[Admin Content] Unexpected error:", error);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }
 
-export async function PATCH(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     if (!(await isAdmin())) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     const { id } = await params;
@@ -52,14 +46,14 @@ export async function PATCH(
 
     // Allowed fields for update
     const allowedFields = [
-      'title',
-      'summary_md',
-      'key_points',
-      'category',
-      'tags',
-      'status',
-      'thumbnail_url',
-      'relevance_score',
+      "title",
+      "summary_md",
+      "key_points",
+      "category",
+      "tags",
+      "status",
+      "thumbnail_url",
+      "relevance_score",
     ];
 
     const updates: Record<string, unknown> = {};
@@ -70,31 +64,31 @@ export async function PATCH(
     }
 
     if (Object.keys(updates).length === 0) {
-      return NextResponse.json({ error: 'No valid fields to update' }, { status: 400 });
+      return NextResponse.json({ error: "No valid fields to update" }, { status: 400 });
     }
 
-    const supabase = await createClient();
+    const supabase = createServiceClient();
 
     const { data: content, error } = await supabase
-      .from('contents')
+      .from("contents")
       .update(updates)
-      .eq('id', id)
+      .eq("id", id)
       .select()
       .single();
 
     if (error) {
-      console.error('[Admin Content] Update error:', error);
-      return NextResponse.json({ error: 'Failed to update content' }, { status: 500 });
+      console.error("[Admin Content] Update error:", error);
+      return NextResponse.json({ error: "Failed to update content" }, { status: 500 });
     }
 
     if (!content) {
-      return NextResponse.json({ error: 'Content not found' }, { status: 404 });
+      return NextResponse.json({ error: "Content not found" }, { status: 404 });
     }
 
     return NextResponse.json({ content });
   } catch (error) {
-    console.error('[Admin Content] Unexpected error:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    console.error("[Admin Content] Unexpected error:", error);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }
 
@@ -104,25 +98,22 @@ export async function DELETE(
 ) {
   try {
     if (!(await isAdmin())) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     const { id } = await params;
-    const supabase = await createClient();
+    const supabase = createServiceClient();
 
-    const { error } = await supabase
-      .from('contents')
-      .delete()
-      .eq('id', id);
+    const { error } = await supabase.from("contents").delete().eq("id", id);
 
     if (error) {
-      console.error('[Admin Content] Delete error:', error);
-      return NextResponse.json({ error: 'Failed to delete content' }, { status: 500 });
+      console.error("[Admin Content] Delete error:", error);
+      return NextResponse.json({ error: "Failed to delete content" }, { status: 500 });
     }
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error('[Admin Content] Unexpected error:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    console.error("[Admin Content] Unexpected error:", error);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }

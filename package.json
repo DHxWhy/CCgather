@@ -30,6 +30,7 @@
   "author": "CCgather Team",
   "license": "MIT",
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.52.0",
     "@clerk/nextjs": "^6.36.5",
     "@clerk/themes": "^2.4.47",
     "@hookform/resolvers": "^5.2.2",
@@ -42,6 +43,7 @@
     "@types/react": "^19.2.7",
     "@types/react-dom": "^19.2.3",
     "autoprefixer": "^10.4.23",
+    "cheerio": "^1.0.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cobe": "^0.6.5",
@@ -50,6 +52,7 @@
     "lucide-react": "^0.562.0",
     "next": "^16.1.1",
     "postcss": "^8.5.6",
+    "posthog-js": "^1.318.1",
     "react": "^19.2.3",
     "react-country-flag": "^3.1.0",
     "react-day-picker": "^9.13.0",
@@ -70,6 +73,7 @@
     "@playwright/test": "^1.57.0",
     "@typescript-eslint/eslint-plugin": "^8.52.0",
     "@typescript-eslint/parser": "^8.52.0",
+    "dotenv": "^17.2.3",
     "eslint": "^9.39.2",
     "eslint-config-next": "^16.1.1",
     "eslint-config-prettier": "^10.1.8",
@@ -77,6 +81,7 @@
     "eslint-plugin-react-hooks": "^7.0.1",
     "husky": "^9.1.7",
     "lint-staged": "^16.2.7",
-    "prettier": "^3.7.4"
+    "prettier": "^3.7.4",
+    "tsx": "^4.21.0"
   }
 }

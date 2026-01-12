@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
-import { createClient } from "@/lib/supabase/server";
+import { createServiceClient } from "@/lib/supabase/server";
 import type { UpdateTargetInput } from "@/types/automation";
 
 async function isAdmin() {
@@ -22,7 +22,7 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
     }
 
     const { id } = await params;
-    const supabase = await createClient();
+    const supabase = createServiceClient();
 
     const { data: target, error } = await supabase
       .from("automation_targets")
@@ -51,7 +51,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     const { id } = await params;
     const body: UpdateTargetInput = await request.json();
 
-    const supabase = await createClient();
+    const supabase = createServiceClient();
 
     // Build update object
     const updates: Record<string, unknown> = {};
@@ -96,7 +96,7 @@ export async function DELETE(_request: NextRequest, { params }: RouteParams) {
     }
 
     const { id } = await params;
-    const supabase = await createClient();
+    const supabase = createServiceClient();
 
     const { error } = await supabase.from("automation_targets").delete().eq("id", id);
 

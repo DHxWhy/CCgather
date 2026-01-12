@@ -7,6 +7,17 @@ interface CronSchedulerProps {
   onRefresh?: () => void;
 }
 
+// Available cron jobs
+const CRON_JOBS = [
+  { id: "news-collector", name: "뉴스 수집", icon: "📰", desc: "Claude Code 관련 뉴스 수집" },
+  {
+    id: "changelog-sync",
+    name: "Changelog 동기화",
+    icon: "📋",
+    desc: "공식 Changelog 자동 동기화",
+  },
+];
+
 const SCHEDULE_PRESETS = [
   { label: "매시간", value: "0 * * * *", desc: "매시 정각" },
   { label: "3시간마다", value: "0 */3 * * *", desc: "0시, 3시, 6시..." },
@@ -24,6 +35,7 @@ const STATUS_STYLES: Record<string, { bg: string; text: string; label: string }>
 };
 
 export default function CronScheduler({ onRefresh }: CronSchedulerProps) {
+  const [selectedJobId, setSelectedJobId] = useState(CRON_JOBS[0]!.id);
   const [job, setJob] = useState<CronJob | null>(null);
   const [history, setHistory] = useState<CronRunHistory[]>([]);
   const [loading, setLoading] = useState(true);
@@ -33,12 +45,12 @@ export default function CronScheduler({ onRefresh }: CronSchedulerProps) {
 
   useEffect(() => {
     fetchJobStatus();
-  }, []);
+  }, [selectedJobId]);
 
   async function fetchJobStatus() {
     setLoading(true);
     try {
-      const response = await fetch("/api/admin/cron?history=true&limit=5");
+      const response = await fetch(`/api/admin/cron?jobId=${selectedJobId}&history=true&limit=5`);
       if (response.ok) {
         const data = await response.json();
         setJob(data.job);
@@ -59,7 +71,7 @@ export default function CronScheduler({ onRefresh }: CronSchedulerProps) {
       const response = await fetch("/api/admin/cron", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ is_enabled: !job.is_enabled }),
+        body: JSON.stringify({ jobId: selectedJobId, is_enabled: !job.is_enabled }),
       });
 
       if (response.ok) {
@@ -76,7 +88,7 @@ export default function CronScheduler({ onRefresh }: CronSchedulerProps) {
       const response = await fetch("/api/admin/cron", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ schedule }),
+        body: JSON.stringify({ jobId: selectedJobId, schedule }),
       });
 
       if (response.ok) {
@@ -100,7 +112,7 @@ export default function CronScheduler({ onRefresh }: CronSchedulerProps) {
       const response = await fetch("/api/admin/cron", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({}),
+        body: JSON.stringify({ jobId: selectedJobId }),
       });
 
       if (response.ok) {
@@ -123,27 +135,83 @@ export default function CronScheduler({ onRefresh }: CronSchedulerProps) {
     return <div className="text-center py-8 text-white/40">로딩 중...</div>;
   }
 
+  const selectedJobInfo = CRON_JOBS.find((j) => j.id === selectedJobId);
+
+  // Show job selector even when job doesn't exist yet
   if (!job) {
-    return <div className="text-center py-8 text-white/40">Cron 작업을 찾을 수 없습니다.</div>;
+    return (
+      <div className="space-y-6">
+        {/* Job Selector */}
+        <div className="flex gap-2">
+          {CRON_JOBS.map((cronJob) => (
+            <button
+              key={cronJob.id}
+              onClick={() => setSelectedJobId(cronJob.id)}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                selectedJobId === cronJob.id
+                  ? "bg-[var(--color-claude-coral)] text-white"
+                  : "bg-white/10 text-white/60 hover:text-white hover:bg-white/20"
+              }`}
+            >
+              <span>{cronJob.icon}</span>
+              <span>{cronJob.name}</span>
+            </button>
+          ))}
+        </div>
+
+        <div className="text-center py-8">
+          <p className="text-white/40 mb-4">
+            {selectedJobInfo?.icon} {selectedJobInfo?.name} 작업이 아직 초기화되지 않았습니다.
+          </p>
+          <button
+            onClick={triggerManualRun}
+            disabled={running}
+            className="px-6 py-3 bg-[var(--color-claude-coral)] text-white rounded-xl hover:opacity-90 transition-colors disabled:opacity-50"
+          >
+            {running ? "초기화 중..." : "🚀 첫 실행으로 초기화"}
+          </button>
+        </div>
+      </div>
+    );
   }
 
   return (
     <div className="space-y-6">
+      {/* Job Selector */}
+      <div className="flex gap-2">
+        {CRON_JOBS.map((cronJob) => (
+          <button
+            key={cronJob.id}
+            onClick={() => setSelectedJobId(cronJob.id)}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+              selectedJobId === cronJob.id
+                ? "bg-[var(--color-claude-coral)] text-white"
+                : "bg-white/10 text-white/60 hover:text-white hover:bg-white/20"
+            }`}
+          >
+            <span>{cronJob.icon}</span>
+            <span>{cronJob.name}</span>
+          </button>
+        ))}
+      </div>
+
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="text-lg font-semibold text-white">{job.name}</h3>
-          <p className="text-sm text-white/60">{job.description}</p>
+          <h3 className="text-lg font-semibold text-white">
+            {selectedJobInfo?.icon} {job?.name || selectedJobInfo?.name}
+          </h3>
+          <p className="text-sm text-white/60">{job?.description || selectedJobInfo?.desc}</p>
         </div>
         <button
           onClick={toggleEnabled}
           className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-            job.is_enabled
+            job?.is_enabled
               ? "bg-green-500/20 text-green-400 hover:bg-green-500/30"
               : "bg-red-500/20 text-red-400 hover:bg-red-500/30"
           }`}
         >
-          {job.is_enabled ? "활성화됨" : "비활성화됨"}
+          {job?.is_enabled ? "활성화됨" : "비활성화됨"}
         </button>
       </div>
 

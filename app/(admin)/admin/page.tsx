@@ -14,7 +14,6 @@ interface User {
   global_rank: number | null;
   created_at: string;
   onboarding_completed: boolean;
-  ccplan?: string | null;
 }
 
 interface AdminAlert {
@@ -31,11 +30,7 @@ export default function AdminUsersPage() {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [alerts, setAlerts] = useState<AdminAlert[]>([]);
-  const [stats, setStats] = useState({
-    totalUsers: 0,
-    activeToday: 0,
-    totalTokens: 0,
-  });
+  const [stats, setStats] = useState({ totalUsers: 0, activeToday: 0, totalTokens: 0 });
 
   useEffect(() => {
     fetchUsers();
@@ -96,43 +91,49 @@ export default function AdminUsersPage() {
   };
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div>
-        <h2 className="text-2xl font-bold text-white mb-2">사용자 관리</h2>
-        <p className="text-white/60">등록된 사용자 목록 및 통계를 확인합니다.</p>
+    <div className="space-y-4 max-w-6xl">
+      {/* 헤더 */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-lg font-semibold text-white">사용자 관리</h1>
+          <p className="text-[12px] text-white/50 mt-0.5">등록된 사용자 목록 및 통계</p>
+        </div>
+        <button
+          onClick={fetchUsers}
+          className="px-3 py-1.5 bg-white/5 hover:bg-white/10 rounded text-[12px] text-white/70 transition-colors flex items-center gap-1.5"
+        >
+          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={1.5}
+              d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+            />
+          </svg>
+          새로고침
+        </button>
       </div>
 
-      {/* Alerts Section */}
+      {/* 알림 */}
       {alerts.length > 0 && (
-        <div className="space-y-2">
+        <div className="space-y-1.5">
           {alerts.map((alert) => (
             <div
               key={alert.id}
-              className="flex items-center justify-between p-4 bg-yellow-500/10 border border-yellow-500/30 rounded-xl"
+              className="flex items-center justify-between p-3 bg-yellow-500/10 border border-yellow-500/20 rounded-lg"
             >
-              <div className="flex items-center gap-3">
-                <span className="text-2xl">⚠️</span>
-                <div>
-                  <div className="text-yellow-400 font-medium">{alert.message}</div>
-                  <div className="text-sm text-white/60">
-                    {alert.type === "unknown_ccplan" && (
-                      <>
-                        User ID: {(alert.metadata as { user_id?: string }).user_id} • CCplan:{" "}
-                        <code className="px-1 py-0.5 bg-white/10 rounded">
-                          {(alert.metadata as { ccplan?: string }).ccplan}
-                        </code>
-                      </>
-                    )}
-                    <span className="ml-2">
-                      {new Date(alert.created_at).toLocaleString("ko-KR")}
-                    </span>
-                  </div>
-                </div>
+              <div className="flex items-center gap-2.5 text-[12px]">
+                <span>⚠️</span>
+                <span className="text-yellow-400">{alert.message}</span>
+                {alert.type === "unknown_ccplan" && (
+                  <code className="px-1.5 py-0.5 bg-white/5 rounded text-[11px] text-white/50">
+                    {(alert.metadata as { ccplan?: string }).ccplan}
+                  </code>
+                )}
               </div>
               <button
                 onClick={() => dismissAlert(alert.id)}
-                className="px-3 py-1 text-sm bg-white/10 hover:bg-white/20 rounded-lg text-white/60 transition-colors"
+                className="px-2 py-1 text-[11px] bg-white/5 hover:bg-white/10 rounded text-white/50 transition-colors"
               >
                 확인
               </button>
@@ -141,68 +142,74 @@ export default function AdminUsersPage() {
         </div>
       )}
 
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="bg-white/5 rounded-xl p-6 border border-white/10">
-          <div className="text-3xl font-bold text-white mb-1">{formatNumber(stats.totalUsers)}</div>
-          <div className="text-sm text-white/60">전체 사용자</div>
+      {/* 통계 카드 */}
+      <div className="grid grid-cols-3 gap-3">
+        <div className="bg-[#161616] rounded-lg p-4 border border-white/[0.06]">
+          <div className="text-xl font-semibold text-white">{formatNumber(stats.totalUsers)}</div>
+          <div className="text-[11px] text-white/50 mt-0.5">전체 사용자</div>
         </div>
-        <div className="bg-white/5 rounded-xl p-6 border border-white/10">
-          <div className="text-3xl font-bold text-green-400 mb-1">
+        <div className="bg-[#161616] rounded-lg p-4 border border-white/[0.06]">
+          <div className="text-xl font-semibold text-emerald-400">
             {formatNumber(stats.activeToday)}
           </div>
-          <div className="text-sm text-white/60">오늘 활성 사용자</div>
+          <div className="text-[11px] text-white/50 mt-0.5">오늘 활성</div>
         </div>
-        <div className="bg-white/5 rounded-xl p-6 border border-white/10">
-          <div className="text-3xl font-bold text-[var(--color-claude-coral)] mb-1">
+        <div className="bg-[#161616] rounded-lg p-4 border border-white/[0.06]">
+          <div className="text-xl font-semibold text-[var(--color-claude-coral)]">
             {formatNumber(stats.totalTokens)}
           </div>
-          <div className="text-sm text-white/60">총 토큰 사용량</div>
+          <div className="text-[11px] text-white/50 mt-0.5">총 토큰</div>
         </div>
       </div>
 
-      {/* Search */}
-      <div className="flex gap-4">
-        <input
-          type="text"
-          placeholder="사용자 검색 (이름, 이메일, 사용자명)..."
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          className="flex-1 px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder:text-white/40 focus:outline-none focus:ring-2 focus:ring-[var(--color-claude-coral)]"
-        />
-        <button
-          onClick={fetchUsers}
-          className="px-6 py-3 bg-white/10 hover:bg-white/20 rounded-xl text-white transition-colors"
-        >
-          🔄 새로고침
-        </button>
-      </div>
+      {/* 검색 */}
+      <input
+        type="text"
+        placeholder="사용자 검색..."
+        value={searchQuery}
+        onChange={(e) => setSearchQuery(e.target.value)}
+        className="w-full px-3 py-2 bg-[#161616] border border-white/[0.06] rounded-lg text-[13px] text-white placeholder:text-white/30 focus:outline-none focus:border-white/20"
+      />
 
-      {/* Users Table */}
-      <div className="bg-white/5 rounded-xl border border-white/10 overflow-hidden">
+      {/* 테이블 */}
+      <div className="bg-[#161616] rounded-lg border border-white/[0.06] overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead>
-              <tr className="border-b border-white/10">
-                <th className="px-6 py-4 text-left text-sm font-medium text-white/60">사용자</th>
-                <th className="px-6 py-4 text-left text-sm font-medium text-white/60">이메일</th>
-                <th className="px-6 py-4 text-left text-sm font-medium text-white/60">국가</th>
-                <th className="px-6 py-4 text-right text-sm font-medium text-white/60">토큰</th>
-                <th className="px-6 py-4 text-right text-sm font-medium text-white/60">순위</th>
-                <th className="px-6 py-4 text-left text-sm font-medium text-white/60">가입일</th>
-                <th className="px-6 py-4 text-center text-sm font-medium text-white/60">상태</th>
+              <tr className="border-b border-white/[0.06]">
+                <th className="px-4 py-2.5 text-left text-[11px] font-medium text-white/40 uppercase">
+                  사용자
+                </th>
+                <th className="px-4 py-2.5 text-left text-[11px] font-medium text-white/40 uppercase">
+                  이메일
+                </th>
+                <th className="px-4 py-2.5 text-center text-[11px] font-medium text-white/40 uppercase">
+                  국가
+                </th>
+                <th className="px-4 py-2.5 text-right text-[11px] font-medium text-white/40 uppercase">
+                  토큰
+                </th>
+                <th className="px-4 py-2.5 text-right text-[11px] font-medium text-white/40 uppercase">
+                  순위
+                </th>
+                <th className="px-4 py-2.5 text-left text-[11px] font-medium text-white/40 uppercase">
+                  가입일
+                </th>
+                <th className="px-4 py-2.5 text-center text-[11px] font-medium text-white/40 uppercase">
+                  상태
+                </th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={7} className="px-6 py-12 text-center text-white/40">
+                  <td colSpan={7} className="px-4 py-8 text-center text-[12px] text-white/30">
                     로딩 중...
                   </td>
                 </tr>
               ) : filteredUsers.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-6 py-12 text-center text-white/40">
+                  <td colSpan={7} className="px-4 py-8 text-center text-[12px] text-white/30">
                     {searchQuery ? "검색 결과가 없습니다." : "사용자가 없습니다."}
                   </td>
                 </tr>
@@ -210,41 +217,43 @@ export default function AdminUsersPage() {
                 filteredUsers.map((user) => (
                   <tr
                     key={user.id}
-                    className="border-b border-white/5 hover:bg-white/5 transition-colors"
+                    className="border-b border-white/[0.03] hover:bg-white/[0.02] transition-colors"
                   >
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-3">
+                    <td className="px-4 py-2.5">
+                      <div className="flex items-center gap-2.5">
                         {user.avatar_url ? (
-                          <img src={user.avatar_url} alt="" className="w-8 h-8 rounded-full" />
+                          <img src={user.avatar_url} alt="" className="w-6 h-6 rounded-full" />
                         ) : (
-                          <div className="w-8 h-8 rounded-full bg-white/10" />
+                          <div className="w-6 h-6 rounded-full bg-white/10" />
                         )}
                         <div>
-                          <div className="text-white font-medium">
+                          <div className="text-[13px] text-white">
                             {user.display_name || user.username}
                           </div>
-                          <div className="text-sm text-white/40">@{user.username}</div>
+                          <div className="text-[11px] text-white/40">@{user.username}</div>
                         </div>
                       </div>
                     </td>
-                    <td className="px-6 py-4 text-white/60">{user.email || "-"}</td>
-                    <td className="px-6 py-4 text-white/60">{user.country_code || "-"}</td>
-                    <td className="px-6 py-4 text-right text-white">
+                    <td className="px-4 py-2.5 text-[12px] text-white/50">{user.email || "-"}</td>
+                    <td className="px-4 py-2.5 text-center text-[12px] text-white/50">
+                      {user.country_code || "-"}
+                    </td>
+                    <td className="px-4 py-2.5 text-right text-[12px] text-white/70 font-mono">
                       {formatNumber(user.total_tokens)}
                     </td>
-                    <td className="px-6 py-4 text-right text-white">
+                    <td className="px-4 py-2.5 text-right text-[12px] text-white/70">
                       {user.global_rank ? `#${user.global_rank}` : "-"}
                     </td>
-                    <td className="px-6 py-4 text-white/60">
+                    <td className="px-4 py-2.5 text-[12px] text-white/50">
                       {new Date(user.created_at).toLocaleDateString("ko-KR")}
                     </td>
-                    <td className="px-6 py-4 text-center">
+                    <td className="px-4 py-2.5 text-center">
                       {user.onboarding_completed ? (
-                        <span className="px-2 py-1 rounded-full text-xs bg-green-500/20 text-green-400">
+                        <span className="px-1.5 py-0.5 rounded text-[10px] bg-emerald-500/20 text-emerald-400">
                           활성
                         </span>
                       ) : (
-                        <span className="px-2 py-1 rounded-full text-xs bg-yellow-500/20 text-yellow-400">
+                        <span className="px-1.5 py-0.5 rounded text-[10px] bg-yellow-500/20 text-yellow-400">
                           대기
                         </span>
                       )}
