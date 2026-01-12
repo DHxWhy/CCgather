@@ -103,17 +103,17 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
 
   return (
     <>
-      {/* Backdrop */}
+      {/* Backdrop - z-index must be higher than header (z-[60]) */}
       <motion.div
-        className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm"
+        className="fixed inset-0 z-[70] bg-black/60 backdrop-blur-sm"
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
         onClick={onClose}
       />
 
-      {/* Modal */}
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-0 md:p-4 pointer-events-none">
+      {/* Modal - z-index must be higher than header (z-[60]) */}
+      <div className="fixed inset-0 z-[70] flex items-center justify-center p-0 md:p-4 pointer-events-none">
         <motion.div
           className="pointer-events-auto w-full h-full md:h-auto md:max-w-4xl md:max-h-[85vh] bg-[var(--color-bg-secondary)] md:border border-[var(--border-default)] md:rounded-xl shadow-2xl overflow-hidden flex flex-col md:flex-row"
           initial={{ opacity: 0, scale: 0.95, y: 20 }}
