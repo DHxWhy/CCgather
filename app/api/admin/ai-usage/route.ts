@@ -73,10 +73,11 @@ export async function GET(request: NextRequest) {
 
     // Aggregate stats
     const totalRequests = logs?.length || 0;
-    const totalInputTokens = logs?.reduce((sum, l) => sum + (l.input_tokens || 0), 0) || 0;
-    const totalOutputTokens = logs?.reduce((sum, l) => sum + (l.output_tokens || 0), 0) || 0;
+    const totalInputTokens = logs?.reduce((sum: number, l) => sum + (l.input_tokens || 0), 0) || 0;
+    const totalOutputTokens =
+      logs?.reduce((sum: number, l) => sum + (l.output_tokens || 0), 0) || 0;
     const totalTokensUsed = totalInputTokens + totalOutputTokens;
-    const totalCost = logs?.reduce((sum, l) => sum + parseFloat(l.cost_usd || "0"), 0) || 0;
+    const totalCost = logs?.reduce((sum: number, l) => sum + parseFloat(l.cost_usd || "0"), 0) || 0;
 
     // Group by day
     const byDay = new Map<
