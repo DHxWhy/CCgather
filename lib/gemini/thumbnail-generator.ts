@@ -7,7 +7,7 @@ import { createClient } from "@/lib/supabase/server";
 
 // Configuration
 // const GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta"; // Reserved for future Imagen API
-const DEFAULT_PLACEHOLDER = "/images/news-placeholder.png";
+const DEFAULT_PLACEHOLDER = "/images/news-placeholder.svg";
 
 export interface ThumbnailRequest {
   content_id: string;
