@@ -54,6 +54,17 @@ export default function CronScheduler({ onRefresh }: CronSchedulerProps) {
   } | null>(null);
   const manualAbortRef = useRef<AbortController | null>(null);
 
+  // Force re-collection dialog state
+  const [showForceDialog, setShowForceDialog] = useState(false);
+  const [forceDialogData, setForceDialogData] = useState<{
+    url: string;
+    category: TargetCategory;
+    existingId: string;
+    existingStatus: string;
+    existingStatusLabel: string;
+    existingTitle: string;
+  } | null>(null);
+
   // Live progress polling state
   const [currentRunId, setCurrentRunId] = useState<string | null>(null);
   const [liveProgress, setLiveProgress] = useState<CronLogEntry[]>([]);
@@ -274,7 +285,7 @@ export default function CronScheduler({ onRefresh }: CronSchedulerProps) {
   }
 
   // Manual URL collection
-  async function collectSingleUrl() {
+  async function collectSingleUrl(forceRecollect = false) {
     if (!manualUrl.trim() || manualCollecting) return;
 
     // Basic URL validation
@@ -298,6 +309,7 @@ export default function CronScheduler({ onRefresh }: CronSchedulerProps) {
         body: JSON.stringify({
           url: manualUrl.trim(),
           category: manualCategory,
+          force: forceRecollect,
         }),
         signal: manualAbortRef.current.signal,
       });
@@ -305,7 +317,16 @@ export default function CronScheduler({ onRefresh }: CronSchedulerProps) {
       const data = await response.json();
 
       if (response.ok && data.success) {
-        setManualProgress({ stage: "complete", message: "수집 완료!" });
+        // Show additional info if it was a retry
+        const statusInfo = data.needs_review
+          ? " (재검토 필요)"
+          : data.retry_count > 0
+            ? ` (재시도 ${data.retry_count}회)`
+            : "";
+        setManualProgress({
+          stage: "complete",
+          message: `수집 완료!${statusInfo} 점수: ${data.fact_check_score || "N/A"}점`,
+        });
         setManualUrl("");
         onRefresh?.();
 
@@ -313,6 +334,18 @@ export default function CronScheduler({ onRefresh }: CronSchedulerProps) {
         setTimeout(() => {
           setManualProgress(null);
         }, 3000);
+      } else if (response.status === 409 && data.can_force) {
+        // URL already exists - show confirmation dialog
+        setForceDialogData({
+          url: manualUrl.trim(),
+          category: manualCategory,
+          existingId: data.existing_id,
+          existingStatus: data.existing_status,
+          existingStatusLabel: data.existing_status_label,
+          existingTitle: data.existing_title,
+        });
+        setShowForceDialog(true);
+        setManualProgress(null);
       } else {
         setManualProgress({
           stage: "error",
@@ -331,6 +364,27 @@ export default function CronScheduler({ onRefresh }: CronSchedulerProps) {
       manualAbortRef.current = null;
       setManualCollecting(false);
     }
+  }
+
+  // Force re-collection after user confirmation
+  async function handleForceRecollect() {
+    if (!forceDialogData) return;
+
+    setShowForceDialog(false);
+    setManualUrl(forceDialogData.url);
+    setManualCategory(forceDialogData.category);
+
+    // Small delay to ensure state is updated
+    setTimeout(() => {
+      collectSingleUrl(true);
+    }, 100);
+  }
+
+  // Cancel force dialog
+  function handleCancelForce() {
+    setShowForceDialog(false);
+    setForceDialogData(null);
+    setManualProgress(null);
   }
 
   if (loading) {
@@ -403,7 +457,7 @@ export default function CronScheduler({ onRefresh }: CronSchedulerProps) {
             </button>
           ) : (
             <button
-              onClick={collectSingleUrl}
+              onClick={() => collectSingleUrl(false)}
               disabled={!manualUrl.trim()}
               className="px-4 py-2 bg-purple-500 text-white rounded-lg text-sm font-medium hover:bg-purple-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
             >
@@ -701,6 +755,69 @@ export default function CronScheduler({ onRefresh }: CronSchedulerProps) {
             </div>
           </div>
         </>
+      )}
+
+      {/* Force Re-collection Confirmation Dialog */}
+      {showForceDialog && forceDialogData && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
+          <div className="bg-[#1a1a1a] rounded-2xl w-full max-w-md p-6 border border-white/10">
+            <div className="flex items-center gap-3 mb-4">
+              <span className="text-2xl">⚠️</span>
+              <h4 className="text-xl font-bold text-white">이미 수집된 URL</h4>
+            </div>
+
+            <div className="space-y-4">
+              {/* Existing content info */}
+              <div className="bg-white/5 rounded-xl p-4 space-y-2">
+                <div className="flex items-center gap-2">
+                  <span
+                    className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                      forceDialogData.existingStatus === "published"
+                        ? "bg-green-500/20 text-green-400"
+                        : forceDialogData.existingStatus === "pending"
+                          ? "bg-yellow-500/20 text-yellow-400"
+                          : forceDialogData.existingStatus === "needs_review"
+                            ? "bg-orange-500/20 text-orange-400"
+                            : "bg-gray-500/20 text-gray-400"
+                    }`}
+                  >
+                    {forceDialogData.existingStatusLabel}
+                  </span>
+                </div>
+                <p className="text-sm text-white font-medium line-clamp-2">
+                  {forceDialogData.existingTitle || "제목 없음"}
+                </p>
+                <p className="text-xs text-white/40 truncate">{forceDialogData.url}</p>
+              </div>
+
+              {/* Warning message */}
+              <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-4">
+                <p className="text-sm text-red-400">
+                  <strong>주의:</strong> 재수집 시 기존 콘텐츠가 삭제되고 새로 수집됩니다. 이 작업은
+                  되돌릴 수 없습니다.
+                </p>
+              </div>
+
+              {/* Confirmation question */}
+              <p className="text-white text-center">정말 재수집하시겠습니까?</p>
+            </div>
+
+            <div className="flex gap-3 mt-6">
+              <button
+                onClick={handleCancelForce}
+                className="flex-1 px-4 py-3 bg-white/10 text-white rounded-xl hover:bg-white/20 transition-colors"
+              >
+                취소
+              </button>
+              <button
+                onClick={handleForceRecollect}
+                className="flex-1 px-4 py-3 bg-red-500 text-white rounded-xl hover:bg-red-600 transition-colors flex items-center justify-center gap-2"
+              >
+                <span>🔄</span> 재수집
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
