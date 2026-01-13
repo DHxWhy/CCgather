@@ -136,30 +136,37 @@ export interface PipelineResult {
 // ============================================
 
 export const AI_MODELS = {
-  // Fast validation
+  // Gemini 3 Flash - Primary model (NEWS_TAB_STRATEGY.md v3.2)
+  GEMINI_FLASH: "gemini-3-flash-preview",
+  // Legacy Claude models (for reference)
   HAIKU: "claude-3-5-haiku-20241022",
-  // High quality summarization
   OPUS: "claude-opus-4-5-20250514",
   SONNET: "claude-sonnet-4-20250514",
 } as const;
 
 export const TOKEN_COSTS = {
-  // Haiku pricing (per 1M tokens)
+  // Gemini 3.0 Flash pricing (per 1M tokens) - PRIMARY
+  [AI_MODELS.GEMINI_FLASH]: {
+    input: 0.5, // $0.50 per 1M input
+    output: 3.0, // $3.00 per 1M output
+  },
+  // Legacy Claude pricing (for reference)
   [AI_MODELS.HAIKU]: {
     input: 0.8, // $0.80 per 1M input
     output: 4.0, // $4.00 per 1M output
   },
-  // Opus pricing
   [AI_MODELS.OPUS]: {
     input: 15.0, // $15 per 1M input
     output: 75.0, // $75 per 1M output
   },
-  // Sonnet pricing
   [AI_MODELS.SONNET]: {
     input: 3.0, // $3 per 1M input
     output: 15.0, // $15 per 1M output
   },
 } as const;
+
+// Primary model for all AI operations
+export const PRIMARY_AI_MODEL = AI_MODELS.GEMINI_FLASH;
 
 export function calculateCost(
   model: keyof typeof TOKEN_COSTS,

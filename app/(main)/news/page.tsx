@@ -1,7 +1,8 @@
-import { Newspaper, ExternalLink, Building2, FileText, BookOpen, Sparkles } from "lucide-react";
+import { Newspaper, ExternalLink, Sparkles, Zap, Building2 } from "lucide-react";
+import Image from "next/image";
 import { createClient } from "@/lib/supabase/server";
-import OfficialNewsCard from "@/components/news/OfficialNewsCard";
-import PressNewsCard from "@/components/news/PressNewsCard";
+import NewsCard from "@/components/news/NewsCard";
+import HorizontalScrollSection from "@/components/news/HorizontalScrollSection";
 import type { ContentItem } from "@/types/automation";
 
 // ===========================================
@@ -28,30 +29,30 @@ export const metadata = {
 };
 
 // ===========================================
-// Quick Links Data
+// Quick Links Data (Official Anthropic/Claude Logos)
 // ===========================================
 
 const QUICK_LINKS = [
   {
     title: "Claude Code Changelog",
-    description: "Official release notes and version history",
+    description: "Official release notes",
     url: "https://docs.anthropic.com/en/docs/claude-code/changelog",
-    icon: FileText,
-    color: "green",
+    logo: "/logos/claude-symbol-clay.svg",
+    color: "claude",
   },
   {
     title: "Anthropic News",
-    description: "Official announcements from Anthropic",
+    description: "Official announcements",
     url: "https://www.anthropic.com/news",
-    icon: Building2,
-    color: "orange",
+    logo: "/logos/anthropic-icon-ivory.svg",
+    color: "anthropic",
   },
   {
     title: "Claude Code Docs",
-    description: "Official documentation and guides",
+    description: "Documentation & guides",
     url: "https://docs.anthropic.com/en/docs/claude-code",
-    icon: BookOpen,
-    color: "blue",
+    logo: "/logos/claude-symbol-clay.svg",
+    color: "claude",
   },
 ];
 
@@ -63,6 +64,16 @@ async function getNewsContent() {
   try {
     const supabase = await createClient();
 
+    // Fetch latest article for LATEST card
+    const { data: latestArticle } = await supabase
+      .from("contents")
+      .select("*")
+      .eq("type", "news")
+      .eq("status", "published")
+      .order("published_at", { ascending: false, nullsFirst: false })
+      .limit(1)
+      .single();
+
     // Fetch Claude Code related news (official + claude code keyword)
     const { data: claudeCodeNews } = await supabase
       .from("contents")
@@ -71,7 +82,7 @@ async function getNewsContent() {
       .eq("status", "published")
       .or("content_type.eq.official,content_type.eq.claude_code")
       .order("published_at", { ascending: false, nullsFirst: false })
-      .limit(6);
+      .limit(10);
 
     // Fetch AI general news (press/general AI news)
     const { data: aiNews } = await supabase
@@ -81,57 +92,135 @@ async function getNewsContent() {
       .eq("status", "published")
       .eq("content_type", "press")
       .order("published_at", { ascending: false, nullsFirst: false })
-      .limit(9);
+      .limit(12);
+
+    // Filter out the latest article from other lists to avoid duplication
+    const latestId = latestArticle?.id;
+    const filteredClaudeCode = (claudeCodeNews || []).filter(
+      (a) => a.id !== latestId
+    ) as ContentItem[];
+    const filteredAiNews = (aiNews || []).filter((a) => a.id !== latestId) as ContentItem[];
 
     return {
-      claudeCodeNews: (claudeCodeNews || []) as ContentItem[],
-      aiNews: (aiNews || []) as ContentItem[],
+      latestArticle: latestArticle as ContentItem | null,
+      claudeCodeNews: filteredClaudeCode,
+      aiNews: filteredAiNews,
     };
   } catch (error) {
     console.error("Failed to fetch news content:", error);
-    return { claudeCodeNews: [], aiNews: [] };
+    return { latestArticle: null, claudeCodeNews: [], aiNews: [] };
   }
 }
 
 // ===========================================
-// Quick Link Card Component
+// Quick Link Card Component (Official Logos)
 // ===========================================
 
+// Color schemes matching Anthropic brand (supports light/dark mode)
+const COLOR_CLASSES = {
+  claude:
+    "bg-[#D97757]/20 dark:bg-[#D97757]/25 hover:border-[#D97757]/50 hover:bg-[#D97757]/30 dark:hover:bg-[#D97757]/35",
+  anthropic:
+    "bg-black/10 dark:bg-white/15 hover:border-black/20 dark:hover:border-white/30 hover:bg-black/15 dark:hover:bg-white/20",
+} as const;
+
+const LOGO_BG_CLASSES = {
+  claude: "bg-[#D97757]/20 dark:bg-[#D97757]/25",
+  anthropic: "bg-black/10 dark:bg-white/10",
+} as const;
+
+type QuickLinkColor = keyof typeof COLOR_CLASSES;
+
 function QuickLinkCard({ link }: { link: (typeof QUICK_LINKS)[number] }) {
-  const colorClasses = {
-    green: "bg-green-500/10 text-green-400 hover:border-green-500/40 hover:bg-green-500/15",
-    orange: "bg-orange-500/10 text-orange-400 hover:border-orange-500/40 hover:bg-orange-500/15",
-    blue: "bg-blue-500/10 text-blue-400 hover:border-blue-500/40 hover:bg-blue-500/15",
-  };
-
-  const iconColorClasses = {
-    green: "text-green-400",
-    orange: "text-orange-400",
-    blue: "text-blue-400",
-  };
-
-  const Icon = link.icon;
+  const color = link.color as QuickLinkColor;
 
   return (
     <a
       href={link.url}
       target="_blank"
       rel="noopener noreferrer"
-      className={`group flex items-center gap-4 p-4 rounded-xl border border-white/10 transition-all ${colorClasses[link.color as keyof typeof colorClasses]}`}
+      className={`group flex items-center gap-3 p-3 rounded-xl border border-[var(--border-default)] transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#D97757] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--color-bg-primary)] ${COLOR_CLASSES[color]}`}
+      aria-label={`${link.title} - ${link.description} (opens in new tab)`}
     >
-      <div className={`p-3 rounded-lg bg-white/5`}>
-        <Icon
-          className={`w-5 h-5 ${iconColorClasses[link.color as keyof typeof iconColorClasses]}`}
+      <div className={`p-2 rounded-lg ${LOGO_BG_CLASSES[color]} transition-colors`}>
+        <Image
+          src={link.logo}
+          alt=""
+          width={18}
+          height={18}
+          className="w-[18px] h-[18px]"
+          aria-hidden="true"
         />
       </div>
       <div className="flex-1 min-w-0">
-        <h3 className="font-semibold text-[var(--color-text-primary)] text-sm group-hover:text-white transition-colors">
+        <h3 className="font-semibold text-[var(--color-text-primary)] text-xs group-hover:text-white transition-colors">
           {link.title}
         </h3>
-        <p className="text-xs text-text-muted mt-0.5">{link.description}</p>
+        <p className="text-[10px] text-text-muted">{link.description}</p>
       </div>
-      <ExternalLink className="w-4 h-4 text-text-muted group-hover:text-white/60 transition-colors flex-shrink-0" />
+      <ExternalLink
+        className="w-3.5 h-3.5 text-text-muted group-hover:text-white/60 transition-colors flex-shrink-0"
+        aria-hidden="true"
+      />
     </a>
+  );
+}
+
+// ===========================================
+// Section Header Component
+// ===========================================
+
+function SectionHeader({
+  icon: Icon,
+  iconColor,
+  title,
+  subtitle,
+  id,
+}: {
+  icon: React.ComponentType<{ className?: string }>;
+  iconColor: string;
+  title: string;
+  subtitle: string;
+  id?: string;
+}) {
+  return (
+    <div className="flex items-center gap-2 mb-4">
+      <div className={`p-2 rounded-lg ${iconColor}`}>
+        <Icon className="w-4 h-4" aria-hidden="true" />
+      </div>
+      <div>
+        <h2 id={id} className="text-sm font-semibold text-[var(--color-text-primary)]">
+          {title}
+        </h2>
+        <p className="text-[10px] text-text-muted">{subtitle}</p>
+      </div>
+    </div>
+  );
+}
+
+// ===========================================
+// Empty State Component
+// ===========================================
+
+function EmptyState({
+  icon: Icon,
+  message,
+  submessage,
+}: {
+  icon: React.ComponentType<{ className?: string }>;
+  message: string;
+  submessage: string;
+}) {
+  return (
+    <div
+      className="text-center py-12 bg-black/[0.02] dark:bg-white/5 rounded-lg border border-[var(--border-default)]"
+      role="status"
+      aria-live="polite"
+    >
+      <Icon className="w-10 h-10 mx-auto mb-3 text-text-muted" aria-hidden="true" />
+      <p className="text-sm text-[var(--color-text-primary)]">{message}</p>
+      <p className="text-xs text-text-muted mt-1">{submessage}</p>
+    </div>
   );
 }
 
@@ -140,95 +229,94 @@ function QuickLinkCard({ link }: { link: (typeof QUICK_LINKS)[number] }) {
 // ===========================================
 
 export default async function NewsPage() {
-  const { claudeCodeNews, aiNews } = await getNewsContent();
+  const { latestArticle, claudeCodeNews, aiNews } = await getNewsContent();
 
   return (
     <div className="mx-auto max-w-7xl px-4 lg:px-6 xl:px-8 py-8 md:py-10 xl:py-12">
       {/* Header */}
-      <header className="mb-8 md:mb-10 xl:mb-12">
+      <header className="mb-8 md:mb-10">
         <h1 className="text-2xl md:text-3xl xl:text-4xl font-bold text-[var(--color-text-primary)] mb-2">
           News
         </h1>
         <p className="text-text-muted text-sm md:text-base">
-          Stay updated with Claude Code and AI industry news
+          Stay updated with the latest Claude Code and AI industry news
         </p>
       </header>
 
-      {/* Section 1: Quick Links */}
-      <section className="mb-10 xl:mb-12">
-        <div className="flex items-center gap-2 mb-4">
-          <div className="p-2 rounded-lg bg-purple-500/10">
-            <Sparkles className="w-4 h-4 text-purple-400" />
-          </div>
-          <div>
-            <h2 className="text-sm font-semibold text-[var(--color-text-primary)]">
-              Official Resources
-            </h2>
-            <p className="text-[10px] text-text-muted">Direct links to official sources</p>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+      {/* Section 1: Quick Links (Compact) */}
+      <section className="mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
           {QUICK_LINKS.map((link) => (
             <QuickLinkCard key={link.title} link={link} />
           ))}
         </div>
       </section>
 
-      {/* Section 2: Claude Code News */}
-      <section className="mb-10 xl:mb-12">
-        <div className="flex items-center gap-2 mb-4">
-          <div className="p-2 rounded-lg bg-orange-500/10">
-            <Building2 className="w-4 h-4 text-orange-400" />
-          </div>
-          <div>
-            <h2 className="text-sm font-semibold text-[var(--color-text-primary)]">
-              Claude Code News
-            </h2>
-            <p className="text-[10px] text-text-muted">Latest updates about Claude Code</p>
-          </div>
-        </div>
+      {/* Section 2: LATEST Article + Claude Code News */}
+      <section className="mb-10" aria-labelledby="claude-code-news-heading">
+        <SectionHeader
+          icon={Zap}
+          iconColor="bg-orange-500/10 text-orange-400"
+          title="Claude Code News"
+          subtitle="Official updates and related news"
+          id="claude-code-news-heading"
+        />
 
-        <div className="space-y-3">
-          {claudeCodeNews.length > 0 ? (
-            claudeCodeNews.map((article) => <OfficialNewsCard key={article.id} article={article} />)
-          ) : (
-            <div className="text-center py-8 text-white/40 bg-white/[0.02] rounded-lg border border-white/10">
-              <Building2 className="w-8 h-8 mx-auto mb-3 opacity-40" />
-              <p className="text-sm">No Claude Code news yet</p>
-              <p className="text-xs text-text-muted mt-1">Check back soon for the latest updates</p>
-            </div>
-          )}
-        </div>
+        {latestArticle || claudeCodeNews.length > 0 ? (
+          <HorizontalScrollSection ariaLabel="Claude Code news list">
+            {/* LATEST Card */}
+            {latestArticle && <NewsCard article={latestArticle} variant="featured" isLatest />}
+            {/* Claude Code News Cards */}
+            {claudeCodeNews.map((article) => (
+              <NewsCard key={article.id} article={article} variant="default" />
+            ))}
+          </HorizontalScrollSection>
+        ) : (
+          <EmptyState
+            icon={Building2}
+            message="No Claude Code news yet"
+            submessage="Check back soon for the latest updates"
+          />
+        )}
       </section>
 
       {/* Section 3: AI News */}
-      <section>
-        <div className="flex items-center gap-2 mb-4">
-          <div className="p-2 rounded-lg bg-purple-500/10">
-            <Newspaper className="w-4 h-4 text-purple-400" />
-          </div>
-          <div>
-            <h2 className="text-sm font-semibold text-[var(--color-text-primary)]">AI News</h2>
-            <p className="text-[10px] text-text-muted">Industry news and updates</p>
-          </div>
-        </div>
+      <section className="mb-10" aria-labelledby="ai-news-heading">
+        <SectionHeader
+          icon={Newspaper}
+          iconColor="bg-purple-500/10 text-purple-400"
+          title="AI Industry News"
+          subtitle="Trends and highlights from the AI industry"
+          id="ai-news-heading"
+        />
 
         {aiNews.length > 0 ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+          <HorizontalScrollSection ariaLabel="AI industry news list">
             {aiNews.map((article) => (
-              <PressNewsCard key={article.id} article={article} />
+              <NewsCard key={article.id} article={article} variant="compact" />
             ))}
-          </div>
+          </HorizontalScrollSection>
         ) : (
-          <div className="text-center py-8 text-white/40 bg-white/[0.02] rounded-lg border border-white/10">
-            <Newspaper className="w-8 h-8 mx-auto mb-3 opacity-40" />
-            <p className="text-sm">No AI news yet</p>
-            <p className="text-xs text-text-muted mt-1">
-              Stay tuned for the latest AI industry updates
-            </p>
-          </div>
+          <EmptyState
+            icon={Newspaper}
+            message="No AI news yet"
+            submessage="Check back soon for the latest AI industry updates"
+          />
         )}
+      </section>
+
+      {/* Official Resources Footer */}
+      <section className="pt-6 border-t border-[var(--border-default)]">
+        <div className="flex items-center gap-2 mb-3">
+          <Sparkles className="w-4 h-4 text-purple-400" />
+          <span className="text-xs font-medium text-text-muted">
+            Always verify official information from the original source
+          </span>
+        </div>
+        <p className="text-[11px] text-text-muted/60 leading-relaxed">
+          CCgather curates Claude Code related news. All news content cites original sources. For
+          official documentation and announcements, please visit Anthropic&apos;s official channels.
+        </p>
       </section>
     </div>
   );

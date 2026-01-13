@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import type { CronConfig, CronLogEntry, RawArticle } from "@/types/automation";
-import { ContentPipeline, type PipelineResult } from "@/lib/ai";
+import { GeminiPipeline, type GeminiPipelineResult } from "@/lib/ai";
 
 // Extended article type with AI processing results
 interface ProcessedArticle extends RawArticle {
-  pipelineResult?: PipelineResult;
+  pipelineResult?: GeminiPipelineResult;
+  contentType?: string; // Maps to content_type in database (official, claude_code, press, etc.)
 }
 
 // Vercel Cron requires GET method
@@ -21,10 +22,21 @@ export async function POST(request: NextRequest) {
 async function handleCronRequest(request: NextRequest, isManual: boolean) {
   const startTime = Date.now();
   const logs: CronLogEntry[] = [];
+  let runId: string | undefined;
+  let supabaseClient: Awaited<ReturnType<typeof createClient>> | null = null;
+
+  // Helper to update logs in database (non-blocking)
+  const updateLogsInDb = () => {
+    if (runId && supabaseClient) {
+      void supabaseClient.from("cron_run_history").update({ log: logs }).eq("id", runId);
+    }
+  };
 
   const log = (level: CronLogEntry["level"], message: string, data?: Record<string, unknown>) => {
     logs.push({ timestamp: new Date().toISOString(), level, message, data });
     console[level === "error" ? "error" : "log"](`[Cron] ${message}`, data || "");
+    // Update logs in DB every time (non-blocking)
+    updateLogsInDb();
   };
 
   try {
@@ -40,16 +52,16 @@ async function handleCronRequest(request: NextRequest, isManual: boolean) {
       }
     }
 
-    log("info", "Starting news collection", { isManual });
-
     const supabase = await createClient();
+    supabaseClient = supabase;
 
     // Get run_id if manual
-    let runId: string | undefined;
     if (isManual) {
       const body = await request.json().catch(() => ({}));
       runId = body.run_id;
     }
+
+    log("info", "Starting news collection", { isManual });
 
     // Get cron job config
     const { data: cronJob } = await supabase
@@ -81,18 +93,18 @@ async function handleCronRequest(request: NextRequest, isManual: boolean) {
 
     log("info", `Found ${targets.length} active targets`);
 
-    // Initialize AI pipeline (only if ANTHROPIC_API_KEY is set)
-    let pipeline: ContentPipeline | undefined;
-    const hasApiKey = !!process.env.ANTHROPIC_API_KEY;
+    // Initialize Gemini AI pipeline (only if GOOGLE_GEMINI_API_KEY is set)
+    let pipeline: GeminiPipeline | undefined;
+    const hasApiKey = !!process.env.GOOGLE_GEMINI_API_KEY;
 
     if (hasApiKey) {
-      pipeline = new ContentPipeline({
-        skipValidation: false,
-        minFactCheckScore: 0.7,
+      pipeline = new GeminiPipeline({
+        minFactCheckScore: 70,
+        skipFactCheck: false,
       });
-      log("info", "AI Pipeline initialized");
+      log("info", "Gemini AI Pipeline initialized (gemini-3-flash-preview)");
     } else {
-      log("warn", "ANTHROPIC_API_KEY not set - running in fallback mode");
+      log("warn", "GOOGLE_GEMINI_API_KEY not set - running in fallback mode");
     }
 
     // Track AI usage
@@ -113,9 +125,9 @@ async function handleCronRequest(request: NextRequest, isManual: boolean) {
           await delay(config.delay_ms);
         }
 
-        // Collect based on target type
+        // Collect based on target type (pass category as content_type)
         if (target.type === "url") {
-          const articles = await collectFromUrl(target.value, target.category, pipeline);
+          const articles = await collectFromUrl(target.value, target.category as string, pipeline);
           collectedArticles.push(...articles);
 
           // Track AI usage from pipeline results
@@ -189,8 +201,11 @@ async function handleCronRequest(request: NextRequest, isManual: boolean) {
         const hasRichContent = pipelineResult?.success && pipelineResult?.summary;
 
         // Build insert data
+        // content_type determines which section the article appears in on news page
+        const articleContentType = (article as ProcessedArticle).contentType || "press";
         const insertData: Record<string, unknown> = {
           type: "news",
+          content_type: articleContentType, // official, claude_code, press, community, youtube
           source_url: article.source_url,
           source_name: article.source_name,
           title: hasRichContent
@@ -199,20 +214,35 @@ async function handleCronRequest(request: NextRequest, isManual: boolean) {
           thumbnail_url: article.thumbnail_url,
           published_at: article.published_at,
           status: hasRichContent ? "published" : "pending",
-          category: "news",
+          category: articleContentType, // Keep for backwards compatibility
         };
 
-        // Add rich content fields if AI processing succeeded
+        // Add rich content fields if AI processing succeeded (Gemini pipeline)
         if (hasRichContent) {
+          const rewritten = pipelineResult!.rewrittenArticle;
+
           insertData.summary = pipelineResult!.summary!.summaryPlain;
+          insertData.summary_md = rewritten?.summary;
           insertData.rich_content = pipelineResult!.summary!.richContent;
           insertData.favicon_url = pipelineResult!.article?.favicon;
-          insertData.analogy = pipelineResult!.summary!.analogy;
           insertData.difficulty = pipelineResult!.summary!.difficulty;
           insertData.original_content = pipelineResult!.article?.content;
 
-          // Fact check results
-          if (pipelineResult!.factCheck) {
+          // Gemini-specific fields
+          if (rewritten) {
+            insertData.one_liner = rewritten.oneLiner;
+            insertData.body_html = rewritten.bodyHtml;
+            insertData.insight_html = rewritten.insightHtml;
+            insertData.key_takeaways = rewritten.keyTakeaways;
+            insertData.category = rewritten.category;
+          }
+
+          // Fact check results (Gemini verification)
+          if (pipelineResult!.factVerification) {
+            insertData.fact_check_score = pipelineResult!.factVerification.score / 100;
+            insertData.fact_check_reason =
+              pipelineResult!.factVerification.issues.join("; ") || "Passed";
+          } else if (pipelineResult!.factCheck) {
             insertData.fact_check_score = pipelineResult!.factCheck.score;
             insertData.fact_check_reason = pipelineResult!.factCheck.reason;
           }
@@ -230,17 +260,18 @@ async function handleCronRequest(request: NextRequest, isManual: boolean) {
         if (!error) {
           savedCount++;
 
-          // Log AI usage if processed
+          // Log AI usage if processed (Gemini 3-stage pipeline)
           if (hasRichContent && pipelineResult!.aiUsage.costUsd > 0) {
             await supabase.from("ai_usage_log").insert({
               model: pipelineResult!.aiUsage.model,
-              operation: "summarize",
+              operation: "gemini_pipeline",
               input_tokens: pipelineResult!.aiUsage.inputTokens,
               output_tokens: pipelineResult!.aiUsage.outputTokens,
               cost_usd: pipelineResult!.aiUsage.costUsd,
               metadata: {
                 source_url: article.source_url,
                 content_length: pipelineResult!.article?.content.length,
+                stages: ["extract_facts", "rewrite_article", "verify_facts"],
               },
             });
           }
@@ -340,8 +371,8 @@ async function delay(ms: number): Promise<void> {
 
 async function collectFromUrl(
   url: string,
-  category?: string,
-  pipeline?: ContentPipeline
+  contentType?: string,
+  pipeline?: GeminiPipeline
 ): Promise<ProcessedArticle[]> {
   // Skip if no pipeline provided (fallback mode)
   if (!pipeline) {
@@ -352,13 +383,14 @@ async function collectFromUrl(
         source_name: hostname,
         original_title: `Article from ${hostname}`,
         published_at: new Date().toISOString(),
+        contentType: contentType || "press",
       },
     ];
   }
 
   try {
     // Process URL through AI pipeline
-    const result = await pipeline.process(url, category);
+    const result = await pipeline.process(url, contentType);
 
     if (!result.success || !result.article) {
       console.log(`[Cron] Pipeline failed for ${url}: ${result.error}`);
@@ -373,6 +405,7 @@ async function collectFromUrl(
         thumbnail_url: result.article.thumbnail,
         published_at: result.article.publishedAt,
         pipelineResult: result,
+        contentType: contentType || "press",
       },
     ];
   } catch (error) {

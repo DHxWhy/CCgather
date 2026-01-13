@@ -16,10 +16,7 @@ const ADMIN_MENU = [
   },
   {
     section: "콘텐츠",
-    items: [
-      { id: "contents", label: "콘텐츠 관리", href: "/admin/contents", icon: "📰" },
-      { id: "automation", label: "뉴스 자동화", href: "/admin/automation", icon: "⚡" },
-    ],
+    items: [{ id: "contents", label: "콘텐츠 관리", href: "/admin/contents", icon: "📰" }],
   },
   {
     section: "시스템",

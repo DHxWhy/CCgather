@@ -3,10 +3,6 @@
     {
       "path": "/api/cron/collect-news",
       "schedule": "0 0 * * *"
-    },
-    {
-      "path": "/api/cron/collect-changelog",
-      "schedule": "0 */6 * * *"
     }
   ]
 }

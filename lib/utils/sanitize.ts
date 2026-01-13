@@ -1,0 +1,81 @@
+import DOMPurify from "isomorphic-dompurify";
+
+/**
+ * Sanitize HTML content to prevent XSS attacks
+ * Uses a whitelist approach for allowed tags and attributes
+ */
+export function sanitizeHtml(html: string | undefined | null): string {
+  if (!html) return "";
+
+  return DOMPurify.sanitize(html, {
+    ALLOWED_TAGS: [
+      // Text formatting
+      "p",
+      "br",
+      "hr",
+      "strong",
+      "b",
+      "em",
+      "i",
+      "u",
+      "s",
+      "mark",
+      // Headings
+      "h1",
+      "h2",
+      "h3",
+      "h4",
+      "h5",
+      "h6",
+      // Lists
+      "ul",
+      "ol",
+      "li",
+      // Links and media
+      "a",
+      "img",
+      // Code
+      "code",
+      "pre",
+      // Quotes and blocks
+      "blockquote",
+      "q",
+      // Tables (optional, for rich content)
+      "table",
+      "thead",
+      "tbody",
+      "tr",
+      "th",
+      "td",
+      // Other
+      "span",
+      "div",
+      "section",
+      "article",
+    ],
+    ALLOWED_ATTR: [
+      "href",
+      "target",
+      "rel",
+      "src",
+      "alt",
+      "width",
+      "height",
+      "class",
+      "id",
+      "title",
+    ],
+    // Force all links to open in new tab and add security attributes
+    FORBID_TAGS: ["script", "style", "iframe", "form", "input", "button"],
+    ADD_ATTR: ["target", "rel"],
+  });
+}
+
+/**
+ * Check if article was published within the last 24 hours
+ */
+export function isNewArticle(publishedAt: string | undefined | null, createdAt: string): boolean {
+  const ONE_DAY_MS = 24 * 60 * 60 * 1000;
+  const date = new Date(publishedAt || createdAt);
+  return Date.now() - date.getTime() < ONE_DAY_MS;
+}

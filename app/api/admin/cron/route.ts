@@ -171,7 +171,6 @@ export async function POST(request: NextRequest) {
     // Trigger the actual cron endpoint based on jobId
     const cronEndpoints: Record<string, string> = {
       "news-collector": "/api/cron/collect-news",
-      "changelog-sync": "/api/cron/collect-changelog",
     };
     const cronPath = cronEndpoints[jobId] || "/api/cron/collect-news";
     const cronUrl = `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3002"}${cronPath}`;
@@ -199,6 +198,54 @@ export async function POST(request: NextRequest) {
     });
   } catch (error) {
     console.error("[Admin Cron] Unexpected error:", error);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+  }
+}
+
+// DELETE - Cancel a running cron job
+export async function DELETE(request: NextRequest) {
+  try {
+    if (!(await isAdmin())) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const { searchParams } = new URL(request.url);
+    const jobId = searchParams.get("jobId") || "news-collector";
+    const runId = searchParams.get("runId");
+
+    const supabase = createServiceClient();
+
+    // Update job status to not running
+    await supabase.from("cron_jobs").update({ is_running: false }).eq("id", jobId);
+
+    // If runId is provided, update the specific run history
+    if (runId) {
+      await supabase
+        .from("cron_run_history")
+        .update({
+          status: "cancelled",
+          finished_at: new Date().toISOString(),
+        })
+        .eq("id", runId)
+        .eq("status", "running");
+    } else {
+      // Cancel any running jobs for this jobId
+      await supabase
+        .from("cron_run_history")
+        .update({
+          status: "cancelled",
+          finished_at: new Date().toISOString(),
+        })
+        .eq("job_id", jobId)
+        .eq("status", "running");
+    }
+
+    return NextResponse.json({
+      success: true,
+      message: "Cron job cancelled",
+    });
+  } catch (error) {
+    console.error("[Admin Cron] Cancel error:", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }
