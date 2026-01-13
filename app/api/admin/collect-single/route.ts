@@ -78,10 +78,21 @@ export async function POST(request: NextRequest) {
     const pipelineResult = result;
     const hasRichContent = pipelineResult.success && pipelineResult.summary;
 
+    // Map category to valid content_type
+    const contentTypeMap: Record<string, string> = {
+      official: "official",
+      claude_code: "community", // claude_code maps to community
+      press: "press",
+      youtube: "youtube",
+      version_update: "version_update",
+      community: "community",
+    };
+    const validContentType = contentTypeMap[category] || "press";
+
     // Build insert data
     const insertData: Record<string, unknown> = {
       type: "news",
-      content_type: category,
+      content_type: validContentType,
       source_url: result.article.url,
       source_name: result.article.sourceName,
       title: hasRichContent ? pipelineResult.summary!.richContent.title.text : result.article.title,
@@ -95,8 +106,8 @@ export async function POST(request: NextRequest) {
     if (hasRichContent) {
       const rewritten = pipelineResult.rewrittenArticle;
 
-      insertData.summary = pipelineResult.summary!.summaryPlain;
-      insertData.summary_md = rewritten?.summary;
+      // Note: 'summary' column doesn't exist, use summary_md instead
+      insertData.summary_md = rewritten?.summary || pipelineResult.summary!.summaryPlain;
       insertData.rich_content = pipelineResult.summary!.richContent;
       insertData.favicon_url = pipelineResult.article?.favicon;
       insertData.difficulty = pipelineResult.summary!.difficulty;
@@ -108,7 +119,7 @@ export async function POST(request: NextRequest) {
         insertData.body_html = rewritten.bodyHtml;
         insertData.insight_html = rewritten.insightHtml;
         insertData.key_takeaways = rewritten.keyTakeaways;
-        insertData.category = rewritten.category;
+        // Don't override category with AI-generated one as it may not match valid content_type
       }
 
       // Fact check results
