@@ -59,7 +59,8 @@ export async function POST(request: NextRequest) {
     }
 
     const pipeline = new GeminiPipeline({
-      minFactCheckScore: 70,
+      minFactCheckScore: 80, // Increased for higher quality
+      maxRetries: 1, // Retry once if score is below threshold
       skipFactCheck: false,
     });
 
@@ -90,6 +91,11 @@ export async function POST(request: NextRequest) {
     };
     const validContentType = contentTypeMap[category] || "press";
 
+    // Determine status based on fact-check result
+    // - needs_review: Fact-check score below threshold after retries (requires manual review)
+    // - pending: Normal review queue
+    const status = pipelineResult.needsReview ? "needs_review" : "pending";
+
     // Build insert data
     const insertData: Record<string, unknown> = {
       type: "news",
@@ -99,7 +105,7 @@ export async function POST(request: NextRequest) {
       title: hasRichContent ? pipelineResult.summary!.richContent.title.text : result.article.title,
       thumbnail_url: result.article.thumbnail,
       published_at: result.article.publishedAt,
-      status: "pending", // Always pending for manual collection, requires review
+      status, // 'needs_review' if low score, 'pending' otherwise
       category: category,
     };
 
@@ -205,6 +211,10 @@ export async function POST(request: NextRequest) {
       success: true,
       content_id: savedContent.id,
       title: insertData.title,
+      status, // 'needs_review' or 'pending'
+      needs_review: pipelineResult.needsReview || false,
+      retry_count: pipelineResult.retryCount || 0,
+      fact_check_score: pipelineResult.factVerification?.score || null,
       thumbnail: thumbnailResult
         ? {
             url: thumbnailResult.thumbnail_url,

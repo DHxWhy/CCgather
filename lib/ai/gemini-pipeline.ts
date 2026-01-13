@@ -29,7 +29,8 @@ import type { RichContent, PipelineResult, SummarizerResult } from "./types";
 interface GeminiPipelineOptions {
   apiKey?: string;
   debug?: boolean;
-  minFactCheckScore?: number; // Minimum score to pass (default: 70)
+  minFactCheckScore?: number; // Minimum score to pass (default: 80)
+  maxRetries?: number; // Maximum retries for low score (default: 1)
   skipFactCheck?: boolean; // Skip Stage 3 for speed
 }
 
@@ -41,10 +42,14 @@ export interface GeminiPipelineResult extends PipelineResult {
   extractedFacts?: ExtractedFacts;
   rewrittenArticle?: RewrittenArticle;
   factVerification?: FactVerification;
+  needsReview?: boolean; // True if fact-check score is below threshold after retries
+  retryCount?: number; // Number of retries performed
   stageResults?: {
     stage1?: GeminiUsage;
     stage2?: GeminiUsage;
+    stage2Retry?: GeminiUsage; // Retry usage tracking
     stage3?: GeminiUsage;
+    stage3Retry?: GeminiUsage; // Retry usage tracking
   };
 }
 
@@ -59,7 +64,8 @@ export class GeminiPipeline {
 
   constructor(options: GeminiPipelineOptions = {}) {
     this.options = {
-      minFactCheckScore: 70,
+      minFactCheckScore: 80, // Increased from 70 for higher quality
+      maxRetries: 1, // Retry once if score is below threshold
       skipFactCheck: false,
       ...options,
     };
@@ -124,21 +130,30 @@ export class GeminiPipeline {
       }
 
       // ========================================
-      // Stage 2: Rewrite Article (기사 재작성)
+      // Stage 2 & 3: Rewrite + Verify with Retry
       // ========================================
+      const minScore = this.options.minFactCheckScore || 80;
+      const maxRetries = this.options.maxRetries || 1;
+      let retryCount = 0;
+      let rewrittenArticle: RewrittenArticle;
+      let factVerification: FactVerification | undefined;
+      let needsReview = false;
+
+      // Initial Stage 2: Rewrite Article
       if (this.debug) console.log(`[GeminiPipeline] Stage 2: Rewriting article...`);
 
-      const { article: rewrittenArticle, usage: stage2Usage } = await this.client.rewriteArticle(
+      let rewriteResult = await this.client.rewriteArticle(
         article.title,
         article.content,
         facts,
         article.sourceName
       );
 
-      stageResults.stage2 = stage2Usage;
-      aiUsage.inputTokens += stage2Usage.inputTokens;
-      aiUsage.outputTokens += stage2Usage.outputTokens;
-      aiUsage.costUsd += stage2Usage.costUsd;
+      rewrittenArticle = rewriteResult.article;
+      stageResults.stage2 = rewriteResult.usage;
+      aiUsage.inputTokens += rewriteResult.usage.inputTokens;
+      aiUsage.outputTokens += rewriteResult.usage.outputTokens;
+      aiUsage.costUsd += rewriteResult.usage.costUsd;
 
       if (this.debug) {
         console.log(
@@ -146,35 +161,74 @@ export class GeminiPipeline {
         );
       }
 
-      // ========================================
-      // Stage 3: Verify Facts (팩트 검증)
-      // ========================================
-      let factVerification: FactVerification | undefined;
-
+      // Stage 3: Verify Facts (with retry loop)
       if (!this.options.skipFactCheck) {
         if (this.debug) console.log(`[GeminiPipeline] Stage 3: Verifying facts...`);
 
-        const { verification, usage: stage3Usage } = await this.client.verifyFacts(
-          facts,
-          rewrittenArticle
-        );
+        let verifyResult = await this.client.verifyFacts(facts, rewrittenArticle);
 
-        factVerification = verification;
-        stageResults.stage3 = stage3Usage;
-        aiUsage.inputTokens += stage3Usage.inputTokens;
-        aiUsage.outputTokens += stage3Usage.outputTokens;
-        aiUsage.costUsd += stage3Usage.costUsd;
+        factVerification = verifyResult.verification;
+        stageResults.stage3 = verifyResult.usage;
+        aiUsage.inputTokens += verifyResult.usage.inputTokens;
+        aiUsage.outputTokens += verifyResult.usage.outputTokens;
+        aiUsage.costUsd += verifyResult.usage.costUsd;
 
         if (this.debug) {
           console.log(
-            `[GeminiPipeline] Stage 3 complete: score=${verification.score}, passed=${verification.passed}`
+            `[GeminiPipeline] Stage 3 complete: score=${factVerification.score}, passed=${factVerification.passed}`
           );
         }
 
-        // Check if verification passed
-        if (verification.score < (this.options.minFactCheckScore || 70)) {
+        // Retry loop if score is below threshold
+        while (factVerification.score < minScore && retryCount < maxRetries) {
+          retryCount++;
+          console.log(
+            `[GeminiPipeline] Score ${factVerification.score} < ${minScore}. Retrying Stage 2-3 (attempt ${retryCount}/${maxRetries})...`
+          );
+
+          // Retry Stage 2: Rewrite with feedback
+          if (this.debug) console.log(`[GeminiPipeline] Stage 2 Retry: Rewriting with feedback...`);
+
+          rewriteResult = await this.client.rewriteArticle(
+            article.title,
+            article.content,
+            facts,
+            article.sourceName
+          );
+
+          rewrittenArticle = rewriteResult.article;
+          stageResults.stage2Retry = rewriteResult.usage;
+          aiUsage.inputTokens += rewriteResult.usage.inputTokens;
+          aiUsage.outputTokens += rewriteResult.usage.outputTokens;
+          aiUsage.costUsd += rewriteResult.usage.costUsd;
+
+          // Retry Stage 3: Verify again
+          if (this.debug) console.log(`[GeminiPipeline] Stage 3 Retry: Verifying again...`);
+
+          verifyResult = await this.client.verifyFacts(facts, rewrittenArticle);
+
+          factVerification = verifyResult.verification;
+          stageResults.stage3Retry = verifyResult.usage;
+          aiUsage.inputTokens += verifyResult.usage.inputTokens;
+          aiUsage.outputTokens += verifyResult.usage.outputTokens;
+          aiUsage.costUsd += verifyResult.usage.costUsd;
+
+          if (this.debug) {
+            console.log(
+              `[GeminiPipeline] Retry ${retryCount} complete: score=${factVerification.score}`
+            );
+          }
+        }
+
+        // Check final result after retries
+        if (factVerification.score < minScore) {
+          needsReview = true;
           console.warn(
-            `[GeminiPipeline] Warning: Low fact-check score (${verification.score}), but proceeding`
+            `[GeminiPipeline] Score ${factVerification.score} still below ${minScore} after ${retryCount} retries. Marking as needs_review.`
+          );
+        } else {
+          console.log(
+            `[GeminiPipeline] Final score ${factVerification.score} >= ${minScore}. Quality check passed.`
           );
         }
       }
@@ -187,6 +241,8 @@ export class GeminiPipeline {
 
       return {
         success: true,
+        needsReview,
+        retryCount,
         article: {
           url: article.url,
           title: article.title,
