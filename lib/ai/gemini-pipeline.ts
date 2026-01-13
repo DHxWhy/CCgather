@@ -364,7 +364,6 @@ export class GeminiPipeline {
       },
       meta: {
         difficulty: rewritten.difficulty,
-        readTime: rewritten.readTime,
         category: rewritten.category,
       },
       style: {

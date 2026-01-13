@@ -286,12 +286,10 @@ export async function submit(options: SubmitOptions): Promise<void> {
       const { auth } = await import("./auth.js");
       await auth({});
       console.log();
-      console.log(
-        `  ${colors.muted("Please run")} ${colors.primary("npx ccgather")} ${colors.muted("again to submit.")}`
-      );
-      console.log();
+      // After successful auth, retry submit
+      return submit(options);
     }
-    process.exit(0);
+    return;
   }
 
   verifySpinner.succeed(colors.success("Authenticated"));

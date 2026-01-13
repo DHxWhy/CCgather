@@ -13,12 +13,12 @@ export const GlobeParticles: React.FC<GlobeParticlesProps> = ({ size, className 
 
   // Generate particles that emanate from the globe's outline
   const particles = useMemo(() => {
-    const particleCount = 50; // Total particles
+    const particleCount = 80; // Total particles (increased for fuller effect)
     return [...Array(particleCount)].map((_, index) => {
       // Start from globe edge (radius = size/2), go outward
       const startAngle = random(0, Math.PI * 2);
       const startRadius = size / 2 - 5; // Start slightly inside globe outline
-      const travelDistance = random(20, 60); // How far to travel outward
+      const travelDistance = random(100, 320); // How far to travel outward (extended range)
 
       // Calculate travel direction
       const distanceX = Math.cos(startAngle) * travelDistance;
@@ -28,7 +28,7 @@ export const GlobeParticles: React.FC<GlobeParticlesProps> = ({ size, className 
       const startX = Math.cos(startAngle) * startRadius;
       const startY = Math.sin(startAngle) * startRadius;
 
-      const duration = random(8, 15);
+      const duration = random(29, 52); // Ultra slow for elegant, dreamy effect
       return {
         index,
         startX,

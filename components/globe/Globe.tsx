@@ -359,7 +359,7 @@ export function Globe({ markers = [], size = 400, className = "", userCountryCod
       markers: globeMarkers,
       onRender: (state) => {
         if (!pointerInteracting.current) {
-          phi += 0.002; // 30% slower (was 0.003)
+          phi += 0.00128; // 20% slower than 0.0016
         }
         state.phi = phi + rotationRef.current;
         state.width = size * 2;

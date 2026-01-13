@@ -411,6 +411,37 @@ body {
   animation: rankDown 1s ease-out forwards;
 }
 
+/* AI Thinking Shimmer Effect */
+@keyframes shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+.animate-shimmer {
+  animation: shimmer 3s ease-in-out infinite;
+}
+
+/* AI Thinking Shimmer Text - Zero Latency CSS Only */
+.shimmer-text {
+  background: linear-gradient(
+    90deg,
+    var(--color-claude-coral) 0%,
+    var(--color-claude-coral) 40%,
+    #fff 50%,
+    var(--color-claude-coral) 60%,
+    var(--color-claude-coral) 100%
+  );
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: shimmer 3s ease-in-out infinite;
+}
+
 /* Slide In Right (for mobile menu) */
 @keyframes slideInRight {
   from {

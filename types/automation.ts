@@ -361,7 +361,7 @@ export interface RichContentData {
   };
   meta: {
     difficulty: "easy" | "medium" | "hard";
-    readTime: string;
+    readTime?: string; // Optional - can be calculated from content length if needed
     category: string;
   };
   style: {

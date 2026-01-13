@@ -113,7 +113,6 @@ async function showMainMenu(): Promise<void> {
     if (startAuth) {
       const { auth } = await import("./commands/auth.js");
       await auth({});
-      console.log();
     } else {
       console.log(colors.dim("\n  Goodbye!\n"));
       process.exit(0);

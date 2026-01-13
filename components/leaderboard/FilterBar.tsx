@@ -1,8 +1,9 @@
-'use client';
+"use client";
 
-import { useState, useRef, useEffect } from 'react';
-import { Search, ChevronDown, Check } from 'lucide-react';
-import { LeaderboardFilters } from './LeaderboardTable';
+import { useState, useRef, useEffect } from "react";
+import { Search, ChevronDown, Check } from "lucide-react";
+import { LeaderboardFilters } from "./LeaderboardTable";
+import { FlagIcon } from "@/components/ui/FlagIcon";
 
 interface FilterBarProps {
   filters: LeaderboardFilters;
@@ -10,49 +11,40 @@ interface FilterBarProps {
   loading?: boolean;
 }
 
-// 국가 코드를 국기 이모지로 변환
-function getCountryFlag(countryCode: string): string {
-  if (!countryCode || countryCode === 'all') return '🌐';
-  const code = countryCode.toUpperCase();
-  if (code.length !== 2) return '🌐';
-  const codePoints = code.split('').map((char) => 0x1f1e6 + char.charCodeAt(0) - 65);
-  return String.fromCodePoint(...codePoints);
-}
-
 const COUNTRY_OPTIONS = [
-  { value: 'all', label: 'Global', flag: '🌐' },
-  { value: 'KR', label: 'South Korea', flag: getCountryFlag('KR') },
-  { value: 'US', label: 'United States', flag: getCountryFlag('US') },
-  { value: 'JP', label: 'Japan', flag: getCountryFlag('JP') },
-  { value: 'CN', label: 'China', flag: getCountryFlag('CN') },
-  { value: 'DE', label: 'Germany', flag: getCountryFlag('DE') },
-  { value: 'GB', label: 'United Kingdom', flag: getCountryFlag('GB') },
-  { value: 'FR', label: 'France', flag: getCountryFlag('FR') },
-  { value: 'CA', label: 'Canada', flag: getCountryFlag('CA') },
-  { value: 'AU', label: 'Australia', flag: getCountryFlag('AU') },
-  { value: 'IN', label: 'India', flag: getCountryFlag('IN') },
-  { value: 'BR', label: 'Brazil', flag: getCountryFlag('BR') },
-  { value: 'SG', label: 'Singapore', flag: getCountryFlag('SG') },
+  { value: "all", label: "Global" },
+  { value: "KR", label: "South Korea" },
+  { value: "US", label: "United States" },
+  { value: "JP", label: "Japan" },
+  { value: "CN", label: "China" },
+  { value: "DE", label: "Germany" },
+  { value: "GB", label: "United Kingdom" },
+  { value: "FR", label: "France" },
+  { value: "CA", label: "Canada" },
+  { value: "AU", label: "Australia" },
+  { value: "IN", label: "India" },
+  { value: "BR", label: "Brazil" },
+  { value: "SG", label: "Singapore" },
 ];
 
 const TIER_OPTIONS = [
-  { value: 'all', label: 'All Tiers' },
-  { value: 'enterprise', label: 'Enterprise' },
-  { value: 'team', label: 'Team' },
-  { value: 'pro', label: 'Pro' },
-  { value: 'free', label: 'Free' },
+  { value: "all", label: "All Tiers" },
+  { value: "enterprise", label: "Enterprise" },
+  { value: "team", label: "Team" },
+  { value: "pro", label: "Pro" },
+  { value: "free", label: "Free" },
 ];
 
 const TIMEFRAME_OPTIONS = [
-  { value: 'all', label: 'All Time' },
-  { value: 'month', label: 'This Month' },
-  { value: 'week', label: 'This Week' },
-  { value: 'day', label: 'Today' },
+  { value: "all", label: "All Time" },
+  { value: "month", label: "This Month" },
+  { value: "week", label: "This Week" },
+  { value: "day", label: "Today" },
 ];
 
 interface DropdownProps {
   value: string;
-  options: { value: string; label: string; flag?: string }[];
+  options: { value: string; label: string }[];
   onChange: (value: string) => void;
   placeholder?: string;
   showFlags?: boolean;
@@ -63,8 +55,7 @@ function Dropdown({ value, options, onChange, placeholder, showFlags }: Dropdown
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   const selectedOption = options.find((opt) => opt.value === value);
-  const displayLabel = selectedOption?.label || placeholder || 'Select';
-  const displayFlag = showFlags && selectedOption?.flag;
+  const displayLabel = selectedOption?.label || placeholder || "Select";
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -73,8 +64,8 @@ function Dropdown({ value, options, onChange, placeholder, showFlags }: Dropdown
       }
     }
 
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
   return (
@@ -84,12 +75,17 @@ function Dropdown({ value, options, onChange, placeholder, showFlags }: Dropdown
         type="button"
         onClick={() => setIsOpen(!isOpen)}
         className="flex items-center gap-2 h-9 px-3 rounded-lg text-sm transition-all duration-200 border border-white/10 hover:border-white/20"
-        style={{ backgroundColor: '#18181B' }}
+        style={{ backgroundColor: "#18181B" }}
       >
-        {displayFlag && <span className="text-base leading-none">{displayFlag}</span>}
+        {showFlags &&
+          (selectedOption?.value === "all" ? (
+            <span className="text-base leading-none">🌐</span>
+          ) : (
+            selectedOption && <FlagIcon countryCode={selectedOption.value} size="xs" />
+          ))}
         <span className="text-zinc-200">{displayLabel}</span>
         <ChevronDown
-          className={`w-4 h-4 text-zinc-500 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`}
+          className={`w-4 h-4 text-zinc-500 transition-transform duration-200 ${isOpen ? "rotate-180" : ""}`}
         />
       </button>
 
@@ -97,7 +93,7 @@ function Dropdown({ value, options, onChange, placeholder, showFlags }: Dropdown
       {isOpen && (
         <div
           className="absolute top-full left-0 mt-2 min-w-[200px] rounded-xl border border-white/10 shadow-2xl overflow-hidden z-50"
-          style={{ backgroundColor: '#18181B' }}
+          style={{ backgroundColor: "#18181B" }}
         >
           <div className="py-2 max-h-[320px] overflow-y-auto">
             {options.map((option, index) => {
@@ -112,21 +108,25 @@ function Dropdown({ value, options, onChange, placeholder, showFlags }: Dropdown
                   }}
                   className={`
                     w-full flex items-center gap-3 px-3 py-2.5 text-sm text-left transition-colors duration-150
-                    ${isSelected
-                      ? 'bg-white/10 text-white'
-                      : 'text-zinc-400 hover:bg-white/5 hover:text-zinc-200'
+                    ${
+                      isSelected
+                        ? "bg-white/10 text-white"
+                        : "text-zinc-400 hover:bg-white/5 hover:text-zinc-200"
                     }
-                    ${index === 0 ? 'rounded-t-lg' : ''}
-                    ${index === options.length - 1 ? 'rounded-b-lg' : ''}
+                    ${index === 0 ? "rounded-t-lg" : ""}
+                    ${index === options.length - 1 ? "rounded-b-lg" : ""}
                   `}
                 >
-                  {showFlags && option.flag && (
-                    <span className="text-lg leading-none w-6 text-center">{option.flag}</span>
-                  )}
+                  {showFlags &&
+                    (option.value === "all" ? (
+                      <span className="text-lg leading-none w-6 text-center">🌐</span>
+                    ) : (
+                      <span className="w-6 flex justify-center">
+                        <FlagIcon countryCode={option.value} size="sm" />
+                      </span>
+                    ))}
                   <span className="flex-1">{option.label}</span>
-                  {isSelected && (
-                    <Check className="w-4 h-4 text-primary flex-shrink-0" />
-                  )}
+                  {isSelected && <Check className="w-4 h-4 text-primary flex-shrink-0" />}
                 </button>
               );
             })}
@@ -147,8 +147,8 @@ export function FilterBar({ filters, onFilterChange, loading }: FilterBarProps) 
 
   function handleSearchChange(e: React.ChangeEvent<HTMLInputElement>) {
     setSearchValue(e.target.value);
-    if (e.target.value === '') {
-      onFilterChange({ search: '' });
+    if (e.target.value === "") {
+      onFilterChange({ search: "" });
     }
   }
 
@@ -163,7 +163,7 @@ export function FilterBar({ filters, onFilterChange, loading }: FilterBarProps) 
           value={searchValue}
           onChange={handleSearchChange}
           className="w-full h-9 pl-9 pr-4 rounded-lg text-sm border border-white/10 text-zinc-200 placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-transparent transition-all"
-          style={{ backgroundColor: '#18181B' }}
+          style={{ backgroundColor: "#18181B" }}
         />
       </form>
 
@@ -188,7 +188,9 @@ export function FilterBar({ filters, onFilterChange, loading }: FilterBarProps) 
         <Dropdown
           value={filters.timeframe}
           options={TIMEFRAME_OPTIONS}
-          onChange={(value) => onFilterChange({ timeframe: value as LeaderboardFilters['timeframe'] })}
+          onChange={(value) =>
+            onFilterChange({ timeframe: value as LeaderboardFilters["timeframe"] })
+          }
         />
 
         {/* Loading indicator */}

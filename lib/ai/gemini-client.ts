@@ -36,7 +36,18 @@ export interface GeminiUsage {
   costUsd: number;
 }
 
+export type ArticleType =
+  | "product_launch"
+  | "version_update"
+  | "tutorial"
+  | "interview"
+  | "analysis"
+  | "security"
+  | "event"
+  | "general";
+
 export interface ExtractedFacts {
+  articleType: ArticleType;
   version?: string;
   releaseDate?: string;
   metrics: string[];
@@ -56,7 +67,6 @@ export interface RewrittenArticle {
   insightHtml: string;
   keyTakeaways: Array<{ icon: string; text: string }>;
   difficulty: "easy" | "medium" | "hard";
-  readTime: string;
   category: string;
 }
 
@@ -75,7 +85,19 @@ const FACT_EXTRACTION_PROMPT = `당신은 CCgather 뉴스 플랫폼의 팩트 �
 
 주어진 기사에서 핵심 팩트를 구조화된 JSON으로 추출하세요.
 
-## 추출 항목
+## 1단계: 기사 유형 분류 (articleType)
+기사를 읽고 가장 적합한 유형을 선택하세요:
+
+- **product_launch**: 새 제품/기능 발표, 서비스 출시
+- **version_update**: 기존 제품의 버전 업데이트, 패치 노트
+- **tutorial**: 사용법 가이드, How-to, 튜토리얼
+- **interview**: 인터뷰, 대담, Q&A
+- **analysis**: 의견, 분석, 비교, 리뷰
+- **security**: 보안 취약점, 버그 리포트, 긴급 공지
+- **event**: 컨퍼런스, 이벤트 보도, 발표 현장
+- **general**: 위 유형에 해당하지 않는 일반 뉴스
+
+## 2단계: 팩트 추출
 - version: 버전 번호 (있는 경우)
 - releaseDate: 발표일 (있는 경우)
 - metrics: 수치 데이터 (성능 개선율, 속도, 비용 등)
@@ -88,6 +110,7 @@ JSON만 출력하세요.
 
 \`\`\`json
 {
+  "articleType": "product_launch|version_update|tutorial|interview|analysis|security|event|general",
   "version": "string or null",
   "releaseDate": "string or null",
   "metrics": ["string"],
@@ -131,22 +154,62 @@ Capture the essence in one shareable sentence containing at least ONE specific f
 ### 2. Title
 Create an original, engaging headline + relevant emoji. Include the product/feature name.
 
-### 3. Summary (STRICT REQUIREMENTS)
-Write 2-4 sentences following this structure:
+### 3. Summary (COMPREHENSIVE SUMMARY - 50% of original length)
+Write a comprehensive summary that captures approximately **50% of the original article's length**.
+If the original is 3000 characters, write ~1500 characters. If it's 1000 characters, write ~500 characters.
 
-**Sentence 1 (WHAT + WHO):**
-"[Company] released/announced [Product], a [one-phrase description] for [target users/availability]."
+**IMPORTANT: Use the structure that matches the articleType from Stage 1 facts.**
 
-**Sentence 2 (HOW - specific capabilities):**
-"It [action verb: reads/creates/analyzes] [specific objects] to [concrete outcome]."
+#### Structure by Article Type:
 
-**Sentence 3+ (LIMITATIONS/CONTEXT - if relevant):**
-"Currently [limitation: platform, pricing, beta status]. [Additional key detail]."
+**product_launch / version_update:**
+1. Lead: What was released, by whom, for whom
+2. Core Features: Key capabilities with specific examples
+3. Technical Details: How it works, specifications, requirements
+4. Context & Impact: Pricing, availability, limitations
+
+**tutorial:**
+1. Goal: What you will learn/build
+2. Prerequisites: Required knowledge, tools, setup
+3. Key Steps: Main steps summarized (not full tutorial)
+4. Outcome: What you achieve at the end
+
+**interview:**
+1. Who: Interviewee background and relevance
+2. Key Quotes: 2-3 most important statements (paraphrased)
+3. Main Topics: What was discussed
+4. Takeaways: Key insights from the conversation
+
+**analysis:**
+1. Topic: What is being analyzed/compared
+2. Key Arguments: Main points and evidence
+3. Findings: Conclusions or comparisons
+4. Implications: What this means for readers
+
+**security:**
+1. Vulnerability: What the issue is, severity level
+2. Affected: Products, versions, users impacted
+3. Risk: Potential impact if exploited
+4. Mitigation: How to fix or protect yourself
+
+**event:**
+1. Event: What, when, where
+2. Announcements: Key reveals or presentations
+3. Highlights: Notable moments or demos
+4. Significance: Why it matters
+
+**general:**
+1. Lead: Core news (WHO did WHAT)
+2. Details: Supporting information
+3. Context: Background and significance
+4. Impact: What this means going forward
 
 ### Information Density Rules for Summary
-- Every sentence must contain at least ONE specific fact
+- Cover ALL major points from the original article, not just highlights
+- Include specific numbers, versions, dates, and technical details
 - Use action verbs: "reads", "creates", "organizes", "generates", "accesses"
 - Include: availability (who can use), platform (where), specific capabilities (what it does)
+- Preserve technical accuracy while making content accessible
 - NEVER use vague marketing words: "revolutionary", "game-changing", "proactive", "seamless", "powerful"
 
 ### Summary Anti-patterns (NEVER write like this)
@@ -156,11 +219,11 @@ Write 2-4 sentences following this structure:
 ❌ "complex file management and document creation tasks"
 ✅ "organizing downloads, generating spreadsheets from screenshots, drafting reports from notes"
 
-❌ "agentic foundations of Claude Code"
-✅ "file access and automation features similar to Claude Code"
+❌ Brief 2-sentence summaries that miss important details
+✅ Comprehensive summaries that give readers full context without reading the original
 
 ### Example Good Summary
-"Anthropic released Cowork, a file automation tool for Claude Max subscribers on macOS. It accesses designated folders to read, edit, and create files—handling tasks like organizing downloads, generating expense spreadsheets from screenshots, and drafting reports from scattered notes. Users can queue multiple tasks and continue working while Claude completes them in the background."
+"Anthropic released Cowork, a file automation tool exclusively for Claude Max subscribers ($100/month) on macOS. The feature allows Claude to access designated folders on your computer, where it can read, edit, and create files autonomously—handling tasks like organizing cluttered downloads folders, generating expense spreadsheets from receipt screenshots, and drafting reports from scattered meeting notes. Unlike the standard Claude chat interface, Cowork operates in the background, letting users queue multiple tasks and continue their work while Claude processes them. The tool integrates with the existing Claude desktop app and requires explicit folder permission grants for security. Currently in beta, Cowork represents Anthropic's push toward more agentic AI capabilities, building on the foundations established with Claude Code for developers."
 
 ### 4. Body (bodyHtml)
 HTML format using p/h2/ul/li/strong/code tags - COMPLETELY REWRITTEN with specific details.
@@ -185,7 +248,6 @@ Output JSON only.
   "insightHtml": "string",
   "keyTakeaways": [{ "icon": "string", "text": "string" }],
   "difficulty": "easy|medium|hard",
-  "readTime": "string (e.g., 3 min)",
   "category": "string"
 }
 \`\`\``;
@@ -338,7 +400,7 @@ export class GeminiClient {
 
     const config: GenerationConfig = {
       temperature: 0.7,
-      maxOutputTokens: 4096,
+      maxOutputTokens: 32768, // Large buffer for 50% summary + full bodyHtml of long articles
     };
 
     const prompt = `${ARTICLE_REWRITING_PROMPT}

@@ -4,6 +4,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { Github, Twitter, Linkedin, Globe } from "lucide-react";
 import { LeaderboardUser, SocialLinks } from "./LeaderboardTable";
+import { FlagIcon } from "@/components/ui/FlagIcon";
 
 interface UserRowProps {
   user: LeaderboardUser;
@@ -36,21 +37,9 @@ function getTierBadge(tier: string): { bg: string; text: string } {
   return tierValue !== undefined ? tierValue : defaultTier;
 }
 
-function getCountryFlag(country: string | null): string {
-  if (!country) return "";
-
-  // Map country codes to flag emojis
-  const countryCode = country.toUpperCase();
-  if (countryCode.length !== 2) return "";
-
-  const codePoints = countryCode.split("").map((char) => 0x1f1e6 + char.charCodeAt(0) - 65);
-  return String.fromCodePoint(...codePoints);
-}
-
 export function UserRow({ user }: UserRowProps) {
   const rankDisplay = getRankDisplay(user.rank);
   const tierBadge = getTierBadge(user.tier);
-  const flag = getCountryFlag(user.country);
 
   return (
     <Link
@@ -81,7 +70,7 @@ export function UserRow({ user }: UserRowProps) {
               <span className="text-sm font-medium text-text-primary truncate">
                 {user.username}
               </span>
-              {flag && <span className="text-sm">{flag}</span>}
+              {user.country && <FlagIcon countryCode={user.country} size="xs" />}
             </div>
             {user.isCurrentUser && <span className="text-[10px] text-primary">You</span>}
           </div>

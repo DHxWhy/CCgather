@@ -1,7 +1,8 @@
-'use client';
+"use client";
 
-import Image from 'next/image';
-import { MapPin, Calendar, ExternalLink } from 'lucide-react';
+import Image from "next/image";
+import { MapPin, Calendar, ExternalLink } from "lucide-react";
+import { FlagIcon } from "@/components/ui/FlagIcon";
 
 export interface ProfileData {
   id: string;
@@ -24,46 +25,35 @@ interface ProfileHeaderProps {
   isOwnProfile?: boolean;
 }
 
-function getCountryFlag(country: string | null): string {
-  if (!country) return '';
-  const countryCode = country.toUpperCase();
-  if (countryCode.length !== 2) return '';
-  const codePoints = countryCode
-    .split('')
-    .map((char) => 0x1f1e6 + char.charCodeAt(0) - 65);
-  return String.fromCodePoint(...codePoints);
-}
-
 function getRankMedal(rank: number): string {
-  if (rank === 1) return '👑';
-  if (rank === 2) return '🥈';
-  if (rank === 3) return '🥉';
-  if (rank <= 10) return '🏅';
-  if (rank <= 100) return '🎖️';
-  return '';
+  if (rank === 1) return "👑";
+  if (rank === 2) return "🥈";
+  if (rank === 3) return "🥉";
+  if (rank <= 10) return "🏅";
+  if (rank <= 100) return "🎖️";
+  return "";
 }
 
 function getTierColor(tier: string): string {
-  const defaultColor = 'text-text-muted';
+  const defaultColor = "text-text-muted";
   const colors: Record<string, string> = {
     free: defaultColor,
-    pro: 'text-accent-blue',
-    team: 'text-accent-purple',
-    enterprise: 'text-primary',
+    pro: "text-accent-blue",
+    team: "text-accent-purple",
+    enterprise: "text-primary",
   };
   return colors[tier.toLowerCase()] ?? defaultColor;
 }
 
 function formatDate(dateString: string): string {
   const date = new Date(dateString);
-  return date.toLocaleDateString('en-US', {
-    year: 'numeric',
-    month: 'long',
+  return date.toLocaleDateString("en-US", {
+    year: "numeric",
+    month: "long",
   });
 }
 
 export function ProfileHeader({ profile, isOwnProfile }: ProfileHeaderProps) {
-  const flag = getCountryFlag(profile.country);
   const medal = getRankMedal(profile.rank);
 
   return (
@@ -102,10 +92,8 @@ export function ProfileHeader({ profile, isOwnProfile }: ProfileHeaderProps) {
         <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
           <div>
             <div className="flex items-center gap-3 mb-1">
-              <h1 className="text-2xl font-bold text-text-primary">
-                {profile.username}
-              </h1>
-              {flag && <span className="text-xl">{flag}</span>}
+              <h1 className="text-2xl font-bold text-text-primary">{profile.username}</h1>
+              {profile.country && <FlagIcon countryCode={profile.country} size="md" />}
               <span
                 className={`px-2 py-0.5 rounded-full text-xs font-medium bg-white/5 ${getTierColor(
                   profile.tier
@@ -116,9 +104,7 @@ export function ProfileHeader({ profile, isOwnProfile }: ProfileHeaderProps) {
             </div>
 
             {profile.bio && (
-              <p className="text-sm text-text-secondary mb-3 max-w-lg">
-                {profile.bio}
-              </p>
+              <p className="text-sm text-text-secondary mb-3 max-w-lg">{profile.bio}</p>
             )}
 
             <div className="flex flex-wrap gap-4 text-xs text-text-muted">
@@ -180,21 +166,21 @@ export function ProfileHeader({ profile, isOwnProfile }: ProfileHeaderProps) {
 
 function getBadgeEmoji(badge: string): string {
   const badgeEmojis: Record<string, string> = {
-    'first-sync': '🚀',
-    'token-1k': '🌱',
-    'token-10k': '⚡',
-    'token-100k': '💪',
-    'token-1m': '💎',
-    'token-10m': '🏆',
-    'top-100': '🏅',
-    'top-10': '🥇',
-    'number-one': '👑',
-    'opus-user': '🎭',
-    'sonnet-user': '🎵',
-    'early-adopter': '🌟',
-    'big-spender': '💰',
+    "first-sync": "🚀",
+    "token-1k": "🌱",
+    "token-10k": "⚡",
+    "token-100k": "💪",
+    "token-1m": "💎",
+    "token-10m": "🏆",
+    "top-100": "🏅",
+    "top-10": "🥇",
+    "number-one": "👑",
+    "opus-user": "🎭",
+    "sonnet-user": "🎵",
+    "early-adopter": "🌟",
+    "big-spender": "💰",
   };
-  return badgeEmojis[badge] || '🏅';
+  return badgeEmojis[badge] || "🏅";
 }
 
 export default ProfileHeader;

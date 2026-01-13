@@ -36,7 +36,7 @@ export interface RichContentSource {
 
 export interface RichContentMeta {
   difficulty: "easy" | "medium" | "hard";
-  readTime: string;
+  readTime?: string; // Optional - can be calculated from content length if needed
   category: string;
 }
 
