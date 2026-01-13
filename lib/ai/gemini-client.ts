@@ -205,10 +205,38 @@ export class GeminiClient {
   }
 
   private parseJsonResponse<T>(text: string): T {
-    // Extract JSON from markdown code block if present
-    const jsonMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/);
-    const jsonStr = jsonMatch && jsonMatch[1] ? jsonMatch[1].trim() : text.trim();
-    return JSON.parse(jsonStr) as T;
+    let jsonStr = text.trim();
+
+    // Try multiple patterns to extract JSON from markdown code blocks
+    // Pattern 1: ```json ... ``` or ``` ... ```
+    const codeBlockMatch = jsonStr.match(/```(?:json|JSON)?\s*\n?([\s\S]*?)\n?```/);
+    if (codeBlockMatch && codeBlockMatch[1]) {
+      jsonStr = codeBlockMatch[1].trim();
+    } else {
+      // Pattern 2: Remove leading/trailing backticks if partial code block
+      jsonStr = jsonStr.replace(/^`{3,}(?:json|JSON)?\s*\n?/, "").replace(/\n?`{3,}$/, "");
+    }
+
+    // Pattern 3: Find JSON object/array boundaries if still wrapped
+    if (!jsonStr.startsWith("{") && !jsonStr.startsWith("[")) {
+      const jsonStart = jsonStr.search(/[\[{]/);
+      const jsonEndBrace = jsonStr.lastIndexOf("}");
+      const jsonEndBracket = jsonStr.lastIndexOf("]");
+      const jsonEnd = Math.max(jsonEndBrace, jsonEndBracket);
+
+      if (jsonStart !== -1 && jsonEnd !== -1 && jsonEnd > jsonStart) {
+        jsonStr = jsonStr.substring(jsonStart, jsonEnd + 1);
+      }
+    }
+
+    try {
+      return JSON.parse(jsonStr) as T;
+    } catch (error) {
+      console.error("[GeminiClient] JSON parse error. Raw text:", text.substring(0, 500));
+      throw new Error(
+        `Failed to parse JSON response: ${error instanceof Error ? error.message : "Unknown error"}`
+      );
+    }
   }
 
   /**
