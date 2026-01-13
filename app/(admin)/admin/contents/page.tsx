@@ -3,11 +3,13 @@
 import { useState, useEffect } from "react";
 import Image from "next/image";
 import ThumbnailManager from "@/components/admin/ThumbnailManager";
+import TargetManager from "@/components/admin/TargetManager";
+import CronScheduler from "@/components/admin/CronScheduler";
 import type { ThumbnailSource } from "@/types/automation";
 
 type ContentType = "news" | "youtube";
 type ContentStatus = "pending" | "ready" | "published" | "rejected";
-type ContentTab = "news" | "youtube";
+type ContentTab = "news" | "youtube" | "targets" | "scheduler";
 
 interface ContentItem {
   id: string;
@@ -31,24 +33,6 @@ interface ContentItem {
   view_count?: number;
 }
 
-type AutomationMode = "on" | "confirm" | "off";
-
-interface AutomationSettings {
-  newsMode: AutomationMode;
-  youtubeMode: AutomationMode;
-  newsCrawlInterval: number;
-  youtubeCrawlInterval: number;
-  lastNewsCrawlAt?: string;
-  lastYoutubeCrawlAt?: string;
-}
-
-const AUTOMATION_MODE_INFO: Record<AutomationMode, { label: string; desc: string; color: string }> =
-  {
-    on: { label: "ON", desc: "완전 자동", color: "bg-emerald-500" },
-    confirm: { label: "CONFIRM", desc: "검토 필요", color: "bg-yellow-500" },
-    off: { label: "OFF", desc: "수동 모드", color: "bg-red-500" },
-  };
-
 const STATUS_STYLES: Record<ContentStatus, { bg: string; text: string; label: string }> = {
   pending: { bg: "bg-yellow-500/20", text: "text-yellow-400", label: "대기" },
   ready: { bg: "bg-blue-500/20", text: "text-blue-400", label: "준비" },
@@ -69,21 +53,15 @@ export default function AdminContentsPage() {
   const [activeTab, setActiveTab] = useState<ContentTab>("news");
   const [contents, setContents] = useState<ContentItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const [settings, setSettings] = useState<AutomationSettings>({
-    newsMode: "confirm",
-    youtubeMode: "confirm",
-    newsCrawlInterval: 6,
-    youtubeCrawlInterval: 12,
-  });
-  const [manualUrl, setManualUrl] = useState("");
   const [filter, setFilter] = useState<"all" | ContentStatus>("all");
   const [editingItem, setEditingItem] = useState<ContentItem | null>(null);
-  const [crawling, setCrawling] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
-    fetchContents();
-    fetchSettings();
-  }, []);
+    if (activeTab === "news" || activeTab === "youtube") {
+      fetchContents();
+    }
+  }, [activeTab]);
 
   async function fetchContents() {
     setLoading(true);
@@ -97,67 +75,6 @@ export default function AdminContentsPage() {
       console.error("Failed to fetch contents:", error);
     } finally {
       setLoading(false);
-    }
-  }
-
-  async function fetchSettings() {
-    try {
-      const response = await fetch("/api/admin/settings");
-      if (response.ok) {
-        const data = await response.json();
-        setSettings((prev) => ({
-          ...prev,
-          newsMode: data.newsMode || data.news_mode || prev.newsMode,
-          youtubeMode: data.youtubeMode || data.youtube_mode || prev.youtubeMode,
-          newsCrawlInterval:
-            data.newsCrawlInterval || data.news_crawl_interval || prev.newsCrawlInterval,
-          youtubeCrawlInterval:
-            data.youtubeCrawlInterval || data.youtube_crawl_interval || prev.youtubeCrawlInterval,
-          lastNewsCrawlAt: data.lastNewsCrawlAt || data.last_news_crawl_at,
-          lastYoutubeCrawlAt: data.lastYoutubeCrawlAt || data.last_youtube_crawl_at,
-        }));
-      }
-    } catch (error) {
-      console.error("Failed to fetch settings:", error);
-    }
-  }
-
-  async function updateSettings(newSettings: Partial<AutomationSettings>) {
-    const updated = { ...settings, ...newSettings };
-    setSettings(updated);
-    try {
-      await fetch("/api/admin/settings", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(updated),
-      });
-    } catch (error) {
-      console.error("Failed to update settings:", error);
-    }
-  }
-
-  async function triggerCrawl(type: ContentTab, targetUrl?: string) {
-    setCrawling(true);
-    try {
-      const response = await fetch("/api/admin/crawl", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ type, url: targetUrl }),
-      });
-      if (response.ok) {
-        const data = await response.json();
-        alert(`${data.message || "수집 완료"}`);
-        fetchContents();
-        fetchSettings();
-        setManualUrl("");
-      } else {
-        const data = await response.json();
-        alert(`${data.error || "수집 실패"}`);
-      }
-    } catch {
-      alert("수집 오류");
-    } finally {
-      setCrawling(false);
     }
   }
 
@@ -188,8 +105,16 @@ export default function AdminContentsPage() {
     }
   }
 
+  const handleRefresh = () => {
+    setRefreshKey((prev) => prev + 1);
+    if (activeTab === "news" || activeTab === "youtube") {
+      fetchContents();
+    }
+  };
+
   const filteredContents = contents.filter((item) => {
-    if (item.type !== activeTab) return false;
+    const tabType = activeTab === "news" ? "news" : "youtube";
+    if (item.type !== tabType) return false;
     if (filter !== "all" && item.status !== filter) return false;
     return true;
   });
@@ -206,109 +131,86 @@ export default function AdminContentsPage() {
       {/* Header */}
       <div>
         <h1 className="text-lg font-semibold text-white">콘텐츠 관리</h1>
-        <p className="text-[12px] text-white/50 mt-0.5">뉴스 및 YouTube 영상 콘텐츠 관리</p>
+        <p className="text-[12px] text-white/50 mt-0.5">뉴스 수집 설정 및 콘텐츠 관리</p>
       </div>
 
       {/* Tab Navigation */}
       <div className="flex gap-1 border-b border-white/[0.06]">
-        <button
+        <TabButton
+          active={activeTab === "news"}
           onClick={() => setActiveTab("news")}
-          className={`px-4 py-2.5 text-[12px] font-medium relative transition-colors ${
-            activeTab === "news" ? "text-white" : "text-white/40 hover:text-white/60"
-          }`}
+          badge={newsPendingCount}
         >
-          <span className="flex items-center gap-1.5">
-            뉴스
-            {newsPendingCount > 0 && (
-              <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-yellow-500/20 text-yellow-400">
-                {newsPendingCount}
-              </span>
-            )}
-          </span>
-          {activeTab === "news" && (
-            <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[var(--color-claude-coral)]" />
-          )}
-        </button>
-        <button
+          뉴스
+        </TabButton>
+        <TabButton
+          active={activeTab === "youtube"}
           onClick={() => setActiveTab("youtube")}
-          className={`px-4 py-2.5 text-[12px] font-medium relative transition-colors ${
-            activeTab === "youtube" ? "text-white" : "text-white/40 hover:text-white/60"
-          }`}
+          badge={youtubePendingCount}
+          accentColor="red"
         >
-          <span className="flex items-center gap-1.5">
-            YouTube
-            {youtubePendingCount > 0 && (
-              <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-yellow-500/20 text-yellow-400">
-                {youtubePendingCount}
-              </span>
-            )}
-          </span>
-          {activeTab === "youtube" && (
-            <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-red-500" />
-          )}
-        </button>
+          YouTube
+        </TabButton>
+        <div className="mx-2 self-center h-4 w-px bg-white/10" />
+        <TabButton active={activeTab === "targets"} onClick={() => setActiveTab("targets")}>
+          수집 대상
+        </TabButton>
+        <TabButton active={activeTab === "scheduler"} onClick={() => setActiveTab("scheduler")}>
+          스케줄러
+        </TabButton>
       </div>
 
-      {/* Automation Panel */}
-      {activeTab === "news" ? (
-        <AutomationPanel
-          type="news"
-          settings={settings}
-          onUpdateSettings={updateSettings}
-          onCrawl={(url) => triggerCrawl("news", url)}
-          crawling={crawling}
-          manualUrl={manualUrl}
-          setManualUrl={setManualUrl}
-        />
-      ) : (
-        <AutomationPanel
-          type="youtube"
-          settings={settings}
-          onUpdateSettings={updateSettings}
-          onCrawl={(url) => triggerCrawl("youtube", url)}
-          crawling={crawling}
-          manualUrl={manualUrl}
-          setManualUrl={setManualUrl}
-        />
-      )}
+      {/* Tab Content */}
+      <div key={refreshKey}>
+        {/* News/YouTube Content List */}
+        {(activeTab === "news" || activeTab === "youtube") && (
+          <>
+            {/* Status Filter */}
+            <div className="flex gap-1.5">
+              {(["all", "pending", "ready", "published", "rejected"] as const).map((s) => (
+                <button
+                  key={s}
+                  onClick={() => setFilter(s)}
+                  className={`px-3 py-1.5 rounded text-[11px] font-medium transition-colors ${
+                    filter === s
+                      ? "bg-white/15 text-white"
+                      : "bg-white/5 text-white/40 hover:text-white/60"
+                  }`}
+                >
+                  {s === "all" ? "전체" : STATUS_STYLES[s].label}
+                </button>
+              ))}
+            </div>
 
-      {/* Status Filter */}
-      <div className="flex gap-1.5">
-        {(["all", "pending", "ready", "published", "rejected"] as const).map((s) => (
-          <button
-            key={s}
-            onClick={() => setFilter(s)}
-            className={`px-3 py-1.5 rounded text-[11px] font-medium transition-colors ${
-              filter === s
-                ? "bg-white/15 text-white"
-                : "bg-white/5 text-white/40 hover:text-white/60"
-            }`}
-          >
-            {s === "all" ? "전체" : STATUS_STYLES[s].label}
-          </button>
-        ))}
-      </div>
-
-      {/* Content List */}
-      <div className="space-y-2">
-        {loading ? (
-          <div className="flex items-center justify-center py-8">
-            <div className="w-5 h-5 border-2 border-[var(--color-claude-coral)] border-t-transparent rounded-full animate-spin" />
-          </div>
-        ) : filteredContents.length === 0 ? (
-          <div className="text-center py-8 text-[12px] text-white/30">
-            {activeTab === "news" ? "뉴스" : "YouTube 영상"}가 없습니다
-          </div>
-        ) : (
-          filteredContents.map((item) => (
-            <ContentCard
-              key={item.id}
-              item={item}
-              onEdit={() => setEditingItem(item)}
-              onStatusChange={updateContentStatus}
-            />
-          ))
+            {/* Content List */}
+            <div className="space-y-2">
+              {loading ? (
+                <div className="flex items-center justify-center py-8">
+                  <div className="w-5 h-5 border-2 border-[var(--color-claude-coral)] border-t-transparent rounded-full animate-spin" />
+                </div>
+              ) : filteredContents.length === 0 ? (
+                <div className="text-center py-8 text-[12px] text-white/30">
+                  {activeTab === "news" ? "뉴스" : "YouTube 영상"}가 없습니다
+                </div>
+              ) : (
+                filteredContents.map((item) => (
+                  <ContentCard
+                    key={item.id}
+                    item={item}
+                    onEdit={() => setEditingItem(item)}
+                    onStatusChange={updateContentStatus}
+                  />
+                ))
+              )}
+            </div>
+          </>
         )}
+
+        {/* Target Manager */}
+        {activeTab === "targets" && <TargetManager onRefresh={handleRefresh} />}
+
+        {/* Cron Scheduler */}
+        {activeTab === "scheduler" && <CronScheduler onRefresh={handleRefresh} />}
       </div>
 
       {/* Edit Modal */}
@@ -323,130 +225,39 @@ export default function AdminContentsPage() {
   );
 }
 
-// 3-way Toggle
-function ThreeWayToggle({
-  value,
-  onChange,
+// Tab Button Component
+function TabButton({
+  active,
+  onClick,
+  children,
+  badge,
+  accentColor = "coral",
 }: {
-  value: AutomationMode;
-  onChange: (mode: AutomationMode) => void;
+  active: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+  badge?: number;
+  accentColor?: "coral" | "red";
 }) {
-  const modes: AutomationMode[] = ["on", "confirm", "off"];
-  return (
-    <div className="flex gap-0.5 p-0.5 bg-white/5 rounded">
-      {modes.map((mode) => (
-        <button
-          key={mode}
-          onClick={() => onChange(mode)}
-          className={`px-2.5 py-1 rounded text-[11px] font-medium transition-all ${
-            value === mode
-              ? `${AUTOMATION_MODE_INFO[mode].color} text-white`
-              : "text-white/40 hover:text-white/60"
-          }`}
-        >
-          {AUTOMATION_MODE_INFO[mode].label}
-        </button>
-      ))}
-    </div>
-  );
-}
-
-// Automation Panel
-function AutomationPanel({
-  type,
-  settings,
-  onUpdateSettings,
-  onCrawl,
-  crawling,
-  manualUrl,
-  setManualUrl,
-}: {
-  type: "news" | "youtube";
-  settings: AutomationSettings;
-  onUpdateSettings: (s: Partial<AutomationSettings>) => void;
-  onCrawl: (url?: string) => void;
-  crawling: boolean;
-  manualUrl: string;
-  setManualUrl: (url: string) => void;
-}) {
-  const currentMode = type === "news" ? settings.newsMode : settings.youtubeMode;
-  const lastCrawl = type === "news" ? settings.lastNewsCrawlAt : settings.lastYoutubeCrawlAt;
-  const borderColor = type === "news" ? "border-blue-500/20" : "border-red-500/20";
-  const bgColor = type === "news" ? "bg-blue-500/5" : "bg-red-500/5";
+  const underlineColor = accentColor === "red" ? "bg-red-500" : "bg-[var(--color-claude-coral)]";
 
   return (
-    <div className={`${bgColor} rounded-lg p-4 border ${borderColor}`}>
-      <div className="flex items-center justify-between mb-3">
-        <div className="text-[13px] font-medium text-white">
-          {type === "news" ? "뉴스" : "YouTube"} 자동화
-        </div>
-        <ThreeWayToggle
-          value={currentMode}
-          onChange={(mode) =>
-            onUpdateSettings(type === "news" ? { newsMode: mode } : { youtubeMode: mode })
-          }
-        />
-      </div>
-
-      <div className="text-[11px] text-white/50 mb-3">{AUTOMATION_MODE_INFO[currentMode].desc}</div>
-
-      {currentMode === "off" ? (
-        <div className="flex gap-2">
-          <input
-            type="url"
-            value={manualUrl}
-            onChange={(e) => setManualUrl(e.target.value)}
-            placeholder={type === "news" ? "뉴스 URL 입력..." : "YouTube URL 입력..."}
-            className="flex-1 px-3 py-2 bg-white/5 border border-white/[0.06] rounded text-[12px] text-white placeholder:text-white/30 focus:outline-none focus:border-white/20"
-          />
-          <button
-            onClick={() => onCrawl(manualUrl)}
-            disabled={crawling || !manualUrl}
-            className={`px-4 py-2 ${type === "news" ? "bg-blue-500" : "bg-red-500"} text-white rounded text-[12px] hover:opacity-90 transition-colors disabled:opacity-50`}
-          >
-            {crawling ? "..." : "수집"}
-          </button>
-        </div>
-      ) : (
-        <div className="flex items-center gap-3">
-          <select
-            value={type === "news" ? settings.newsCrawlInterval : settings.youtubeCrawlInterval}
-            onChange={(e) =>
-              onUpdateSettings(
-                type === "news"
-                  ? { newsCrawlInterval: Number(e.target.value) }
-                  : { youtubeCrawlInterval: Number(e.target.value) }
-              )
-            }
-            className="px-2.5 py-1.5 bg-white/5 border border-white/[0.06] rounded text-[12px] text-white focus:outline-none"
-          >
-            <option value={1}>1시간</option>
-            <option value={3}>3시간</option>
-            <option value={6}>6시간</option>
-            <option value={12}>12시간</option>
-            <option value={24}>24시간</option>
-          </select>
-          <button
-            onClick={() => onCrawl()}
-            disabled={crawling}
-            className="px-3 py-1.5 bg-white/10 text-white/70 rounded text-[12px] hover:bg-white/15 transition-colors disabled:opacity-50"
-          >
-            {crawling ? "수집 중..." : "수동 실행"}
-          </button>
-          {lastCrawl && (
-            <span className="text-[11px] text-white/40">
-              마지막:{" "}
-              {new Date(lastCrawl).toLocaleString("ko-KR", {
-                month: "short",
-                day: "numeric",
-                hour: "2-digit",
-                minute: "2-digit",
-              })}
-            </span>
-          )}
-        </div>
-      )}
-    </div>
+    <button
+      onClick={onClick}
+      className={`px-4 py-2.5 text-[12px] font-medium relative transition-colors ${
+        active ? "text-white" : "text-white/40 hover:text-white/60"
+      }`}
+    >
+      <span className="flex items-center gap-1.5">
+        {children}
+        {badge !== undefined && badge > 0 && (
+          <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-yellow-500/20 text-yellow-400">
+            {badge}
+          </span>
+        )}
+      </span>
+      {active && <div className={`absolute bottom-0 left-0 right-0 h-0.5 ${underlineColor}`} />}
+    </button>
   );
 }
 

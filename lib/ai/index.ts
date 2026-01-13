@@ -1,41 +1,37 @@
 /**
- * AI Pipeline - Unified exports
+ * AI Pipeline - Gemini 3 Flash
  *
- * News Pipeline (3-stage):
- * - Stage 1 (Haiku): Collect/validate source
- * - Stage 2 (Opus 4.5): Generate summary
- * - Stage 3 (Opus 4.5): Fact-check summary
+ * Unified 3-Stage Article Processing (NEWS_TAB_STRATEGY.md v3.2)
+ * - Stage 1: Fact Extraction
+ * - Stage 2: Article Rewriting (English output, original content)
+ * - Stage 3: Fact Verification
  *
- * Changelog Pipeline (2-stage):
- * - Stage 1 (Haiku): Detect versions
- * - Stage 2 (Opus 4.5): Generate content
+ * Model: gemini-3-flash-preview (Gemini 3 Flash)
  */
 
 // Types
 export * from "./types";
 
-// Haiku Validator (Stage 1 - News)
-export { HaikuValidator, getHaikuValidator } from "./haiku-validator";
-
-// Opus Summarizer (Stage 2 - News)
-export { OpusSummarizer, getOpusSummarizer, getSummaryTierInfo } from "./opus-summarizer";
-
-// Opus Fact Checker (Stage 3 - News)
+// Gemini Client
 export {
-  OpusFactChecker,
-  getOpusFactChecker,
-  type FactCheckInput,
-  type FactCheckOutput,
-} from "./opus-fact-checker";
+  GeminiClient,
+  getGeminiClient,
+  GEMINI_MODEL,
+  GEMINI_COSTS,
+  type GeminiUsage,
+  type ExtractedFacts,
+  type RewrittenArticle,
+  type FactVerification,
+} from "./gemini-client";
 
-// Pipeline
+// Gemini Pipeline
 export {
-  ContentPipeline,
-  processArticle,
-  quickProcessArticle,
-  extractRichContent,
-  type PipelineResultWithFactCheck,
-} from "./pipeline";
+  GeminiPipeline,
+  getGeminiPipeline,
+  processArticleWithGemini,
+  quickProcessArticleWithGemini,
+  type GeminiPipelineResult,
+} from "./gemini-pipeline";
 
-// Changelog Pipeline
-export * from "./changelog";
+// Alias for backward compatibility
+export { GeminiPipeline as ContentPipeline } from "./gemini-pipeline";

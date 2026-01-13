@@ -55,6 +55,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
 
     // Build update object
     const updates: Record<string, unknown> = {};
+    if (body.value !== undefined) updates.value = body.value;
     if (body.label !== undefined) updates.label = body.label;
     if (body.category !== undefined) updates.category = body.category;
     if (body.priority !== undefined) updates.priority = body.priority;

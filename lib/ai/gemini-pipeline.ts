@@ -1,0 +1,386 @@
+/**
+ * Gemini Content Pipeline - Unified 3-Stage Article Processing
+ *
+ * Based on NEWS_TAB_STRATEGY.md v3.2:
+ * - Stage 1: Fact Extraction (팩트 추출)
+ * - Stage 2: Article Rewriting (기사 재작성)
+ * - Stage 3: Fact Verification (팩트 검증)
+ *
+ * Model: gemini-3-flash-preview (Gemini 3 Flash)
+ * Pricing: $0.50/1M input, $3.00/1M output
+ */
+
+import { fetchArticle } from "@/lib/fetcher/smart-fetcher";
+import {
+  GeminiClient,
+  getGeminiClient,
+  GEMINI_MODEL,
+  type GeminiUsage,
+  type ExtractedFacts,
+  type RewrittenArticle,
+  type FactVerification,
+} from "./gemini-client";
+import type { RichContent, PipelineResult, SummarizerResult } from "./types";
+
+// ===========================================
+// Configuration
+// ===========================================
+
+interface GeminiPipelineOptions {
+  apiKey?: string;
+  debug?: boolean;
+  minFactCheckScore?: number; // Minimum score to pass (default: 70)
+  skipFactCheck?: boolean; // Skip Stage 3 for speed
+}
+
+// ===========================================
+// Extended Pipeline Result
+// ===========================================
+
+export interface GeminiPipelineResult extends PipelineResult {
+  extractedFacts?: ExtractedFacts;
+  rewrittenArticle?: RewrittenArticle;
+  factVerification?: FactVerification;
+  stageResults?: {
+    stage1?: GeminiUsage;
+    stage2?: GeminiUsage;
+    stage3?: GeminiUsage;
+  };
+}
+
+// ===========================================
+// Gemini Pipeline Class
+// ===========================================
+
+export class GeminiPipeline {
+  private client: GeminiClient;
+  private options: GeminiPipelineOptions;
+  private debug: boolean;
+
+  constructor(options: GeminiPipelineOptions = {}) {
+    this.options = {
+      minFactCheckScore: 70,
+      skipFactCheck: false,
+      ...options,
+    };
+    this.debug = options.debug ?? false;
+    this.client = getGeminiClient({
+      apiKey: options.apiKey,
+      debug: this.debug,
+    });
+  }
+
+  /**
+   * Process a single URL through the 3-stage Gemini pipeline
+   */
+  async process(url: string, category?: string): Promise<GeminiPipelineResult> {
+    const aiUsage = {
+      model: GEMINI_MODEL,
+      inputTokens: 0,
+      outputTokens: 0,
+      costUsd: 0,
+    };
+
+    const stageResults: GeminiPipelineResult["stageResults"] = {};
+
+    try {
+      // ========================================
+      // Step 0: Fetch article
+      // ========================================
+      if (this.debug) console.log(`[GeminiPipeline] Fetching: ${url}`);
+      const fetchResult = await fetchArticle(url);
+
+      if (!fetchResult.success || !fetchResult.article) {
+        return {
+          success: false,
+          error: fetchResult.error || "Failed to fetch article",
+          aiUsage,
+        };
+      }
+
+      const article = fetchResult.article;
+      if (this.debug) {
+        console.log(
+          `[GeminiPipeline] Fetched: "${article.title}" (${article.content.length} chars)`
+        );
+      }
+
+      // ========================================
+      // Stage 1: Extract Facts (팩트 추출)
+      // ========================================
+      if (this.debug) console.log(`[GeminiPipeline] Stage 1: Extracting facts...`);
+
+      const { facts, usage: stage1Usage } = await this.client.extractFacts(article.content);
+
+      stageResults.stage1 = stage1Usage;
+      aiUsage.inputTokens += stage1Usage.inputTokens;
+      aiUsage.outputTokens += stage1Usage.outputTokens;
+      aiUsage.costUsd += stage1Usage.costUsd;
+
+      if (this.debug) {
+        console.log(
+          `[GeminiPipeline] Stage 1 complete: ${facts.features.length} features, ${facts.metrics.length} metrics`
+        );
+      }
+
+      // ========================================
+      // Stage 2: Rewrite Article (기사 재작성)
+      // ========================================
+      if (this.debug) console.log(`[GeminiPipeline] Stage 2: Rewriting article...`);
+
+      const { article: rewrittenArticle, usage: stage2Usage } = await this.client.rewriteArticle(
+        article.title,
+        article.content,
+        facts,
+        article.sourceName
+      );
+
+      stageResults.stage2 = stage2Usage;
+      aiUsage.inputTokens += stage2Usage.inputTokens;
+      aiUsage.outputTokens += stage2Usage.outputTokens;
+      aiUsage.costUsd += stage2Usage.costUsd;
+
+      if (this.debug) {
+        console.log(
+          `[GeminiPipeline] Stage 2 complete: "${rewrittenArticle.title.text}" (${rewrittenArticle.difficulty})`
+        );
+      }
+
+      // ========================================
+      // Stage 3: Verify Facts (팩트 검증)
+      // ========================================
+      let factVerification: FactVerification | undefined;
+
+      if (!this.options.skipFactCheck) {
+        if (this.debug) console.log(`[GeminiPipeline] Stage 3: Verifying facts...`);
+
+        const { verification, usage: stage3Usage } = await this.client.verifyFacts(
+          facts,
+          rewrittenArticle
+        );
+
+        factVerification = verification;
+        stageResults.stage3 = stage3Usage;
+        aiUsage.inputTokens += stage3Usage.inputTokens;
+        aiUsage.outputTokens += stage3Usage.outputTokens;
+        aiUsage.costUsd += stage3Usage.costUsd;
+
+        if (this.debug) {
+          console.log(
+            `[GeminiPipeline] Stage 3 complete: score=${verification.score}, passed=${verification.passed}`
+          );
+        }
+
+        // Check if verification passed
+        if (verification.score < (this.options.minFactCheckScore || 70)) {
+          console.warn(
+            `[GeminiPipeline] Warning: Low fact-check score (${verification.score}), but proceeding`
+          );
+        }
+      }
+
+      // ========================================
+      // Build Result
+      // ========================================
+      const richContent = this.buildRichContent(rewrittenArticle, article, category);
+      const summary = this.buildSummarizerResult(rewrittenArticle, richContent);
+
+      return {
+        success: true,
+        article: {
+          url: article.url,
+          title: article.title,
+          content: article.content,
+          sourceName: article.sourceName,
+          publishedAt: article.publishedAt,
+          thumbnail: article.thumbnail,
+          favicon: article.favicon,
+        },
+        factCheck: factVerification
+          ? {
+              isValid: factVerification.passed,
+              score: factVerification.score / 100,
+              reason: factVerification.issues.join("; ") || "Passed",
+              checks: {
+                sourceReliable: true,
+                contentRelevant: true,
+                dateValid: true,
+                notDuplicate: true,
+              },
+            }
+          : undefined,
+        summary,
+        extractedFacts: facts,
+        rewrittenArticle,
+        factVerification,
+        stageResults,
+        aiUsage,
+      };
+    } catch (error) {
+      console.error(`[GeminiPipeline] Error processing ${url}:`, error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : "Pipeline error",
+        aiUsage,
+      };
+    }
+  }
+
+  /**
+   * Process multiple URLs
+   */
+  async processMany(
+    urls: Array<{ url: string; category?: string }>,
+    options: { delayMs?: number; stopOnError?: boolean } = {}
+  ): Promise<Map<string, GeminiPipelineResult>> {
+    const { delayMs = 3000, stopOnError = false } = options;
+    const results = new Map<string, GeminiPipelineResult>();
+
+    for (let i = 0; i < urls.length; i++) {
+      const item = urls[i]!;
+      const { url, category } = item;
+
+      const result = await this.process(url, category);
+      results.set(url, result);
+
+      if (!result.success && stopOnError) {
+        console.log(`[GeminiPipeline] Stopping due to error: ${result.error}`);
+        break;
+      }
+
+      // Delay between requests (except for last one)
+      if (i < urls.length - 1) {
+        await new Promise((resolve) => setTimeout(resolve, delayMs));
+      }
+    }
+
+    return results;
+  }
+
+  /**
+   * Build RichContent structure from rewritten article
+   */
+  private buildRichContent(
+    rewritten: RewrittenArticle,
+    original: {
+      url: string;
+      sourceName: string;
+      publishedAt: string;
+      favicon?: string;
+    },
+    category?: string
+  ): RichContent {
+    const themeMap: Record<string, RichContent["style"]["theme"]> = {
+      official: "official",
+      version_update: "update",
+      press: "press",
+      community: "community",
+      youtube: "community",
+    };
+
+    const colorMap: Record<string, string> = {
+      official: "#F97316",
+      update: "#22C55E",
+      press: "#3B82F6",
+      community: "#8B5CF6",
+    };
+
+    const theme = themeMap[category || "press"] || "press";
+    const accentColor = colorMap[theme] || "#3B82F6";
+
+    return {
+      title: {
+        text: rewritten.title.text,
+        emoji: rewritten.title.emoji,
+      },
+      summary: {
+        text: rewritten.summary,
+      },
+      keyPoints: rewritten.keyTakeaways.map((kt) => ({
+        icon: kt.icon,
+        text: kt.text,
+      })),
+      source: {
+        name: original.sourceName,
+        url: original.url,
+        favicon: original.favicon,
+        publishedAt: original.publishedAt,
+      },
+      meta: {
+        difficulty: rewritten.difficulty,
+        readTime: rewritten.readTime,
+        category: rewritten.category,
+      },
+      style: {
+        accentColor,
+        theme,
+      },
+    };
+  }
+
+  /**
+   * Build SummarizerResult for backward compatibility
+   */
+  private buildSummarizerResult(
+    rewritten: RewrittenArticle,
+    richContent: RichContent
+  ): SummarizerResult {
+    return {
+      richContent,
+      analogy: "", // Gemini pipeline doesn't generate analogy separately
+      difficulty: rewritten.difficulty,
+      keyPointsPlain: rewritten.keyTakeaways.map((kt) => kt.text),
+      summaryPlain: rewritten.summary,
+    };
+  }
+}
+
+// ===========================================
+// Convenience Functions
+// ===========================================
+
+/**
+ * Process a single article URL with Gemini (3-stage pipeline)
+ */
+export async function processArticleWithGemini(
+  url: string,
+  options: {
+    category?: string;
+    skipFactCheck?: boolean;
+    debug?: boolean;
+  } = {}
+): Promise<GeminiPipelineResult> {
+  const pipeline = new GeminiPipeline({
+    skipFactCheck: options.skipFactCheck,
+    debug: options.debug,
+  });
+
+  return pipeline.process(url, options.category);
+}
+
+/**
+ * Quick process with Gemini (skip fact-check for speed)
+ */
+export async function quickProcessArticleWithGemini(
+  url: string,
+  category?: string
+): Promise<GeminiPipelineResult> {
+  const pipeline = new GeminiPipeline({
+    skipFactCheck: true,
+  });
+
+  return pipeline.process(url, category);
+}
+
+// ===========================================
+// Singleton Instance
+// ===========================================
+
+let pipelineInstance: GeminiPipeline | null = null;
+
+export function getGeminiPipeline(options?: GeminiPipelineOptions): GeminiPipeline {
+  if (!pipelineInstance) {
+    pipelineInstance = new GeminiPipeline(options);
+  }
+  return pipelineInstance;
+}

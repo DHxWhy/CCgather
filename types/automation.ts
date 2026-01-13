@@ -8,7 +8,8 @@
 // ============================================
 
 export type TargetType = "url" | "keyword" | "channel";
-export type TargetCategory = "news" | "blog" | "official" | "community" | "youtube";
+// TargetCategory matches ContentCategory for proper filtering on news page
+export type TargetCategory = "official" | "claude_code" | "press" | "youtube";
 
 export interface AutomationTarget {
   id: string;
@@ -39,6 +40,7 @@ export interface CreateTargetInput {
 }
 
 export interface UpdateTargetInput {
+  value?: string;
   label?: string;
   category?: TargetCategory;
   priority?: number;
@@ -279,6 +281,58 @@ export interface ContentItem {
   channel_id?: string;
   duration?: string;
   view_count?: number;
+  // News Strategy fields
+  slug?: string;
+  one_liner?: string;
+  body_html?: string;
+  insight_html?: string;
+  key_takeaways?: Array<{ icon: string; text: string }>;
+  related_articles?: string[];
+}
+
+// ============================================
+// Article Facts Types (Fact Verification)
+// ============================================
+
+export type FactType = "version" | "metric" | "date" | "feature" | "entity" | "action" | "quote";
+
+export interface ArticleFact {
+  id: string;
+  content_id: string;
+  fact_type: FactType;
+  original_text: string;
+  fact_value: string;
+  is_required: boolean;
+  is_verified: boolean;
+  verified_in_text?: string;
+  created_at: string;
+  verified_at?: string;
+}
+
+export interface FactExtractionResult {
+  facts: Array<{
+    type: FactType;
+    original_text: string;
+    value: string;
+    required: boolean;
+  }>;
+  context_needed: string[];
+}
+
+export interface FactVerificationResult {
+  verified: Array<{
+    fact_id: string;
+    status: "verified";
+    matched_text: string;
+  }>;
+  issues: Array<{
+    fact_id: string;
+    status: "missing" | "contradicted" | "altered";
+    description: string;
+    suggestion: string;
+  }>;
+  score: number;
+  approved: boolean;
 }
 
 // Rich Content structure from AI Pipeline

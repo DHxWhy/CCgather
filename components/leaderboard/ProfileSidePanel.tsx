@@ -446,7 +446,7 @@ function SocialLinksQuickAccess({ socialLinks }: { socialLinks: SocialLinks | nu
   };
 
   return (
-    <div className="flex items-center gap-1 mt-1.5">
+    <div className="flex items-center gap-0.5">
       {activeLinks.map((link) => {
         const value = socialLinks[link.key as keyof SocialLinks] || "";
         const Icon = link.icon;
@@ -884,24 +884,36 @@ export function ProfileSidePanel({
                 </div>
               )}
               <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <h2 className="text-base font-semibold text-[var(--color-text-primary)] truncate">
-                    {currentUser.display_name || currentUser.username}
-                  </h2>
-                  <span
-                    className="px-1.5 py-0.5 rounded text-[9px] font-medium"
-                    style={{ backgroundColor: `${level.color}20`, color: level.color }}
-                  >
-                    {level.icon} Lv.{level.level}
-                  </span>
-                  {currentUser.ccplan && (
-                    <CCplanBadge
-                      ccplan={currentUser.ccplan as Exclude<CCPlanFilter, "all">}
-                      ccplanRank={currentUser.ccplan_rank}
-                      size="sm"
-                    />
+                {/* Name + Badges row - social icons on right for tablet/desktop */}
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2 flex-wrap min-w-0">
+                    <h2 className="text-base font-semibold text-[var(--color-text-primary)] truncate">
+                      {currentUser.display_name || currentUser.username}
+                    </h2>
+                    <span
+                      className="px-1.5 py-0.5 rounded text-[9px] font-medium flex-shrink-0"
+                      style={{ backgroundColor: `${level.color}20`, color: level.color }}
+                    >
+                      {level.icon} Lv.{level.level}
+                    </span>
+                    {currentUser.ccplan && (
+                      <CCplanBadge
+                        ccplan={currentUser.ccplan as Exclude<CCPlanFilter, "all">}
+                        ccplanRank={currentUser.ccplan_rank}
+                        size="sm"
+                      />
+                    )}
+                  </div>
+                  {/* Social Links - shown on tablet/desktop only (right of name) */}
+                  {!isMobile && (freshSocialLinks || currentUser.social_links) && (
+                    <div className="flex-shrink-0">
+                      <SocialLinksQuickAccess
+                        socialLinks={freshSocialLinks || currentUser.social_links}
+                      />
+                    </div>
                   )}
                 </div>
+                {/* Username row */}
                 <p className="text-[10px] text-[var(--color-text-muted)] flex items-center gap-1.5 mt-0.5">
                   {currentUser.country_code && (
                     <ReactCountryFlag
@@ -912,14 +924,16 @@ export function ProfileSidePanel({
                   )}
                   <span>@{currentUser.username.toLowerCase().replace(/\s+/g, "")}</span>
                 </p>
-                {/* Social Links Quick Access - use fresh data from API when available */}
-                {(freshSocialLinks || currentUser.social_links) && (
-                  <SocialLinksQuickAccess
-                    socialLinks={freshSocialLinks || currentUser.social_links}
-                  />
-                )}
               </div>
             </div>
+            {/* Social Links - mobile only, full width below profile */}
+            {isMobile && (freshSocialLinks || currentUser.social_links) && (
+              <div className="mt-3 pt-3 border-t border-[var(--border-default)]">
+                <SocialLinksQuickAccess
+                  socialLinks={freshSocialLinks || currentUser.social_links}
+                />
+              </div>
+            )}
           </div>
 
           {/* Compact Stats Bar */}
