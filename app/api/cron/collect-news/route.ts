@@ -99,7 +99,8 @@ async function handleCronRequest(request: NextRequest, isManual: boolean) {
 
     if (hasApiKey) {
       pipeline = new GeminiPipeline({
-        minFactCheckScore: 70,
+        minFactCheckScore: 80, // Increased for higher quality
+        maxRetries: 1, // Retry once if score is below threshold
         skipFactCheck: false,
       });
       log("info", "Gemini AI Pipeline initialized (gemini-3-flash-preview)");
@@ -203,6 +204,18 @@ async function handleCronRequest(request: NextRequest, isManual: boolean) {
         // Build insert data
         // content_type determines which section the article appears in on news page
         const articleContentType = (article as ProcessedArticle).contentType || "press";
+
+        // Determine status based on pipeline result:
+        // - needs_review: Fact-check score below threshold after retries
+        // - published: AI processed successfully with good score
+        // - pending: No AI processing (fallback mode)
+        let articleStatus: string;
+        if (hasRichContent) {
+          articleStatus = pipelineResult!.needsReview ? "needs_review" : "published";
+        } else {
+          articleStatus = "pending";
+        }
+
         const insertData: Record<string, unknown> = {
           type: "news",
           content_type: articleContentType, // official, claude_code, press, community, youtube
@@ -213,7 +226,7 @@ async function handleCronRequest(request: NextRequest, isManual: boolean) {
             : article.original_title,
           thumbnail_url: article.thumbnail_url,
           published_at: article.published_at,
-          status: hasRichContent ? "published" : "pending",
+          status: articleStatus,
           category: articleContentType, // Keep for backwards compatibility
         };
 
@@ -435,7 +448,12 @@ async function getExistingUrls(
   supabase: Awaited<ReturnType<typeof createClient>>,
   urls: string[]
 ): Promise<Set<string>> {
-  const { data } = await supabase.from("contents").select("source_url").in("source_url", urls);
+  // Exclude rejected status - allow re-collection of rejected items
+  const { data } = await supabase
+    .from("contents")
+    .select("source_url")
+    .in("source_url", urls)
+    .not("status", "eq", "rejected");
 
   return new Set((data || []).map((d) => d.source_url));
 }

@@ -22,9 +22,14 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { url, category = "press" } = body as {
+    const {
+      url,
+      category = "press",
+      force = false,
+    } = body as {
       url: string;
       category?: TargetCategory;
+      force?: boolean; // Force re-collection even if URL exists
     };
 
     if (!url) {
@@ -40,15 +45,54 @@ export async function POST(request: NextRequest) {
 
     const supabase = createServiceClient();
 
+    // Status labels for user display
+    const statusLabels: Record<string, string> = {
+      published: "게시중",
+      pending: "검토 대기",
+      needs_review: "재검토 필요",
+      rejected: "거부됨",
+      draft: "임시저장",
+    };
+
     // Check if URL already exists
     const { data: existing } = await supabase
       .from("contents")
-      .select("id")
+      .select("id, status, title")
       .eq("source_url", url)
       .single();
 
     if (existing) {
-      return NextResponse.json({ error: "이 URL은 이미 수집되어 있습니다." }, { status: 409 });
+      const statusLabel = statusLabels[existing.status] || existing.status;
+
+      // If rejected, allow re-collection without force
+      if (existing.status === "rejected") {
+        console.log(
+          `[Collect Single] Deleting rejected content before re-collection: ${existing.id}`
+        );
+        await supabase.from("contents").delete().eq("id", existing.id);
+      }
+      // If force=true, delete existing and re-collect
+      else if (force) {
+        console.log(
+          `[Collect Single] Force re-collection: deleting existing content ${existing.id} (${existing.status})`
+        );
+        await supabase.from("contents").delete().eq("id", existing.id);
+      }
+      // Otherwise, return conflict with detailed info for user confirmation
+      else {
+        return NextResponse.json(
+          {
+            error: "이미 수집된 URL입니다.",
+            message: `이 URL은 이미 수집되어 있습니다. (상태: ${statusLabel})`,
+            existing_id: existing.id,
+            existing_status: existing.status,
+            existing_status_label: statusLabel,
+            existing_title: existing.title,
+            can_force: true, // Frontend can show "재수집하시겠습니까?" confirmation
+          },
+          { status: 409 }
+        );
+      }
     }
 
     // Initialize Gemini AI pipeline
