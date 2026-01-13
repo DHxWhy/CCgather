@@ -1,14 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  images: {
-    remotePatterns: [
-      {
-        protocol: "https",
-        hostname: "flagcdn.com",
-      },
-    ],
-  },
+  // No external image domains needed - all images are bundled or local
 };
 
 export default nextConfig;

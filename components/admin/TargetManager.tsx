@@ -308,6 +308,8 @@ export default function TargetManager({ onRefresh }: TargetManagerProps) {
                       : "채널 ID"}
                 </label>
                 <input
+                  id="target-value"
+                  name="target-value"
                   type={formData.type === "url" ? "url" : "text"}
                   value={formData.value}
                   onChange={(e) => setFormData({ ...formData, value: e.target.value })}
@@ -318,6 +320,7 @@ export default function TargetManager({ onRefresh }: TargetManagerProps) {
                         ? "Claude Code tutorial"
                         : "@ChannelName"
                   }
+                  autoComplete="off"
                   className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder:text-white/30 focus:outline-none focus:ring-2 focus:ring-[var(--color-claude-coral)]"
                 />
               </div>
@@ -328,10 +331,13 @@ export default function TargetManager({ onRefresh }: TargetManagerProps) {
                   표시 이름 (선택)
                 </label>
                 <input
+                  id="target-label"
+                  name="target-label"
                   type="text"
                   value={formData.label || ""}
                   onChange={(e) => setFormData({ ...formData, label: e.target.value })}
                   placeholder="Anthropic 공식 블로그"
+                  autoComplete="off"
                   className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder:text-white/30 focus:outline-none focus:ring-2 focus:ring-[var(--color-claude-coral)]"
                 />
               </div>
@@ -340,6 +346,8 @@ export default function TargetManager({ onRefresh }: TargetManagerProps) {
               <div>
                 <label className="block text-sm font-medium text-white/60 mb-2">카테고리</label>
                 <select
+                  id="target-category"
+                  name="target-category"
                   value={formData.category || "news"}
                   onChange={(e) =>
                     setFormData({ ...formData, category: e.target.value as TargetCategory })
@@ -360,11 +368,14 @@ export default function TargetManager({ onRefresh }: TargetManagerProps) {
                   우선순위 (높을수록 먼저 수집)
                 </label>
                 <input
+                  id="target-priority"
+                  name="target-priority"
                   type="number"
                   value={formData.priority || 0}
                   onChange={(e) =>
                     setFormData({ ...formData, priority: parseInt(e.target.value) || 0 })
                   }
+                  autoComplete="off"
                   className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-[var(--color-claude-coral)]"
                 />
               </div>
@@ -419,9 +430,12 @@ export default function TargetManager({ onRefresh }: TargetManagerProps) {
                       : "채널 ID"}
                 </label>
                 <input
+                  id="edit-target-value"
+                  name="edit-target-value"
                   type={formData.type === "url" ? "url" : "text"}
                   value={formData.value}
                   onChange={(e) => setFormData({ ...formData, value: e.target.value })}
+                  autoComplete="off"
                   className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder:text-white/30 focus:outline-none focus:ring-2 focus:ring-[var(--color-claude-coral)]"
                 />
               </div>
@@ -432,10 +446,13 @@ export default function TargetManager({ onRefresh }: TargetManagerProps) {
                   표시 이름 (선택)
                 </label>
                 <input
+                  id="edit-target-label"
+                  name="edit-target-label"
                   type="text"
                   value={formData.label || ""}
                   onChange={(e) => setFormData({ ...formData, label: e.target.value })}
                   placeholder="Anthropic 공식 블로그"
+                  autoComplete="off"
                   className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder:text-white/30 focus:outline-none focus:ring-2 focus:ring-[var(--color-claude-coral)]"
                 />
               </div>
@@ -444,6 +461,8 @@ export default function TargetManager({ onRefresh }: TargetManagerProps) {
               <div>
                 <label className="block text-sm font-medium text-white/60 mb-2">카테고리</label>
                 <select
+                  id="edit-target-category"
+                  name="edit-target-category"
                   value={formData.category || "press"}
                   onChange={(e) =>
                     setFormData({ ...formData, category: e.target.value as TargetCategory })
@@ -464,11 +483,14 @@ export default function TargetManager({ onRefresh }: TargetManagerProps) {
                   우선순위 (높을수록 먼저 수집)
                 </label>
                 <input
+                  id="edit-target-priority"
+                  name="edit-target-priority"
                   type="number"
                   value={formData.priority || 0}
                   onChange={(e) =>
                     setFormData({ ...formData, priority: parseInt(e.target.value) || 0 })
                   }
+                  autoComplete="off"
                   className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-[var(--color-claude-coral)]"
                 />
               </div>

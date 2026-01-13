@@ -370,14 +370,19 @@ export default function CronScheduler({ onRefresh }: CronSchedulerProps) {
 
         <div className="flex gap-2 mb-3">
           <input
+            id="manual-url"
+            name="manual-url"
             type="url"
             value={manualUrl}
             onChange={(e) => setManualUrl(e.target.value)}
             placeholder="https://example.com/article"
             disabled={manualCollecting}
+            autoComplete="url"
             className="flex-1 px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-sm text-white placeholder:text-white/30 focus:outline-none focus:border-purple-500/50 disabled:opacity-50"
           />
           <select
+            id="manual-category"
+            name="manual-category"
             value={manualCategory}
             onChange={(e) => setManualCategory(e.target.value as TargetCategory)}
             disabled={manualCollecting}
@@ -627,10 +632,13 @@ export default function CronScheduler({ onRefresh }: CronSchedulerProps) {
                       Cron 표현식 (UTC)
                     </label>
                     <input
+                      id="cron-schedule"
+                      name="cron-schedule"
                       type="text"
                       value={customSchedule}
                       onChange={(e) => setCustomSchedule(e.target.value)}
                       placeholder="0 0 * * *"
+                      autoComplete="off"
                       className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white font-mono placeholder:text-white/30 focus:outline-none focus:ring-2 focus:ring-[var(--color-claude-coral)]"
                     />
                     <p className="text-xs text-white/30 mt-1">

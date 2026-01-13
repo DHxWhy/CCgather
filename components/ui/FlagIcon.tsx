@@ -1,7 +1,7 @@
 "use client";
 
-import Image from "next/image";
 import { useState } from "react";
+import * as Flags from "country-flag-icons/react/3x2";
 
 interface FlagIconProps {
   countryCode: string;
@@ -11,11 +11,11 @@ interface FlagIconProps {
 }
 
 const sizeMap = {
-  xs: { width: 16, height: 12, fontSize: "text-sm" },
-  sm: { width: 20, height: 15, fontSize: "text-base" },
-  md: { width: 28, height: 21, fontSize: "text-lg" },
-  lg: { width: 40, height: 30, fontSize: "text-2xl" },
-  xl: { width: 56, height: 42, fontSize: "text-3xl" },
+  xs: { width: 16, height: 11, fontSize: "text-sm" },
+  sm: { width: 20, height: 14, fontSize: "text-base" },
+  md: { width: 28, height: 19, fontSize: "text-lg" },
+  lg: { width: 40, height: 27, fontSize: "text-2xl" },
+  xl: { width: 56, height: 38, fontSize: "text-3xl" },
 };
 
 // Convert country code to flag emoji
@@ -33,9 +33,14 @@ export function FlagIcon({
 }: FlagIconProps) {
   const [error, setError] = useState(false);
   const { width, height, fontSize } = sizeMap[size];
-  const code = countryCode.toLowerCase();
+  const code = countryCode.toUpperCase();
 
-  if (error) {
+  // Get the flag component dynamically
+  const FlagComponent = (
+    Flags as Record<string, React.ComponentType<React.SVGProps<SVGSVGElement>>>
+  )[code];
+
+  if (error || !FlagComponent) {
     const emoji = fallbackEmoji || countryCodeToEmoji(countryCode);
     return (
       <span
@@ -49,15 +54,27 @@ export function FlagIcon({
     );
   }
 
-  return (
-    <Image
-      src={`https://flagcdn.com/w${Math.ceil(width * 2)}/${code}.png`}
-      alt={`${countryCode} flag`}
-      width={width}
-      height={height}
-      className={`rounded-sm object-cover ${className}`}
-      onError={() => setError(true)}
-      unoptimized
-    />
-  );
+  try {
+    return (
+      <FlagComponent
+        width={width}
+        height={height}
+        className={`rounded-sm ${className}`}
+        aria-label={`${countryCode} flag`}
+        onError={() => setError(true)}
+      />
+    );
+  } catch {
+    const emoji = fallbackEmoji || countryCodeToEmoji(countryCode);
+    return (
+      <span
+        className={`inline-flex items-center justify-center ${fontSize} ${className}`}
+        style={{ width, height }}
+        role="img"
+        aria-label={`${countryCode} flag`}
+      >
+        {emoji}
+      </span>
+    );
+  }
 }
