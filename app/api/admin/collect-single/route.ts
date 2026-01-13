@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { createServiceClient } from "@/lib/supabase/server";
 import { GeminiPipeline } from "@/lib/ai";
+import { getThumbnailWithFallback } from "@/lib/gemini/thumbnail-generator";
 import type { TargetCategory } from "@/types/automation";
 
 async function isAdmin() {
@@ -152,10 +153,11 @@ export async function POST(request: NextRequest) {
     // Log AI usage
     if (hasRichContent && pipelineResult.aiUsage.costUsd > 0) {
       await supabase.from("ai_usage_log").insert({
+        request_type: "single_collect",
         model: pipelineResult.aiUsage.model,
-        operation: "single_collect",
         input_tokens: pipelineResult.aiUsage.inputTokens,
         output_tokens: pipelineResult.aiUsage.outputTokens,
+        total_tokens: pipelineResult.aiUsage.inputTokens + pipelineResult.aiUsage.outputTokens,
         cost_usd: pipelineResult.aiUsage.costUsd,
         metadata: {
           source_url: url,
@@ -165,6 +167,37 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    // Generate thumbnail if none exists
+    let thumbnailResult = null;
+    if (
+      !savedContent.thumbnail_url ||
+      savedContent.thumbnail_url === "/images/news-placeholder.svg"
+    ) {
+      console.log(`[Collect Single] Generating thumbnail for: ${savedContent.id}`);
+      thumbnailResult = await getThumbnailWithFallback(
+        savedContent.id,
+        url,
+        savedContent.title,
+        savedContent.summary_md
+      );
+
+      // Log thumbnail generation cost
+      if (thumbnailResult.cost_usd && thumbnailResult.cost_usd > 0) {
+        await supabase.from("ai_usage_log").insert({
+          request_type: "thumbnail_generate",
+          model: "imagen-3.0-generate-002",
+          input_tokens: 0,
+          output_tokens: 0,
+          total_tokens: 0,
+          cost_usd: thumbnailResult.cost_usd,
+          metadata: {
+            content_id: savedContent.id,
+            source: thumbnailResult.source,
+          },
+        });
+      }
+    }
+
     const duration = Date.now() - startTime;
     console.log(`[Collect Single] Success in ${duration}ms. Content ID: ${savedContent.id}`);
 
@@ -172,11 +205,18 @@ export async function POST(request: NextRequest) {
       success: true,
       content_id: savedContent.id,
       title: insertData.title,
+      thumbnail: thumbnailResult
+        ? {
+            url: thumbnailResult.thumbnail_url,
+            source: thumbnailResult.source,
+            cost_usd: thumbnailResult.cost_usd || 0,
+          }
+        : { url: savedContent.thumbnail_url, source: "og_image" },
       duration_ms: duration,
       ai_usage: {
         model: pipelineResult.aiUsage.model,
         tokens: pipelineResult.aiUsage.inputTokens + pipelineResult.aiUsage.outputTokens,
-        cost_usd: pipelineResult.aiUsage.costUsd,
+        cost_usd: pipelineResult.aiUsage.costUsd + (thumbnailResult?.cost_usd || 0),
       },
     });
   } catch (error) {
