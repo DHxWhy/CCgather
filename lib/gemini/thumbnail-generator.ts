@@ -5,10 +5,15 @@
  * SDK: @google/genai
  * Model: imagen-4.0-generate-001 (Standard)
  * Pricing: $0.04 per image
+ *
+ * Theme Selection Priority:
+ * 1. AI-classified article_type from DB (most accurate)
+ * 2. Keyword-based fallback detection
  */
 
 import { GoogleGenAI } from "@google/genai";
 import { createServiceClient } from "@/lib/supabase/server";
+import type { ArticleType } from "@/lib/ai/gemini-client";
 
 // Configuration
 const IMAGEN_MODEL = "imagen-4.0-generate-001";
@@ -25,7 +30,32 @@ type VisualThemeKey =
   | "product"
   | "funding"
   | "partnership"
+  | "security"
   | "default";
+
+// ===========================================
+// ArticleType → VisualTheme Mapping (Primary Source)
+// ===========================================
+
+/**
+ * Maps AI-classified ArticleType to VisualTheme
+ * This is the PRIMARY and most accurate source for theme selection
+ */
+const ARTICLE_TYPE_TO_VISUAL_THEME: Record<ArticleType, VisualThemeKey> = {
+  product_launch: "product",
+  version_update: "product",
+  tutorial: "ai_technology",
+  interview: "corporate",
+  analysis: "ai_technology",
+  security: "security",
+  event: "corporate",
+  research: "ai_technology",
+  integration: "partnership",
+  pricing: "funding",
+  showcase: "product",
+  opinion: "default",
+  general: "default",
+};
 
 interface VisualTheme {
   subjects: string[];
@@ -114,6 +144,22 @@ const NEWS_VISUAL_THEMES: Record<VisualThemeKey, VisualTheme> = {
     style: "corporate graphic design, professional illustration, symbolic imagery",
     lighting: "balanced even lighting, soft gradients",
     mood: "collaboration, synergy, trust, professional",
+  },
+
+  security: {
+    subjects: [
+      "abstract digital shield with glowing edges",
+      "secure lock icon surrounded by data streams",
+      "protective barrier visualization with hexagonal patterns",
+    ],
+    contexts: [
+      "dark background with red and orange warning accents",
+      "digital environment with security grid overlay",
+      "cyber space with alert indicators",
+    ],
+    style: "cybersecurity aesthetic, tech illustration, urgent professional look",
+    lighting: "dramatic red and orange accent lighting, high contrast",
+    mood: "urgent, protective, alert, professional",
   },
 
   default: {
@@ -212,6 +258,7 @@ export interface ThumbnailRequest {
   title: string;
   summary?: string;
   source_name?: string;
+  article_type?: ArticleType; // AI-classified article type from DB (primary source)
   force_regenerate?: boolean;
 }
 
@@ -231,13 +278,26 @@ export interface ThumbnailResult {
  * Generate optimized thumbnail prompt based on article content
  * Uses structured prompt format: Subject + Context + Style + Quality
  */
-function generatePrompt(title: string, summary?: string): string {
-  // Extract keywords from title and summary
+function generatePrompt(title: string, summary?: string, articleType?: ArticleType): string {
+  // Extract keywords from title and summary (for location detection)
   const combinedText = summary ? `${title} ${summary}` : title;
   const keywords = extractKeywords(combinedText);
 
-  // Detect appropriate visual theme
-  const themeKey = detectVisualTheme(keywords);
+  // Theme selection priority:
+  // 1. AI-classified article_type from DB (most accurate)
+  // 2. Keyword-based fallback detection
+  let themeKey: VisualThemeKey;
+
+  if (articleType && ARTICLE_TYPE_TO_VISUAL_THEME[articleType]) {
+    // PRIMARY: Use AI-classified article type
+    themeKey = ARTICLE_TYPE_TO_VISUAL_THEME[articleType];
+    console.log(`[Thumbnail] Using AI-classified type: ${articleType} → theme: ${themeKey}`);
+  } else {
+    // FALLBACK: Use keyword-based detection
+    themeKey = detectVisualTheme(keywords);
+    console.log(`[Thumbnail] Using keyword fallback → theme: ${themeKey}`);
+  }
+
   const theme = NEWS_VISUAL_THEMES[themeKey];
 
   // Select random elements for variety (with fallbacks)
@@ -326,7 +386,7 @@ export async function generateThumbnail(request: ThumbnailRequest): Promise<Thum
     };
   }
 
-  const prompt = generatePrompt(request.title, request.summary);
+  const prompt = generatePrompt(request.title, request.summary, request.article_type);
   console.log(`[Thumbnail] Generating for: "${request.title.slice(0, 50)}..."`);
 
   try {
@@ -543,7 +603,8 @@ export async function getThumbnailWithFallback(
   sourceUrl: string,
   title: string,
   summary?: string,
-  skipAiGeneration = false
+  skipAiGeneration = false,
+  articleType?: ArticleType
 ): Promise<ThumbnailResult> {
   // Try OG Image first (faster and free)
   const ogResult = await fetchOgImage(sourceUrl);
@@ -566,6 +627,7 @@ export async function getThumbnailWithFallback(
     content_id: contentId,
     title,
     summary,
+    article_type: articleType,
   });
 
   if (

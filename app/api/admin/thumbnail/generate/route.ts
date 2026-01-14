@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/server";
 import { generateThumbnail, updateContentThumbnail } from "@/lib/gemini/thumbnail-generator";
+import type { ArticleType } from "@/lib/ai/gemini-client";
 
 export async function POST(request: NextRequest) {
   try {
@@ -13,10 +14,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "content_id and title are required" }, { status: 400 });
     }
 
-    // Check if content exists
+    // Check if content exists and get AI classification
     const { data: content } = await supabase
       .from("contents")
-      .select("id, thumbnail_url, thumbnail_source")
+      .select("id, thumbnail_url, thumbnail_source, ai_article_type")
       .eq("id", content_id)
       .single();
 
@@ -34,11 +35,12 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // Generate new thumbnail
+    // Generate new thumbnail with AI-classified article type
     const result = await generateThumbnail({
       content_id,
       title,
       summary,
+      article_type: content.ai_article_type as ArticleType | undefined,
       force_regenerate,
     });
 

@@ -186,6 +186,17 @@ export async function POST(request: NextRequest) {
         pipelineResult.aiUsage.inputTokens + pipelineResult.aiUsage.outputTokens;
       insertData.ai_cost_usd = pipelineResult.aiUsage.costUsd;
       insertData.ai_processed_at = new Date().toISOString();
+
+      // AI classification (for thumbnail generation)
+      if (pipelineResult.extractedFacts?.classification) {
+        insertData.ai_article_type = pipelineResult.extractedFacts.classification.primary;
+        insertData.ai_article_type_secondary =
+          pipelineResult.extractedFacts.classification.secondary || null;
+        insertData.ai_classification_confidence =
+          pipelineResult.extractedFacts.classification.confidence;
+        insertData.ai_classification_signals =
+          pipelineResult.extractedFacts.classification.signals || [];
+      }
     }
 
     // Save to database
@@ -228,14 +239,16 @@ export async function POST(request: NextRequest) {
         savedContent.id,
         url,
         savedContent.title,
-        savedContent.summary_md
+        savedContent.summary_md,
+        false, // skipAiGeneration
+        savedContent.ai_article_type // AI-classified article type for accurate theme selection
       );
 
       // Log thumbnail generation cost
       if (thumbnailResult.cost_usd && thumbnailResult.cost_usd > 0) {
         await supabase.from("ai_usage_log").insert({
           request_type: "thumbnail_generate",
-          model: "imagen-3.0-generate-002",
+          model: "imagen-4.0-generate-001",
           input_tokens: 0,
           output_tokens: 0,
           total_tokens: 0,
