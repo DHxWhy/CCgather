@@ -32,7 +32,73 @@ const DIFFICULTY_LABELS = {
   hard: "심화",
 } as const;
 
+// 카테고리별 기본 썸네일 (OG 이미지 대신 사용)
+const CATEGORY_THUMBNAILS: Record<string, string> = {
+  claude: "/thumbnails/claude-news.svg",
+  "dev-tools": "/thumbnails/dev-tools-news.svg",
+  industry: "/thumbnails/industry-news.svg",
+  openai: "/thumbnails/openai-news.svg",
+  cursor: "/thumbnails/cursor-news.svg",
+  general: "/thumbnails/general-news.svg",
+} as const;
+
+// 카테고리별 그라데이션 색상 (폴백용)
+const CATEGORY_GRADIENTS: Record<string, { from: string; to: string }> = {
+  claude: { from: "#F97316", to: "#9333EA" },
+  "dev-tools": { from: "#3B82F6", to: "#06B6D4" },
+  industry: { from: "#10B981", to: "#059669" },
+  openai: { from: "#22C55E", to: "#16A34A" },
+  cursor: { from: "#8B5CF6", to: "#6366F1" },
+  general: { from: "#6B7280", to: "#374151" },
+} as const;
+
+// 카테고리별 기본 이모지
+const CATEGORY_EMOJIS: Record<string, string> = {
+  claude: "🤖",
+  "dev-tools": "🛠️",
+  industry: "📊",
+  openai: "🧠",
+  cursor: "✨",
+  general: "📰",
+} as const;
+
 type Difficulty = keyof typeof DIFFICULTY_STYLES;
+
+/**
+ * 3단계 썸네일 폴백 로직 (OG 이미지 완전 배제)
+ */
+function getThumbnailSrc(article: ContentItem): string | null {
+  // Step 1: AI 생성 썸네일 우선
+  if (article.ai_thumbnail) {
+    return article.ai_thumbnail;
+  }
+
+  // Step 2: 카테고리별 기본 이미지
+  const category = article.content_type || article.category || "general";
+  const categoryKey = category.toLowerCase().replace(/\s+/g, "-");
+  if (CATEGORY_THUMBNAILS[categoryKey]) {
+    return CATEGORY_THUMBNAILS[categoryKey];
+  }
+
+  // Step 3: null → 이모지 + 그라데이션 폴백
+  return null;
+}
+
+function getCategoryGradient(article: ContentItem): { from: string; to: string } {
+  const category = article.content_type || article.category || "general";
+  const categoryKey = category.toLowerCase().replace(/\s+/g, "-");
+  return (
+    CATEGORY_GRADIENTS[categoryKey] ??
+    CATEGORY_GRADIENTS.general ?? { from: "#F97316", to: "#9333EA" }
+  );
+}
+
+function getCategoryEmoji(article: ContentItem, titleEmoji?: string): string {
+  if (titleEmoji) return titleEmoji;
+  const category = article.content_type || article.category || "general";
+  const categoryKey = category.toLowerCase().replace(/\s+/g, "-");
+  return CATEGORY_EMOJIS[categoryKey] ?? CATEGORY_EMOJIS.general ?? "📰";
+}
 
 // ===========================================
 // Types
@@ -249,19 +315,38 @@ export default async function NewsDetailPage({ params }: NewsDetailPageProps) {
           </div>
         </header>
 
-        {/* Hero Image */}
-        {article.thumbnail_url && (
-          <div className="relative w-full aspect-video rounded-xl overflow-hidden mb-8 bg-black/20">
-            <Image
-              src={article.thumbnail_url}
-              alt={title}
-              fill
-              className="object-cover"
-              priority
-              unoptimized
-            />
-          </div>
-        )}
+        {/* Hero Image (OG 이미지 배제, 3단계 폴백) */}
+        {(() => {
+          const thumbnailSrc = getThumbnailSrc(article);
+          const categoryGradient = getCategoryGradient(article);
+          const fallbackEmoji = getCategoryEmoji(article, titleEmoji);
+
+          return (
+            <div className="relative w-full aspect-video rounded-xl overflow-hidden mb-8 bg-black/20">
+              {thumbnailSrc ? (
+                <Image
+                  src={thumbnailSrc}
+                  alt={title}
+                  fill
+                  className="object-cover"
+                  priority
+                  unoptimized
+                />
+              ) : (
+                <div
+                  className="w-full h-full flex items-center justify-center"
+                  style={{
+                    background: `linear-gradient(135deg, ${categoryGradient.from}30, ${categoryGradient.to}20)`,
+                  }}
+                >
+                  <span className="text-8xl opacity-40" aria-hidden="true">
+                    {fallbackEmoji}
+                  </span>
+                </div>
+              )}
+            </div>
+          );
+        })()}
 
         {/* Article Body */}
         <div className="prose prose-invert prose-lg max-w-none mb-8">
@@ -327,33 +412,50 @@ export default async function NewsDetailPage({ params }: NewsDetailPageProps) {
           </section>
         )}
 
-        {/* Related Articles */}
+        {/* Related Articles (OG 이미지 배제) */}
         {relatedNews.length > 0 && (
           <section className="mb-8">
             <h2 className="text-lg font-semibold text-white mb-4">🔗 관련 기사</h2>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              {relatedNews.map((related) => (
-                <Link
-                  key={related.id}
-                  href={related.slug ? `/news/${related.slug}` : "#"}
-                  className="group p-3 rounded-lg bg-white/[0.02] border border-white/10 hover:border-white/20 transition-colors"
-                >
-                  {related.thumbnail_url && (
+              {relatedNews.map((related) => {
+                const relatedThumbnail = getThumbnailSrc(related as ContentItem);
+                const relatedGradient = getCategoryGradient(related as ContentItem);
+                const relatedEmoji = getCategoryEmoji(related as ContentItem);
+
+                return (
+                  <Link
+                    key={related.id}
+                    href={related.slug ? `/news/${related.slug}` : "#"}
+                    className="group p-3 rounded-lg bg-white/[0.02] border border-white/10 hover:border-white/20 transition-colors"
+                  >
                     <div className="relative w-full aspect-video rounded-md overflow-hidden mb-2 bg-black/20">
-                      <Image
-                        src={related.thumbnail_url}
-                        alt={related.title}
-                        fill
-                        className="object-cover group-hover:scale-105 transition-transform duration-300"
-                        unoptimized
-                      />
+                      {relatedThumbnail ? (
+                        <Image
+                          src={relatedThumbnail}
+                          alt={related.title}
+                          fill
+                          className="object-cover group-hover:scale-105 transition-transform duration-300"
+                          unoptimized
+                        />
+                      ) : (
+                        <div
+                          className="w-full h-full flex items-center justify-center"
+                          style={{
+                            background: `linear-gradient(135deg, ${relatedGradient.from}25, ${relatedGradient.to}15)`,
+                          }}
+                        >
+                          <span className="text-3xl opacity-50" aria-hidden="true">
+                            {relatedEmoji}
+                          </span>
+                        </div>
+                      )}
                     </div>
-                  )}
-                  <h4 className="text-sm font-medium text-white group-hover:text-blue-400 transition-colors line-clamp-2">
-                    {related.title}
-                  </h4>
-                </Link>
-              ))}
+                    <h4 className="text-sm font-medium text-white group-hover:text-blue-400 transition-colors line-clamp-2">
+                      {related.title}
+                    </h4>
+                  </Link>
+                );
+              })}
             </div>
           </section>
         )}

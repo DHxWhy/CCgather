@@ -251,7 +251,8 @@ export interface ContentItem {
   title: string;
   source_url: string;
   source_name?: string;
-  thumbnail_url?: string;
+  thumbnail_url?: string; // OG 이미지 (deprecated - 사용하지 않음)
+  ai_thumbnail?: string; // AI 생성 썸네일 (우선 사용)
   thumbnail_source?: ThumbnailSource;
   thumbnail_generated_at?: string;
   summary_md?: string;

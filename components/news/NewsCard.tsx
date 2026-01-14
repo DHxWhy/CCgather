@@ -11,6 +11,36 @@ import { isNewArticle } from "@/lib/utils/sanitize";
 // Constants (outside component to avoid recreation)
 // ===========================================
 
+// 카테고리별 기본 썸네일 (OG 이미지 대신 사용)
+const CATEGORY_THUMBNAILS: Record<string, string> = {
+  claude: "/thumbnails/claude-news.svg",
+  "dev-tools": "/thumbnails/dev-tools-news.svg",
+  industry: "/thumbnails/industry-news.svg",
+  openai: "/thumbnails/openai-news.svg",
+  cursor: "/thumbnails/cursor-news.svg",
+  general: "/thumbnails/general-news.svg",
+} as const;
+
+// 카테고리별 그라데이션 색상 (폴백용)
+const CATEGORY_GRADIENTS: Record<string, { from: string; to: string }> = {
+  claude: { from: "#F97316", to: "#9333EA" },
+  "dev-tools": { from: "#3B82F6", to: "#06B6D4" },
+  industry: { from: "#10B981", to: "#059669" },
+  openai: { from: "#22C55E", to: "#16A34A" },
+  cursor: { from: "#8B5CF6", to: "#6366F1" },
+  general: { from: "#6B7280", to: "#374151" },
+} as const;
+
+// 카테고리별 기본 이모지
+const CATEGORY_EMOJIS: Record<string, string> = {
+  claude: "🤖",
+  "dev-tools": "🛠️",
+  industry: "📊",
+  openai: "🧠",
+  cursor: "✨",
+  general: "📰",
+} as const;
+
 const DIFFICULTY_COLORS = {
   easy: "bg-green-500/20 text-green-400",
   medium: "bg-yellow-500/20 text-yellow-400",
@@ -18,9 +48,9 @@ const DIFFICULTY_COLORS = {
 } as const;
 
 const DIFFICULTY_LABELS = {
-  easy: "쉬움",
-  medium: "보통",
-  hard: "심화",
+  easy: "Easy",
+  medium: "Medium",
+  hard: "Advanced",
 } as const;
 
 const DATE_FORMAT_OPTIONS: Intl.DateTimeFormatOptions = {
@@ -29,7 +59,56 @@ const DATE_FORMAT_OPTIONS: Intl.DateTimeFormatOptions = {
   day: "numeric",
 };
 
-const DEFAULT_ACCENT_COLOR = "#F97316";
+// ===========================================
+// Thumbnail Selection Helper (OG 이미지 완전 배제)
+// ===========================================
+
+/**
+ * 3단계 썸네일 폴백 로직
+ * 1. AI 생성 썸네일 (ai_thumbnail)
+ * 2. 카테고리별 기본 썸네일
+ * 3. null (이모지 + 그라데이션 폴백)
+ *
+ * OG 이미지(thumbnail_url)는 의도적으로 사용하지 않음
+ */
+function getThumbnailSrc(article: ContentItem): string | null {
+  // Step 1: AI 생성 썸네일 우선
+  if (article.ai_thumbnail) {
+    return article.ai_thumbnail;
+  }
+
+  // Step 2: 카테고리별 기본 이미지
+  const category = article.content_type || article.category || "general";
+  const categoryKey = category.toLowerCase().replace(/\s+/g, "-");
+  if (CATEGORY_THUMBNAILS[categoryKey]) {
+    return CATEGORY_THUMBNAILS[categoryKey];
+  }
+
+  // Step 3: null 반환 → 이모지 + 그라데이션 폴백 사용
+  return null;
+}
+
+/**
+ * 카테고리별 그라데이션 색상 반환
+ */
+function getCategoryGradient(article: ContentItem): { from: string; to: string } {
+  const category = article.content_type || article.category || "general";
+  const categoryKey = category.toLowerCase().replace(/\s+/g, "-");
+  return (
+    CATEGORY_GRADIENTS[categoryKey] ??
+    CATEGORY_GRADIENTS.general ?? { from: "#F97316", to: "#9333EA" }
+  );
+}
+
+/**
+ * 카테고리별 이모지 반환
+ */
+function getCategoryEmoji(article: ContentItem, titleEmoji?: string): string {
+  if (titleEmoji) return titleEmoji;
+  const category = article.content_type || article.category || "general";
+  const categoryKey = category.toLowerCase().replace(/\s+/g, "-");
+  return CATEGORY_EMOJIS[categoryKey] ?? CATEGORY_EMOJIS.general ?? "📰";
+}
 
 // ===========================================
 // Types
@@ -112,10 +191,16 @@ function NewsCardComponent({ article, variant = "default", isLatest = false }: N
   const cardData = useMemo(() => {
     const richContent = article.rich_content;
     const hasRichContent = !!richContent;
+    const titleEmojiValue = hasRichContent ? richContent.title.emoji : undefined;
+
+    // 3단계 썸네일 폴백 로직 (OG 이미지 완전 배제)
+    const thumbnailSrc = getThumbnailSrc(article);
+    const categoryGradient = getCategoryGradient(article);
+    const fallbackEmoji = getCategoryEmoji(article, titleEmojiValue);
 
     return {
       title: hasRichContent ? richContent.title.text : article.title,
-      titleEmoji: hasRichContent ? richContent.title.emoji : undefined,
+      titleEmoji: titleEmojiValue,
       summary:
         article.one_liner ||
         (hasRichContent ? richContent.summary.text : article.summary || article.summary_md),
@@ -123,7 +208,6 @@ function NewsCardComponent({ article, variant = "default", isLatest = false }: N
         | Difficulty
         | undefined,
       category: hasRichContent ? richContent.meta.category : article.category,
-      accentColor: hasRichContent ? richContent.style?.accentColor : DEFAULT_ACCENT_COLOR,
       favicon: article.favicon_url || richContent?.source?.favicon,
       date: new Date(article.published_at || article.created_at).toLocaleDateString(
         "ko-KR",
@@ -131,6 +215,10 @@ function NewsCardComponent({ article, variant = "default", isLatest = false }: N
       ),
       isNew: isNewArticle(article.published_at, article.created_at),
       href: article.slug ? `/news/${article.slug}` : "#",
+      // 새로운 썸네일 관련 데이터
+      thumbnailSrc,
+      categoryGradient,
+      fallbackEmoji,
     };
   }, [article]);
 
@@ -140,11 +228,13 @@ function NewsCardComponent({ article, variant = "default", isLatest = false }: N
     summary,
     difficulty,
     category,
-    accentColor,
     favicon,
     date,
     isNew,
     href,
+    thumbnailSrc,
+    categoryGradient,
+    fallbackEmoji,
   } = cardData;
 
   // Featured card (LATEST card)
@@ -156,19 +246,26 @@ function NewsCardComponent({ article, variant = "default", isLatest = false }: N
         aria-label={`최신 기사: ${title}`}
       >
         <article className="relative w-[320px] md:w-[400px] h-[280px] rounded-xl overflow-hidden border-2 border-orange-500/30 bg-gradient-to-br from-orange-500/10 to-purple-500/5 hover:border-orange-500/50 transition-all">
-          {/* Background Image */}
-          {article.thumbnail_url && (
-            <div className="absolute inset-0">
+          {/* Background Image (OG 이미지 배제, 3단계 폴백) */}
+          <div className="absolute inset-0">
+            {thumbnailSrc ? (
               <Image
-                src={article.thumbnail_url}
+                src={thumbnailSrc}
                 alt=""
                 fill
                 className="object-cover opacity-30 group-hover:opacity-40 transition-opacity duration-300"
                 unoptimized
               />
-              <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/50 to-transparent" />
-            </div>
-          )}
+            ) : (
+              <div
+                className="w-full h-full"
+                style={{
+                  background: `linear-gradient(135deg, ${categoryGradient.from}30, ${categoryGradient.to}20)`,
+                }}
+              />
+            )}
+            <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/50 to-transparent" />
+          </div>
 
           {/* Content */}
           <div className="relative h-full p-5 flex flex-col justify-end">
@@ -240,11 +337,11 @@ function NewsCardComponent({ article, variant = "default", isLatest = false }: N
         aria-label={`기사: ${title}`}
       >
         <article className="flex flex-col sm:flex-row gap-3 sm:gap-4 p-3 sm:p-4 rounded-2xl border border-[var(--border-default)] bg-[var(--color-bg-secondary)]/50 hover:bg-[var(--color-bg-secondary)] hover:border-[var(--border-hover)] hover:shadow-lg transition-all duration-200">
-          {/* Mobile: Image on top (large) - < 640px */}
+          {/* Mobile: Image on top (large) - < 640px (OG 이미지 배제) */}
           <div className="relative w-full h-[160px] sm:hidden rounded-xl overflow-hidden bg-black/10 dark:bg-white/5">
-            {article.thumbnail_url ? (
+            {thumbnailSrc ? (
               <Image
-                src={article.thumbnail_url}
+                src={thumbnailSrc}
                 alt=""
                 fill
                 className="object-cover group-hover:scale-105 transition-transform duration-300"
@@ -254,11 +351,11 @@ function NewsCardComponent({ article, variant = "default", isLatest = false }: N
               <div
                 className="w-full h-full flex items-center justify-center"
                 style={{
-                  background: `linear-gradient(135deg, ${accentColor}20, transparent)`,
+                  background: `linear-gradient(135deg, ${categoryGradient.from}20, ${categoryGradient.to}10)`,
                 }}
               >
-                <span className="text-4xl opacity-40" aria-hidden="true">
-                  {titleEmoji || "📰"}
+                <span className="text-4xl opacity-60" aria-hidden="true">
+                  {fallbackEmoji}
                 </span>
               </div>
             )}
@@ -277,11 +374,11 @@ function NewsCardComponent({ article, variant = "default", isLatest = false }: N
             <span className="text-[10px] font-medium text-text-muted">{dayName}</span>
           </div>
 
-          {/* Tablet/Desktop: Thumbnail (>= 640px) */}
+          {/* Tablet/Desktop: Thumbnail (>= 640px) (OG 이미지 배제) */}
           <div className="hidden sm:block relative w-[100px] h-[80px] flex-shrink-0 rounded-xl overflow-hidden bg-black/10 dark:bg-white/5">
-            {article.thumbnail_url ? (
+            {thumbnailSrc ? (
               <Image
-                src={article.thumbnail_url}
+                src={thumbnailSrc}
                 alt=""
                 fill
                 className="object-cover group-hover:scale-105 transition-transform duration-300"
@@ -291,11 +388,11 @@ function NewsCardComponent({ article, variant = "default", isLatest = false }: N
               <div
                 className="w-full h-full flex items-center justify-center"
                 style={{
-                  background: `linear-gradient(135deg, ${accentColor}20, transparent)`,
+                  background: `linear-gradient(135deg, ${categoryGradient.from}20, ${categoryGradient.to}10)`,
                 }}
               >
-                <span className="text-2xl opacity-40" aria-hidden="true">
-                  {titleEmoji || "📰"}
+                <span className="text-2xl opacity-60" aria-hidden="true">
+                  {fallbackEmoji}
                 </span>
               </div>
             )}
@@ -402,11 +499,11 @@ function NewsCardComponent({ article, variant = "default", isLatest = false }: N
         aria-label={`기사: ${title}`}
       >
         <article className="w-[260px] h-[200px] rounded-lg border border-[var(--border-default)] bg-white/[0.02] dark:bg-white/[0.02] hover:bg-black/[0.03] dark:hover:bg-white/[0.05] hover:border-[var(--border-hover)] transition-all overflow-hidden">
-          {/* Thumbnail */}
+          {/* Thumbnail (OG 이미지 배제) */}
           <div className="relative w-full h-[100px] bg-black/20">
-            {article.thumbnail_url ? (
+            {thumbnailSrc ? (
               <Image
-                src={article.thumbnail_url}
+                src={thumbnailSrc}
                 alt=""
                 fill
                 className="object-cover group-hover:scale-105 transition-transform duration-300"
@@ -416,11 +513,11 @@ function NewsCardComponent({ article, variant = "default", isLatest = false }: N
               <div
                 className="w-full h-full flex items-center justify-center"
                 style={{
-                  background: `linear-gradient(135deg, ${accentColor}15, transparent)`,
+                  background: `linear-gradient(135deg, ${categoryGradient.from}15, ${categoryGradient.to}10)`,
                 }}
               >
-                <span className="text-3xl opacity-30" aria-hidden="true">
-                  {titleEmoji || "📰"}
+                <span className="text-3xl opacity-50" aria-hidden="true">
+                  {fallbackEmoji}
                 </span>
               </div>
             )}
@@ -463,11 +560,11 @@ function NewsCardComponent({ article, variant = "default", isLatest = false }: N
       aria-label={`기사: ${title}`}
     >
       <article className="w-[280px] md:w-[300px] h-[240px] rounded-lg border border-[var(--border-default)] bg-white/[0.02] dark:bg-white/[0.02] hover:bg-black/[0.03] dark:hover:bg-white/[0.05] hover:border-[var(--border-hover)] transition-all overflow-hidden">
-        {/* Thumbnail */}
+        {/* Thumbnail (OG 이미지 배제) */}
         <div className="relative w-full h-[130px] bg-black/20">
-          {article.thumbnail_url ? (
+          {thumbnailSrc ? (
             <Image
-              src={article.thumbnail_url}
+              src={thumbnailSrc}
               alt=""
               fill
               className="object-cover group-hover:scale-105 transition-transform duration-300"
@@ -477,11 +574,11 @@ function NewsCardComponent({ article, variant = "default", isLatest = false }: N
             <div
               className="w-full h-full flex items-center justify-center"
               style={{
-                background: `linear-gradient(135deg, ${accentColor}15, transparent)`,
+                background: `linear-gradient(135deg, ${categoryGradient.from}15, ${categoryGradient.to}10)`,
               }}
             >
-              <span className="text-4xl opacity-30" aria-hidden="true">
-                {titleEmoji || "📰"}
+              <span className="text-4xl opacity-50" aria-hidden="true">
+                {fallbackEmoji}
               </span>
             </div>
           )}

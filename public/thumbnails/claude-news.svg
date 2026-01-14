@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 225" fill="none">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#F97316" stop-opacity="0.3"/>
+      <stop offset="100%" stop-color="#9333EA" stop-opacity="0.2"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#F97316"/>
+      <stop offset="100%" stop-color="#EA580C"/>
+    </linearGradient>
+  </defs>
+  <rect width="400" height="225" fill="#0a0a0a"/>
+  <rect width="400" height="225" fill="url(#bg)"/>
+  <!-- Claude Robot Icon -->
+  <g transform="translate(160, 70)">
+    <circle cx="40" cy="40" r="35" fill="url(#accent)" opacity="0.9"/>
+    <circle cx="28" cy="35" r="6" fill="#0a0a0a"/>
+    <circle cx="52" cy="35" r="6" fill="#0a0a0a"/>
+    <path d="M25 50 Q40 60 55 50" stroke="#0a0a0a" stroke-width="3" fill="none" stroke-linecap="round"/>
+    <!-- Antenna -->
+    <circle cx="40" cy="8" r="4" fill="url(#accent)"/>
+    <line x1="40" y1="12" x2="40" y2="5" stroke="url(#accent)" stroke-width="2"/>
+  </g>
+  <text x="200" y="160" text-anchor="middle" fill="#ffffff" font-family="system-ui, sans-serif" font-size="14" font-weight="600" opacity="0.7">Claude News</text>
+</svg>
