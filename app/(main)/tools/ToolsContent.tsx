@@ -285,14 +285,12 @@ export default function ToolsContent() {
         // Empty State
         <div className="flex flex-col items-center justify-center py-12 text-center">
           <span className="text-4xl mb-4">🔍</span>
-          <p className="text-[var(--color-text-secondary)] mb-4">
-            이 카테고리에 아직 도구가 없습니다
-          </p>
+          <p className="text-[var(--color-text-secondary)] mb-4">No tools in this category yet</p>
           <button
             onClick={handleSubmitClick}
             className="text-sm text-[var(--color-claude-coral)] hover:underline"
           >
-            첫 도구 제출하기 →
+            Submit the first tool →
           </button>
         </div>
       ) : (

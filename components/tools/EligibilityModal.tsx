@@ -80,7 +80,7 @@ export function EligibilityModal({
               <Lock className="w-4 h-4 text-[var(--color-text-muted)]" />
             </div>
             <h2 className="text-base font-semibold text-[var(--color-text-primary)]">
-              도구 추천 자격
+              Tool Submission Eligibility
             </h2>
           </div>
           <button
@@ -100,9 +100,8 @@ export function EligibilityModal({
           ) : eligibility ? (
             <>
               <p className="text-sm text-[var(--color-text-secondary)] mb-4">
-                아래 조건 중{" "}
-                <span className="text-[var(--color-claude-coral)] font-medium">하나만</span>{" "}
-                충족하면 도구를 추천할 수 있습니다.
+                Meet <span className="text-[var(--color-claude-coral)] font-medium">any one</span>{" "}
+                of the requirements below to submit a tool.
               </p>
 
               {/* Requirements */}
@@ -147,19 +146,17 @@ export function EligibilityModal({
                               </span>
                               {req.key === "level" && status && "current" in status && (
                                 <span className="text-xs font-medium text-orange-400">
-                                  (현재: Lv.{status.current})
+                                  (Current: Lv.{status.current})
                                 </span>
                               )}
                               {req.key === "data_days" && status && "current" in status && (
                                 <span className="text-xs font-medium text-orange-400">
-                                  (현재: {status.current}일)
+                                  (Current: {status.current} days)
                                 </span>
                               )}
                             </div>
                             <p className="text-xs text-[var(--color-text-muted)] mt-0.5">
-                              {req.key === "level"
-                                ? "10B~30B 토큰 구간 달성 필요"
-                                : req.description}
+                              {req.key === "level" ? "Reach 10B-30B token range" : req.description}
                             </p>
                           </div>
                         </div>
@@ -182,7 +179,7 @@ export function EligibilityModal({
             </>
           ) : (
             <p className="text-sm text-[var(--color-text-secondary)] text-center py-4">
-              자격 정보를 불러올 수 없습니다.
+              Unable to load eligibility information.
             </p>
           )}
         </div>
@@ -193,7 +190,7 @@ export function EligibilityModal({
             onClick={onClose}
             className="w-full py-2 rounded-lg bg-[var(--color-bg-elevated)] border border-[var(--border-default)] text-sm font-medium text-[var(--color-text-primary)] hover:bg-[var(--color-bg-card-hover)] transition-colors"
           >
-            확인
+            OK
           </button>
         </div>
       </div>

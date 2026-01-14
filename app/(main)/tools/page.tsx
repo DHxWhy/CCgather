@@ -68,7 +68,7 @@ function ToolsSkeleton() {
 export default function ToolsPage() {
   return (
     <main className="min-h-screen bg-[var(--color-bg-primary)]">
-      <div className="max-w-5xl mx-auto px-4 py-8">
+      <div className="max-w-[1000px] mx-auto px-4 py-8">
         {/* Header */}
         <header className="mb-8">
           <h1 className="text-2xl font-bold text-[var(--color-text-primary)] flex items-center gap-2">
