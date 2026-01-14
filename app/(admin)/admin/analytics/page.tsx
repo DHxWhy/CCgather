@@ -127,7 +127,7 @@ export default function AnalyticsPage() {
           <select
             value={dateRange}
             onChange={(e) => setDateRange(e.target.value)}
-            className="bg-[#161616] text-white/80 border border-white/[0.06] rounded px-2.5 py-1.5 text-[12px] focus:outline-none focus:border-white/20"
+            className="bg-[#161616] text-white/80 border border-white/[0.06] rounded px-2.5 py-1.5 text-[12px] focus:outline-none focus:border-white/20 [&>option]:bg-[#161616] [&>option]:text-white"
           >
             {DATE_RANGES.map((r) => (
               <option key={r.value} value={r.value}>

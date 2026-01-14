@@ -545,7 +545,7 @@ function EditContentModal({
 
   return (
     <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
-      <div className="bg-[#161616] rounded-lg w-full max-w-xl max-h-[85vh] overflow-y-auto border border-white/[0.06]">
+      <div className="bg-[#161616] rounded-lg w-full max-w-2xl max-h-[90vh] overflow-y-auto border border-white/[0.06]">
         <div className="p-4 border-b border-white/[0.06]">
           <h3 className="text-[14px] font-semibold text-white">
             {item.type === "youtube" ? "영상" : "뉴스"} 수정
@@ -586,7 +586,7 @@ function EditContentModal({
               type="text"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              className="w-full px-3 py-2 bg-white/5 border border-white/[0.06] rounded text-[13px] text-white focus:outline-none focus:border-white/20"
+              className="w-full px-3 py-2 bg-[#1a1a1a] border border-white/[0.06] rounded text-[13px] text-white focus:outline-none focus:border-white/20 [&>option]:bg-[#1a1a1a] [&>option]:text-white"
             />
           </div>
 
@@ -599,7 +599,7 @@ function EditContentModal({
               <select
                 value={contentType}
                 onChange={(e) => setContentType(e.target.value)}
-                className="w-full px-3 py-2 bg-white/5 border border-white/[0.06] rounded text-[13px] text-white focus:outline-none focus:border-white/20"
+                className="w-full px-3 py-2 bg-[#1a1a1a] border border-white/[0.06] rounded text-[13px] text-white focus:outline-none focus:border-white/20 [&>option]:bg-[#1a1a1a] [&>option]:text-white"
               >
                 {CONTENT_TYPE_OPTIONS.filter((opt) => opt.value !== "youtube").map((opt) => (
                   <option key={opt.value} value={opt.value}>
@@ -652,7 +652,7 @@ function EditContentModal({
             <select
               value={category}
               onChange={(e) => setCategory(e.target.value)}
-              className="w-full px-3 py-2 bg-white/5 border border-white/[0.06] rounded text-[13px] text-white focus:outline-none focus:border-white/20"
+              className="w-full px-3 py-2 bg-[#1a1a1a] border border-white/[0.06] rounded text-[13px] text-white focus:outline-none focus:border-white/20 [&>option]:bg-[#1a1a1a] [&>option]:text-white"
             >
               <option value="">선택...</option>
               {CATEGORY_OPTIONS.map((opt) => (
@@ -663,28 +663,36 @@ function EditContentModal({
             </select>
           </div>
 
-          {/* Summary */}
+          {/* Summary - Expanded */}
           <div>
-            <label className="block text-[11px] font-medium text-white/50 mb-1.5">요약</label>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="text-[11px] font-medium text-white/50">요약</label>
+              <span className="text-[10px] text-white/30">{summary.length}자</span>
+            </div>
             <textarea
               value={summary}
               onChange={(e) => setSummary(e.target.value)}
-              rows={3}
-              className="w-full px-3 py-2 bg-white/5 border border-white/[0.06] rounded text-[13px] text-white focus:outline-none focus:border-white/20 resize-none"
+              rows={8}
+              className="w-full px-3 py-2.5 bg-black/30 border border-white/[0.08] rounded-lg text-[13px] text-white leading-relaxed focus:outline-none focus:border-white/20 resize-y min-h-[180px]"
             />
           </div>
 
-          {/* Key Points */}
+          {/* Key Points - Expanded */}
           <div>
-            <label className="block text-[11px] font-medium text-white/50 mb-1.5">
-              핵심 포인트 (줄바꿈)
-            </label>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="text-[11px] font-medium text-white/50">
+                핵심 포인트 <span className="text-white/30">(줄바꿈으로 구분)</span>
+              </label>
+              <span className="text-[10px] text-white/30">
+                {keyPoints.split("\n").filter((p) => p.trim()).length}개
+              </span>
+            </div>
             <textarea
               value={keyPoints}
               onChange={(e) => setKeyPoints(e.target.value)}
-              rows={3}
-              placeholder="첫 번째 포인트&#10;두 번째 포인트"
-              className="w-full px-3 py-2 bg-white/5 border border-white/[0.06] rounded text-[13px] text-white focus:outline-none focus:border-white/20 resize-none placeholder:text-white/20"
+              rows={5}
+              placeholder="• 첫 번째 핵심 포인트&#10;• 두 번째 핵심 포인트&#10;• 세 번째 핵심 포인트"
+              className="w-full px-3 py-2.5 bg-black/30 border border-white/[0.08] rounded-lg text-[13px] text-white leading-relaxed focus:outline-none focus:border-white/20 resize-y min-h-[120px] placeholder:text-white/20"
             />
           </div>
         </div>
@@ -698,8 +706,18 @@ function EditContentModal({
           </button>
           <button
             onClick={() => {
-              handleSave();
-              onSave({ ...item, status: "published" });
+              // 모든 변경사항을 한번에 저장 (thumbnail 포함)
+              onSave({
+                title,
+                summary_md: summary,
+                category,
+                content_type: contentType as ContentItem["content_type"],
+                key_points: keyPoints.split("\n").filter((p) => p.trim()),
+                thumbnail_url: thumbnailUrl || undefined,
+                thumbnail_source: thumbnailSource,
+                news_tags: newsTags.length > 0 ? newsTags : undefined,
+                status: "published",
+              });
             }}
             className="px-4 py-2 bg-emerald-500/20 text-emerald-400 rounded text-[12px] hover:bg-emerald-500/30 transition-colors"
           >

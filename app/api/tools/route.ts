@@ -11,6 +11,11 @@ import type {
   ToolSortOption,
   ToolWithVoters,
 } from "@/types/tools";
+import {
+  calculateTrustTier,
+  checkSuggestionEligibility,
+  buildSuggesterInfo,
+} from "@/lib/tools/eligibility";
 
 // =====================================================
 // GET /api/tools - 도구 목록 조회
@@ -146,7 +151,7 @@ export async function GET(request: NextRequest) {
       };
 
       // Calculate trust tier
-      const trustTier = calculateTrustTier(user.current_level, user.global_rank);
+      const trustTier = calculateTrustTier(user.current_level);
 
       const voters = votesByTool.get(toolId)!;
       if (voters.length < 5) {
@@ -171,7 +176,7 @@ export async function GET(request: NextRequest) {
       }
     });
 
-    // Combine tools with voters
+    // Combine tools with voters and suggester info
     const toolsWithVoters: ToolWithVoters[] =
       tools?.map((tool: Record<string, unknown>) => {
         const submitter = tool.submitter as {
@@ -183,14 +188,20 @@ export async function GET(request: NextRequest) {
         } | null;
 
         const toolId = tool.id as string;
+
+        // Build suggester info from submitter
+        const suggester = submitter
+          ? buildSuggesterInfo({
+              id: submitter.id,
+              username: submitter.username,
+              avatar_url: submitter.avatar_url,
+              current_level: submitter.current_level,
+            })
+          : null;
+
         return {
           ...tool,
-          submitter: submitter
-            ? {
-                ...submitter,
-                trust_tier: calculateTrustTier(submitter.current_level, submitter.global_rank),
-              }
-            : null,
+          suggester,
           voters: votesByTool.get(toolId) || [],
           top_comment: topCommentByTool.get(toolId) || null,
         };
@@ -225,12 +236,35 @@ export async function POST(request: NextRequest) {
     // Get user from database
     const { data: user, error: userError } = await supabase
       .from("users")
-      .select("id, current_level, global_rank")
+      .select("id, username, avatar_url, current_level, global_rank")
       .eq("clerk_id", userId)
       .single();
 
     if (userError || !user) {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
+    }
+
+    // Count unique data days
+    const { count: uniqueDataDays } = await supabase
+      .from("usage_stats")
+      .select("date", { count: "exact", head: true })
+      .eq("user_id", user.id);
+
+    // Check suggestion eligibility (Level 7+ OR 7+ unique data days)
+    const eligibility = checkSuggestionEligibility({
+      current_level: user.current_level,
+      unique_data_days: uniqueDataDays ?? 0,
+    });
+
+    if (!eligibility.eligible) {
+      return NextResponse.json(
+        {
+          error: "Not eligible to suggest tools",
+          message: eligibility.message,
+          requirements: eligibility.requirements,
+        },
+        { status: 403 }
+      );
     }
 
     // Parse request body
@@ -313,22 +347,6 @@ export async function POST(request: NextRequest) {
 // =====================================================
 // Helper Functions
 // =====================================================
-
-function calculateTrustTier(
-  level: number,
-  globalRank: number | null
-): "elite" | "power_user" | "verified" | "member" {
-  if (level >= 4 || (globalRank !== null && globalRank <= 100)) {
-    return "elite";
-  }
-  if (level >= 3 || (globalRank !== null && globalRank <= 500)) {
-    return "power_user";
-  }
-  if (level >= 2) {
-    return "verified";
-  }
-  return "member";
-}
 
 function isValidUrl(string: string): boolean {
   try {

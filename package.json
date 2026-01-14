@@ -4,7 +4,7 @@
   "private": true,
   "description": "Where Claude Code Developers Gather - Real-time global leaderboard for Claude Code usage",
   "scripts": {
-    "dev": "next dev --no-turbopack",
+    "dev": "next dev",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",

@@ -80,9 +80,9 @@ function CTASectionComponent({ articleUrl, articleTitle, oneLiner }: CTASectionP
         <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
           <div>
             <h3 id="share-heading" className="text-lg font-semibold text-white mb-1">
-              이 기사가 도움이 되셨나요?
+              Was this article helpful?
             </h3>
-            <p className="text-sm text-text-muted">동료 개발자들에게 공유해보세요</p>
+            <p className="text-sm text-text-muted">Share it with your fellow developers</p>
           </div>
           <ShareButtons url={articleUrl} title={articleTitle} oneLiner={oneLiner} />
         </div>
@@ -103,31 +103,32 @@ function CTASectionComponent({ articleUrl, articleTitle, oneLiner }: CTASectionP
             className="text-xl font-semibold text-white mb-2 flex items-center gap-2 justify-center sm:justify-start"
           >
             <Sparkles className="w-5 h-5 text-orange-400" aria-hidden="true" />
-            Claude Code 사용자이신가요?
+            Are you a Claude Code user?
           </h3>
           <p className="text-text-muted mb-3">
-            CCgather에 가입하고 사용량을 공유하면 다른 개발자들의 활용 패턴도 확인할 수 있어요.
+            Join CCgather and share your usage to discover how other developers are using Claude
+            Code.
           </p>
           {userCount && (
             <p className="text-sm text-orange-400 font-medium" aria-live="polite">
-              {userCount.toLocaleString()}명의 개발자가 참여 중
+              {userCount.toLocaleString()} developers have joined
             </p>
           )}
         </div>
 
-        <nav className="flex flex-col sm:flex-row gap-3" aria-label="가입 옵션">
+        <nav className="flex flex-col sm:flex-row gap-3" aria-label="Sign up options">
           <Link
             href="/login"
             className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-lg bg-orange-500 text-white font-medium hover:bg-orange-600 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-500 focus-visible:ring-offset-2 focus-visible:ring-offset-black"
           >
-            무료로 시작
+            Get Started Free
             <ArrowRight className="w-4 h-4" aria-hidden="true" />
           </Link>
           <Link
             href="/"
             className="inline-flex items-center justify-center px-6 py-3 rounded-lg border border-white/20 text-white/70 font-medium hover:bg-white/5 hover:text-white transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-white/50 focus-visible:ring-offset-2 focus-visible:ring-offset-black"
           >
-            더 알아보기
+            Learn More
           </Link>
         </nav>
       </div>

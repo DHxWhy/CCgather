@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/server";
 import { auth } from "@clerk/nextjs/server";
 import type { AdminToolListItem, AdminToolStats, ToolCategory, ToolStatus } from "@/types/tools";
+import { calculateTrustTier } from "@/lib/tools/eligibility";
 
 // =====================================================
 // GET /api/admin/tools - 관리자 도구 목록
@@ -232,24 +233,4 @@ export async function POST(request: NextRequest) {
     console.error("Error in POST /api/admin/tools:", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
-}
-
-// =====================================================
-// Helper Functions
-// =====================================================
-
-function calculateTrustTier(
-  level: number,
-  globalRank: number | null
-): "elite" | "power_user" | "verified" | "member" {
-  if (level >= 4 || (globalRank !== null && globalRank <= 100)) {
-    return "elite";
-  }
-  if (level >= 3 || (globalRank !== null && globalRank <= 500)) {
-    return "power_user";
-  }
-  if (level >= 2) {
-    return "verified";
-  }
-  return "member";
 }

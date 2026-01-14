@@ -1,4 +1,4 @@
-import { Newspaper, ExternalLink, Sparkles, Globe } from "lucide-react";
+import { Newspaper, ExternalLink, Sparkles } from "lucide-react";
 import Image from "next/image";
 import { createClient } from "@/lib/supabase/server";
 import NewsCard from "@/components/news/NewsCard";
@@ -14,7 +14,7 @@ import { Suspense } from "react";
 export const metadata = {
   title: "News | CCgather - AI & Developer News",
   description:
-    "Claude에 몰입해도 시야를 잃지 마세요. Claude Code 소식부터 AI 업계 동향까지, 개발자를 위한 큐레이션 뉴스.",
+    "Stay informed while coding with Claude. Curated news from Claude Code updates to AI industry trends for developers.",
   keywords: [
     "Claude Code",
     "Claude Code news",
@@ -27,7 +27,7 @@ export const metadata = {
   ],
   openGraph: {
     title: "News | CCgather - AI & Developer News",
-    description: "Claude에 몰입해도 시야를 잃지 마세요. 개발자를 위한 AI 뉴스 큐레이션.",
+    description: "Stay informed while coding with Claude. Curated AI news for developers.",
     type: "website",
   },
 };
@@ -170,9 +170,9 @@ function EmptyState() {
     >
       <Newspaper className="w-12 h-12 mx-auto mb-4 text-text-muted" aria-hidden="true" />
       <p className="text-sm text-[var(--color-text-primary)] font-medium">
-        해당 카테고리의 뉴스가 없습니다
+        No news in this category
       </p>
-      <p className="text-xs text-text-muted mt-1">곧 새로운 소식으로 돌아오겠습니다</p>
+      <p className="text-xs text-text-muted mt-1">Check back soon for updates</p>
     </div>
   );
 }
@@ -248,18 +248,15 @@ export default async function NewsPage({ searchParams }: NewsPageProps) {
   const safeTag = validTags.includes(currentTag) ? currentTag : "all";
 
   return (
-    <div className="mx-auto max-w-7xl px-4 lg:px-6 xl:px-8 py-8 md:py-10 xl:py-12">
+    <div className="mx-auto max-w-[1000px] px-4 py-8 md:py-10">
       {/* Header */}
-      <header className="mb-8 md:mb-10">
-        <div className="flex items-center gap-3 mb-2">
-          <div className="p-2 rounded-lg bg-gradient-to-br from-orange-500/20 to-purple-500/20">
-            <Globe className="w-6 h-6 text-orange-400" />
-          </div>
-          <h1 className="text-2xl md:text-3xl xl:text-4xl font-bold text-[var(--color-text-primary)]">
-            AI & Dev News
-          </h1>
-        </div>
-        <p className="text-text-muted text-sm md:text-base">Claude에 몰입해도 시야를 잃지 마세요</p>
+      <header className="mb-8">
+        <h1 className="text-2xl font-bold text-[var(--color-text-primary)] flex items-center gap-2">
+          📰 AI & Dev News
+        </h1>
+        <p className="text-sm text-[var(--color-text-secondary)] mt-1">
+          Stay informed while you code with Claude
+        </p>
       </header>
 
       {/* Quick Links */}
@@ -298,12 +295,13 @@ export default async function NewsPage({ searchParams }: NewsPageProps) {
         <div className="flex items-center gap-2 mb-3">
           <Sparkles className="w-4 h-4 text-purple-400" />
           <span className="text-xs font-medium text-text-muted">
-            공식 정보는 항상 원본 출처에서 확인하세요
+            Always verify official information from original sources
           </span>
         </div>
         <p className="text-[11px] text-text-muted/60 leading-relaxed">
-          CCgather는 Claude Code 및 AI 관련 뉴스를 큐레이션합니다. 모든 뉴스는 원본 출처를
-          명시합니다. 공식 문서 및 공지사항은 Anthropic 공식 채널을 방문해주세요.
+          CCgather curates Claude Code and AI-related news. All articles cite their original
+          sources. For official documentation and announcements, please visit Anthropic&apos;s
+          official channels.
         </p>
       </section>
     </div>

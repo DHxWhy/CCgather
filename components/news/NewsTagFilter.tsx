@@ -43,7 +43,7 @@ export default function NewsTagFilter({
     return (
       <nav
         className={cn("flex items-center gap-2 overflow-x-auto scrollbar-hide", className)}
-        aria-label="뉴스 필터"
+        aria-label="News filter"
       >
         {NEWS_FILTER_TAGS.map((tag) => {
           const Icon = tag.icon;
@@ -63,7 +63,7 @@ export default function NewsTagFilter({
                 isPending && "opacity-50 cursor-wait"
               )}
               aria-pressed={isActive}
-              aria-label={`${tag.label} 필터 ${isActive ? "(선택됨)" : ""}`}
+              aria-label={`${tag.label} filter ${isActive ? "(selected)" : ""}`}
             >
               {isPending && isActive ? (
                 <Loader2 className={cn("w-3.5 h-3.5 animate-spin", tag.color)} />
@@ -80,8 +80,8 @@ export default function NewsTagFilter({
 
   // Desktop variant: vertical list (tablet: compact, desktop: with descriptions)
   return (
-    <nav className={cn("flex flex-col gap-1", className)} aria-label="뉴스 필터">
-      <div className="text-xs font-medium text-text-muted mb-2 px-2 lg:block hidden">필터</div>
+    <nav className={cn("flex flex-col gap-1", className)} aria-label="News filter">
+      <div className="text-xs font-medium text-text-muted mb-2 px-2 lg:block hidden">Filter</div>
       {NEWS_FILTER_TAGS.map((tag) => {
         const Icon = tag.icon;
         const isActive = currentTag === tag.id;
@@ -100,7 +100,7 @@ export default function NewsTagFilter({
               isPending && "opacity-50 cursor-wait"
             )}
             aria-pressed={isActive}
-            aria-label={`${tag.label} 필터 ${isActive ? "(선택됨)" : ""}`}
+            aria-label={`${tag.label} filter ${isActive ? "(selected)" : ""}`}
           >
             <div className={cn("p-1 lg:p-1.5 rounded-md", tag.bgColor)}>
               {isPending && isActive ? (

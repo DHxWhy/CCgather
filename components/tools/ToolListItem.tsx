@@ -6,8 +6,9 @@ import Link from "next/link";
 import { motion } from "framer-motion";
 import { ExternalLink, Bookmark, BookmarkCheck } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { ToolWithVoters } from "@/types/tools";
-import { CATEGORY_META, PRICING_META, isNewTool, isHotTool } from "@/types/tools";
+import type { ToolWithVoters, TrustTier } from "@/types/tools";
+import { CATEGORY_META, PRICING_META, TRUST_TIER_META, isNewTool, isHotTool } from "@/types/tools";
+import { AvatarGroup } from "@/components/ui/avatar-group";
 import VoteButton from "./VoteButton";
 
 // =====================================================
@@ -21,10 +22,21 @@ interface ToolListItemProps {
   isBookmarked?: boolean;
   onVote?: (toolId: string) => Promise<void>;
   onBookmark?: (toolId: string) => Promise<void>;
+  onSuggesterClick?: (userId: string) => void;
   showRank?: boolean;
   showWeighted?: boolean;
+  showSuggester?: boolean;
   compact?: boolean;
   className?: string;
+}
+
+// =====================================================
+// Trust Tier Badge
+// =====================================================
+
+// Trust tier emoji helper
+function getTrustEmoji(tier: TrustTier): string {
+  return TRUST_TIER_META[tier].emoji;
 }
 
 // =====================================================
@@ -38,8 +50,10 @@ function ToolListItemComponent({
   isBookmarked = false,
   onVote,
   onBookmark,
+  onSuggesterClick,
   showRank = true,
   showWeighted = false,
+  showSuggester = true,
   compact = false,
   className,
 }: ToolListItemProps) {
@@ -210,40 +224,59 @@ function ToolListItemComponent({
           </span>
         </div>
 
-        {/* Top Voters Preview (compact) */}
-        <div className="hidden lg:flex items-center -space-x-1.5 w-20 flex-shrink-0">
-          {tool.voters.slice(0, 3).map((voter, i) => (
-            <div
-              key={voter.user_id}
-              className={cn(
-                "w-5 h-5 rounded-full border-2 border-[var(--color-bg-card)] overflow-hidden",
-                voter.trust_tier === "elite" && "ring-1 ring-[var(--color-trust-elite)]",
-                voter.trust_tier === "power_user" && "ring-1 ring-[var(--color-trust-power)]"
-              )}
-              style={{ zIndex: 3 - i }}
-            >
-              {voter.avatar_url ? (
-                <Image
-                  src={voter.avatar_url}
-                  alt={voter.username}
-                  width={20}
-                  height={20}
-                  className="object-cover"
-                  unoptimized
-                />
-              ) : (
-                <div className="w-full h-full bg-[var(--color-bg-elevated)] flex items-center justify-center text-[8px] text-[var(--color-text-muted)]">
-                  {voter.username.charAt(0).toUpperCase()}
-                </div>
-              )}
-            </div>
-          ))}
-          {tool.upvote_count > 3 && (
-            <span className="text-[10px] text-[var(--color-text-muted)] ml-1.5">
-              +{tool.upvote_count - 3}
+        {/* Suggester Info */}
+        {showSuggester && tool.suggester && !compact && (
+          <button
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              onSuggesterClick?.(tool.suggester!.id);
+            }}
+            className={cn(
+              "hidden md:flex items-center gap-1.5 px-2 py-1 rounded-md",
+              "bg-[var(--color-bg-elevated)]/50",
+              "hover:bg-[var(--color-bg-elevated)]",
+              "transition-colors flex-shrink-0",
+              "text-[10px] text-[var(--color-text-secondary)]"
+            )}
+          >
+            {tool.suggester.avatar_url ? (
+              <Image
+                src={tool.suggester.avatar_url}
+                alt={tool.suggester.username}
+                width={16}
+                height={16}
+                className="rounded-full"
+                unoptimized
+              />
+            ) : (
+              <div className="w-4 h-4 rounded-full bg-[var(--color-bg-elevated)] flex items-center justify-center text-[8px]">
+                {tool.suggester.username.charAt(0).toUpperCase()}
+              </div>
+            )}
+            <span className="truncate max-w-[60px]">{tool.suggester.username}</span>
+            <span className="text-[var(--color-text-muted)]">
+              {getTrustEmoji(tool.suggester.trust_tier)} Lv.{tool.suggester.current_level}
             </span>
-          )}
-        </div>
+          </button>
+        )}
+
+        {/* Top Voters Preview */}
+        {tool.voters.length > 0 && (
+          <div className="hidden lg:block flex-shrink-0">
+            <AvatarGroup
+              avatars={tool.voters.slice(0, 4).map((voter) => ({
+                src: voter.avatar_url || "",
+                alt: voter.username,
+                label: `${voter.username} (${TRUST_TIER_META[voter.trust_tier].emoji})`,
+                fallback: voter.username.charAt(0).toUpperCase(),
+              }))}
+              maxVisible={4}
+              size="sm"
+              overlap="tight"
+            />
+          </div>
+        )}
 
         {/* Weighted Score */}
         {showWeighted && (

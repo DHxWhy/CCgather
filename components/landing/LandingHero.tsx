@@ -286,7 +286,7 @@ export function LandingHero() {
                   href="/leaderboard"
                   className="w-full min-[400px]:w-auto px-5 py-2.5 rounded-xl bg-[var(--color-claude-coral)] text-white text-sm font-semibold hover:opacity-90 hover:scale-[1.02] active:scale-95 transition-all shadow-lg shadow-[var(--color-claude-coral)]/20 text-center"
                 >
-                  View My Progress
+                  CCgather Together
                 </Link>
               </SignedIn>
               <Link

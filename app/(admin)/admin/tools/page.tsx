@@ -47,6 +47,7 @@ export default function AdminToolsPage() {
   const [filter, setFilter] = useState<ToolStatus | "all">("all");
   const [editingTool, setEditingTool] = useState<AdminToolListItem | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
+  const [showCrawlModal, setShowCrawlModal] = useState(false);
 
   useEffect(() => {
     fetchTools();
@@ -113,12 +114,20 @@ export default function AdminToolsPage() {
           <h1 className="text-lg font-semibold text-white">도구 관리</h1>
           <p className="text-[12px] text-white/50 mt-0.5">사용자 제출 도구 검토 및 관리</p>
         </div>
-        <button
-          onClick={() => setShowAddModal(true)}
-          className="px-3 py-1.5 bg-[var(--color-claude-coral)] text-white text-[12px] font-medium rounded hover:opacity-90 transition-colors"
-        >
-          + 도구 추가
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={() => setShowCrawlModal(true)}
+            className="px-3 py-1.5 bg-blue-500/20 text-blue-400 text-[12px] font-medium rounded hover:bg-blue-500/30 transition-colors flex items-center gap-1.5"
+          >
+            <span>🔍</span> URL 크롤링
+          </button>
+          <button
+            onClick={() => setShowAddModal(true)}
+            className="px-3 py-1.5 bg-[var(--color-claude-coral)] text-white text-[12px] font-medium rounded hover:opacity-90 transition-colors"
+          >
+            + 도구 추가
+          </button>
+        </div>
       </div>
 
       {/* Stats */}
@@ -204,6 +213,17 @@ export default function AdminToolsPage() {
           onClose={() => setShowAddModal(false)}
           onSave={() => {
             setShowAddModal(false);
+            fetchTools();
+          }}
+        />
+      )}
+
+      {/* Crawl Modal */}
+      {showCrawlModal && (
+        <CrawlToolModal
+          onClose={() => setShowCrawlModal(false)}
+          onComplete={() => {
+            setShowCrawlModal(false);
             fetchTools();
           }}
         />
@@ -508,7 +528,7 @@ function EditToolModal({
             <select
               value={category}
               onChange={(e) => setCategory(e.target.value as ToolCategory)}
-              className="w-full px-3 py-2 bg-white/5 border border-white/[0.06] rounded text-[13px] text-white focus:outline-none focus:border-white/20"
+              className="w-full px-3 py-2 bg-[#1a1a1a] border border-white/[0.06] rounded text-[13px] text-white focus:outline-none focus:border-white/20 [&>option]:bg-[#1a1a1a] [&>option]:text-white"
             >
               {TOOL_CATEGORIES.map((cat) => (
                 <option key={cat} value={cat}>
@@ -524,7 +544,7 @@ function EditToolModal({
             <select
               value={pricingType}
               onChange={(e) => setPricingType(e.target.value as ToolPricingType)}
-              className="w-full px-3 py-2 bg-white/5 border border-white/[0.06] rounded text-[13px] text-white focus:outline-none focus:border-white/20"
+              className="w-full px-3 py-2 bg-[#1a1a1a] border border-white/[0.06] rounded text-[13px] text-white focus:outline-none focus:border-white/20 [&>option]:bg-[#1a1a1a] [&>option]:text-white"
             >
               {TOOL_PRICING_TYPES.map((type) => (
                 <option key={type} value={type}>
@@ -708,7 +728,7 @@ function AddToolModal({ onClose, onSave }: { onClose: () => void; onSave: () => 
               <select
                 value={category}
                 onChange={(e) => setCategory(e.target.value as ToolCategory)}
-                className="w-full px-3 py-2 bg-white/5 border border-white/[0.06] rounded text-[13px] text-white focus:outline-none focus:border-white/20"
+                className="w-full px-3 py-2 bg-[#1a1a1a] border border-white/[0.06] rounded text-[13px] text-white focus:outline-none focus:border-white/20 [&>option]:bg-[#1a1a1a] [&>option]:text-white"
               >
                 {TOOL_CATEGORIES.map((cat) => (
                   <option key={cat} value={cat}>
@@ -724,7 +744,7 @@ function AddToolModal({ onClose, onSave }: { onClose: () => void; onSave: () => 
               <select
                 value={pricingType}
                 onChange={(e) => setPricingType(e.target.value as ToolPricingType)}
-                className="w-full px-3 py-2 bg-white/5 border border-white/[0.06] rounded text-[13px] text-white focus:outline-none focus:border-white/20"
+                className="w-full px-3 py-2 bg-[#1a1a1a] border border-white/[0.06] rounded text-[13px] text-white focus:outline-none focus:border-white/20 [&>option]:bg-[#1a1a1a] [&>option]:text-white"
               >
                 {TOOL_PRICING_TYPES.map((type) => (
                   <option key={type} value={type}>
@@ -806,6 +826,276 @@ function AddToolModal({ onClose, onSave }: { onClose: () => void; onSave: () => 
             )}
             추가
           </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// =====================================================
+// Crawl Modal
+// =====================================================
+
+interface CrawlResult {
+  success: boolean;
+  saved: number;
+  duplicates: number;
+  failed: number;
+  tools: Array<{ id: string; name: string; tagline: string }>;
+  duplicateDetails: Array<{ name: string; existing: string }>;
+  errors: Array<{ name: string; error: string }>;
+  crawlStats: {
+    totalFound: number;
+    successfullyParsed: number;
+    failed: number;
+    tokensUsed: number;
+    costUsd: number;
+  };
+}
+
+function CrawlToolModal({ onClose, onComplete }: { onClose: () => void; onComplete: () => void }) {
+  const [url, setUrl] = useState("");
+  const [mode, setMode] = useState<"listing" | "single">("listing");
+  const [crawling, setCrawling] = useState(false);
+  const [result, setResult] = useState<CrawlResult | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleCrawl = async () => {
+    if (!url.trim()) {
+      setError("URL을 입력해주세요");
+      return;
+    }
+
+    // Validate URL
+    try {
+      new URL(url.trim());
+    } catch {
+      setError("올바른 URL 형식이 아닙니다");
+      return;
+    }
+
+    setCrawling(true);
+    setError(null);
+    setResult(null);
+
+    try {
+      const response = await fetch("/api/admin/tools/crawl", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: url.trim(), mode }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "크롤링에 실패했습니다");
+      }
+
+      setResult(data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "오류가 발생했습니다");
+    } finally {
+      setCrawling(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
+      <div className="bg-[#161616] rounded-lg w-full max-w-2xl max-h-[85vh] overflow-y-auto border border-white/[0.06]">
+        <div className="p-4 border-b border-white/[0.06]">
+          <h3 className="text-[14px] font-semibold text-white">🔍 URL 크롤링</h3>
+          <p className="text-[11px] text-white/40 mt-1">
+            도구 리스트 페이지 또는 개별 도구 웹사이트에서 정보를 자동으로 추출합니다
+          </p>
+        </div>
+
+        <div className="p-4 space-y-4">
+          {error && (
+            <div className="p-3 bg-red-500/10 border border-red-500/20 rounded text-[12px] text-red-400">
+              {error}
+            </div>
+          )}
+
+          {/* Mode Selection */}
+          <div>
+            <label className="block text-[11px] font-medium text-white/50 mb-1.5">
+              크롤링 모드
+            </label>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setMode("listing")}
+                disabled={crawling}
+                className={`flex-1 px-3 py-2 rounded text-[12px] transition-colors ${
+                  mode === "listing"
+                    ? "bg-blue-500/20 text-blue-400 border border-blue-500/30"
+                    : "bg-white/5 text-white/50 border border-white/[0.06]"
+                }`}
+              >
+                <div className="font-medium">📋 리스트 페이지</div>
+                <div className="text-[10px] mt-0.5 opacity-70">
+                  여러 도구가 있는 디렉토리 페이지
+                </div>
+              </button>
+              <button
+                type="button"
+                onClick={() => setMode("single")}
+                disabled={crawling}
+                className={`flex-1 px-3 py-2 rounded text-[12px] transition-colors ${
+                  mode === "single"
+                    ? "bg-blue-500/20 text-blue-400 border border-blue-500/30"
+                    : "bg-white/5 text-white/50 border border-white/[0.06]"
+                }`}
+              >
+                <div className="font-medium">🔗 단일 도구</div>
+                <div className="text-[10px] mt-0.5 opacity-70">도구 공식 웹사이트 직접 분석</div>
+              </button>
+            </div>
+          </div>
+
+          {/* URL Input */}
+          <div>
+            <label className="block text-[11px] font-medium text-white/50 mb-1.5">
+              {mode === "listing" ? "도구 리스트 페이지 URL" : "도구 웹사이트 URL"}
+            </label>
+            <input
+              type="url"
+              value={url}
+              onChange={(e) => setUrl(e.target.value)}
+              placeholder={
+                mode === "listing"
+                  ? "예: https://futurepedia.io, https://aitools.fyi"
+                  : "예: https://cursor.sh, https://supabase.com"
+              }
+              disabled={crawling}
+              className="w-full px-3 py-2 bg-white/5 border border-white/[0.06] rounded text-[13px] text-white focus:outline-none focus:border-white/20 placeholder:text-white/20 disabled:opacity-50"
+            />
+            <p className="text-[10px] text-white/30 mt-1.5">
+              {mode === "listing"
+                ? "페이지에서 도구 링크를 추출하고 각 도구 웹사이트를 방문해 정보를 분석합니다"
+                : "해당 웹사이트를 직접 분석하여 도구 정보를 추출합니다"}
+            </p>
+          </div>
+
+          {/* Crawl Button */}
+          {!result && (
+            <button
+              onClick={handleCrawl}
+              disabled={crawling || !url.trim()}
+              className="w-full px-4 py-2.5 bg-blue-500 text-white rounded text-[13px] font-medium hover:bg-blue-600 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+            >
+              {crawling ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  <span>크롤링 중... (시간이 걸릴 수 있습니다)</span>
+                </>
+              ) : (
+                <>
+                  <span>🚀</span>
+                  <span>크롤링 시작</span>
+                </>
+              )}
+            </button>
+          )}
+
+          {/* Results */}
+          {result && (
+            <div className="space-y-3">
+              {/* Stats */}
+              <div className="grid grid-cols-4 gap-2">
+                <div className="bg-white/5 rounded p-2 text-center">
+                  <div className="text-lg font-semibold text-white">
+                    {result.crawlStats.totalFound}
+                  </div>
+                  <div className="text-[10px] text-white/50">발견</div>
+                </div>
+                <div className="bg-emerald-500/10 rounded p-2 text-center">
+                  <div className="text-lg font-semibold text-emerald-400">{result.saved}</div>
+                  <div className="text-[10px] text-white/50">저장됨</div>
+                </div>
+                <div className="bg-yellow-500/10 rounded p-2 text-center">
+                  <div className="text-lg font-semibold text-yellow-400">{result.duplicates}</div>
+                  <div className="text-[10px] text-white/50">중복</div>
+                </div>
+                <div className="bg-red-500/10 rounded p-2 text-center">
+                  <div className="text-lg font-semibold text-red-400">{result.failed}</div>
+                  <div className="text-[10px] text-white/50">실패</div>
+                </div>
+              </div>
+
+              {/* Cost */}
+              <div className="text-[11px] text-white/40 text-center">
+                Gemini API 사용량: {result.crawlStats.tokensUsed.toLocaleString()} 토큰 (≈ $
+                {result.crawlStats.costUsd.toFixed(4)})
+              </div>
+
+              {/* Saved Tools */}
+              {result.tools.length > 0 && (
+                <div className="bg-emerald-500/5 rounded p-3 border border-emerald-500/10">
+                  <div className="text-[11px] font-medium text-emerald-400 mb-2">
+                    ✅ 저장된 도구 ({result.tools.length})
+                  </div>
+                  <div className="space-y-1">
+                    {result.tools.map((tool) => (
+                      <div key={tool.id} className="text-[12px] text-white/70">
+                        <span className="font-medium text-white">{tool.name}</span>
+                        <span className="text-white/40"> - {tool.tagline}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Duplicates */}
+              {result.duplicateDetails.length > 0 && (
+                <div className="bg-yellow-500/5 rounded p-3 border border-yellow-500/10">
+                  <div className="text-[11px] font-medium text-yellow-400 mb-2">
+                    ⚠️ 중복된 도구 ({result.duplicateDetails.length})
+                  </div>
+                  <div className="space-y-1">
+                    {result.duplicateDetails.map((dup, i) => (
+                      <div key={i} className="text-[12px] text-white/50">
+                        {dup.name} (기존: {dup.existing})
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Errors */}
+              {result.errors.length > 0 && (
+                <div className="bg-red-500/5 rounded p-3 border border-red-500/10">
+                  <div className="text-[11px] font-medium text-red-400 mb-2">
+                    ❌ 실패 ({result.errors.length})
+                  </div>
+                  <div className="space-y-1">
+                    {result.errors.map((err, i) => (
+                      <div key={i} className="text-[12px] text-white/50">
+                        {err.name}: {err.error}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        <div className="p-4 border-t border-white/[0.06] flex justify-end gap-2">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 bg-white/5 text-white/70 rounded text-[12px] hover:bg-white/10 transition-colors"
+          >
+            {result ? "닫기" : "취소"}
+          </button>
+          {result && result.saved > 0 && (
+            <button
+              onClick={onComplete}
+              className="px-4 py-2 bg-[var(--color-claude-coral)] text-white rounded text-[12px] hover:opacity-90 transition-colors"
+            >
+              목록 새로고침
+            </button>
+          )}
         </div>
       </div>
     </div>

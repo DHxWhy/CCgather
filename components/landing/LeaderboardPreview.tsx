@@ -209,7 +209,7 @@ function ProfilePanel({ user }: { user: (typeof MOCK_LEADERBOARD)[0] | null }) {
       </div>
 
       {/* 2. Level Progress (moved up to match real panel) */}
-      <div className="p-3 bg-[var(--color-bg-secondary)] rounded-xl border border-[var(--border-default)]">
+      <div className="p-3 bg-[var(--color-bg-secondary)] rounded-lg border border-[var(--border-default)]">
         <div className="flex items-center justify-between text-[10px] mb-1.5">
           <span className="text-[var(--color-text-secondary)] flex items-center gap-1">
             <span>{user.levelIcon}</span> {user.levelName} (Lv.{user.level})
@@ -248,9 +248,9 @@ function ProfilePanel({ user }: { user: (typeof MOCK_LEADERBOARD)[0] | null }) {
         </div>
       </div>
 
-      {/* 3. Stats Grid (Global Rank / Cost, Country Rank / Tokens) */}
+      {/* 3. Stats Grid (Global Rank / Cost, Country Rank / Tokens) - with progressive opacity */}
       <div className="grid grid-cols-2 gap-2">
-        <div className="p-3 bg-[var(--color-bg-secondary)] rounded-xl border border-[var(--border-default)]">
+        <div className="p-3 bg-[var(--color-bg-secondary)] rounded-lg border border-[var(--border-default)]">
           <div className="text-[10px] text-[var(--color-text-muted)] mb-1 flex items-center gap-1">
             <span className="w-2 h-2 rounded-full bg-emerald-400"></span> Global Rank
           </div>
@@ -258,11 +258,11 @@ function ProfilePanel({ user }: { user: (typeof MOCK_LEADERBOARD)[0] | null }) {
             #{user.globalRank}
           </div>
         </div>
-        <div className="p-3 bg-[var(--color-bg-secondary)] rounded-xl border border-[var(--border-default)]">
+        <div className="p-3 bg-[var(--color-bg-secondary)] rounded-lg border border-[var(--border-default)]">
           <div className="text-[10px] text-[var(--color-text-muted)] mb-1">All Time Cost $</div>
           <div className="text-xl font-semibold text-emerald-400">{user.cost.toLocaleString()}</div>
         </div>
-        <div className="p-3 bg-[var(--color-bg-secondary)] rounded-xl border border-[var(--border-default)]">
+        <div className="p-3 bg-[var(--color-bg-secondary)] rounded-lg border border-[var(--border-default)] opacity-70">
           <div className="text-[10px] text-[var(--color-text-muted)] mb-1 flex items-center gap-1">
             <FlagIcon countryCode={user.country} size="xs" />
             <span>Country Rank</span>
@@ -271,7 +271,7 @@ function ProfilePanel({ user }: { user: (typeof MOCK_LEADERBOARD)[0] | null }) {
             #{user.countryRank}
           </div>
         </div>
-        <div className="p-3 bg-[var(--color-bg-secondary)] rounded-xl border border-[var(--border-default)]">
+        <div className="p-3 bg-[var(--color-bg-secondary)] rounded-lg border border-[var(--border-default)] opacity-70">
           <div className="text-[10px] text-[var(--color-text-muted)] mb-1">All Time Tokens</div>
           <div className="text-lg font-semibold text-[var(--color-claude-coral)]">
             {formatNumber(user.tokens)}
@@ -279,8 +279,8 @@ function ProfilePanel({ user }: { user: (typeof MOCK_LEADERBOARD)[0] | null }) {
         </div>
       </div>
 
-      {/* 4. Usage History - Line Chart Style (matches actual implementation) */}
-      <div className="p-3 bg-[var(--color-bg-secondary)] rounded-xl border border-[var(--border-default)]">
+      {/* 4. Usage History - Line Chart Style - faded */}
+      <div className="p-3 bg-[var(--color-bg-secondary)] rounded-lg border border-[var(--border-default)] opacity-40">
         <div className="flex items-center justify-between mb-2">
           <span className="text-[10px] text-[var(--color-text-muted)] uppercase tracking-wide flex items-center gap-1">
             <span>📈</span> Usage History
@@ -306,8 +306,8 @@ export function LeaderboardPreview() {
   );
 
   return (
-    <section className="py-20 px-6">
-      <div className="max-w-5xl mx-auto">
+    <section className="py-20 px-4">
+      <div className="max-w-[1000px] mx-auto">
         {/* Section header */}
         <div className="text-center mb-10">
           <h2 className="text-2xl md:text-3xl font-bold text-[var(--color-text-primary)] mb-2">
@@ -324,54 +324,54 @@ export function LeaderboardPreview() {
         {/* Table + Panel Layout */}
         <div className="flex gap-4">
           {/* Leaderboard Table */}
-          <div className="flex-1 glass rounded-2xl border border-[var(--border-default)] overflow-hidden">
+          <div className="flex-1 glass rounded-lg border border-[var(--border-default)] overflow-hidden">
             {/* Filter Bar - Mobile optimized */}
             <div className="px-2 sm:px-4 py-2 sm:py-3 border-b border-[var(--border-default)] bg-white/[0.02] space-y-2">
               {/* Row 1: League Tabs - scrollable on mobile */}
               <div className="flex items-center gap-1 overflow-x-auto scrollbar-hide">
-                <button className="flex-shrink-0 flex items-center gap-1 px-2 sm:px-3 py-1 sm:py-1.5 rounded-full text-[10px] sm:text-xs font-medium bg-white/10 border border-white/20 text-[var(--color-text-primary)]">
+                <button className="flex-shrink-0 flex items-center gap-1 px-2 sm:px-3 py-1 sm:py-1.5 rounded-md text-[10px] sm:text-xs font-medium bg-white/10 border border-white/20 text-[var(--color-text-primary)]">
                   <span>🏆</span> All<span className="hidden sm:inline"> League</span>
                 </button>
-                <button className="flex-shrink-0 flex items-center gap-1 px-2 sm:px-3 py-1 sm:py-1.5 rounded-full text-[10px] sm:text-xs text-[var(--color-text-muted)]">
+                <button className="flex-shrink-0 flex items-center gap-1 px-2 sm:px-3 py-1 sm:py-1.5 rounded-md text-[10px] sm:text-xs text-[var(--color-text-muted)]">
                   <span>🚀</span> Max
                 </button>
-                <button className="flex-shrink-0 flex items-center gap-1 px-2 sm:px-3 py-1 sm:py-1.5 rounded-full text-[10px] sm:text-xs text-[var(--color-text-muted)]">
+                <button className="flex-shrink-0 flex items-center gap-1 px-2 sm:px-3 py-1 sm:py-1.5 rounded-md text-[10px] sm:text-xs text-[var(--color-text-muted)]">
                   <span>⚡</span> Pro
                 </button>
-                <button className="flex-shrink-0 flex items-center gap-1 px-2 sm:px-3 py-1 sm:py-1.5 rounded-full text-[10px] sm:text-xs text-[var(--color-text-muted)]">
+                <button className="flex-shrink-0 flex items-center gap-1 px-2 sm:px-3 py-1 sm:py-1.5 rounded-md text-[10px] sm:text-xs text-[var(--color-text-muted)]">
                   <span className="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-zinc-500"></span> Free
                 </button>
               </div>
 
-              {/* Row 2: Scope + Period */}
+              {/* Row 2: Scope + Period - all elements h-7 (28px) */}
               <div className="flex items-center justify-between gap-2">
                 <div className="flex items-center gap-1.5 sm:gap-2">
                   {/* Scope icons */}
-                  <div className="flex items-center rounded-md sm:rounded-lg overflow-hidden border border-white/10">
-                    <button className="p-1.5 sm:p-2 bg-[var(--color-claude-coral)] text-white">
-                      <span className="text-xs sm:text-sm">🌐</span>
+                  <div className="flex items-center h-7 rounded overflow-hidden border border-white/10">
+                    <button className="h-full px-2 sm:px-2.5 bg-[var(--color-claude-coral)] text-white flex items-center justify-center">
+                      <span className="text-sm sm:text-base">🌐</span>
                     </button>
-                    <button className="p-1.5 sm:p-2 bg-[var(--color-bg-secondary)]">
-                      <FlagIcon countryCode="KR" size="xs" />
+                    <button className="h-full px-2 sm:px-2.5 bg-[var(--color-bg-secondary)] flex items-center justify-center">
+                      <FlagIcon countryCode="KR" size="sm" />
                     </button>
                   </div>
 
                   {/* Period tabs */}
-                  <div className="flex items-center rounded-md sm:rounded-lg overflow-hidden border border-white/10 bg-[var(--color-bg-secondary)]">
-                    <button className="px-2 sm:px-3 py-1 sm:py-1.5 text-[10px] sm:text-xs font-medium bg-white/10 text-[var(--color-text-primary)]">
+                  <div className="flex items-center h-7 rounded overflow-hidden border border-white/10 bg-[var(--color-bg-secondary)]">
+                    <button className="h-full px-3 sm:px-4 text-[11px] sm:text-xs font-medium bg-white/10 text-[var(--color-text-primary)]">
                       All
                     </button>
-                    <button className="px-1.5 sm:px-3 py-1 sm:py-1.5 text-[10px] sm:text-xs text-[var(--color-text-muted)]">
+                    <button className="h-full px-2.5 sm:px-3 text-[11px] sm:text-xs text-[var(--color-text-muted)]">
                       7D
                     </button>
-                    <button className="px-1.5 sm:px-3 py-1 sm:py-1.5 text-[10px] sm:text-xs text-[var(--color-text-muted)]">
+                    <button className="h-full px-2.5 sm:px-3 text-[11px] sm:text-xs text-[var(--color-text-muted)]">
                       30D
                     </button>
                   </div>
                 </div>
 
-                {/* My Rank - hidden on very small screens */}
-                <button className="hidden min-[360px]:flex items-center gap-1 px-2 sm:px-3 py-1 sm:py-1.5 rounded-md sm:rounded-lg text-[10px] sm:text-xs font-medium bg-[var(--color-bg-secondary)] border border-white/10 text-[var(--color-text-secondary)]">
+                {/* My Rank */}
+                <button className="hidden min-[360px]:flex items-center gap-1.5 h-7 px-3 sm:px-4 rounded text-[11px] sm:text-xs font-medium bg-[var(--color-bg-secondary)] border border-white/10 text-[var(--color-text-secondary)]">
                   <span>🏅</span> <span className="hidden sm:inline">My Rank</span>{" "}
                   <span className="text-[var(--color-claude-coral)]">#1</span>
                 </button>
@@ -388,19 +388,22 @@ export function LeaderboardPreview() {
               <div className="col-span-3 sm:col-span-3 text-right">Tokens</div>
             </div>
 
-            {/* Rows */}
+            {/* Rows with progressive opacity fade */}
             <div className="divide-y divide-[var(--border-default)]">
               {MOCK_LEADERBOARD.map((user, index) => {
                 const style = RANK_STYLES[user.rank as keyof typeof RANK_STYLES];
                 const isSelected = selectedUser?.username === user.username;
+                // Progressive opacity: 100% -> 100% -> 70% -> 50% -> 35%
+                const rowOpacity = index <= 1 ? 1 : index === 2 ? 0.7 : index === 3 ? 0.5 : 0.35;
                 return (
                   <motion.div
                     key={user.rank}
                     initial={{ opacity: 0, x: -20 }}
-                    whileInView={{ opacity: 1, x: 0 }}
+                    whileInView={{ opacity: rowOpacity, x: 0 }}
                     viewport={{ once: true }}
                     transition={{ delay: index * 0.1, duration: 0.4 }}
                     onClick={() => setSelectedUser(user)}
+                    style={{ opacity: rowOpacity }}
                     className={`grid grid-cols-12 gap-1 sm:gap-2 px-2 sm:px-4 py-2 sm:py-3 items-center cursor-pointer transition-colors ${
                       isSelected
                         ? "bg-[var(--color-claude-coral)]/10 border-l-2 border-l-[var(--color-claude-coral)]"
@@ -462,28 +465,28 @@ export function LeaderboardPreview() {
                 );
               })}
             </div>
-
-            {/* Footer */}
-            <div className="px-4 py-4 border-t border-[var(--border-default)] bg-white/[0.02] text-center">
-              <Link
-                href="/leaderboard"
-                className="inline-flex items-center gap-2 text-sm text-[var(--color-claude-coral)] hover:underline font-medium"
-              >
-                View full leaderboard
-                <span>→</span>
-              </Link>
-            </div>
           </div>
 
           {/* Side Panel - Hidden on mobile */}
-          <div className="hidden md:block w-72 lg:w-80 glass rounded-2xl border border-[var(--border-default)] overflow-hidden">
+          <div className="hidden md:block w-72 lg:w-80 glass rounded-lg border border-[var(--border-default)] overflow-hidden">
             <ProfilePanel user={selectedUser} />
           </div>
         </div>
 
+        {/* View full leaderboard button - below entire layout */}
+        <div className="mt-5 text-center">
+          <Link
+            href="/leaderboard"
+            className="inline-flex items-center gap-2 text-sm text-[var(--color-claude-coral)] hover:underline font-medium"
+          >
+            View full leaderboard
+            <span>→</span>
+          </Link>
+        </div>
+
         {/* Question prompt */}
-        <p className="text-center text-sm text-[var(--color-text-muted)] mt-6">
-          How does your journey compare? 🚀
+        <p className="text-center text-sm text-[var(--color-text-muted)] mt-4">
+          How does your journey compare?
         </p>
       </div>
     </section>

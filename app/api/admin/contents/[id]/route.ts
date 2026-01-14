@@ -51,8 +51,11 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       "key_points",
       "category",
       "tags",
+      "news_tags",
+      "content_type",
       "status",
       "thumbnail_url",
+      "thumbnail_source",
       "relevance_score",
     ];
 

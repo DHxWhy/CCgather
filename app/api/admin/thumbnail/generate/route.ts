@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/server";
-import { generateThumbnail, updateContentThumbnail } from "@/lib/gemini/thumbnail-generator";
+import {
+  generateThumbnail,
+  generateThumbnailWithOgReference,
+  updateContentThumbnail,
+} from "@/lib/gemini/thumbnail-generator";
 import type { ArticleType } from "@/lib/ai/gemini-client";
 
 export async function POST(request: NextRequest) {
@@ -8,7 +12,7 @@ export async function POST(request: NextRequest) {
     const supabase = createServiceClient();
 
     const body = await request.json();
-    const { content_id, title, summary, force_regenerate } = body;
+    const { content_id, title, summary, force_regenerate, og_image_url } = body;
 
     if (!content_id || !title) {
       return NextResponse.json({ error: "content_id and title are required" }, { status: 400 });
@@ -36,13 +40,23 @@ export async function POST(request: NextRequest) {
     }
 
     // Generate new thumbnail with AI-classified article type
-    const result = await generateThumbnail({
-      content_id,
-      title,
-      summary,
-      article_type: content.ai_article_type as ArticleType | undefined,
-      force_regenerate,
-    });
+    // Use OG+AI fusion if og_image_url is provided
+    const result = og_image_url
+      ? await generateThumbnailWithOgReference({
+          content_id,
+          title,
+          summary,
+          article_type: content.ai_article_type as ArticleType | undefined,
+          force_regenerate,
+          og_image_url,
+        })
+      : await generateThumbnail({
+          content_id,
+          title,
+          summary,
+          article_type: content.ai_article_type as ArticleType | undefined,
+          force_regenerate,
+        });
 
     if (result.success && result.thumbnail_url) {
       // Update database

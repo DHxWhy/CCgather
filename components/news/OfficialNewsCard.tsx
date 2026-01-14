@@ -28,7 +28,7 @@ export default function OfficialNewsCard({ article }: OfficialNewsCardProps) {
   const readTime = hasRichContent ? richContent.meta.readTime : undefined;
   const favicon = article.favicon_url || richContent?.source.favicon;
 
-  const date = new Date(article.published_at || article.created_at).toLocaleDateString("ko-KR", {
+  const date = new Date(article.published_at || article.created_at).toLocaleDateString("en-US", {
     year: "numeric",
     month: "short",
     day: "numeric",
@@ -88,7 +88,7 @@ export default function OfficialNewsCard({ article }: OfficialNewsCardProps) {
               <span
                 className={`px-1 py-0.5 rounded text-[9px] font-medium border ${difficultyColors[difficulty]}`}
               >
-                {difficulty === "easy" ? "쉬움" : difficulty === "medium" ? "보통" : "심화"}
+                {difficulty === "easy" ? "Easy" : difficulty === "medium" ? "Medium" : "Advanced"}
               </span>
             )}
           </div>
@@ -139,7 +139,7 @@ export default function OfficialNewsCard({ article }: OfficialNewsCardProps) {
 
           {/* Read More */}
           <div className="mt-2 flex items-center gap-1 text-[10px] text-orange-400 font-medium opacity-0 group-hover:opacity-100 transition-opacity">
-            <span>자세히 보기</span>
+            <span>Read more</span>
             <ExternalLink className="w-2.5 h-2.5" />
           </div>
         </div>

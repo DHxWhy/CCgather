@@ -60,16 +60,17 @@ const DATE_FORMAT_OPTIONS: Intl.DateTimeFormatOptions = {
 };
 
 // ===========================================
-// Thumbnail Selection Helper (OG 이미지 완전 배제)
+// Thumbnail Selection Helper (OG 이미지만 배제)
 // ===========================================
 
 /**
- * 3단계 썸네일 폴백 로직
+ * 4단계 썸네일 폴백 로직
  * 1. AI 생성 썸네일 (ai_thumbnail)
- * 2. 카테고리별 기본 썸네일
- * 3. null (이모지 + 그라데이션 폴백)
+ * 2. 관리자 생성 썸네일 (thumbnail_source: 'gemini', 'manual', 'default')
+ * 3. 카테고리별 기본 썸네일
+ * 4. null (이모지 + 그라데이션 폴백)
  *
- * OG 이미지(thumbnail_url)는 의도적으로 사용하지 않음
+ * OG 이미지(thumbnail_source === 'og_image')만 배제
  */
 function getThumbnailSrc(article: ContentItem): string | null {
   // Step 1: AI 생성 썸네일 우선
@@ -77,14 +78,20 @@ function getThumbnailSrc(article: ContentItem): string | null {
     return article.ai_thumbnail;
   }
 
-  // Step 2: 카테고리별 기본 이미지
+  // Step 2: 관리자 생성/수동 썸네일 (OG 이미지만 배제)
+  // thumbnail_source가 'gemini', 'manual', 'default', 또는 미설정(null)인 경우 사용
+  if (article.thumbnail_url && article.thumbnail_source !== "og_image") {
+    return article.thumbnail_url;
+  }
+
+  // Step 3: 카테고리별 기본 이미지
   const category = article.content_type || article.category || "general";
   const categoryKey = category.toLowerCase().replace(/\s+/g, "-");
   if (CATEGORY_THUMBNAILS[categoryKey]) {
     return CATEGORY_THUMBNAILS[categoryKey];
   }
 
-  // Step 3: null 반환 → 이모지 + 그라데이션 폴백 사용
+  // Step 4: null 반환 → 이모지 + 그라데이션 폴백 사용
   return null;
 }
 
@@ -210,7 +217,7 @@ function NewsCardComponent({ article, variant = "default", isLatest = false }: N
       category: hasRichContent ? richContent.meta.category : article.category,
       favicon: article.favicon_url || richContent?.source?.favicon,
       date: new Date(article.published_at || article.created_at).toLocaleDateString(
-        "ko-KR",
+        "en-US",
         DATE_FORMAT_OPTIONS
       ),
       isNew: isNewArticle(article.published_at, article.created_at),
@@ -243,7 +250,7 @@ function NewsCardComponent({ article, variant = "default", isLatest = false }: N
       <Link
         href={href}
         className="block group snap-start flex-shrink-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-500 focus-visible:ring-offset-2 focus-visible:ring-offset-black rounded-xl"
-        aria-label={`최신 기사: ${title}`}
+        aria-label={`Latest article: ${title}`}
       >
         <article className="relative w-[320px] md:w-[400px] h-[280px] rounded-xl overflow-hidden border-2 border-orange-500/30 bg-gradient-to-br from-orange-500/10 to-purple-500/5 hover:border-orange-500/50 transition-all">
           {/* Background Image (OG 이미지 배제, 3단계 폴백) */}
@@ -310,7 +317,7 @@ function NewsCardComponent({ article, variant = "default", isLatest = false }: N
               className="flex items-center gap-2 text-sm text-orange-400 font-medium group-hover:gap-3 transition-all"
               aria-hidden="true"
             >
-              <span>자세히 보기</span>
+              <span>Read more</span>
               <ArrowRight className="w-4 h-4" />
             </div>
           </div>
@@ -325,7 +332,7 @@ function NewsCardComponent({ article, variant = "default", isLatest = false }: N
     const dateObj = new Date(article.published_at || article.created_at);
     const month = dateObj.getMonth() + 1;
     const dayNum = dateObj.getDate();
-    const dayName = dateObj.toLocaleDateString("ko-KR", { weekday: "short" }); // 월, 화, 수...
+    const dayName = dateObj.toLocaleDateString("en-US", { weekday: "short" }); // Mon, Tue, Wed...
 
     // Get news tags for display
     const newsTags = article.news_tags || [];
@@ -334,7 +341,7 @@ function NewsCardComponent({ article, variant = "default", isLatest = false }: N
       <Link
         href={href}
         className="block group focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--color-bg-primary)] rounded-2xl"
-        aria-label={`기사: ${title}`}
+        aria-label={`Article: ${title}`}
       >
         <article className="flex flex-col sm:flex-row gap-3 sm:gap-4 p-3 sm:p-4 rounded-2xl border border-[var(--border-default)] bg-[var(--color-bg-secondary)]/50 hover:bg-[var(--color-bg-secondary)] hover:border-[var(--border-hover)] hover:shadow-lg transition-all duration-200">
           {/* Mobile: Image on top (large) - < 640px (OG 이미지 배제) */}
@@ -496,7 +503,7 @@ function NewsCardComponent({ article, variant = "default", isLatest = false }: N
       <Link
         href={href}
         className="block group snap-start flex-shrink-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-500 focus-visible:ring-offset-2 focus-visible:ring-offset-black rounded-lg"
-        aria-label={`기사: ${title}`}
+        aria-label={`Article: ${title}`}
       >
         <article className="w-[260px] h-[200px] rounded-lg border border-[var(--border-default)] bg-white/[0.02] dark:bg-white/[0.02] hover:bg-black/[0.03] dark:hover:bg-white/[0.05] hover:border-[var(--border-hover)] transition-all overflow-hidden">
           {/* Thumbnail (OG 이미지 배제) */}
@@ -557,7 +564,7 @@ function NewsCardComponent({ article, variant = "default", isLatest = false }: N
     <Link
       href={href}
       className="block group snap-start flex-shrink-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-500 focus-visible:ring-offset-2 focus-visible:ring-offset-black rounded-lg"
-      aria-label={`기사: ${title}`}
+      aria-label={`Article: ${title}`}
     >
       <article className="w-[280px] md:w-[300px] h-[240px] rounded-lg border border-[var(--border-default)] bg-white/[0.02] dark:bg-white/[0.02] hover:bg-black/[0.03] dark:hover:bg-white/[0.05] hover:border-[var(--border-hover)] transition-all overflow-hidden">
         {/* Thumbnail (OG 이미지 배제) */}

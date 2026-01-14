@@ -357,32 +357,30 @@ HTML format using p/h2/ul/li/strong/code tags. COMPLETELY REWRITTEN.
 - Use <br> sparingly - prefer separate <p> tags for distinct thoughts
 - After tables or lists, start a new paragraph
 
-### 5. Insight (insightHtml) - "🌱 쉽게 풀어보기" Section
-**EXCEPTION: This section MUST be written in KOREAN (한국어)**
-**TARGET: Middle school reading level explanation (중학생 눈높이)**
+### 5. Insight (insightHtml) - "🌱 In Simple Terms" Section
+**TARGET: Middle school reading level explanation**
 
-This is CCgather's signature section that explains the news in SIMPLE Korean terms.
+This is CCgather's signature section that explains the news in SIMPLE terms for non-technical readers.
 
 **Writing Rules:**
-- Write in Korean (한국어로 작성)
-- Explain like you're talking to a curious 14-year-old Korean student
+- Write in plain English
+- Explain like you're talking to a curious 14-year-old student
 - Use everyday analogies (games, school, social media, shopping)
-- Avoid jargon - if you must use technical terms, explain them in Korean
+- Avoid jargon - if you must use technical terms, explain them simply
 - Keep sentences SHORT (under 20 words each)
-- Use "~해요/~예요" style (친근한 존댓말)
-- Do NOT use English words when Korean equivalents exist
+- Use friendly, conversational tone
 
 **Structure (2-4 sentences total):**
-1. What is this? (이게 뭔지 한 문장으로)
-2. Why does it matter? (왜 중요한지)
-3. Simple analogy if helpful (비유가 도움된다면)
+1. What is this? (One sentence explanation)
+2. Why does it matter? (Real-world impact)
+3. Simple analogy if helpful (Make it relatable)
 
 **Examples:**
 Bad: "This feature leverages advanced LLM capabilities to enhance developer productivity."
-Good: "AI가 코드를 대신 써주는 기능이에요. 마치 숙제할 때 똑똑한 친구가 옆에서 도와주는 것처럼요!"
+Good: "AI can now write code for you. It's like having a smart friend help you with homework!"
 
 Bad: "Anthropic releases new Claude model with improved reasoning."
-Good: "Claude가 더 똑똑해졌어요! 수학 문제도 더 잘 풀고, 복잡한 질문도 더 잘 이해해요."
+Good: "Claude just got smarter! It can solve math problems better and understand tricky questions."
 
 ### Information Density Rules
 - Cover ALL major points from the original

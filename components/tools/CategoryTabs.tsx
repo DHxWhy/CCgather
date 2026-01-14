@@ -35,6 +35,8 @@ const ALL_CATEGORIES: Array<{
   { key: "api-data", ...CATEGORY_META["api-data"] },
   { key: "open-source", ...CATEGORY_META["open-source"] },
   { key: "learning", ...CATEGORY_META["learning"] },
+  { key: "social", ...CATEGORY_META["social"] },
+  { key: "marketing", ...CATEGORY_META["marketing"] },
 ];
 
 // =====================================================
@@ -74,6 +76,14 @@ const categoryColorClasses: Record<string, { active: string; inactive: string }>
     active: "bg-blue-500/20 text-blue-400",
     inactive: "text-[var(--color-text-secondary)] hover:bg-blue-500/10 hover:text-blue-400",
   },
+  social: {
+    active: "bg-indigo-500/20 text-indigo-400",
+    inactive: "text-[var(--color-text-secondary)] hover:bg-indigo-500/10 hover:text-indigo-400",
+  },
+  marketing: {
+    active: "bg-red-500/20 text-red-400",
+    inactive: "text-[var(--color-text-secondary)] hover:bg-red-500/10 hover:text-red-400",
+  },
 };
 
 // =====================================================
@@ -111,7 +121,11 @@ function CategoryTabsComponent({ selected, onChange, counts, className }: Catego
     >
       {ALL_CATEGORIES.map((category) => {
         const isSelected = selected === category.key;
-        const colorClass = categoryColorClasses[category.key];
+        const defaultColor = {
+          active: "bg-white/15 text-white",
+          inactive: "text-[var(--color-text-secondary)] hover:bg-white/5",
+        };
+        const colorClass = categoryColorClasses[category.key] || defaultColor;
         const count = counts?.[category.key];
 
         return (

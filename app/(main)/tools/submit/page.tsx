@@ -1,9 +1,20 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Loader2, ExternalLink, CheckCircle } from "lucide-react";
+import Image from "next/image";
+import {
+  ArrowLeft,
+  Loader2,
+  ExternalLink,
+  CheckCircle,
+  Sparkles,
+  AlertCircle,
+  Lock,
+  TrendingUp,
+  Calendar,
+} from "lucide-react";
 import { useAuth } from "@clerk/nextjs";
 import { cn } from "@/lib/utils";
 import {
@@ -12,16 +23,57 @@ import {
   CATEGORY_META,
   PRICING_META,
   type ToolCategory,
-  type ToolSubmitFormData,
-  type ToolSubmitFormErrors,
+  type ToolPricingType,
 } from "@/types/tools";
+
+// =====================================================
+// Types
+// =====================================================
+
+interface ToolFormData {
+  name: string;
+  website_url: string;
+  tagline: string;
+  description: string;
+  category: ToolCategory | "";
+  pricing_type: ToolPricingType;
+  logo_url: string;
+  tags: string[];
+}
+
+interface FormErrors {
+  name?: string;
+  website_url?: string;
+  tagline?: string;
+  category?: string;
+  general?: string;
+}
+
+interface EligibilityData {
+  eligible: boolean;
+  eligible_path: "level" | "data_days" | null;
+  trust_tier: string;
+  vote_weight: number;
+  message: string;
+  requirements: {
+    level: { met: boolean; current: number; required: number; name: string };
+    data_days: { met: boolean; current: number; required: number };
+  };
+  allRequirements: Array<{ key: string; label: string; description: string }>;
+  user: {
+    username: string;
+    avatar_url: string | null;
+    current_level: number;
+    unique_data_days: number;
+  };
+}
 
 // =====================================================
 // Form Validation
 // =====================================================
 
-function validateForm(data: ToolSubmitFormData): ToolSubmitFormErrors {
-  const errors: ToolSubmitFormErrors = {};
+function validateForm(data: ToolFormData): FormErrors {
+  const errors: FormErrors = {};
 
   if (!data.name.trim()) {
     errors.name = "도구 이름을 입력해주세요";
@@ -53,26 +105,138 @@ function validateForm(data: ToolSubmitFormData): ToolSubmitFormErrors {
 }
 
 // =====================================================
+// Requirement Icons
+// =====================================================
+
+const RequirementIcon = ({ reqKey }: { reqKey: string }) => {
+  switch (reqKey) {
+    case "level":
+      return <TrendingUp className="w-4 h-4" />;
+    case "data_days":
+      return <Calendar className="w-4 h-4" />;
+    default:
+      return null;
+  }
+};
+
+// =====================================================
 // Component
 // =====================================================
 
-export default function ToolSubmitPage() {
+export default function ToolSuggestPage() {
   const router = useRouter();
   const { isSignedIn, isLoaded } = useAuth();
 
-  const [formData, setFormData] = useState<ToolSubmitFormData>({
+  // Eligibility state
+  const [eligibility, setEligibility] = useState<EligibilityData | null>(null);
+  const [isLoadingEligibility, setIsLoadingEligibility] = useState(true);
+
+  // Form state
+  const [formData, setFormData] = useState<ToolFormData>({
     name: "",
     website_url: "",
     tagline: "",
     description: "",
-    category: "" as ToolCategory,
-    pricing_type: "free",
+    category: "",
+    pricing_type: "freemium",
     logo_url: "",
+    tags: [],
   });
 
-  const [errors, setErrors] = useState<ToolSubmitFormErrors>({});
+  const [errors, setErrors] = useState<FormErrors>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
+
+  // URL analysis state
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [analysisError, setAnalysisError] = useState<string | null>(null);
+  const [hasAnalyzed, setHasAnalyzed] = useState(false);
+
+  // Check eligibility on mount
+  useEffect(() => {
+    if (!isLoaded || !isSignedIn) return;
+
+    async function checkEligibility() {
+      try {
+        const res = await fetch("/api/tools/eligibility");
+        if (res.ok) {
+          const data = await res.json();
+          setEligibility(data);
+        }
+      } catch (error) {
+        console.error("Failed to check eligibility:", error);
+      } finally {
+        setIsLoadingEligibility(false);
+      }
+    }
+
+    checkEligibility();
+  }, [isLoaded, isSignedIn]);
+
+  // Analyze URL handler
+  const analyzeUrl = useCallback(async () => {
+    if (!formData.website_url.trim()) {
+      setErrors((prev) => ({ ...prev, website_url: "URL을 입력해주세요" }));
+      return;
+    }
+
+    try {
+      new URL(formData.website_url);
+    } catch {
+      setErrors((prev) => ({ ...prev, website_url: "유효한 URL을 입력해주세요" }));
+      return;
+    }
+
+    setIsAnalyzing(true);
+    setAnalysisError(null);
+    setErrors((prev) => ({ ...prev, website_url: undefined }));
+
+    try {
+      const res = await fetch("/api/tools/analyze", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: formData.website_url.trim() }),
+      });
+
+      const data = await res.json();
+
+      if (res.status === 409) {
+        // Duplicate tool
+        setAnalysisError(`이미 등록된 도구입니다: ${data.existing?.name}`);
+        return;
+      }
+
+      if (data.error === "analysis_failed") {
+        setAnalysisError("URL 분석에 실패했습니다. 직접 정보를 입력해주세요.");
+        setHasAnalyzed(true);
+        return;
+      }
+
+      if (!res.ok) {
+        throw new Error(data.message || data.error);
+      }
+
+      // Fill form with analyzed data
+      if (data.tool) {
+        setFormData((prev) => ({
+          ...prev,
+          name: data.tool.name || prev.name,
+          tagline: data.tool.tagline || prev.tagline,
+          description: data.tool.description || prev.description,
+          category: data.tool.category || prev.category,
+          pricing_type: data.tool.pricing_type || prev.pricing_type,
+          logo_url: data.tool.logo_url || prev.logo_url,
+          tags: data.tool.tags || prev.tags,
+        }));
+        setHasAnalyzed(true);
+      }
+    } catch (error) {
+      console.error("Analysis error:", error);
+      setAnalysisError(error instanceof Error ? error.message : "분석 중 오류가 발생했습니다");
+    } finally {
+      setIsAnalyzing(false);
+    }
+  }, [formData.website_url]);
 
   // Auth check
   if (isLoaded && !isSignedIn) {
@@ -86,7 +250,7 @@ export default function ToolSubmitPage() {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
     // Clear error on change
-    if (errors[name as keyof ToolSubmitFormErrors]) {
+    if (errors[name as keyof FormErrors]) {
       setErrors((prev) => ({ ...prev, [name]: undefined }));
     }
   };
@@ -114,25 +278,162 @@ export default function ToolSubmitPage() {
           category: formData.category,
           pricing_type: formData.pricing_type,
           logo_url: formData.logo_url.trim() || undefined,
+          tags: formData.tags,
         }),
       });
 
       const data = await res.json();
 
       if (!res.ok) {
-        throw new Error(data.error || "Failed to submit tool");
+        if (res.status === 403) {
+          setErrors({ general: data.message || "도구 추천 권한이 없습니다" });
+        } else {
+          throw new Error(data.error || "Failed to suggest tool");
+        }
+        return;
       }
 
       setIsSuccess(true);
     } catch (error) {
       console.error("Submit error:", error);
       setErrors({
-        name: error instanceof Error ? error.message : "제출 중 오류가 발생했습니다",
+        general: error instanceof Error ? error.message : "제출 중 오류가 발생했습니다",
       });
     } finally {
       setIsSubmitting(false);
     }
   };
+
+  // Loading state
+  if (isLoadingEligibility) {
+    return (
+      <main className="min-h-screen bg-[var(--color-bg-primary)]">
+        <div className="max-w-2xl mx-auto px-4 py-12">
+          <div className="flex items-center justify-center gap-3">
+            <Loader2 className="w-5 h-5 animate-spin text-[var(--color-claude-coral)]" />
+            <span className="text-[var(--color-text-secondary)]">자격 확인 중...</span>
+          </div>
+        </div>
+      </main>
+    );
+  }
+
+  // Not eligible state
+  if (eligibility && !eligibility.eligible) {
+    return (
+      <main className="min-h-screen bg-[var(--color-bg-primary)]">
+        <div className="max-w-2xl mx-auto px-4 py-12">
+          <Link
+            href="/tools"
+            className="inline-flex items-center gap-1.5 text-sm text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] transition-colors mb-8"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            도구 목록으로
+          </Link>
+
+          <div className="text-center mb-8">
+            <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-[var(--color-bg-elevated)] flex items-center justify-center">
+              <Lock className="w-8 h-8 text-[var(--color-text-muted)]" />
+            </div>
+            <h1 className="text-2xl font-bold text-[var(--color-text-primary)] mb-2">
+              도구 추천 자격이 필요합니다
+            </h1>
+            <p className="text-[var(--color-text-secondary)]">
+              신뢰할 수 있는 추천을 위해 다음 요건을 충족해야 합니다.
+            </p>
+          </div>
+
+          {/* Requirements */}
+          <div className="space-y-4 mb-8">
+            {eligibility.allRequirements.map((req) => {
+              const status =
+                eligibility.requirements[req.key as keyof typeof eligibility.requirements];
+              const isMet = status && "met" in status ? status.met : false;
+
+              return (
+                <div
+                  key={req.key}
+                  className={cn(
+                    "p-4 rounded-lg border",
+                    isMet
+                      ? "bg-green-500/10 border-green-500/30"
+                      : "bg-[var(--color-bg-card)] border-[var(--border-default)]"
+                  )}
+                >
+                  <div className="flex items-start gap-3">
+                    <div
+                      className={cn(
+                        "w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0",
+                        isMet
+                          ? "bg-green-500/20 text-green-500"
+                          : "bg-[var(--color-bg-elevated)] text-[var(--color-text-muted)]"
+                      )}
+                    >
+                      {isMet ? (
+                        <CheckCircle className="w-4 h-4" />
+                      ) : (
+                        <RequirementIcon reqKey={req.key} />
+                      )}
+                    </div>
+                    <div className="flex-1">
+                      <h3
+                        className={cn(
+                          "font-medium",
+                          isMet ? "text-green-500" : "text-[var(--color-text-primary)]"
+                        )}
+                      >
+                        {req.label}
+                        {req.key === "level" && status && "current" in status && (
+                          <span className="ml-2 text-sm font-normal text-[var(--color-text-muted)]">
+                            (현재: Lv.{status.current})
+                          </span>
+                        )}
+                        {req.key === "data_days" && status && "current" in status && (
+                          <span className="ml-2 text-sm font-normal text-[var(--color-text-muted)]">
+                            (현재: {status.current}일)
+                          </span>
+                        )}
+                      </h3>
+                      <p className="text-sm text-[var(--color-text-secondary)]">
+                        {req.description}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* OR divider */}
+          <div className="flex items-center gap-4 mb-8">
+            <div className="flex-1 h-px bg-[var(--border-default)]" />
+            <span className="text-sm font-medium text-[var(--color-text-muted)]">OR</span>
+            <div className="flex-1 h-px bg-[var(--border-default)]" />
+          </div>
+
+          <p className="text-center text-sm text-[var(--color-text-secondary)] mb-8">
+            둘 중 하나의 조건만 충족하면 도구를 추천할 수 있습니다.
+          </p>
+
+          {/* Action buttons */}
+          <div className="flex gap-3 justify-center">
+            <Link
+              href="/tools"
+              className="px-4 py-2 rounded-lg bg-[var(--color-bg-card)] border border-[var(--border-default)] text-[var(--color-text-primary)] hover:bg-[var(--color-bg-card-hover)] transition-colors"
+            >
+              도구 목록으로
+            </Link>
+            <Link
+              href="/leaderboard"
+              className="px-4 py-2 rounded-lg bg-[var(--color-claude-coral)] text-white hover:bg-[var(--color-claude-rust)] transition-colors"
+            >
+              레벨업하기
+            </Link>
+          </div>
+        </div>
+      </main>
+    );
+  }
 
   // Success State
   if (isSuccess) {
@@ -141,12 +442,39 @@ export default function ToolSubmitPage() {
         <div className="max-w-2xl mx-auto px-4 py-12">
           <div className="text-center">
             <CheckCircle className="w-16 h-16 text-green-500 mx-auto mb-4" />
-            <h1 className="text-2xl font-bold text-[var(--color-text-primary)] mb-2">제출 완료!</h1>
+            <h1 className="text-2xl font-bold text-[var(--color-text-primary)] mb-2">추천 완료!</h1>
             <p className="text-[var(--color-text-secondary)] mb-6">
-              도구가 성공적으로 제출되었습니다.
+              도구가 성공적으로 추천되었습니다.
               <br />
-              관리자 검토 후 승인되면 목록에 표시됩니다.
+              관리자 검토 후 목록에 표시됩니다.
             </p>
+
+            {/* Suggester info */}
+            {eligibility?.user && (
+              <div className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-[var(--color-bg-card)] border border-[var(--border-default)] mb-6">
+                {eligibility.user.avatar_url ? (
+                  <Image
+                    src={eligibility.user.avatar_url}
+                    alt={eligibility.user.username}
+                    width={24}
+                    height={24}
+                    className="rounded-full"
+                    unoptimized
+                  />
+                ) : (
+                  <div className="w-6 h-6 rounded-full bg-[var(--color-bg-elevated)] flex items-center justify-center text-xs">
+                    {eligibility.user.username.charAt(0).toUpperCase()}
+                  </div>
+                )}
+                <span className="text-sm text-[var(--color-text-primary)]">
+                  {eligibility.user.username}
+                </span>
+                <span className="text-xs text-[var(--color-text-muted)]">
+                  Lv.{eligibility.user.current_level}
+                </span>
+              </div>
+            )}
+
             <div className="flex gap-3 justify-center">
               <Link
                 href="/tools"
@@ -157,19 +485,21 @@ export default function ToolSubmitPage() {
               <button
                 onClick={() => {
                   setIsSuccess(false);
+                  setHasAnalyzed(false);
                   setFormData({
                     name: "",
                     website_url: "",
                     tagline: "",
                     description: "",
-                    category: "" as ToolCategory,
-                    pricing_type: "free",
+                    category: "",
+                    pricing_type: "freemium",
                     logo_url: "",
+                    tags: [],
                   });
                 }}
                 className="px-4 py-2 rounded-lg bg-[var(--color-claude-coral)] text-white hover:bg-[var(--color-claude-rust)] transition-colors"
               >
-                다른 도구 제출
+                다른 도구 추천
               </button>
             </div>
           </div>
@@ -190,14 +520,125 @@ export default function ToolSubmitPage() {
             <ArrowLeft className="w-4 h-4" />
             도구 목록으로
           </Link>
-          <h1 className="text-2xl font-bold text-[var(--color-text-primary)]">도구 제출하기</h1>
+          <h1 className="text-2xl font-bold text-[var(--color-text-primary)]">도구 추천하기</h1>
           <p className="text-sm text-[var(--color-text-secondary)] mt-1">
             유용한 개발 도구를 커뮤니티와 공유하세요
           </p>
+
+          {/* Suggester badge */}
+          {eligibility?.user && (
+            <div className="mt-4 inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[var(--color-bg-card)] border border-[var(--border-default)]">
+              {eligibility.user.avatar_url ? (
+                <Image
+                  src={eligibility.user.avatar_url}
+                  alt={eligibility.user.username}
+                  width={20}
+                  height={20}
+                  className="rounded-full"
+                  unoptimized
+                />
+              ) : (
+                <div className="w-5 h-5 rounded-full bg-[var(--color-bg-elevated)] flex items-center justify-center text-[10px]">
+                  {eligibility.user.username.charAt(0).toUpperCase()}
+                </div>
+              )}
+              <span className="text-xs text-[var(--color-text-secondary)]">추천자:</span>
+              <span className="text-sm font-medium text-[var(--color-text-primary)]">
+                {eligibility.user.username}
+              </span>
+              <span className="text-xs text-[var(--color-text-muted)]">
+                Lv.{eligibility.user.current_level}
+              </span>
+            </div>
+          )}
         </header>
+
+        {/* General Error */}
+        {errors.general && (
+          <div className="mb-6 p-4 rounded-lg bg-red-500/10 border border-red-500/30 flex items-start gap-3">
+            <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
+            <p className="text-sm text-red-500">{errors.general}</p>
+          </div>
+        )}
 
         {/* Form */}
         <form onSubmit={handleSubmit} className="space-y-6">
+          {/* URL with Analyze Button */}
+          <div>
+            <label
+              htmlFor="website_url"
+              className="block text-sm font-medium text-[var(--color-text-primary)] mb-1.5"
+            >
+              웹사이트 URL <span className="text-red-500">*</span>
+            </label>
+            <div className="flex gap-2">
+              <div className="relative flex-1">
+                <input
+                  type="url"
+                  id="website_url"
+                  name="website_url"
+                  value={formData.website_url}
+                  onChange={handleChange}
+                  placeholder="https://example.com"
+                  disabled={isAnalyzing}
+                  className={cn(
+                    "w-full px-3 py-2 pr-10 rounded-lg",
+                    "bg-[var(--color-bg-card)] border",
+                    "text-[var(--color-text-primary)]",
+                    "placeholder:text-[var(--color-text-muted)]",
+                    "focus:outline-none focus:ring-2 focus:ring-[var(--color-claude-coral)]",
+                    "disabled:opacity-50",
+                    errors.website_url ? "border-red-500" : "border-[var(--border-default)]"
+                  )}
+                />
+                {formData.website_url && !isAnalyzing && (
+                  <a
+                    href={formData.website_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]"
+                  >
+                    <ExternalLink className="w-4 h-4" />
+                  </a>
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={analyzeUrl}
+                disabled={isAnalyzing || !formData.website_url.trim()}
+                className={cn(
+                  "px-4 py-2 rounded-lg flex items-center gap-2",
+                  "bg-[var(--color-bg-elevated)] border border-[var(--border-default)]",
+                  "text-[var(--color-text-primary)]",
+                  "hover:bg-[var(--color-bg-card-hover)] transition-colors",
+                  "disabled:opacity-50 disabled:cursor-not-allowed",
+                  "whitespace-nowrap"
+                )}
+              >
+                {isAnalyzing ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    분석 중...
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="w-4 h-4" />
+                    AI 분석
+                  </>
+                )}
+              </button>
+            </div>
+            {errors.website_url && (
+              <p className="mt-1 text-xs text-red-500">{errors.website_url}</p>
+            )}
+            {analysisError && <p className="mt-1 text-xs text-orange-500">{analysisError}</p>}
+            {hasAnalyzed && !analysisError && (
+              <p className="mt-1 text-xs text-green-500">
+                AI가 정보를 자동으로 채웠습니다. 확인 후 수정하세요.
+              </p>
+            )}
+          </div>
+
           {/* Name */}
           <div>
             <label
@@ -223,47 +664,6 @@ export default function ToolSubmitPage() {
               )}
             />
             {errors.name && <p className="mt-1 text-xs text-red-500">{errors.name}</p>}
-          </div>
-
-          {/* Website URL */}
-          <div>
-            <label
-              htmlFor="website_url"
-              className="block text-sm font-medium text-[var(--color-text-primary)] mb-1.5"
-            >
-              웹사이트 URL <span className="text-red-500">*</span>
-            </label>
-            <div className="relative">
-              <input
-                type="url"
-                id="website_url"
-                name="website_url"
-                value={formData.website_url}
-                onChange={handleChange}
-                placeholder="https://example.com"
-                className={cn(
-                  "w-full px-3 py-2 pr-10 rounded-lg",
-                  "bg-[var(--color-bg-card)] border",
-                  "text-[var(--color-text-primary)]",
-                  "placeholder:text-[var(--color-text-muted)]",
-                  "focus:outline-none focus:ring-2 focus:ring-[var(--color-claude-coral)]",
-                  errors.website_url ? "border-red-500" : "border-[var(--border-default)]"
-                )}
-              />
-              {formData.website_url && (
-                <a
-                  href={formData.website_url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]"
-                >
-                  <ExternalLink className="w-4 h-4" />
-                </a>
-              )}
-            </div>
-            {errors.website_url && (
-              <p className="mt-1 text-xs text-red-500">{errors.website_url}</p>
-            )}
           </div>
 
           {/* Tagline */}
@@ -381,15 +781,30 @@ export default function ToolSubmitPage() {
             >
               로고 URL <span className="text-[var(--color-text-muted)]">(선택)</span>
             </label>
-            <input
-              type="url"
-              id="logo_url"
-              name="logo_url"
-              value={formData.logo_url}
-              onChange={handleChange}
-              placeholder="https://example.com/logo.png"
-              className="w-full px-3 py-2 rounded-lg bg-[var(--color-bg-card)] border border-[var(--border-default)] text-[var(--color-text-primary)] placeholder:text-[var(--color-text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--color-claude-coral)]"
-            />
+            <div className="flex gap-3 items-center">
+              <input
+                type="url"
+                id="logo_url"
+                name="logo_url"
+                value={formData.logo_url}
+                onChange={handleChange}
+                placeholder="https://example.com/logo.png"
+                className="flex-1 px-3 py-2 rounded-lg bg-[var(--color-bg-card)] border border-[var(--border-default)] text-[var(--color-text-primary)] placeholder:text-[var(--color-text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--color-claude-coral)]"
+              />
+              {formData.logo_url && (
+                <Image
+                  src={formData.logo_url}
+                  alt="Logo preview"
+                  width={40}
+                  height={40}
+                  className="rounded-lg object-cover"
+                  unoptimized
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).style.display = "none";
+                  }}
+                />
+              )}
+            </div>
             <p className="mt-1 text-xs text-[var(--color-text-muted)]">
               비어있으면 자동으로 파비콘을 가져옵니다
             </p>
@@ -412,19 +827,19 @@ export default function ToolSubmitPage() {
               {isSubmitting ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin" />
-                  제출 중...
+                  추천 중...
                 </>
               ) : (
-                "도구 제출하기"
+                "도구 추천하기"
               )}
             </button>
           </div>
 
           {/* Notice */}
           <p className="text-xs text-center text-[var(--color-text-muted)]">
-            제출된 도구는 관리자 검토 후 승인됩니다.
+            추천된 도구는 관리자 검토 후 승인됩니다.
             <br />
-            신뢰도 높은 사용자의 제출은 우선 검토됩니다.
+            당신의 프로필이 추천자로 표시됩니다.
           </p>
         </form>
       </div>

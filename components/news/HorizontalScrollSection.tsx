@@ -27,7 +27,7 @@ interface HorizontalScrollSectionProps {
 function HorizontalScrollSectionComponent({
   children,
   showControls = true,
-  ariaLabel = "가로 스크롤 콘텐츠",
+  ariaLabel = "Horizontal scroll content",
 }: HorizontalScrollSectionProps) {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
@@ -59,7 +59,7 @@ function HorizontalScrollSectionComponent({
             type="button"
             onClick={scrollLeft}
             className="absolute left-0 top-1/2 -translate-y-1/2 z-10 w-10 h-10 rounded-full bg-white/90 dark:bg-black/80 border border-[var(--border-default)] flex items-center justify-center text-black/70 dark:text-white/70 hover:text-black dark:hover:text-white hover:border-[var(--border-hover)] transition-all opacity-0 group-hover/scroll:opacity-100 -translate-x-4 hover:scale-110 focus:outline-none focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-orange-500"
-            aria-label="이전으로 스크롤"
+            aria-label="Scroll left"
           >
             <ChevronLeft className="w-5 h-5" aria-hidden="true" />
           </button>
@@ -67,7 +67,7 @@ function HorizontalScrollSectionComponent({
             type="button"
             onClick={scrollRight}
             className="absolute right-0 top-1/2 -translate-y-1/2 z-10 w-10 h-10 rounded-full bg-white/90 dark:bg-black/80 border border-[var(--border-default)] flex items-center justify-center text-black/70 dark:text-white/70 hover:text-black dark:hover:text-white hover:border-[var(--border-hover)] transition-all opacity-0 group-hover/scroll:opacity-100 translate-x-4 hover:scale-110 focus:outline-none focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-orange-500"
-            aria-label="다음으로 스크롤"
+            aria-label="Scroll right"
           >
             <ChevronRight className="w-5 h-5" aria-hidden="true" />
           </button>

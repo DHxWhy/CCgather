@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
-import { ArrowLeft, Calendar, Tag, ExternalLink, Check } from "lucide-react";
+import { ArrowLeft, Calendar, Tag } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
 import { createClient } from "@/lib/supabase/server";
@@ -27,9 +27,9 @@ const DIFFICULTY_STYLES = {
 } as const;
 
 const DIFFICULTY_LABELS = {
-  easy: "쉬움",
-  medium: "보통",
-  hard: "심화",
+  easy: "Easy",
+  medium: "Medium",
+  hard: "Advanced",
 } as const;
 
 // 카테고리별 기본 썸네일 (OG 이미지 대신 사용)
@@ -62,6 +62,103 @@ const CATEGORY_EMOJIS: Record<string, string> = {
   general: "📰",
 } as const;
 
+// 아이콘 텍스트 → 이모지 변환 맵
+const ICON_TO_EMOJI: Record<string, string> = {
+  // Buildings & Places
+  building: "🏢",
+  office: "🏢",
+  headquarters: "🏛️",
+  map: "🗺️",
+  location: "📍",
+  globe: "🌍",
+  // Business & Growth
+  chart: "📊",
+  graph: "📈",
+  trend: "📈",
+  growth: "📈",
+  money: "💰",
+  dollar: "💵",
+  funding: "💰",
+  investment: "💸",
+  // Technology
+  robot: "🤖",
+  ai: "🤖",
+  brain: "🧠",
+  chip: "🔧",
+  code: "💻",
+  computer: "💻",
+  server: "🖥️",
+  cloud: "☁️",
+  api: "🔌",
+  // Actions & Objects
+  rocket: "🚀",
+  launch: "🚀",
+  folder: "📁",
+  file: "📄",
+  document: "📄",
+  link: "🔗",
+  key: "🔑",
+  lock: "🔒",
+  shield: "🛡️",
+  security: "🔐",
+  // People & Communication
+  users: "👥",
+  team: "👥",
+  person: "👤",
+  user: "👤",
+  chat: "💬",
+  message: "💬",
+  email: "📧",
+  // Status & Indicators
+  check: "✅",
+  checkmark: "✅",
+  star: "⭐",
+  fire: "🔥",
+  lightning: "⚡",
+  bolt: "⚡",
+  warning: "⚠️",
+  alert: "🚨",
+  info: "ℹ️",
+  // Misc
+  tool: "🔧",
+  settings: "⚙️",
+  gear: "⚙️",
+  search: "🔍",
+  eye: "👁️",
+  target: "🎯",
+  flag: "🚩",
+  bookmark: "🔖",
+  clock: "🕐",
+  time: "⏰",
+  calendar: "📅",
+  package: "📦",
+  box: "📦",
+  gift: "🎁",
+  sparkles: "✨",
+  magic: "✨",
+  light: "💡",
+  idea: "💡",
+  bulb: "💡",
+} as const;
+
+/**
+ * 아이콘 텍스트를 이모지로 변환
+ * 이미 이모지인 경우 그대로 반환
+ */
+function iconToEmoji(icon: string): string {
+  // 이미 이모지인 경우 (유니코드 이모지 패턴)
+  if (
+    /[\u{1F300}-\u{1F9FF}]|[\u{2600}-\u{26FF}]|[\u{2700}-\u{27BF}]|[\u{1F600}-\u{1F64F}]/u.test(
+      icon
+    )
+  ) {
+    return icon;
+  }
+  // 텍스트를 이모지로 변환
+  const lowerIcon = icon.toLowerCase().trim();
+  return ICON_TO_EMOJI[lowerIcon] || "•";
+}
+
 type Difficulty = keyof typeof DIFFICULTY_STYLES;
 
 /**
@@ -73,14 +170,19 @@ function getThumbnailSrc(article: ContentItem): string | null {
     return article.ai_thumbnail;
   }
 
-  // Step 2: 카테고리별 기본 이미지
+  // Step 2: 관리자 생성/수동 썸네일 (OG 이미지만 배제)
+  if (article.thumbnail_url && article.thumbnail_source !== "og_image") {
+    return article.thumbnail_url;
+  }
+
+  // Step 3: 카테고리별 기본 이미지
   const category = article.content_type || article.category || "general";
   const categoryKey = category.toLowerCase().replace(/\s+/g, "-");
   if (CATEGORY_THUMBNAILS[categoryKey]) {
     return CATEGORY_THUMBNAILS[categoryKey];
   }
 
-  // Step 3: null → 이모지 + 그라데이션 폴백
+  // Step 4: null → 이모지 + 그라데이션 폴백
   return null;
 }
 
@@ -237,7 +339,7 @@ export default async function NewsDetailPage({ params }: NewsDetailPageProps) {
   const category = richContent?.meta.category || article.category;
 
   const publishedDate = new Date(article.published_at || article.created_at).toLocaleDateString(
-    "ko-KR",
+    "en-US",
     DATE_FORMAT_OPTIONS
   );
 
@@ -253,7 +355,7 @@ export default async function NewsDetailPage({ params }: NewsDetailPageProps) {
         <Link
           href="/news"
           className="inline-flex items-center gap-2 text-text-muted hover:text-white transition-colors mb-6 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-500 focus-visible:ring-offset-2 focus-visible:ring-offset-black rounded"
-          aria-label="뉴스 목록으로 돌아가기"
+          aria-label="Back to news list"
         >
           <ArrowLeft className="w-4 h-4" aria-hidden="true" />
           Back to News
@@ -293,7 +395,7 @@ export default async function NewsDetailPage({ params }: NewsDetailPageProps) {
             )}
 
             {readTime && (
-              <span className="text-text-muted/60" aria-label={`읽기 시간: ${readTime}`}>
+              <span className="text-text-muted/60" aria-label={`Reading time: ${readTime}`}>
                 <span aria-hidden="true">📖</span> {readTime}
               </span>
             )}
@@ -301,7 +403,7 @@ export default async function NewsDetailPage({ params }: NewsDetailPageProps) {
             {difficulty && (
               <span
                 className={`px-2 py-0.5 rounded text-xs font-medium ${DIFFICULTY_STYLES[difficulty as Difficulty]}`}
-                aria-label={`난이도: ${DIFFICULTY_LABELS[difficulty as Difficulty]}`}
+                aria-label={`Difficulty: ${DIFFICULTY_LABELS[difficulty as Difficulty]}`}
               >
                 {DIFFICULTY_LABELS[difficulty as Difficulty]}
               </span>
@@ -375,7 +477,7 @@ export default async function NewsDetailPage({ params }: NewsDetailPageProps) {
           {insightHtml && (
             <div className="not-prose my-8 p-5 rounded-xl bg-emerald-500/10 border-l-4 border-emerald-500/50">
               <h3 className="text-lg font-semibold text-white mb-3 flex items-center gap-2">
-                🌱 쉽게 풀어보기
+                🌱 In Simple Terms
               </h3>
               <div
                 className="text-white/80 leading-relaxed text-[15px]"
@@ -388,7 +490,7 @@ export default async function NewsDetailPage({ params }: NewsDetailPageProps) {
           {!insightHtml && richContent?.summary.analogy && (
             <div className="not-prose my-8 p-5 rounded-xl bg-emerald-500/10 border-l-4 border-emerald-500/50">
               <h3 className="text-lg font-semibold text-white mb-3 flex items-center gap-2">
-                🌱 쉽게 풀어보기
+                🌱 In Simple Terms
               </h3>
               <p className="text-white/80 leading-relaxed text-[15px]">
                 {richContent.summary.analogy.text}
@@ -404,7 +506,7 @@ export default async function NewsDetailPage({ params }: NewsDetailPageProps) {
             <ul className="space-y-2.5">
               {keyTakeaways.map((point, index) => (
                 <li key={index} className="flex items-start gap-2.5 text-white/80">
-                  <span className="text-base flex-shrink-0">{point.icon}</span>
+                  <span className="text-base flex-shrink-0">{iconToEmoji(point.icon)}</span>
                   <span className="text-[15px] leading-relaxed">{point.text}</span>
                 </li>
               ))}
@@ -415,7 +517,7 @@ export default async function NewsDetailPage({ params }: NewsDetailPageProps) {
         {/* Related Articles (OG 이미지 배제) */}
         {relatedNews.length > 0 && (
           <section className="mb-8">
-            <h2 className="text-lg font-semibold text-white mb-4">🔗 관련 기사</h2>
+            <h2 className="text-lg font-semibold text-white mb-4">🔗 Related Articles</h2>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               {relatedNews.map((related) => {
                 const relatedThumbnail = getThumbnailSrc(related as ContentItem);
@@ -460,49 +562,25 @@ export default async function NewsDetailPage({ params }: NewsDetailPageProps) {
           </section>
         )}
 
-        {/* Reference Section */}
-        <section className="mb-8 p-5 rounded-xl bg-white/[0.02] border border-white/10">
-          <h2 className="text-sm font-medium text-text-muted mb-3 flex items-center gap-2">
-            📚 참고 자료
-          </h2>
-
-          <a
-            href={article.source_url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center gap-3 p-3 rounded-lg bg-white/[0.03] hover:bg-white/[0.06] border border-white/10 hover:border-white/20 transition-all group"
-          >
-            {article.favicon_url && (
-              <Image
-                src={article.favicon_url}
-                alt=""
-                width={20}
-                height={20}
-                className="rounded-sm flex-shrink-0"
-                unoptimized
-              />
+        {/* Reference - 작은 footer 스타일 */}
+        <div className="mb-8 pt-4 border-t border-white/[0.06]">
+          <p className="text-[11px] text-white/30 leading-relaxed">
+            Source:{" "}
+            <a
+              href={article.source_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-white/40 hover:text-white/60 underline underline-offset-2 transition-colors"
+            >
+              {article.source_name || new URL(article.source_url).hostname}
+            </a>
+            {article.fact_check_score && article.fact_check_score >= 0.8 && (
+              <span className="ml-2 text-green-500/60">✓ verified</span>
             )}
-            <div className="flex-1 min-w-0">
-              <div className="text-sm font-medium text-white group-hover:text-blue-400 transition-colors">
-                {article.source_name || "원문 기사"}
-              </div>
-              <div className="text-xs text-text-muted truncate">{article.source_url}</div>
-            </div>
-            <ExternalLink className="w-4 h-4 text-text-muted group-hover:text-blue-400 flex-shrink-0 transition-colors" />
-          </a>
-
-          {article.fact_check_score && article.fact_check_score >= 0.8 && (
-            <div className="flex items-center gap-1.5 mt-3 text-xs text-green-400">
-              <Check className="w-3.5 h-3.5" />
-              원문 팩트 검증 완료
-            </div>
-          )}
-
-          <p className="mt-3 text-[11px] text-text-muted/60 leading-relaxed">
-            이 기사는 위 출처를 참고하여 AI가 재구성한 내용입니다. 정확한 정보는 원문을
-            확인해주세요.
+            <span className="mx-1.5">·</span>
+            AI-reconstructed content. Verify with original source.
           </p>
-        </section>
+        </div>
 
         {/* CTA / Share Section */}
         <CTASection articleUrl={`/news/${slug}`} articleTitle={title} oneLiner={oneLiner} />

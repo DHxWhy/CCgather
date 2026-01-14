@@ -17,6 +17,7 @@ import type { ArticleType } from "@/lib/ai/gemini-client";
 
 // Configuration
 const IMAGEN_MODEL = "imagen-4.0-generate-001";
+const VISION_MODEL = "gemini-2.0-flash"; // For OG image analysis
 const DEFAULT_PLACEHOLDER = "/images/news-placeholder.svg";
 const SUPABASE_BUCKET = "thumbnails";
 
@@ -489,6 +490,269 @@ export async function generateThumbnail(request: ThumbnailRequest): Promise<Thum
       source: "default",
       error: errorMessage,
     };
+  }
+}
+
+// ===========================================
+// OG+AI Fusion Thumbnail Generation
+// ===========================================
+
+/**
+ * Analyze OG image using Gemini Vision to extract ONLY color palette and mood
+ * We deliberately exclude specific objects to prevent them from dominating the output
+ */
+async function analyzeOgImage(ogImageUrl: string, apiKey: string): Promise<string | null> {
+  try {
+    const ai = new GoogleGenAI({ apiKey });
+
+    // Fetch image and convert to base64
+    const imageResponse = await fetch(ogImageUrl);
+    if (!imageResponse.ok) {
+      console.error("[Thumbnail] Failed to fetch OG image for analysis");
+      return null;
+    }
+
+    const imageBuffer = await imageResponse.arrayBuffer();
+    const base64Image = Buffer.from(imageBuffer).toString("base64");
+    const mimeType = imageResponse.headers.get("content-type") || "image/jpeg";
+
+    // Analyze image with Gemini Vision - ONLY extract color and mood
+    const response = await ai.models.generateContent({
+      model: VISION_MODEL,
+      contents: [
+        {
+          role: "user",
+          parts: [
+            {
+              inlineData: {
+                mimeType,
+                data: base64Image,
+              },
+            },
+            {
+              text: `Extract ONLY the following from this image in a single line:
+
+1. COLOR PALETTE: List 2-3 dominant colors (e.g., "deep navy blue, coral orange, soft purple")
+2. MOOD/ATMOSPHERE: One word (e.g., "futuristic", "professional", "energetic", "minimal")
+3. LIGHTING: One phrase (e.g., "soft gradient glow", "dramatic contrast", "ambient lighting")
+
+Format your response as: "Colors: [colors]. Mood: [mood]. Lighting: [lighting]."
+
+IMPORTANT: Do NOT describe any objects, devices, people, logos, or text in the image. Only describe colors, mood, and lighting.`,
+            },
+          ],
+        },
+      ],
+    });
+
+    const analysis = response.candidates?.[0]?.content?.parts?.[0]?.text;
+    if (analysis) {
+      console.log(`[Thumbnail] OG style analysis: ${analysis.slice(0, 150)}...`);
+      return analysis;
+    }
+
+    return null;
+  } catch (error) {
+    console.error("[Thumbnail] OG image analysis error:", error);
+    return null;
+  }
+}
+
+/**
+ * Extract key concepts from article title for image generation
+ */
+function extractArticleConcepts(title: string): string[] {
+  const concepts: string[] = [];
+
+  // AI/Tech company keywords → visual concepts
+  const companyToConcept: Record<string, string> = {
+    anthropic: "AI brain with neural connections",
+    openai: "futuristic AI interface",
+    google: "interconnected data nodes",
+    microsoft: "enterprise cloud architecture",
+    meta: "virtual reality environment",
+    nvidia: "GPU processing visualization",
+  };
+
+  // Feature keywords → visual concepts
+  const featureToConcept: Record<string, string> = {
+    agent: "autonomous robotic arm or AI assistant visualization",
+    agentic: "self-operating digital workflow",
+    automation: "flowing automated process with connected nodes",
+    file: "organized digital documents floating in space",
+    cowork: "collaborative workspace with AI elements",
+    api: "connected endpoints and data streams",
+    model: "neural network layers visualization",
+    launch: "rocket or upward momentum visualization",
+    update: "evolving transformation visual",
+    security: "digital shield with protection elements",
+  };
+
+  const lowerTitle = title.toLowerCase();
+
+  // Extract company concepts
+  for (const [keyword, concept] of Object.entries(companyToConcept)) {
+    if (lowerTitle.includes(keyword)) {
+      concepts.push(concept);
+      break; // Only one company
+    }
+  }
+
+  // Extract feature concepts (up to 2)
+  let featureCount = 0;
+  for (const [keyword, concept] of Object.entries(featureToConcept)) {
+    if (lowerTitle.includes(keyword) && featureCount < 2) {
+      concepts.push(concept);
+      featureCount++;
+    }
+  }
+
+  return concepts;
+}
+
+/**
+ * Generate fusion prompt combining OG image analysis with article context
+ * PRIORITY: Article context (70%) > OG style (30%)
+ */
+function generateFusionPrompt(
+  title: string,
+  ogAnalysis: string,
+  summary?: string,
+  articleType?: ArticleType
+): string {
+  // Get base theme from article type
+  let themeKey: VisualThemeKey = "default";
+  if (articleType && ARTICLE_TYPE_TO_VISUAL_THEME[articleType]) {
+    themeKey = ARTICLE_TYPE_TO_VISUAL_THEME[articleType];
+  } else {
+    const combinedText = summary ? `${title} ${summary}` : title;
+    const keywords = extractKeywords(combinedText);
+    themeKey = detectVisualTheme(keywords);
+  }
+
+  const theme = NEWS_VISUAL_THEMES[themeKey];
+
+  // Extract visual concepts from article title
+  const articleConcepts = extractArticleConcepts(title);
+  const conceptsDescription =
+    articleConcepts.length > 0
+      ? articleConcepts.join(", ")
+      : "abstract technology visualization with flowing data";
+
+  // Build fusion prompt - ARTICLE CONTEXT IS PRIMARY
+  const prompt = `Create a professional tech news thumbnail for this article:
+
+ARTICLE TITLE: "${title}"
+
+PRIMARY SUBJECT (MUST include): ${conceptsDescription}
+
+VISUAL STYLE FROM REFERENCE:
+${ogAnalysis}
+
+COMPOSITION:
+- Main focus: ${conceptsDescription}
+- Background: Dark gradient (navy to black)
+- Style: ${theme.style}
+- Lighting: Use the lighting style from the reference
+- Apply the color palette from the reference to the primary subject
+
+STRICT RULES:
+- The image MUST represent the article topic: ${title.split(":")[0]}
+- NO phones, laptops, generic devices, or unrelated objects
+- NO text, logos, watermarks, brand names, or human faces
+- Create abstract, symbolic representation of the article topic
+- Professional editorial magazine quality, 16:9 landscape`;
+
+  console.log(`[Thumbnail] Fusion prompt (concepts: ${articleConcepts.join(", ")})`);
+  return prompt;
+}
+
+/**
+ * Generate thumbnail using OG image as visual reference (OG+AI Fusion)
+ * Uses Gemini Vision to analyze OG image, then generates new unique image
+ */
+export async function generateThumbnailWithOgReference(
+  request: ThumbnailRequest & { og_image_url: string }
+): Promise<ThumbnailResult> {
+  const apiKey = process.env.GOOGLE_GEMINI_API_KEY;
+
+  if (!apiKey) {
+    console.warn("[Thumbnail] GOOGLE_GEMINI_API_KEY not configured");
+    return {
+      success: false,
+      thumbnail_url: DEFAULT_PLACEHOLDER,
+      source: "default",
+      error: "API key not configured",
+    };
+  }
+
+  console.log(`[Thumbnail] Generating OG+AI fusion for: "${request.title.slice(0, 50)}..."`);
+
+  // Step 1: Analyze OG image
+  const ogAnalysis = await analyzeOgImage(request.og_image_url, apiKey);
+  if (!ogAnalysis) {
+    console.log("[Thumbnail] OG analysis failed, falling back to standard generation");
+    return generateThumbnail(request);
+  }
+
+  // Step 2: Generate fusion prompt
+  const fusionPrompt = generateFusionPrompt(
+    request.title,
+    ogAnalysis,
+    request.summary,
+    request.article_type
+  );
+
+  try {
+    // Step 3: Generate image with Imagen 4
+    const ai = new GoogleGenAI({ apiKey });
+
+    const response = await ai.models.generateImages({
+      model: IMAGEN_MODEL,
+      prompt: fusionPrompt,
+      config: {
+        numberOfImages: 1,
+        aspectRatio: "16:9",
+      },
+    });
+
+    const generatedImages = response.generatedImages;
+    if (!generatedImages || generatedImages.length === 0) {
+      console.error("[Thumbnail] No images generated from fusion prompt");
+      return generateThumbnail(request); // Fallback to standard generation
+    }
+
+    const imageBytes = generatedImages[0]?.image?.imageBytes;
+    if (!imageBytes) {
+      console.error("[Thumbnail] No image bytes in fusion response");
+      return generateThumbnail(request);
+    }
+
+    // Upload to Supabase Storage
+    const { url, error: uploadError } = await uploadToStorage(imageBytes, request.content_id);
+
+    if (uploadError || !url) {
+      console.error("[Thumbnail] Failed to upload fusion image:", uploadError);
+      return {
+        success: false,
+        thumbnail_url: DEFAULT_PLACEHOLDER,
+        source: "default",
+        error: uploadError || "Upload failed",
+      };
+    }
+
+    console.log(`[Thumbnail] OG+AI fusion generated successfully: ${url}`);
+
+    return {
+      success: true,
+      thumbnail_url: url,
+      source: "gemini", // Still 'gemini' as it's AI-generated
+      cost_usd: 0.04, // Same cost as standard generation
+    };
+  } catch (error) {
+    console.error("[Thumbnail] Fusion generation error:", error);
+    // Fallback to standard generation on error
+    return generateThumbnail(request);
   }
 }
 

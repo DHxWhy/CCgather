@@ -14,6 +14,8 @@ export const TOOL_CATEGORIES = [
   "api-data",
   "open-source",
   "learning",
+  "social",
+  "marketing",
 ] as const;
 
 export const TOOL_STATUS = ["pending", "approved", "featured", "rejected"] as const;
@@ -41,6 +43,8 @@ export const CATEGORY_META: Record<ToolCategory, { label: string; emoji: string;
     "api-data": { label: "API & Data", emoji: "🔗", color: "cyan" },
     "open-source": { label: "Open Source", emoji: "💻", color: "green" },
     learning: { label: "Learning", emoji: "📚", color: "blue" },
+    social: { label: "Social", emoji: "💬", color: "indigo" },
+    marketing: { label: "Marketing", emoji: "📢", color: "red" },
   };
 
 export const PRICING_META: Record<ToolPricingType, { label: string; color: string }> = {
@@ -153,6 +157,14 @@ export interface ToolWithVoters extends Tool {
     avatar_url: string | null;
     trust_tier: TrustTier;
     comment: string;
+  } | null;
+  // Suggester info (who suggested this tool)
+  suggester?: {
+    id: string;
+    username: string;
+    avatar_url: string | null;
+    trust_tier: TrustTier;
+    current_level: number;
   } | null;
 }
 

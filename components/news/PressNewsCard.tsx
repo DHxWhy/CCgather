@@ -28,7 +28,7 @@ export default function PressNewsCard({ article }: PressNewsCardProps) {
   const accentColor = hasRichContent ? richContent.style.accentColor : "#3B82F6";
   const favicon = article.favicon_url || richContent?.source.favicon;
 
-  const date = new Date(article.published_at || article.created_at).toLocaleDateString("ko-KR", {
+  const date = new Date(article.published_at || article.created_at).toLocaleDateString("en-US", {
     year: "numeric",
     month: "short",
     day: "numeric",
@@ -83,7 +83,7 @@ export default function PressNewsCard({ article }: PressNewsCardProps) {
             <div
               className={`absolute top-2 right-2 px-1.5 py-0.5 rounded text-[9px] font-medium ${difficultyColors[difficulty]}`}
             >
-              {difficulty === "easy" ? "쉬움" : difficulty === "medium" ? "보통" : "심화"}
+              {difficulty === "easy" ? "Easy" : difficulty === "medium" ? "Medium" : "Advanced"}
             </div>
           )}
         </div>
@@ -149,7 +149,7 @@ export default function PressNewsCard({ article }: PressNewsCardProps) {
 
           {/* Read More Link */}
           <div className="mt-auto pt-1.5 flex items-center gap-1 text-[10px] text-blue-400 font-medium opacity-0 group-hover:opacity-100 transition-opacity">
-            <span>더 보기</span>
+            <span>Read more</span>
             <ExternalLink className="w-2.5 h-2.5" />
           </div>
         </div>

@@ -2,11 +2,11 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import Link from "next/link";
 import { Plus, LayoutList, LayoutGrid, Loader2 } from "lucide-react";
 import { useAuth } from "@clerk/nextjs";
 import { cn } from "@/lib/utils";
 import { ToolCard, ToolListItem, CategoryTabs, PeriodFilter } from "@/components/tools";
+import { EligibilityModal } from "@/components/tools/EligibilityModal";
 import type { ToolWithVoters, ToolCategory, ToolPeriod, ToolSortOption } from "@/types/tools";
 
 // =====================================================
@@ -14,6 +14,15 @@ import type { ToolWithVoters, ToolCategory, ToolPeriod, ToolSortOption } from "@
 // =====================================================
 
 type ViewMode = "list" | "card";
+
+interface EligibilityData {
+  eligible: boolean;
+  requirements: {
+    level: { met: boolean; current: number; required: number; name: string };
+    data_days: { met: boolean; current: number; required: number };
+  };
+  allRequirements: Array<{ key: string; label: string; description: string }>;
+}
 
 // =====================================================
 // Component
@@ -30,6 +39,11 @@ export default function ToolsContent() {
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(false);
   const [total, setTotal] = useState(0);
+
+  // Eligibility Modal State
+  const [showEligibilityModal, setShowEligibilityModal] = useState(false);
+  const [eligibility, setEligibility] = useState<EligibilityData | null>(null);
+  const [checkingEligibility, setCheckingEligibility] = useState(false);
 
   // Filter state from URL
   const category = (searchParams.get("category") as ToolCategory | "all") || "all";
@@ -100,6 +114,38 @@ export default function ToolsContent() {
       params.set(key, value);
     }
     router.push(`/tools?${params.toString()}`, { scroll: false });
+  };
+
+  // =====================================================
+  // Submit Tool Handler
+  // =====================================================
+
+  const handleSubmitClick = async () => {
+    if (!isSignedIn) {
+      router.push("/sign-in?redirect_url=/tools/submit");
+      return;
+    }
+
+    setCheckingEligibility(true);
+    setShowEligibilityModal(true);
+
+    try {
+      const res = await fetch("/api/tools/eligibility");
+      if (res.ok) {
+        const data = await res.json();
+        setEligibility(data);
+
+        // If eligible, redirect to submit page
+        if (data.eligible) {
+          setShowEligibilityModal(false);
+          router.push("/tools/submit");
+        }
+      }
+    } catch (error) {
+      console.error("Failed to check eligibility:", error);
+    } finally {
+      setCheckingEligibility(false);
+    }
   };
 
   // =====================================================
@@ -209,8 +255,8 @@ export default function ToolsContent() {
         </div>
 
         {/* Submit Button */}
-        <Link
-          href="/tools/submit"
+        <button
+          onClick={handleSubmitClick}
           className={cn(
             "ml-auto flex items-center gap-1.5 px-3 py-1.5 rounded-lg",
             "bg-[var(--color-claude-coral)] text-white",
@@ -221,7 +267,7 @@ export default function ToolsContent() {
         >
           <Plus className="w-4 h-4" />
           <span>Submit Tool</span>
-        </Link>
+        </button>
       </div>
 
       {/* Category Tabs */}
@@ -242,12 +288,12 @@ export default function ToolsContent() {
           <p className="text-[var(--color-text-secondary)] mb-4">
             이 카테고리에 아직 도구가 없습니다
           </p>
-          <Link
-            href="/tools/submit"
+          <button
+            onClick={handleSubmitClick}
             className="text-sm text-[var(--color-claude-coral)] hover:underline"
           >
             첫 도구 제출하기 →
-          </Link>
+          </button>
         </div>
       ) : (
         // Tools List/Grid
@@ -310,6 +356,14 @@ export default function ToolsContent() {
           )}
         </>
       )}
+
+      {/* Eligibility Modal */}
+      <EligibilityModal
+        isOpen={showEligibilityModal}
+        onClose={() => setShowEligibilityModal(false)}
+        eligibility={eligibility}
+        isLoading={checkingEligibility}
+      />
     </div>
   );
 }
