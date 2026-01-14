@@ -260,22 +260,6 @@ export default async function NewsDetailPage({ params }: NewsDetailPageProps) {
               priority
               unoptimized
             />
-            {/* Source Badge */}
-            {article.source_name && (
-              <div className="absolute bottom-3 left-3 flex items-center gap-2 px-3 py-1.5 rounded-lg bg-black/70 backdrop-blur-sm">
-                {article.favicon_url && (
-                  <Image
-                    src={article.favicon_url}
-                    alt=""
-                    width={16}
-                    height={16}
-                    className="rounded-sm"
-                    unoptimized
-                  />
-                )}
-                <span className="text-white text-sm font-medium">{article.source_name}</span>
-              </div>
-            )}
           </div>
         )}
 
@@ -374,28 +358,49 @@ export default async function NewsDetailPage({ params }: NewsDetailPageProps) {
           </section>
         )}
 
-        {/* Source Link */}
-        <div className="flex items-center justify-between py-4 border-t border-white/10 mb-8">
-          <div className="flex items-center gap-2 text-sm text-text-muted">
-            <span>📎 출처:</span>
-            <a
-              href={article.source_url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-blue-400 hover:underline flex items-center gap-1"
-            >
-              {article.source_name || "원문 보기"}
-              <ExternalLink className="w-3.5 h-3.5" />
-            </a>
-          </div>
+        {/* Reference Section */}
+        <section className="mb-8 p-5 rounded-xl bg-white/[0.02] border border-white/10">
+          <h2 className="text-sm font-medium text-text-muted mb-3 flex items-center gap-2">
+            📚 참고 자료
+          </h2>
+
+          <a
+            href={article.source_url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-3 p-3 rounded-lg bg-white/[0.03] hover:bg-white/[0.06] border border-white/10 hover:border-white/20 transition-all group"
+          >
+            {article.favicon_url && (
+              <Image
+                src={article.favicon_url}
+                alt=""
+                width={20}
+                height={20}
+                className="rounded-sm flex-shrink-0"
+                unoptimized
+              />
+            )}
+            <div className="flex-1 min-w-0">
+              <div className="text-sm font-medium text-white group-hover:text-blue-400 transition-colors">
+                {article.source_name || "원문 기사"}
+              </div>
+              <div className="text-xs text-text-muted truncate">{article.source_url}</div>
+            </div>
+            <ExternalLink className="w-4 h-4 text-text-muted group-hover:text-blue-400 flex-shrink-0 transition-colors" />
+          </a>
 
           {article.fact_check_score && article.fact_check_score >= 0.8 && (
-            <span className="flex items-center gap-1.5 text-sm text-green-400">
-              <Check className="w-4 h-4" />
-              팩트 검증 완료
-            </span>
+            <div className="flex items-center gap-1.5 mt-3 text-xs text-green-400">
+              <Check className="w-3.5 h-3.5" />
+              원문 팩트 검증 완료
+            </div>
           )}
-        </div>
+
+          <p className="mt-3 text-[11px] text-text-muted/60 leading-relaxed">
+            이 기사는 위 출처를 참고하여 AI가 재구성한 내용입니다. 정확한 정보는 원문을
+            확인해주세요.
+          </p>
+        </section>
 
         {/* CTA / Share Section */}
         <CTASection articleUrl={`/news/${slug}`} articleTitle={title} oneLiner={oneLiner} />
