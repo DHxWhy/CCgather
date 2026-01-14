@@ -2,10 +2,8 @@ import { Newspaper, ExternalLink, Sparkles, Globe } from "lucide-react";
 import Image from "next/image";
 import { createClient } from "@/lib/supabase/server";
 import NewsCard from "@/components/news/NewsCard";
-import NewsTagFilter, {
-  NEWS_FILTER_TAGS,
-  type NewsFilterTag,
-} from "@/components/news/NewsTagFilter";
+import NewsTagFilter from "@/components/news/NewsTagFilter";
+import { NEWS_FILTER_TAGS, type NewsFilterTag } from "@/components/news/news-tags";
 import type { ContentItem } from "@/types/automation";
 import { Suspense } from "react";
 
@@ -166,7 +164,7 @@ function QuickLinkCard({ link }: { link: (typeof QUICK_LINKS)[number] }) {
 function EmptyState() {
   return (
     <div
-      className="col-span-full text-center py-16 bg-black/[0.02] dark:bg-white/5 rounded-lg border border-[var(--border-default)]"
+      className="text-center py-16 bg-[var(--color-bg-secondary)]/50 rounded-2xl border border-[var(--border-default)]"
       role="status"
       aria-live="polite"
     >
@@ -185,11 +183,11 @@ function EmptyState() {
 
 function NewsGridSkeleton() {
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+    <div className="flex flex-col gap-4">
       {Array.from({ length: 6 }).map((_, i) => (
         <div
           key={i}
-          className="h-48 rounded-xl bg-[var(--color-bg-secondary)] animate-pulse border border-[var(--border-default)]"
+          className="h-[112px] rounded-2xl bg-[var(--color-bg-secondary)] animate-pulse border border-[var(--border-default)]"
         />
       ))}
     </div>
@@ -224,14 +222,9 @@ async function NewsGrid({ tag }: { tag: NewsFilterTag }) {
           <span className="text-xs text-text-muted">({total})</span>
         </div>
       </div>
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {articles.map((article, index) => (
-          <NewsCard
-            key={article.id}
-            article={article}
-            variant={index === 0 && tag === "all" ? "featured" : "default"}
-            isLatest={index === 0 && tag === "all"}
-          />
+      <div className="flex flex-col gap-4">
+        {articles.map((article) => (
+          <NewsCard key={article.id} article={article} variant="list" />
         ))}
       </div>
     </>
@@ -278,12 +271,17 @@ export default async function NewsPage({ searchParams }: NewsPageProps) {
         </div>
       </section>
 
+      {/* Mobile: Sticky Filter Bar (< 640px) */}
+      <div className="sm:hidden sticky top-0 z-20 -mx-4 px-4 py-3 bg-[var(--color-bg-primary)]/95 backdrop-blur-sm border-b border-[var(--border-default)]">
+        <NewsTagFilter currentTag={safeTag} variant="mobile" />
+      </div>
+
       {/* Main Content: Filter Sidebar + News Grid */}
-      <div className="flex flex-col lg:flex-row gap-6 lg:gap-8">
-        {/* Filter Sidebar */}
-        <aside className="lg:w-48 flex-shrink-0">
-          <div className="lg:sticky lg:top-24">
-            <NewsTagFilter currentTag={safeTag} />
+      <div className="flex flex-col sm:flex-row gap-6 sm:gap-4 lg:gap-8 mt-4 sm:mt-0">
+        {/* Filter Sidebar - Tablet/Desktop (>= 640px) */}
+        <aside className="hidden sm:block sm:w-28 lg:w-44 flex-shrink-0">
+          <div className="sm:sticky sm:top-24">
+            <NewsTagFilter currentTag={safeTag} variant="desktop" />
           </div>
         </aside>
 

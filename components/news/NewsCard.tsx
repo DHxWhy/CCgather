@@ -3,7 +3,7 @@
 import { memo, useMemo } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { Clock, Sparkles, ArrowRight } from "lucide-react";
+import { Clock, Sparkles, ArrowRight, ArrowUpRight } from "lucide-react";
 import type { ContentItem } from "@/types/automation";
 import { isNewArticle } from "@/lib/utils/sanitize";
 
@@ -37,7 +37,7 @@ const DEFAULT_ACCENT_COLOR = "#F97316";
 
 interface NewsCardProps {
   article: ContentItem;
-  variant?: "default" | "featured" | "compact";
+  variant?: "default" | "featured" | "compact" | "list";
   isLatest?: boolean;
 }
 
@@ -215,6 +215,177 @@ function NewsCardComponent({ article, variant = "default", isLatest = false }: N
             >
               <span>자세히 보기</span>
               <ArrowRight className="w-4 h-4" />
+            </div>
+          </div>
+        </article>
+      </Link>
+    );
+  }
+
+  // List card (for vertical scroll - full width, modern event-style layout)
+  if (variant === "list") {
+    // Parse date for left side display
+    const dateObj = new Date(article.published_at || article.created_at);
+    const month = dateObj.getMonth() + 1;
+    const dayNum = dateObj.getDate();
+    const dayName = dateObj.toLocaleDateString("ko-KR", { weekday: "short" }); // 월, 화, 수...
+
+    // Get news tags for display
+    const newsTags = article.news_tags || [];
+
+    return (
+      <Link
+        href={href}
+        className="block group focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--color-bg-primary)] rounded-2xl"
+        aria-label={`기사: ${title}`}
+      >
+        <article className="flex flex-col sm:flex-row gap-3 sm:gap-4 p-3 sm:p-4 rounded-2xl border border-[var(--border-default)] bg-[var(--color-bg-secondary)]/50 hover:bg-[var(--color-bg-secondary)] hover:border-[var(--border-hover)] hover:shadow-lg transition-all duration-200">
+          {/* Mobile: Image on top (large) - < 640px */}
+          <div className="relative w-full h-[160px] sm:hidden rounded-xl overflow-hidden bg-black/10 dark:bg-white/5">
+            {article.thumbnail_url ? (
+              <Image
+                src={article.thumbnail_url}
+                alt=""
+                fill
+                className="object-cover group-hover:scale-105 transition-transform duration-300"
+                unoptimized
+              />
+            ) : (
+              <div
+                className="w-full h-full flex items-center justify-center"
+                style={{
+                  background: `linear-gradient(135deg, ${accentColor}20, transparent)`,
+                }}
+              >
+                <span className="text-4xl opacity-40" aria-hidden="true">
+                  {titleEmoji || "📰"}
+                </span>
+              </div>
+            )}
+            {isNew && (
+              <div className="absolute top-2 left-2">
+                <NewBadge />
+              </div>
+            )}
+          </div>
+
+          {/* Tablet/Desktop: Date Column - Left Side (>= 640px) */}
+          <div className="hidden sm:flex flex-shrink-0 w-14 flex-col items-center justify-start pt-1">
+            <span className="text-sm font-bold text-[var(--color-text-primary)]">
+              {month}/{dayNum}
+            </span>
+            <span className="text-[10px] font-medium text-text-muted">{dayName}</span>
+          </div>
+
+          {/* Tablet/Desktop: Thumbnail (>= 640px) */}
+          <div className="hidden sm:block relative w-[100px] h-[80px] flex-shrink-0 rounded-xl overflow-hidden bg-black/10 dark:bg-white/5">
+            {article.thumbnail_url ? (
+              <Image
+                src={article.thumbnail_url}
+                alt=""
+                fill
+                className="object-cover group-hover:scale-105 transition-transform duration-300"
+                unoptimized
+              />
+            ) : (
+              <div
+                className="w-full h-full flex items-center justify-center"
+                style={{
+                  background: `linear-gradient(135deg, ${accentColor}20, transparent)`,
+                }}
+              >
+                <span className="text-2xl opacity-40" aria-hidden="true">
+                  {titleEmoji || "📰"}
+                </span>
+              </div>
+            )}
+            {isNew && (
+              <div className="absolute top-1.5 left-1.5">
+                <NewBadge size="small" />
+              </div>
+            )}
+          </div>
+
+          {/* Content */}
+          <div className="flex-1 min-w-0 flex flex-col justify-between py-0.5">
+            {/* Top: Title Row with Arrow */}
+            <div className="flex items-start gap-2">
+              <h3 className="flex-1 text-sm md:text-sm font-semibold text-[var(--color-text-primary)] group-hover:text-orange-400 transition-colors leading-snug line-clamp-2">
+                {titleEmoji && (
+                  <span className="mr-1" aria-hidden="true">
+                    {titleEmoji}
+                  </span>
+                )}
+                {title}
+              </h3>
+              <ArrowUpRight
+                className="w-4 h-4 text-text-muted group-hover:text-orange-400 flex-shrink-0 mt-0.5 transition-colors"
+                aria-hidden="true"
+              />
+            </div>
+
+            {/* Middle: Source Info */}
+            <div className="flex items-center gap-2 text-[11px] text-text-muted mt-1">
+              {favicon && (
+                <Image
+                  src={favicon}
+                  alt=""
+                  width={12}
+                  height={12}
+                  className="rounded-sm"
+                  unoptimized
+                />
+              )}
+              <span className="font-medium">{article.source_name || "News"}</span>
+              {difficulty && (
+                <>
+                  <span className="text-text-muted/40">•</span>
+                  <DifficultyBadge difficulty={difficulty} size="small" />
+                </>
+              )}
+            </div>
+
+            {/* Bottom: Summary */}
+            {summary && (
+              <p className="text-xs text-text-muted/80 line-clamp-2 sm:line-clamp-1 mt-1.5">
+                {summary}
+              </p>
+            )}
+
+            {/* Mobile: Date + Tags at bottom */}
+            <div className="flex items-center justify-between mt-2 sm:mt-1.5">
+              {/* Mobile Date (< 640px) */}
+              <div className="flex sm:hidden items-center gap-1.5 text-xs text-text-muted">
+                <span className="font-medium">
+                  {month}/{dayNum}
+                </span>
+                <span className="text-text-muted/40">•</span>
+                <span>{dayName}</span>
+              </div>
+
+              {/* Tags */}
+              {newsTags.length > 0 && (
+                <div className="flex flex-wrap gap-1.5">
+                  {newsTags.slice(0, 2).map((tag: string) => (
+                    <span
+                      key={tag}
+                      className="px-2 py-0.5 text-[10px] font-medium rounded-full bg-[var(--color-bg-tertiary)] text-text-muted border border-[var(--border-default)]"
+                    >
+                      {tag}
+                    </span>
+                  ))}
+                  {newsTags.length > 2 && (
+                    <span className="hidden sm:inline px-2 py-0.5 text-[10px] font-medium rounded-full bg-[var(--color-bg-tertiary)] text-text-muted border border-[var(--border-default)]">
+                      {newsTags[2]}
+                    </span>
+                  )}
+                  {newsTags.length > 3 && (
+                    <span className="px-2 py-0.5 text-[10px] font-medium text-text-muted/60">
+                      +{newsTags.length - 3}
+                    </span>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         </article>
