@@ -288,6 +288,7 @@ export interface ContentItem {
   insight_html?: string;
   key_takeaways?: Array<{ icon: string; text: string }>;
   related_articles?: string[];
+  news_tags?: string[];
 }
 
 // ============================================

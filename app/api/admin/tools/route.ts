@@ -69,7 +69,7 @@ export async function GET(request: NextRequest) {
 
     // Calculate priority for each tool based on submitter trust
     const toolsWithPriority: AdminToolListItem[] =
-      tools?.map((tool) => {
+      tools?.map((tool: Record<string, unknown>) => {
         const submitter = tool.submitter as {
           id: string;
           username: string;
@@ -113,12 +113,13 @@ export async function GET(request: NextRequest) {
     // Get stats
     const { data: statsData } = await supabase.from("tools").select("status, category, source");
 
+    type ToolStat = { status: string; category: string; source: string };
     const stats: AdminToolStats = {
       total: statsData?.length || 0,
-      pending: statsData?.filter((t) => t.status === "pending").length || 0,
-      approved: statsData?.filter((t) => t.status === "approved").length || 0,
-      featured: statsData?.filter((t) => t.status === "featured").length || 0,
-      rejected: statsData?.filter((t) => t.status === "rejected").length || 0,
+      pending: statsData?.filter((t: ToolStat) => t.status === "pending").length || 0,
+      approved: statsData?.filter((t: ToolStat) => t.status === "approved").length || 0,
+      featured: statsData?.filter((t: ToolStat) => t.status === "featured").length || 0,
+      rejected: statsData?.filter((t: ToolStat) => t.status === "rejected").length || 0,
       by_category: {} as Record<ToolCategory, number>,
       by_source: { user: 0, admin: 0, automation: 0 },
     };
@@ -134,11 +135,11 @@ export async function GET(request: NextRequest) {
       "learning",
     ];
     categories.forEach((cat) => {
-      stats.by_category[cat] = statsData?.filter((t) => t.category === cat).length || 0;
+      stats.by_category[cat] = statsData?.filter((t: ToolStat) => t.category === cat).length || 0;
     });
 
     // Count by source
-    statsData?.forEach((t) => {
+    statsData?.forEach((t: ToolStat) => {
       if (t.source === "user") stats.by_source.user++;
       else if (t.source === "admin") stats.by_source.admin++;
       else if (t.source === "automation") stats.by_source.automation++;

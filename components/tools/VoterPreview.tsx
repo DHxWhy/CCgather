@@ -4,7 +4,6 @@ import { memo } from "react";
 import Image from "next/image";
 import { cn } from "@/lib/utils";
 import type { TrustTier } from "@/types/tools";
-import TrustBadge from "./TrustBadge";
 
 // =====================================================
 // Types

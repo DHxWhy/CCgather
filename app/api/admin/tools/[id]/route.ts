@@ -90,7 +90,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 // DELETE /api/admin/tools/[id] - 도구 삭제
 // =====================================================
 export async function DELETE(
-  request: NextRequest,
+  _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {

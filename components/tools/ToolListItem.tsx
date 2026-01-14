@@ -6,10 +6,9 @@ import Link from "next/link";
 import { motion } from "framer-motion";
 import { ExternalLink, Bookmark, BookmarkCheck } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { ToolWithVoters, TrustTier } from "@/types/tools";
+import type { ToolWithVoters } from "@/types/tools";
 import { CATEGORY_META, PRICING_META, isNewTool, isHotTool } from "@/types/tools";
 import VoteButton from "./VoteButton";
-import TrustBadge from "./TrustBadge";
 
 // =====================================================
 // Types

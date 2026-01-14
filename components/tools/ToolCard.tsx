@@ -3,11 +3,11 @@
 import { memo, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import { ExternalLink, Bookmark, BookmarkCheck } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { ToolWithVoters, ToolCardVariant, TrustTier } from "@/types/tools";
-import { CATEGORY_META, PRICING_META, TRUST_TIER_META, isNewTool, isHotTool } from "@/types/tools";
+import type { ToolWithVoters, ToolCardVariant } from "@/types/tools";
+import { CATEGORY_META, PRICING_META, isNewTool, isHotTool } from "@/types/tools";
 import VoteButton from "./VoteButton";
 import TrustBadge from "./TrustBadge";
 import VoterPreview from "./VoterPreview";

@@ -34,7 +34,7 @@ function PeriodFilterComponent({ selected, onChange, className }: PeriodFilterPr
   const [isOpen, setIsOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  const selectedPeriod = PERIODS.find((p) => p.key === selected) || PERIODS[0];
+  const selectedPeriod = PERIODS.find((p) => p.key === selected) ?? PERIODS[0]!;
 
   // Close on outside click
   useEffect(() => {

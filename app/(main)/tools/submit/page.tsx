@@ -12,7 +12,6 @@ import {
   CATEGORY_META,
   PRICING_META,
   type ToolCategory,
-  type ToolPricingType,
   type ToolSubmitFormData,
   type ToolSubmitFormErrors,
 } from "@/types/tools";
@@ -315,9 +314,10 @@ export default function ToolSubmitPage() {
               onChange={handleChange}
               className={cn(
                 "w-full px-3 py-2 rounded-lg",
-                "bg-[var(--color-bg-card)] border",
+                "bg-white dark:bg-[#1a1a1a] border",
                 "text-[var(--color-text-primary)]",
                 "focus:outline-none focus:ring-2 focus:ring-[var(--color-claude-coral)]",
+                "[&>option]:bg-white [&>option]:text-gray-900 dark:[&>option]:bg-[#1a1a1a] dark:[&>option]:text-white",
                 errors.category ? "border-red-500" : "border-[var(--border-default)]"
               )}
             >
@@ -344,7 +344,7 @@ export default function ToolSubmitPage() {
               name="pricing_type"
               value={formData.pricing_type}
               onChange={handleChange}
-              className="w-full px-3 py-2 rounded-lg bg-[var(--color-bg-card)] border border-[var(--border-default)] text-[var(--color-text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-claude-coral)]"
+              className="w-full px-3 py-2 rounded-lg bg-white dark:bg-[#1a1a1a] border border-[var(--border-default)] text-[var(--color-text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-claude-coral)] [&>option]:bg-white [&>option]:text-gray-900 dark:[&>option]:bg-[#1a1a1a] dark:[&>option]:text-white"
             >
               {TOOL_PRICING_TYPES.map((type) => (
                 <option key={type} value={type}>

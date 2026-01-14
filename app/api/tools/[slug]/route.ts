@@ -6,7 +6,10 @@ import type { ToolWithInteraction } from "@/types/tools";
 // =====================================================
 // GET /api/tools/[slug] - 도구 상세 조회
 // =====================================================
-export async function GET(request: NextRequest, { params }: { params: Promise<{ slug: string }> }) {
+export async function GET(
+  _request: NextRequest,
+  { params }: { params: Promise<{ slug: string }> }
+) {
   try {
     const { slug } = await params;
     const supabase = createServiceClient();
@@ -67,8 +70,16 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     } | null;
 
     // Process voters
-    const voters =
-      votes?.map((vote) => {
+    type VoterInfo = {
+      user_id: string;
+      username: string;
+      avatar_url: string | null;
+      trust_tier: string;
+      weight: unknown;
+      comment: string | null;
+    };
+    const voters: VoterInfo[] =
+      votes?.map((vote: Record<string, unknown>) => {
         const user = vote.user as {
           id: string;
           username: string;
@@ -83,7 +94,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
           avatar_url: user.avatar_url,
           trust_tier: calculateTrustTier(user.current_level, user.global_rank),
           weight: vote.weight,
-          comment: vote.comment,
+          comment: vote.comment as string | null,
         };
       }) || [];
 

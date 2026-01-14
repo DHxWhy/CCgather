@@ -96,7 +96,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Get top voters for each tool (max 5, sorted by trust tier)
-    const toolIds = tools?.map((t) => t.id) || [];
+    const toolIds = tools?.map((t: { id: string }) => t.id) || [];
 
     const { data: votes } = await supabase
       .from("tool_votes")
@@ -123,7 +123,15 @@ export async function GET(request: NextRequest) {
     const votesByTool = new Map<string, ToolWithVoters["voters"]>();
     const topCommentByTool = new Map<string, ToolWithVoters["top_comment"]>();
 
-    votes?.forEach((vote) => {
+    type VoteRecord = {
+      tool_id: string;
+      user_id: string;
+      weight: number;
+      comment: string | null;
+      user: unknown;
+    };
+
+    votes?.forEach((vote: VoteRecord) => {
       const toolId = vote.tool_id;
       if (!votesByTool.has(toolId)) {
         votesByTool.set(toolId, []);
@@ -165,7 +173,7 @@ export async function GET(request: NextRequest) {
 
     // Combine tools with voters
     const toolsWithVoters: ToolWithVoters[] =
-      tools?.map((tool) => {
+      tools?.map((tool: Record<string, unknown>) => {
         const submitter = tool.submitter as {
           id: string;
           username: string;
@@ -174,6 +182,7 @@ export async function GET(request: NextRequest) {
           global_rank: number | null;
         } | null;
 
+        const toolId = tool.id as string;
         return {
           ...tool,
           submitter: submitter
@@ -182,8 +191,8 @@ export async function GET(request: NextRequest) {
                 trust_tier: calculateTrustTier(submitter.current_level, submitter.global_rank),
               }
             : null,
-          voters: votesByTool.get(tool.id) || [],
-          top_comment: topCommentByTool.get(tool.id) || null,
+          voters: votesByTool.get(toolId) || [],
+          top_comment: topCommentByTool.get(toolId) || null,
         };
       }) || [];
 
