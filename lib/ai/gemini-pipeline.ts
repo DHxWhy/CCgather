@@ -26,12 +26,16 @@ import type { RichContent, PipelineResult, SummarizerResult } from "./types";
 // Configuration
 // ===========================================
 
+// Progress callback type for real-time updates
+export type PipelineProgressCallback = (stage: string, message: string, progress: number) => void;
+
 interface GeminiPipelineOptions {
   apiKey?: string;
   debug?: boolean;
   minFactCheckScore?: number; // Minimum score to pass (default: 80)
   maxRetries?: number; // Maximum retries for low score (default: 1)
   skipFactCheck?: boolean; // Skip Stage 3 for speed
+  onProgress?: PipelineProgressCallback; // Real-time progress callback
 }
 
 // ===========================================
@@ -211,12 +215,14 @@ export class GeminiPipeline {
     };
 
     const stageResults: GeminiPipelineResult["stageResults"] = {};
+    const onProgress = this.options.onProgress;
 
     try {
       // ========================================
       // Step 0: Fetch article
       // ========================================
       if (this.debug) console.log(`[GeminiPipeline] Fetching: ${url}`);
+      onProgress?.("fetching", "웹 페이지 분석 중...", 10);
       const fetchResult = await fetchArticle(url);
 
       if (!fetchResult.success || !fetchResult.article) {
@@ -238,6 +244,7 @@ export class GeminiPipeline {
       // Stage 1: Extract Facts (팩트 추출)
       // ========================================
       if (this.debug) console.log(`[GeminiPipeline] Stage 1: Extracting facts...`);
+      onProgress?.("ai_stage1", "AI Stage 1: 팩트 추출 중...", 25);
 
       const { facts, usage: stage1Usage } = await this.client.extractFacts(article.content);
 
@@ -264,6 +271,7 @@ export class GeminiPipeline {
 
       // Initial Stage 2: Rewrite Article
       if (this.debug) console.log(`[GeminiPipeline] Stage 2: Rewriting article...`);
+      onProgress?.("ai_stage2", "AI Stage 2: 기사 리라이팅 중...", 45);
 
       let rewriteResult = await this.client.rewriteArticle(
         article.title,
@@ -288,6 +296,7 @@ export class GeminiPipeline {
       if (!this.options.skipFactCheck) {
         if (this.debug)
           console.log(`[GeminiPipeline] Stage 3: Verifying facts with original content...`);
+        onProgress?.("ai_stage3", "AI Stage 3: 팩트 검증 중...", 65);
 
         let verifyResult = await this.client.verifyFacts(facts, rewrittenArticle, article.content);
 

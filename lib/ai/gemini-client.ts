@@ -97,6 +97,7 @@ export interface ExtractedFacts {
   classification: ArticleClassification;
   version?: string;
   releaseDate?: string;
+  publishedAt?: string; // Article publication date (when the article was published)
   metrics: string[];
   features: string[];
   changes: string[];
@@ -275,7 +276,8 @@ Q11: 비교/분석/리뷰인가?
 
 ## 2단계: 팩트 추출
 - version: 버전 번호 (있는 경우)
-- releaseDate: 발표일/출시일 (있는 경우)
+- releaseDate: 제품/기능 발표일/출시일 (있는 경우)
+- publishedAt: 기사 게시일 (기사가 언제 작성/게시되었는지 - 날짜 표기 찾기, ISO 8601 형식으로 변환)
 - metrics: 수치 데이터 (성능, 속도, 비용, 가격 등)
 - features: 주요 기능/특징
 - changes: 변경 사항
@@ -299,6 +301,7 @@ JSON만 출력하세요.
   },
   "version": "string or null",
   "releaseDate": "string or null",
+  "publishedAt": "ISO 8601 date string or null (e.g., 2025-01-14T00:00:00Z)",
   "metrics": ["string"],
   "features": ["string"],
   "changes": ["string"],

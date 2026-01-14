@@ -5,11 +5,12 @@ import Image from "next/image";
 import ThumbnailManager from "@/components/admin/ThumbnailManager";
 import TargetManager from "@/components/admin/TargetManager";
 import CronScheduler from "@/components/admin/CronScheduler";
+import UnusedThumbnailManager from "@/components/admin/UnusedThumbnailManager";
 import type { ThumbnailSource } from "@/types/automation";
 
 type ContentType = "news" | "youtube";
 type ContentStatus = "pending" | "ready" | "published" | "rejected";
-type ContentTab = "news" | "youtube" | "targets" | "scheduler";
+type ContentTab = "news" | "youtube" | "targets" | "scheduler" | "storage";
 
 // AI Article Types (from gemini-client.ts)
 type AIArticleType =
@@ -178,6 +179,20 @@ export default function AdminContentsPage() {
     }
   }
 
+  async function deleteContent(id: string) {
+    if (!confirm("이 콘텐츠를 삭제하시겠습니까?\n\n삭제된 콘텐츠는 복구할 수 없습니다.")) {
+      return;
+    }
+    try {
+      await fetch(`/api/admin/contents/${id}`, {
+        method: "DELETE",
+      });
+      fetchContents();
+    } catch (error) {
+      console.error("Failed to delete content:", error);
+    }
+  }
+
   const handleRefresh = () => {
     setRefreshKey((prev) => prev + 1);
     if (activeTab === "news" || activeTab === "youtube") {
@@ -231,6 +246,9 @@ export default function AdminContentsPage() {
         <TabButton active={activeTab === "scheduler"} onClick={() => setActiveTab("scheduler")}>
           스케줄러
         </TabButton>
+        <TabButton active={activeTab === "storage"} onClick={() => setActiveTab("storage")}>
+          🗂️ 스토리지
+        </TabButton>
       </div>
 
       {/* Tab Content */}
@@ -272,6 +290,7 @@ export default function AdminContentsPage() {
                     item={item}
                     onEdit={() => setEditingItem(item)}
                     onStatusChange={updateContentStatus}
+                    onDelete={() => deleteContent(item.id)}
                   />
                 ))
               )}
@@ -284,6 +303,9 @@ export default function AdminContentsPage() {
 
         {/* Cron Scheduler */}
         {activeTab === "scheduler" && <CronScheduler onRefresh={handleRefresh} />}
+
+        {/* Storage - Unused Thumbnails */}
+        {activeTab === "storage" && <UnusedThumbnailManager />}
       </div>
 
       {/* Edit Modal */}
@@ -339,10 +361,12 @@ function ContentCard({
   item,
   onEdit,
   onStatusChange,
+  onDelete,
 }: {
   item: ContentItem;
   onEdit: () => void;
   onStatusChange: (id: string, status: ContentStatus) => void;
+  onDelete: () => void;
 }) {
   return (
     <div className="bg-[#161616] rounded-lg p-3 border border-white/[0.06] hover:border-white/10 transition-colors">
@@ -484,6 +508,14 @@ function ContentCard({
                 취소
               </button>
             )}
+            {/* 삭제 버튼 - 항상 표시 */}
+            <button
+              onClick={onDelete}
+              className="px-2 py-1 text-[10px] bg-white/5 text-white/30 rounded hover:bg-red-500/20 hover:text-red-400 transition-colors"
+              title="삭제"
+            >
+              삭제
+            </button>
           </div>
         </div>
       </div>
@@ -544,8 +576,14 @@ function EditContentModal({
   };
 
   return (
-    <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
-      <div className="bg-[#161616] rounded-lg w-full max-w-2xl max-h-[90vh] overflow-y-auto border border-white/[0.06]">
+    <div
+      className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4"
+      onClick={onClose}
+    >
+      <div
+        className="bg-[#161616] rounded-lg w-full max-w-2xl max-h-[90vh] overflow-y-auto border border-white/[0.06]"
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="p-4 border-b border-white/[0.06]">
           <h3 className="text-[14px] font-semibold text-white">
             {item.type === "youtube" ? "영상" : "뉴스"} 수정

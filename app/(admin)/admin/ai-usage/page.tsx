@@ -3,11 +3,26 @@
 import { useState, useEffect } from "react";
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
 
-// Token costs per 1M tokens (Anthropic pricing)
-const TOKEN_COSTS = {
+// Token costs per 1M tokens (Gemini - currently used)
+const GEMINI_TOKEN_COSTS = {
+  "gemini-3-flash-preview": { input: 0.5, output: 3.0, name: "Gemini 3 Flash", role: "뉴스 처리" },
+} as const;
+
+// Token costs per 1M tokens (Claude - reserved for future)
+const CLAUDE_TOKEN_COSTS = {
   "claude-3-5-haiku-20241022": { input: 0.8, output: 4.0, name: "Haiku 3.5", role: "검증" },
   "claude-opus-4-5-20250514": { input: 15.0, output: 75.0, name: "Opus 4.5", role: "요약" },
   "claude-sonnet-4-20250514": { input: 3.0, output: 15.0, name: "Sonnet 4", role: "범용" },
+} as const;
+
+// Combined for lookups
+const TOKEN_COSTS = { ...GEMINI_TOKEN_COSTS, ...CLAUDE_TOKEN_COSTS } as const;
+
+// Image generation costs (Google AI pricing, per image)
+const IMAGE_COSTS = {
+  "imagen-4.0-generate-001": { cost: 0.04, name: "Imagen 4", role: "썸네일" },
+  "gemini-2.5-flash-image": { cost: 0.039, name: "Gemini Flash Image", role: "썸네일" },
+  "gemini-2.0-flash": { cost: 0.0001, name: "Gemini Flash Vision", role: "OG 분석" },
 } as const;
 
 interface AIUsageStats {
@@ -49,9 +64,9 @@ function PricingModal({ open, onClose }: { open: boolean; onClose: () => void })
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       <div className="absolute inset-0 bg-black/60" onClick={onClose} />
-      <div className="relative bg-[#1a1a1a] rounded-lg border border-white/10 p-4 w-[340px] shadow-2xl">
+      <div className="relative bg-[#1a1a1a] rounded-lg border border-white/10 p-4 w-[380px] shadow-2xl max-h-[80vh] overflow-y-auto">
         <div className="flex items-center justify-between mb-3">
-          <h3 className="text-[13px] font-semibold text-white">Claude API 단가표</h3>
+          <h3 className="text-[13px] font-semibold text-white">AI API 단가표</h3>
           <button
             onClick={onClose}
             className="text-white/40 hover:text-white/70 text-lg leading-none"
@@ -60,10 +75,66 @@ function PricingModal({ open, onClose }: { open: boolean; onClose: () => void })
           </button>
         </div>
 
-        <div className="text-[10px] text-white/40 mb-2">100만 토큰 당 (USD)</div>
-
+        {/* Gemini LLM Section - Currently Used */}
+        <div className="flex items-center gap-2 mb-2">
+          <div className="text-[10px] text-white/40">Gemini LLM (100만 토큰 당)</div>
+          <span className="text-[9px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-400">
+            사용중
+          </span>
+        </div>
         <div className="space-y-2">
-          {Object.entries(TOKEN_COSTS).map(([model, costs]) => (
+          {Object.entries(GEMINI_TOKEN_COSTS).map(([model, costs]) => (
+            <div key={model} className="bg-blue-500/5 rounded-lg p-2.5 border border-blue-500/10">
+              <div className="flex items-center justify-between mb-1.5">
+                <span className="text-[12px] font-medium text-white">{costs.name}</span>
+                <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-400">
+                  {costs.role}
+                </span>
+              </div>
+              <div className="grid grid-cols-2 gap-2 text-[11px]">
+                <div className="flex items-center justify-between">
+                  <span className="text-white/40">Input</span>
+                  <span className="text-emerald-400 font-mono">${costs.input.toFixed(2)}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-white/40">Output</span>
+                  <span className="text-amber-400 font-mono">${costs.output.toFixed(2)}</span>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Gemini Image Section */}
+        <div className="text-[10px] text-white/40 mb-2 mt-4">Gemini 이미지 생성 (이미지 당)</div>
+        <div className="space-y-2">
+          {Object.entries(IMAGE_COSTS).map(([model, costs]) => (
+            <div
+              key={model}
+              className="bg-purple-500/5 rounded-lg p-2.5 border border-purple-500/10"
+            >
+              <div className="flex items-center justify-between">
+                <span className="text-[12px] font-medium text-white">{costs.name}</span>
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-400">
+                    {costs.role}
+                  </span>
+                  <span className="text-emerald-400 font-mono text-[11px]">
+                    ${costs.cost.toFixed(costs.cost < 0.01 ? 4 : 3)}
+                  </span>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Claude API Section - Not Currently Used */}
+        <div className="flex items-center gap-2 mb-2 mt-4">
+          <div className="text-[10px] text-white/40">Claude API (100만 토큰 당)</div>
+          <span className="text-[9px] px-1.5 py-0.5 rounded bg-white/10 text-white/40">미사용</span>
+        </div>
+        <div className="space-y-2 opacity-50">
+          {Object.entries(CLAUDE_TOKEN_COSTS).map(([model, costs]) => (
             <div key={model} className="bg-white/5 rounded-lg p-2.5">
               <div className="flex items-center justify-between mb-1.5">
                 <span className="text-[12px] font-medium text-white">{costs.name}</span>
@@ -89,8 +160,9 @@ function PricingModal({ open, onClose }: { open: boolean; onClose: () => void })
 
         <div className="mt-3 pt-3 border-t border-white/[0.06]">
           <div className="text-[10px] text-white/30 space-y-0.5">
+            <div>* 현재 뉴스 처리에 Gemini 3 Flash 사용</div>
+            <div>* 썸네일 생성에 Gemini Flash Image 사용</div>
             <div>* Output이 Input보다 비용이 높음</div>
-            <div>* Haiku = 빠른 검증, Opus = 고품질 요약</div>
           </div>
         </div>
       </div>
@@ -152,8 +224,13 @@ function MetricCard({
 
 // Model Name Helper
 function getModelDisplayName(model: string): string {
-  const modelInfo = TOKEN_COSTS[model as keyof typeof TOKEN_COSTS];
-  return modelInfo?.name || model.split("-").slice(-1)[0] || model;
+  const tokenModel = TOKEN_COSTS[model as keyof typeof TOKEN_COSTS];
+  if (tokenModel) return tokenModel.name;
+
+  const imageModel = IMAGE_COSTS[model as keyof typeof IMAGE_COSTS];
+  if (imageModel) return imageModel.name;
+
+  return model.split("-").slice(-1)[0] || model;
 }
 
 // Operation Name Helper
@@ -161,6 +238,10 @@ function getOperationDisplayName(operation: string): string {
   const names: Record<string, string> = {
     validate: "검증 (Validation)",
     summarize: "요약 (Summarize)",
+    thumbnail_imagen: "썸네일 (Imagen)",
+    thumbnail_gemini: "썸네일 (Gemini Flash)",
+    thumbnail_og_fusion: "썸네일 (OG+AI 융합)",
+    image_generation: "이미지 생성",
     unknown: "기타",
   };
   return names[operation] || operation;

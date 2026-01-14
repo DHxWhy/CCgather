@@ -51,8 +51,13 @@ export default function CronScheduler({ onRefresh }: CronSchedulerProps) {
   const [manualProgress, setManualProgress] = useState<{
     stage: string;
     message: string;
+    progress?: number;
+    steps?: Array<{ stage: string; message: string; completed: boolean }>;
   } | null>(null);
   const manualAbortRef = useRef<AbortController | null>(null);
+
+  // Log modal state for batch collection
+  const [showLogModal, setShowLogModal] = useState(false);
 
   // Force re-collection dialog state
   const [showForceDialog, setShowForceDialog] = useState(false);
@@ -284,7 +289,7 @@ export default function CronScheduler({ onRefresh }: CronSchedulerProps) {
     }
   }
 
-  // Manual URL collection
+  // Manual URL collection with streaming progress
   async function collectSingleUrl(forceRecollect = false) {
     if (!manualUrl.trim() || manualCollecting) return;
 
@@ -300,10 +305,26 @@ export default function CronScheduler({ onRefresh }: CronSchedulerProps) {
     manualAbortRef.current = new AbortController();
 
     setManualCollecting(true);
-    setManualProgress({ stage: "starting", message: "수집 시작 중..." });
+
+    // Initialize progress with steps
+    const initialSteps = [
+      { stage: "checking", message: "기존 콘텐츠 확인", completed: false },
+      { stage: "fetching", message: "웹 페이지 분석", completed: false },
+      { stage: "ai_stage1", message: "AI Stage 1: 팩트 추출", completed: false },
+      { stage: "ai_stage2", message: "AI Stage 2: 기사 리라이팅", completed: false },
+      { stage: "ai_stage3", message: "AI Stage 3: 팩트 검증", completed: false },
+      { stage: "saving", message: "데이터베이스 저장", completed: false },
+      { stage: "thumbnail", message: "썸네일 생성", completed: false },
+    ];
+    setManualProgress({
+      stage: "starting",
+      message: "수집 시작 중...",
+      progress: 0,
+      steps: initialSteps,
+    });
 
     try {
-      const response = await fetch("/api/admin/collect-single", {
+      const response = await fetch("/api/admin/collect-single/stream", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -314,43 +335,94 @@ export default function CronScheduler({ onRefresh }: CronSchedulerProps) {
         signal: manualAbortRef.current.signal,
       });
 
-      const data = await response.json();
+      if (!response.ok || !response.body) {
+        throw new Error("Stream connection failed");
+      }
 
-      if (response.ok && data.success) {
-        // Show additional info if it was a retry
-        const statusInfo = data.needs_review
-          ? " (재검토 필요)"
-          : data.retry_count > 0
-            ? ` (재시도 ${data.retry_count}회)`
-            : "";
-        setManualProgress({
-          stage: "complete",
-          message: `수집 완료!${statusInfo} 점수: ${data.fact_check_score || "N/A"}점`,
-        });
-        setManualUrl("");
-        onRefresh?.();
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
 
-        // Reset progress after a delay
-        setTimeout(() => {
-          setManualProgress(null);
-        }, 3000);
-      } else if (response.status === 409 && data.can_force) {
-        // URL already exists - show confirmation dialog
-        setForceDialogData({
-          url: manualUrl.trim(),
-          category: manualCategory,
-          existingId: data.existing_id,
-          existingStatus: data.existing_status,
-          existingStatusLabel: data.existing_status_label,
-          existingTitle: data.existing_title,
-        });
-        setShowForceDialog(true);
-        setManualProgress(null);
-      } else {
-        setManualProgress({
-          stage: "error",
-          message: data.error || "수집 실패",
-        });
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n\n");
+        buffer = lines.pop() || "";
+
+        for (const line of lines) {
+          if (line.startsWith("data: ")) {
+            try {
+              const event = JSON.parse(line.slice(6));
+
+              // Update progress based on event
+              setManualProgress((prev) => {
+                const updatedSteps = (prev?.steps || initialSteps).map((step) => ({
+                  ...step,
+                  completed: getStageOrder(step.stage) < getStageOrder(event.stage),
+                }));
+
+                return {
+                  stage: event.stage,
+                  message: event.message,
+                  progress: event.progress || prev?.progress,
+                  steps: updatedSteps,
+                };
+              });
+
+              // Handle conflict (URL already exists)
+              if (event.stage === "conflict" && event.data?.can_force) {
+                setForceDialogData({
+                  url: manualUrl.trim(),
+                  category: manualCategory,
+                  existingId: event.data.existing_id as string,
+                  existingStatus: event.data.existing_status as string,
+                  existingStatusLabel: event.data.existing_status_label as string,
+                  existingTitle: event.data.existing_title as string,
+                });
+                setShowForceDialog(true);
+                setManualProgress(null);
+                setManualCollecting(false);
+                return;
+              }
+
+              // Handle completion
+              if (event.stage === "complete" && event.data?.success) {
+                const data = event.data;
+                const statusInfo = data.needs_review
+                  ? " (재검토 필요)"
+                  : (data.retry_count as number) > 0
+                    ? ` (재시도 ${data.retry_count}회)`
+                    : "";
+                setManualProgress({
+                  stage: "complete",
+                  message: `${event.message}${statusInfo}`,
+                  progress: 100,
+                  steps: initialSteps.map((s) => ({ ...s, completed: true })),
+                });
+                setManualUrl("");
+                onRefresh?.();
+
+                // Reset progress after a delay
+                setTimeout(() => {
+                  setManualProgress(null);
+                }, 5000);
+              }
+
+              // Handle error
+              if (event.stage === "error") {
+                setManualProgress({
+                  stage: "error",
+                  message: event.message,
+                  progress: 0,
+                });
+              }
+            } catch {
+              // JSON parse error, ignore
+            }
+          }
+        }
       }
     } catch (error) {
       // Handle abort error
@@ -364,6 +436,21 @@ export default function CronScheduler({ onRefresh }: CronSchedulerProps) {
       manualAbortRef.current = null;
       setManualCollecting(false);
     }
+  }
+
+  // Helper to get stage order for progress tracking
+  function getStageOrder(stage: string): number {
+    const order: Record<string, number> = {
+      checking: 1,
+      fetching: 2,
+      ai_stage1: 3,
+      ai_stage2: 4,
+      ai_stage3: 5,
+      saving: 6,
+      thumbnail: 7,
+      complete: 8,
+    };
+    return order[stage] || 0;
   }
 
   // Force re-collection after user confirmation
@@ -411,88 +498,6 @@ export default function CronScheduler({ onRefresh }: CronSchedulerProps) {
             <span>{cronJob.name}</span>
           </button>
         ))}
-      </div>
-
-      {/* Manual URL Collection Section */}
-      <div className="bg-gradient-to-r from-purple-500/10 to-blue-500/10 rounded-xl p-4 border border-purple-500/20">
-        <h4 className="text-sm font-medium text-white mb-3 flex items-center gap-2">
-          <span>🔗</span> URL 직접 수집
-        </h4>
-        <p className="text-xs text-white/50 mb-3">
-          URL을 입력하면 AI가 콘텐츠를 분석하고 재작성합니다. 검토 후 게시할 수 있습니다.
-        </p>
-
-        <div className="flex gap-2 mb-3">
-          <input
-            id="manual-url"
-            name="manual-url"
-            type="url"
-            value={manualUrl}
-            onChange={(e) => setManualUrl(e.target.value)}
-            placeholder="https://example.com/article"
-            disabled={manualCollecting}
-            autoComplete="url"
-            className="flex-1 px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-sm text-white placeholder:text-white/30 focus:outline-none focus:border-purple-500/50 disabled:opacity-50"
-          />
-          <select
-            id="manual-category"
-            name="manual-category"
-            value={manualCategory}
-            onChange={(e) => setManualCategory(e.target.value as TargetCategory)}
-            disabled={manualCollecting}
-            className="px-3 py-2 bg-[#2a2a2a] border border-white/10 rounded-lg text-sm text-white focus:outline-none focus:border-purple-500/50 disabled:opacity-50"
-          >
-            {CATEGORY_OPTIONS.map((opt) => (
-              <option key={opt.value} value={opt.value} className="bg-[#2a2a2a] text-white">
-                {opt.label}
-              </option>
-            ))}
-          </select>
-          {manualCollecting ? (
-            <button
-              onClick={cancelManualCollection}
-              className="px-4 py-2 bg-red-500 text-white rounded-lg text-sm font-medium hover:bg-red-600 transition-colors flex items-center gap-2"
-            >
-              <span>⏹️</span> 중지
-            </button>
-          ) : (
-            <button
-              onClick={() => collectSingleUrl(false)}
-              disabled={!manualUrl.trim()}
-              className="px-4 py-2 bg-purple-500 text-white rounded-lg text-sm font-medium hover:bg-purple-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-            >
-              ✨ AI 수집
-            </button>
-          )}
-        </div>
-
-        {/* Progress Display */}
-        {manualProgress && (
-          <div
-            className={`p-3 rounded-lg text-sm ${
-              manualProgress.stage === "error"
-                ? "bg-red-500/20 text-red-400"
-                : manualProgress.stage === "complete"
-                  ? "bg-green-500/20 text-green-400"
-                  : manualProgress.stage === "cancelled"
-                    ? "bg-yellow-500/20 text-yellow-400"
-                    : "bg-blue-500/20 text-blue-400"
-            }`}
-          >
-            <div className="flex items-center gap-2">
-              {manualProgress.stage === "error" ? (
-                <span>❌</span>
-              ) : manualProgress.stage === "complete" ? (
-                <span>✅</span>
-              ) : manualProgress.stage === "cancelled" ? (
-                <span>⚠️</span>
-              ) : (
-                <span className="animate-pulse">🔄</span>
-              )}
-              {manualProgress.message}
-            </div>
-          </div>
-        )}
       </div>
 
       {/* Job not initialized */}
@@ -601,6 +606,13 @@ export default function CronScheduler({ onRefresh }: CronSchedulerProps) {
                 🚀 전체 수집 실행
               </button>
             )}
+            <button
+              onClick={() => setShowLogModal(true)}
+              className="px-4 py-3 bg-white/10 text-white rounded-xl hover:bg-white/20 transition-colors flex items-center gap-2"
+              title="실행 로그"
+            >
+              📋 로그
+            </button>
             <button
               onClick={() => {
                 stopPolling();
@@ -755,6 +767,230 @@ export default function CronScheduler({ onRefresh }: CronSchedulerProps) {
             </div>
           </div>
         </>
+      )}
+
+      {/* Manual URL Collection Section - Below News Collector */}
+      <div className="bg-gradient-to-r from-purple-500/10 to-blue-500/10 rounded-xl p-4 border border-purple-500/20">
+        <h4 className="text-sm font-medium text-white mb-3 flex items-center gap-2">
+          <span>🔗</span> URL 직접 수집
+        </h4>
+        <p className="text-xs text-white/50 mb-3">
+          URL을 입력하면 AI가 콘텐츠를 분석하고 재작성합니다. 검토 후 게시할 수 있습니다.
+        </p>
+
+        <div className="flex gap-2 mb-3">
+          <input
+            id="manual-url"
+            name="manual-url"
+            type="url"
+            value={manualUrl}
+            onChange={(e) => setManualUrl(e.target.value)}
+            placeholder="https://example.com/article"
+            disabled={manualCollecting}
+            autoComplete="url"
+            className="flex-1 px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-sm text-white placeholder:text-white/30 focus:outline-none focus:border-purple-500/50 disabled:opacity-50"
+          />
+          <select
+            id="manual-category"
+            name="manual-category"
+            value={manualCategory}
+            onChange={(e) => setManualCategory(e.target.value as TargetCategory)}
+            disabled={manualCollecting}
+            className="px-3 py-2 bg-[#2a2a2a] border border-white/10 rounded-lg text-sm text-white focus:outline-none focus:border-purple-500/50 disabled:opacity-50"
+          >
+            {CATEGORY_OPTIONS.map((opt) => (
+              <option key={opt.value} value={opt.value} className="bg-[#2a2a2a] text-white">
+                {opt.label}
+              </option>
+            ))}
+          </select>
+          {manualCollecting ? (
+            <button
+              onClick={cancelManualCollection}
+              className="px-4 py-2 bg-red-500 text-white rounded-lg text-sm font-medium hover:bg-red-600 transition-colors flex items-center gap-2"
+            >
+              <span>⏹️</span> 중지
+            </button>
+          ) : (
+            <button
+              onClick={() => collectSingleUrl(false)}
+              disabled={!manualUrl.trim()}
+              className="px-4 py-2 bg-purple-500 text-white rounded-lg text-sm font-medium hover:bg-purple-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+            >
+              ✨ AI 수집
+            </button>
+          )}
+        </div>
+
+        {/* AI Thinking Style Progress Display */}
+        {manualProgress && (
+          <div className="space-y-3">
+            {/* Progress Bar */}
+            {manualProgress.progress !== undefined && manualProgress.stage !== "error" && (
+              <div className="relative h-2 bg-white/10 rounded-full overflow-hidden">
+                <div
+                  className="absolute inset-y-0 left-0 bg-gradient-to-r from-purple-500 to-blue-500 transition-all duration-500 ease-out"
+                  style={{ width: `${manualProgress.progress}%` }}
+                />
+              </div>
+            )}
+
+            {/* Steps Progress */}
+            {manualProgress.steps &&
+              manualProgress.stage !== "error" &&
+              manualProgress.stage !== "complete" && (
+                <div className="bg-black/30 rounded-lg p-3 border border-white/5">
+                  <div className="space-y-2">
+                    {manualProgress.steps.map((step, idx) => {
+                      const isActive = step.stage === manualProgress.stage;
+                      const isPast = step.completed;
+                      return (
+                        <div
+                          key={step.stage}
+                          className={`flex items-center gap-3 text-xs transition-all duration-300 ${
+                            isActive
+                              ? "text-blue-400"
+                              : isPast
+                                ? "text-green-400/70"
+                                : "text-white/30"
+                          }`}
+                        >
+                          <span className="w-5 h-5 flex items-center justify-center flex-shrink-0">
+                            {isPast ? (
+                              <span className="text-green-400">✓</span>
+                            ) : isActive ? (
+                              <span className="animate-spin text-blue-400">⚙️</span>
+                            ) : (
+                              <span className="text-white/20">{idx + 1}</span>
+                            )}
+                          </span>
+                          <span className={isActive ? "font-medium" : ""}>
+                            {step.message}
+                            {isActive && <span className="animate-pulse ml-1">...</span>}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+            {/* Current Status Message */}
+            <div
+              className={`p-3 rounded-lg text-sm ${
+                manualProgress.stage === "error"
+                  ? "bg-red-500/20 text-red-400"
+                  : manualProgress.stage === "complete"
+                    ? "bg-green-500/20 text-green-400"
+                    : manualProgress.stage === "cancelled"
+                      ? "bg-yellow-500/20 text-yellow-400"
+                      : "bg-blue-500/20 text-blue-400"
+              }`}
+            >
+              <div className="flex items-center gap-2">
+                {manualProgress.stage === "error" ? (
+                  <span>❌</span>
+                ) : manualProgress.stage === "complete" ? (
+                  <span>✅</span>
+                ) : manualProgress.stage === "cancelled" ? (
+                  <span>⚠️</span>
+                ) : (
+                  <span className="animate-pulse">🔄</span>
+                )}
+                <span className="flex-1">{manualProgress.message}</span>
+                {manualProgress.progress !== undefined &&
+                  manualProgress.stage !== "error" &&
+                  manualProgress.stage !== "complete" && (
+                    <span className="text-white/50">{manualProgress.progress}%</span>
+                  )}
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Log Modal for Batch Collection */}
+      {showLogModal && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
+          <div className="bg-[#1a1a1a] rounded-2xl w-full max-w-2xl p-6 border border-white/10 max-h-[80vh] flex flex-col">
+            <div className="flex items-center justify-between mb-4">
+              <h4 className="text-xl font-bold text-white flex items-center gap-2">
+                <span>📋</span> 수집 실행 로그
+              </h4>
+              <button
+                onClick={() => setShowLogModal(false)}
+                className="text-white/40 hover:text-white transition-colors text-xl"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Current Run Status */}
+            {(running || job?.is_running) && (
+              <div className="bg-blue-500/10 border border-blue-500/20 rounded-xl p-3 mb-4 flex items-center gap-3">
+                <span className="animate-spin">⚙️</span>
+                <span className="text-blue-400 text-sm font-medium">수집 진행 중...</span>
+              </div>
+            )}
+
+            {/* Log Entries */}
+            <div className="flex-1 overflow-y-auto bg-black/30 rounded-xl p-4 font-mono text-xs space-y-1 min-h-[300px]">
+              {liveProgress.length === 0 ? (
+                <div className="text-white/40 text-center py-8">
+                  {running
+                    ? "로그 대기 중..."
+                    : "실행 기록이 없습니다.\n\n'전체 수집 실행'을 클릭하면 로그가 표시됩니다."}
+                </div>
+              ) : (
+                liveProgress.map((log, idx) => (
+                  <div
+                    key={idx}
+                    className={`flex gap-3 py-1 ${
+                      log.level === "error"
+                        ? "text-red-400"
+                        : log.level === "warn"
+                          ? "text-yellow-400"
+                          : log.level === "success"
+                            ? "text-green-400"
+                            : "text-white/70"
+                    }`}
+                  >
+                    <span className="text-white/30 flex-shrink-0 min-w-[70px]">
+                      {new Date(log.timestamp).toLocaleTimeString("ko-KR")}
+                    </span>
+                    <span
+                      className={`flex-shrink-0 min-w-[50px] uppercase text-[10px] px-1.5 py-0.5 rounded ${
+                        log.level === "error"
+                          ? "bg-red-500/20"
+                          : log.level === "warn"
+                            ? "bg-yellow-500/20"
+                            : log.level === "success"
+                              ? "bg-green-500/20"
+                              : "bg-white/10"
+                      }`}
+                    >
+                      {log.level || "info"}
+                    </span>
+                    <span className="break-words">{log.message}</span>
+                  </div>
+                ))
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="flex justify-between items-center mt-4 pt-4 border-t border-white/10">
+              <span className="text-xs text-white/40">
+                {liveProgress.length > 0 ? `${liveProgress.length}개 로그 항목` : ""}
+              </span>
+              <button
+                onClick={() => setShowLogModal(false)}
+                className="px-4 py-2 bg-white/10 text-white rounded-lg hover:bg-white/20 transition-colors"
+              >
+                닫기
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Force Re-collection Confirmation Dialog */}

@@ -98,6 +98,49 @@ function parseDate(dateStr: string | undefined): string {
 }
 
 /**
+ * Extract date from JSON-LD structured data
+ */
+function extractJsonLdDate($: cheerio.CheerioAPI): string | null {
+  try {
+    const scripts = $('script[type="application/ld+json"]');
+    for (let i = 0; i < scripts.length; i++) {
+      const scriptContent = $(scripts[i]).html();
+      if (!scriptContent) continue;
+
+      const jsonLd = JSON.parse(scriptContent);
+
+      // Handle array of objects
+      const items = Array.isArray(jsonLd) ? jsonLd : [jsonLd];
+
+      for (const item of items) {
+        // Check common date fields
+        const dateField =
+          item.datePublished ||
+          item.dateCreated ||
+          item.dateModified ||
+          item.publishedAt ||
+          item.published;
+
+        if (dateField) {
+          return dateField;
+        }
+
+        // Check @graph for nested data (common in WordPress)
+        if (item["@graph"] && Array.isArray(item["@graph"])) {
+          for (const graphItem of item["@graph"]) {
+            if (graphItem.datePublished) return graphItem.datePublished;
+            if (graphItem.dateCreated) return graphItem.dateCreated;
+          }
+        }
+      }
+    }
+  } catch {
+    // JSON parsing failed, return null
+  }
+  return null;
+}
+
+/**
  * Clean text content - remove extra whitespace
  */
 function cleanText(text: string): string {
@@ -155,11 +198,22 @@ function extractGeneric($: cheerio.CheerioAPI, url: string): FetchedArticle | nu
     content = content.slice(0, 10000) + "...";
   }
 
-  // Extract date
+  // Extract date - try multiple selectors
   const dateStr =
     $("time").attr("datetime") ||
     $('meta[property="article:published_time"]').attr("content") ||
+    $('meta[property="og:article:published_time"]').attr("content") ||
     $('meta[name="date"]').attr("content") ||
+    $('meta[name="publish_date"]').attr("content") ||
+    $('meta[name="publishdate"]').attr("content") ||
+    $('meta[name="DC.date.issued"]').attr("content") ||
+    $('meta[itemprop="datePublished"]').attr("content") ||
+    $('[itemprop="datePublished"]').attr("content") ||
+    $('[itemprop="datePublished"]').attr("datetime") ||
+    $('[class*="date"]').first().attr("datetime") ||
+    $('[data-testid="storyPublishDate"]').text() ||
+    // JSON-LD structured data
+    extractJsonLdDate($) ||
     "";
 
   // Extract thumbnail

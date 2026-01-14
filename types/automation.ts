@@ -112,7 +112,7 @@ export interface CronRunHistory {
 
 export interface CronLogEntry {
   timestamp: string;
-  level: "info" | "warn" | "error";
+  level: "info" | "warn" | "error" | "success";
   message: string;
   data?: Record<string, unknown>;
 }

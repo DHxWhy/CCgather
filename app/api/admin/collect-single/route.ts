@@ -140,6 +140,24 @@ export async function POST(request: NextRequest) {
     // - pending: Normal review queue
     const status = pipelineResult.needsReview ? "needs_review" : "pending";
 
+    // Determine published_at: HTML extracted > AI extracted > current time
+    let publishedAt = result.article.publishedAt;
+
+    // Check if HTML extraction failed (returned current time)
+    const now = new Date();
+    const extractedDate = new Date(publishedAt);
+    const isRecentDate = Math.abs(now.getTime() - extractedDate.getTime()) < 60 * 60 * 1000; // Within 1 hour
+
+    // If HTML extraction likely failed, try AI-extracted date
+    if (isRecentDate && pipelineResult.extractedFacts?.publishedAt) {
+      const aiPublishedAt = pipelineResult.extractedFacts.publishedAt;
+      const aiDate = new Date(aiPublishedAt);
+      if (!isNaN(aiDate.getTime())) {
+        publishedAt = aiDate.toISOString();
+        console.log(`[Collect Single] Using AI-extracted date: ${publishedAt}`);
+      }
+    }
+
     // Build insert data
     const insertData: Record<string, unknown> = {
       type: "news",
@@ -148,10 +166,15 @@ export async function POST(request: NextRequest) {
       source_name: result.article.sourceName,
       title: hasRichContent ? pipelineResult.summary!.richContent.title.text : result.article.title,
       thumbnail_url: result.article.thumbnail,
-      published_at: result.article.publishedAt,
+      published_at: publishedAt,
       status, // 'needs_review' if low score, 'pending' otherwise
       category: category,
     };
+
+    // Add news_tags for filtering
+    if (pipelineResult.newsTags && pipelineResult.newsTags.length > 0) {
+      insertData.news_tags = pipelineResult.newsTags;
+    }
 
     // Add rich content fields if AI processing succeeded
     if (hasRichContent) {
