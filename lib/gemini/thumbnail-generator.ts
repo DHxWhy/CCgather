@@ -3,8 +3,8 @@
  * Generates AI thumbnails for news articles using Google Imagen 4 API
  *
  * SDK: @google/genai
- * Model: imagen-4.0-generate-001
- * Pricing: $0.03 per image
+ * Model: imagen-4.0-generate-001 (Standard)
+ * Pricing: $0.04 per image
  */
 
 import { GoogleGenAI } from "@google/genai";
@@ -14,6 +14,198 @@ import { createServiceClient } from "@/lib/supabase/server";
 const IMAGEN_MODEL = "imagen-4.0-generate-001";
 const DEFAULT_PLACEHOLDER = "/images/news-placeholder.svg";
 const SUPABASE_BUCKET = "thumbnails";
+
+// ===========================================
+// Visual Theme System for News Categories
+// ===========================================
+
+type VisualThemeKey =
+  | "corporate"
+  | "ai_technology"
+  | "product"
+  | "funding"
+  | "partnership"
+  | "default";
+
+interface VisualTheme {
+  subjects: string[];
+  contexts: string[];
+  style: string;
+  lighting: string;
+  mood: string;
+}
+
+const NEWS_VISUAL_THEMES: Record<VisualThemeKey, VisualTheme> = {
+  corporate: {
+    subjects: [
+      "modern glass office building with reflective facade",
+      "corporate headquarters tower in urban setting",
+      "sleek tech campus with contemporary architecture",
+    ],
+    contexts: [
+      "cityscape at golden hour",
+      "professional business district",
+      "urban skyline with modern buildings",
+    ],
+    style: "architectural photography, editorial magazine quality, cinematic composition",
+    lighting: "golden hour warm sunlight, dramatic long shadows",
+    mood: "ambitious, professional, forward-looking, innovative",
+  },
+
+  ai_technology: {
+    subjects: [
+      "abstract neural network visualization with glowing nodes",
+      "flowing data streams in digital space",
+      "geometric AI brain concept with circuit patterns",
+    ],
+    contexts: [
+      "dark background with soft blue and purple gradients",
+      "digital void with floating particles",
+      "abstract technological environment",
+    ],
+    style: "3D render aesthetic, tech illustration, cinematic sci-fi look",
+    lighting: "neon blue and purple accent lighting, soft ambient glow",
+    mood: "futuristic, intelligent, cutting-edge, mysterious",
+  },
+
+  product: {
+    subjects: [
+      "sleek consumer tech device on minimalist pedestal",
+      "modern gadget with clean lines floating in space",
+      "premium product showcase with subtle reflections",
+    ],
+    contexts: [
+      "clean gradient background fading from dark to light",
+      "professional studio environment",
+      "minimalist setting with soft shadows",
+    ],
+    style: "product photography, Apple-style minimalism, premium aesthetic",
+    lighting: "soft studio lighting, rim light highlights, subtle shadows",
+    mood: "premium, desirable, innovative, sleek",
+  },
+
+  funding: {
+    subjects: [
+      "abstract upward growing bars and charts",
+      "geometric shapes ascending in formation",
+      "stylized growth visualization with dynamic lines",
+    ],
+    contexts: [
+      "professional dark background with subtle grid",
+      "clean space with depth and dimension",
+      "minimal environment with accent colors",
+    ],
+    style: "infographic aesthetic, clean vector look, professional business graphics",
+    lighting: "soft ambient light, accent highlights on key elements",
+    mood: "growth, success, opportunity, momentum",
+  },
+
+  partnership: {
+    subjects: [
+      "two abstract geometric shapes connecting",
+      "interlinked circular forms symbolizing unity",
+      "handshake silhouette made of digital particles",
+    ],
+    contexts: [
+      "professional gradient background",
+      "clean corporate environment",
+      "balanced symmetrical composition",
+    ],
+    style: "corporate graphic design, professional illustration, symbolic imagery",
+    lighting: "balanced even lighting, soft gradients",
+    mood: "collaboration, synergy, trust, professional",
+  },
+
+  default: {
+    subjects: [
+      "abstract tech-inspired geometric composition",
+      "modern minimalist design with flowing lines",
+      "contemporary digital art with subtle patterns",
+    ],
+    contexts: [
+      "dark gradient background from navy to black",
+      "clean professional backdrop",
+      "minimal space with depth",
+    ],
+    style: "modern digital art, tech aesthetic, editorial quality",
+    lighting: "soft accent lighting, subtle highlights",
+    mood: "professional, innovative, tech-forward, clean",
+  },
+};
+
+// ===========================================
+// Keyword Extraction and Theme Detection
+// ===========================================
+
+interface ExtractedKeywords {
+  company?: string;
+  action?: string;
+  location?: string;
+  topic?: string;
+}
+
+const COMPANY_PATTERNS =
+  /\b(OpenAI|Google|Microsoft|Apple|Meta|Amazon|Anthropic|Nvidia|Tesla|Samsung|IBM|Intel|AMD|Qualcomm|Adobe|Salesforce|Oracle|Cisco|Uber|Lyft|Airbnb|Netflix|Spotify|Twitter|X Corp|LinkedIn|GitHub|Figma|Notion|Slack|Zoom|Dropbox|Stripe|Square|PayPal|Coinbase|Binance|ByteDance|TikTok|Alibaba|Tencent|Baidu|Huawei|Xiaomi)\b/i;
+
+const LOCATION_PATTERNS =
+  /\b(San Francisco|New York|Seattle|Los Angeles|Boston|Austin|Denver|Chicago|Washington|London|Paris|Berlin|Tokyo|Seoul|Singapore|Hong Kong|Shanghai|Beijing|Sydney|Toronto|Vancouver|Silicon Valley|Bay Area)\b/i;
+
+const ACTION_PATTERNS = {
+  corporate: /\b(expansion|expands?|headquarters|office|campus|relocat|moves?|opens?|building)\b/i,
+  funding: /\b(funding|raises?|investment|valuation|IPO|series [A-Z]|million|billion|capital)\b/i,
+  product:
+    /\b(launch|launches?|releases?|announces?|unveils?|introduces?|new product|feature|update|version)\b/i,
+  partnership:
+    /\b(partnership|partners?|collaborat|acquires?|acquisition|merger|deal|agreement|joins?)\b/i,
+  ai_technology:
+    /\b(AI|artificial intelligence|machine learning|ML|GPT|LLM|neural|model|algorithm|AGI|chatbot|generative)\b/i,
+};
+
+function extractKeywords(title: string): ExtractedKeywords {
+  return {
+    company: title.match(COMPANY_PATTERNS)?.[0],
+    location: title.match(LOCATION_PATTERNS)?.[0],
+    action: detectAction(title),
+    topic: detectTopic(title),
+  };
+}
+
+function detectAction(title: string): string | undefined {
+  for (const [action, pattern] of Object.entries(ACTION_PATTERNS)) {
+    if (pattern.test(title)) {
+      return action;
+    }
+  }
+  return undefined;
+}
+
+function detectTopic(title: string): string | undefined {
+  const topicPatterns: Record<string, RegExp> = {
+    ai: /\b(AI|GPT|LLM|Claude|Gemini|ChatGPT|Copilot|neural|machine learning)\b/i,
+    cloud: /\b(cloud|AWS|Azure|GCP|infrastructure|server|data center)\b/i,
+    mobile: /\b(iPhone|Android|mobile|smartphone|tablet|app store)\b/i,
+    security: /\b(security|privacy|hack|breach|cyber|encryption)\b/i,
+    finance: /\b(fintech|payment|banking|crypto|blockchain|bitcoin)\b/i,
+  };
+
+  for (const [topic, pattern] of Object.entries(topicPatterns)) {
+    if (pattern.test(title)) {
+      return topic;
+    }
+  }
+  return undefined;
+}
+
+function detectVisualTheme(keywords: ExtractedKeywords): VisualThemeKey {
+  // Priority-based theme detection
+  if (keywords.action === "funding") return "funding";
+  if (keywords.action === "partnership") return "partnership";
+  if (keywords.action === "product") return "product";
+  if (keywords.action === "ai_technology" || keywords.topic === "ai") return "ai_technology";
+  if (keywords.action === "corporate" || keywords.location) return "corporate";
+
+  return "default";
+}
 
 export interface ThumbnailRequest {
   content_id: string;
@@ -31,29 +223,50 @@ export interface ThumbnailResult {
   cost_usd?: number;
 }
 
+// ===========================================
+// Improved Prompt Generation
+// ===========================================
+
 /**
- * Generate thumbnail prompt based on article content
+ * Generate optimized thumbnail prompt based on article content
+ * Uses structured prompt format: Subject + Context + Style + Quality
  */
 function generatePrompt(title: string, summary?: string): string {
-  // Clean title for prompt (remove special chars, limit length)
-  const cleanTitle = title.replace(/[^\w\s]/gi, " ").slice(0, 100);
-  const cleanSummary = summary?.replace(/[^\w\s]/gi, " ").slice(0, 150) || "";
+  // Extract keywords from title and summary
+  const combinedText = summary ? `${title} ${summary}` : title;
+  const keywords = extractKeywords(combinedText);
 
-  return `Create a minimalist, modern thumbnail for a tech news article.
+  // Detect appropriate visual theme
+  const themeKey = detectVisualTheme(keywords);
+  const theme = NEWS_VISUAL_THEMES[themeKey];
 
-Topic: ${cleanTitle}
-${cleanSummary ? `Context: ${cleanSummary}` : ""}
+  // Select random elements for variety (with fallbacks)
+  const subjectIndex = Math.floor(Math.random() * theme.subjects.length);
+  const contextIndex = Math.floor(Math.random() * theme.contexts.length);
+  const subject =
+    theme.subjects[subjectIndex] || theme.subjects[0] || "abstract tech visualization";
+  const context =
+    theme.contexts[contextIndex] || theme.contexts[0] || "professional dark background";
 
-Style:
-- Dark gradient background (deep navy #0a0f1a to black)
-- Subtle geometric patterns or abstract tech shapes
-- Coral (#FF6B4A) or electric blue (#3B82F6) accent elements
-- Clean, professional, futuristic aesthetic
-- NO text, NO human faces, NO logos
-- Suitable as a news article thumbnail
-- High contrast, visually striking
+  // Build location-aware subject if applicable
+  const locationSubject = keywords.location
+    ? subject.replace(
+        /\b(in urban setting|in digital space|floating in space)\b/gi,
+        `in ${keywords.location}`
+      )
+    : subject;
 
-The image should feel: Professional, Innovative, Tech-forward, Clean`;
+  // Construct the optimized prompt
+  return `${locationSubject}, ${context}.
+
+Style: ${theme.style}
+Lighting: ${theme.lighting}
+Camera: Wide angle lens, 35mm, professional composition, rule of thirds.
+Quality: 4K resolution, high detail, sharp focus, professional grade photography.
+Mood: ${theme.mood}
+Color palette: Deep navy blue, warm coral orange accents, electric blue highlights.
+
+Important: Do not include any text, words, letters, human faces, or company logos in the image.`;
 }
 
 /**
@@ -128,6 +341,7 @@ export async function generateThumbnail(request: ThumbnailRequest): Promise<Thum
       prompt,
       config: {
         numberOfImages: 1,
+        aspectRatio: "16:9", // Optimal for news thumbnails
       },
     });
 
@@ -174,7 +388,7 @@ export async function generateThumbnail(request: ThumbnailRequest): Promise<Thum
       success: true,
       thumbnail_url: url,
       source: "gemini",
-      cost_usd: 0.03,
+      cost_usd: 0.04,
     };
   } catch (error) {
     console.error("[Thumbnail] Generation error:", error);
