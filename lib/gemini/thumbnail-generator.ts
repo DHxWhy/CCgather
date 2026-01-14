@@ -1,21 +1,17 @@
 /**
- * Gemini Imagen 3 Thumbnail Generator
- * Generates AI thumbnails for news articles using Google Imagen 3 API
+ * Gemini Imagen 4 Thumbnail Generator
+ * Generates AI thumbnails for news articles using Google Imagen 4 API
  *
- * API: https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-002:predict
+ * SDK: @google/genai
+ * Model: imagen-4.0-generate-001
  * Pricing: $0.03 per image
  */
 
+import { GoogleGenAI } from "@google/genai";
 import { createServiceClient } from "@/lib/supabase/server";
 
 // Configuration
-// Imagen 3 API - try multiple model versions for compatibility
-const IMAGEN_MODELS = [
-  "imagen-3.0-generate-001",
-  "imagen-3.0-generate-002",
-  "imagen-3.0-fast-generate-001",
-];
-const IMAGEN_API_BASE = "https://generativelanguage.googleapis.com/v1beta/models";
+const IMAGEN_MODEL = "imagen-4.0-generate-001";
 const DEFAULT_PLACEHOLDER = "/images/news-placeholder.svg";
 const SUPABASE_BUCKET = "thumbnails";
 
@@ -101,8 +97,8 @@ async function uploadToStorage(
 }
 
 /**
- * Generate thumbnail using Gemini Imagen 3 API
- * Tries multiple model versions for compatibility
+ * Generate thumbnail using Google Imagen 4 API
+ * Uses @google/genai SDK
  */
 export async function generateThumbnail(request: ThumbnailRequest): Promise<ThumbnailResult> {
   const apiKey = process.env.GOOGLE_GEMINI_API_KEY;
@@ -120,115 +116,106 @@ export async function generateThumbnail(request: ThumbnailRequest): Promise<Thum
   const prompt = generatePrompt(request.title, request.summary);
   console.log(`[Thumbnail] Generating for: "${request.title.slice(0, 50)}..."`);
 
-  // Try each model version until one works
-  for (const model of IMAGEN_MODELS) {
-    try {
-      const apiUrl = `${IMAGEN_API_BASE}/${model}:predict`;
-      console.log(`[Thumbnail] Trying model: ${model}`);
+  try {
+    // Initialize Google GenAI client
+    const ai = new GoogleGenAI({ apiKey });
 
-      // Call Imagen 3 API - simplified request format
-      const response = await fetch(apiUrl, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-goog-api-key": apiKey,
-        },
-        body: JSON.stringify({
-          instances: [{ prompt }],
-          parameters: {
-            sampleCount: 1,
-          },
-        }),
-      });
+    console.log(`[Thumbnail] Using model: ${IMAGEN_MODEL}`);
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error(`[Thumbnail] ${model} error:`, response.status, errorText.slice(0, 300));
+    // Generate image using Imagen 4
+    const response = await ai.models.generateImages({
+      model: IMAGEN_MODEL,
+      prompt,
+      config: {
+        numberOfImages: 1,
+      },
+    });
 
-        // If 404, try next model
-        if (response.status === 404) {
-          continue;
-        }
-
-        // Rate limit - don't try other models
-        if (response.status === 429) {
-          return {
-            success: false,
-            thumbnail_url: DEFAULT_PLACEHOLDER,
-            source: "default",
-            error: "Rate limit exceeded, try again later",
-          };
-        }
-
-        // 403 - API key doesn't have Imagen access
-        if (response.status === 403) {
-          return {
-            success: false,
-            thumbnail_url: DEFAULT_PLACEHOLDER,
-            source: "default",
-            error: "API key doesn't have Imagen 3 access. Enable it in Google AI Studio.",
-          };
-        }
-
-        // 400 - Content blocked
-        if (response.status === 400) {
-          return {
-            success: false,
-            thumbnail_url: DEFAULT_PLACEHOLDER,
-            source: "default",
-            error: "Content blocked by safety filters",
-          };
-        }
-
-        // Other error, try next model
-        continue;
-      }
-
-      const data = await response.json();
-
-      // Extract base64 image from response
-      const predictions = data.predictions || [];
-      if (!predictions.length || !predictions[0].bytesBase64Encoded) {
-        console.error("[Thumbnail] No image in response:", JSON.stringify(data).slice(0, 200));
-        continue;
-      }
-
-      const imageBase64 = predictions[0].bytesBase64Encoded;
-
-      // Upload to Supabase Storage
-      const { url, error: uploadError } = await uploadToStorage(imageBase64, request.content_id);
-
-      if (uploadError || !url) {
-        console.error("[Thumbnail] Failed to upload:", uploadError);
-        return {
-          success: false,
-          thumbnail_url: DEFAULT_PLACEHOLDER,
-          source: "default",
-          error: uploadError || "Upload failed",
-        };
-      }
-
-      console.log(`[Thumbnail] Generated successfully with ${model}: ${url}`);
-
+    // Extract generated image
+    const generatedImages = response.generatedImages;
+    if (!generatedImages || generatedImages.length === 0) {
+      console.error("[Thumbnail] No images generated");
       return {
-        success: true,
-        thumbnail_url: url,
-        source: "gemini",
-        cost_usd: 0.03,
+        success: false,
+        thumbnail_url: DEFAULT_PLACEHOLDER,
+        source: "default",
+        error: "No images generated",
       };
-    } catch (error) {
-      console.error(`[Thumbnail] Error with ${model}:`, error);
-      continue;
     }
-  }
 
-  // All models failed
-  return {
-    success: false,
-    thumbnail_url: DEFAULT_PLACEHOLDER,
-    source: "default",
-    error: "All Imagen models failed. Check API key permissions in Google AI Studio.",
-  };
+    const firstImage = generatedImages[0];
+    const imageBytes = firstImage?.image?.imageBytes;
+    if (!imageBytes) {
+      console.error("[Thumbnail] No image bytes in response");
+      return {
+        success: false,
+        thumbnail_url: DEFAULT_PLACEHOLDER,
+        source: "default",
+        error: "No image data in response",
+      };
+    }
+
+    // Upload to Supabase Storage
+    const { url, error: uploadError } = await uploadToStorage(imageBytes, request.content_id);
+
+    if (uploadError || !url) {
+      console.error("[Thumbnail] Failed to upload:", uploadError);
+      return {
+        success: false,
+        thumbnail_url: DEFAULT_PLACEHOLDER,
+        source: "default",
+        error: uploadError || "Upload failed",
+      };
+    }
+
+    console.log(`[Thumbnail] Generated successfully: ${url}`);
+
+    return {
+      success: true,
+      thumbnail_url: url,
+      source: "gemini",
+      cost_usd: 0.03,
+    };
+  } catch (error) {
+    console.error("[Thumbnail] Generation error:", error);
+
+    // Handle specific error types
+    const errorMessage = error instanceof Error ? error.message : "Unknown error";
+
+    if (errorMessage.includes("rate limit") || errorMessage.includes("429")) {
+      return {
+        success: false,
+        thumbnail_url: DEFAULT_PLACEHOLDER,
+        source: "default",
+        error: "Rate limit exceeded, try again later",
+      };
+    }
+
+    if (errorMessage.includes("permission") || errorMessage.includes("403")) {
+      return {
+        success: false,
+        thumbnail_url: DEFAULT_PLACEHOLDER,
+        source: "default",
+        error: "API key doesn't have Imagen access. Enable it in Google AI Studio.",
+      };
+    }
+
+    if (errorMessage.includes("safety") || errorMessage.includes("blocked")) {
+      return {
+        success: false,
+        thumbnail_url: DEFAULT_PLACEHOLDER,
+        source: "default",
+        error: "Content blocked by safety filters",
+      };
+    }
+
+    return {
+      success: false,
+      thumbnail_url: DEFAULT_PLACEHOLDER,
+      source: "default",
+      error: errorMessage,
+    };
+  }
 }
 
 /**
@@ -360,7 +347,7 @@ export async function getThumbnailWithFallback(
     };
   }
 
-  // Try Gemini Imagen 3 generation
+  // Try Gemini Imagen 4 generation
   const geminiResult = await generateThumbnail({
     content_id: contentId,
     title,
