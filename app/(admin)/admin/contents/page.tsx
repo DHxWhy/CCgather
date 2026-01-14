@@ -154,6 +154,24 @@ export default function AdminContentsPage() {
     }
   }, [activeTab, fetchContents]);
 
+  // Handler for when collection completes - shows toast notification
+  const handleCollectionComplete = useCallback(
+    (count: number, type: "news" | "youtube" = "news") => {
+      if (count > 0) {
+        showToast({
+          type: "success",
+          title: "수집 완료",
+          message: `${count}개의 새로운 ${type === "news" ? "뉴스" : "영상"}가 수집되었습니다.`,
+          icon: <span>{type === "news" ? "📰" : "🎬"}</span>,
+          duration: 5000,
+        });
+        // Refresh the contents list
+        fetchContents();
+      }
+    },
+    [showToast, fetchContents]
+  );
+
   async function updateContentStatus(id: string, status: ContentStatus) {
     try {
       await fetch(`/api/admin/contents/${id}`, {
@@ -304,7 +322,9 @@ export default function AdminContentsPage() {
         {activeTab === "targets" && <TargetManager onRefresh={handleRefresh} />}
 
         {/* Cron Scheduler */}
-        {activeTab === "scheduler" && <CronScheduler onRefresh={handleRefresh} />}
+        {activeTab === "scheduler" && (
+          <CronScheduler onRefresh={handleRefresh} onCollectionComplete={handleCollectionComplete} />
+        )}
 
         {/* Storage - Unused Thumbnails */}
         {activeTab === "storage" && <UnusedThumbnailManager />}
