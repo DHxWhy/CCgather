@@ -40,10 +40,10 @@ const ALL_CATEGORIES: Array<{
 ];
 
 // =====================================================
-// Color Classes for each category
+// Color Classes for each category (type-safe)
 // =====================================================
 
-const categoryColorClasses: Record<string, { active: string; inactive: string }> = {
+const categoryColorClasses: Record<ToolCategory | "all", { active: string; inactive: string }> = {
   all: {
     active: "bg-white/15 text-white",
     inactive: "text-[var(--color-text-secondary)] hover:bg-white/5",
@@ -121,11 +121,7 @@ function CategoryTabsComponent({ selected, onChange, counts, className }: Catego
     >
       {ALL_CATEGORIES.map((category) => {
         const isSelected = selected === category.key;
-        const defaultColor = {
-          active: "bg-white/15 text-white",
-          inactive: "text-[var(--color-text-secondary)] hover:bg-white/5",
-        };
-        const colorClass = categoryColorClasses[category.key] || defaultColor;
+        const colorClass = categoryColorClasses[category.key];
         const count = counts?.[category.key];
 
         return (

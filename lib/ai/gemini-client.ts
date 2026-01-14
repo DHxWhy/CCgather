@@ -351,6 +351,28 @@ Good: { "icon": "folder", "text": "Access and edit files in any folder you grant
 ### 4. Body (bodyHtml)
 HTML format using p/h2/ul/li/strong/code tags. COMPLETELY REWRITTEN.
 
+**CRITICAL: Opening Sentence Rules**
+The first sentence appears in news cards and must hook readers naturally.
+
+DO:
+- Start with a specific fact, number, or concrete detail NOT in the title
+- Provide context that answers "why should I care?"
+- Use active voice and strong verbs
+
+DON'T:
+- Repeat the title or rephrase it
+- Use clickbait or sensational language
+- Start with "In a move..." or "According to..."
+
+Examples:
+  Title: "OpenAI Eyes Massive San Francisco Expansion"
+  Bad opening: "OpenAI is negotiating a new 250,000-square-foot sublease..."
+  Good opening: "The deal would give OpenAI more SF office space than any other AI company—over 1 million square feet total."
+
+  Title: "Anthropic Launches Cowork for File Automation"
+  Bad opening: "Anthropic has announced a new feature called Cowork..."
+  Good opening: "Claude can now read, edit, and organize files on your Mac without asking permission for each action."
+
 **Line Break Guidelines:**
 - Each paragraph should focus on ONE main idea
 - Break long paragraphs (>3 sentences) into shorter ones
