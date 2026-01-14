@@ -5,13 +5,14 @@ import Image from "next/image";
 import {
   Sparkles,
   Image as ImageIcon,
-  Link2,
   Trash2,
   Loader2,
   Wand2,
   History,
   Check,
   ChevronUp,
+  X,
+  Zap,
 } from "lucide-react";
 import type { ThumbnailSource } from "@/types/automation";
 
@@ -30,6 +31,7 @@ interface ThumbnailHistoryItem {
   url: string;
   created_at: string;
   size?: number;
+  isCurrentContent?: boolean;
 }
 
 const SOURCE_LABELS: Record<ThumbnailSource, { label: string; color: string }> = {
@@ -49,9 +51,18 @@ export default function ThumbnailManager({
 }: ThumbnailManagerProps) {
   const [loading, setLoading] = useState(false);
   const [loadingType, setLoadingType] = useState<"gemini" | "og" | "fusion" | null>(null);
-  const [showUrlInput, setShowUrlInput] = useState(false);
-  const [manualUrl, setManualUrl] = useState("");
   const [error, setError] = useState<string | null>(null);
+
+  // Model selection state
+  const [useImagen, setUseImagen] = useState(true);
+  const [useGeminiFlash, setUseGeminiFlash] = useState(false);
+  const [showModelSettings, setShowModelSettings] = useState(false);
+
+  // Dual generation results
+  const [dualResults, setDualResults] = useState<{
+    imagen?: { url: string; success: boolean; error?: string };
+    gemini_flash?: { url: string; success: boolean; error?: string };
+  } | null>(null);
 
   // History state
   const [showHistory, setShowHistory] = useState(false);
@@ -59,17 +70,23 @@ export default function ThumbnailManager({
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
-  // Fetch thumbnail history
+  // Fetch thumbnail history - shows ALL unused images across all contents
   const fetchHistory = useCallback(async () => {
-    if (!contentId) return;
-
     setLoadingHistory(true);
     try {
-      const response = await fetch(`/api/admin/thumbnail/history?content_id=${contentId}`);
+      // Fetch all unused thumbnails
+      const response = await fetch(`/api/admin/thumbnail/history?unused=true`);
       const data = await response.json();
 
       if (data.success) {
-        setHistory(data.history || []);
+        // Map to include isCurrentContent flag for visual distinction
+        const allUnused = (data.unusedThumbnails || []).map(
+          (item: ThumbnailHistoryItem & { contentId?: string }) => ({
+            ...item,
+            isCurrentContent: item.contentId === contentId,
+          })
+        );
+        setHistory(allUnused);
       }
     } catch (err) {
       console.error("Failed to fetch thumbnail history:", err);
@@ -98,7 +115,7 @@ export default function ThumbnailManager({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           file_name: item.name,
-          content_id: contentId,
+          // Don't pass content_id to allow deletion of any unused image
         }),
       });
 
@@ -127,11 +144,21 @@ export default function ThumbnailManager({
   }
 
   async function generateWithGemini() {
+    if (!useImagen && !useGeminiFlash) {
+      setError("최소 하나의 모델을 선택해주세요.");
+      return;
+    }
+
     setLoading(true);
     setLoadingType("gemini");
     setError(null);
+    setDualResults(null);
 
     try {
+      // Determine generation mode
+      const isDual = useImagen && useGeminiFlash;
+      const model = isDual ? "dual" : useImagen ? "imagen" : "gemini_flash";
+
       const response = await fetch("/api/admin/thumbnail/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -140,13 +167,20 @@ export default function ThumbnailManager({
           title,
           summary,
           force_regenerate: true,
+          model, // "imagen" | "gemini_flash" | "dual"
         }),
       });
 
       const data = await response.json();
 
-      if (response.ok && data.thumbnail_url) {
-        onThumbnailUpdate(data.thumbnail_url, "gemini");
+      if (isDual && data.dual_results) {
+        // Show dual results for selection
+        setDualResults({
+          imagen: data.dual_results.imagen,
+          gemini_flash: data.dual_results.gemini_flash,
+        });
+      } else if (response.ok && data.thumbnail_url) {
+        onThumbnailUpdate(data.thumbnail_url, data.source || "gemini");
         // Refresh history after generation
         if (showHistory) fetchHistory();
       } else {
@@ -158,6 +192,15 @@ export default function ThumbnailManager({
     } finally {
       setLoading(false);
       setLoadingType(null);
+    }
+  }
+
+  function selectDualResult(type: "imagen" | "gemini_flash") {
+    const result = dualResults?.[type];
+    if (result?.url) {
+      onThumbnailUpdate(result.url, type === "imagen" ? "gemini" : "gemini");
+      setDualResults(null);
+      if (showHistory) fetchHistory();
     }
   }
 
@@ -237,19 +280,6 @@ export default function ThumbnailManager({
     } finally {
       setLoading(false);
       setLoadingType(null);
-    }
-  }
-
-  function applyManualUrl() {
-    if (!manualUrl.trim()) return;
-
-    try {
-      new URL(manualUrl);
-      onThumbnailUpdate(manualUrl.trim(), "manual");
-      setManualUrl("");
-      setShowUrlInput(false);
-    } catch {
-      setError("유효한 URL을 입력해주세요.");
     }
   }
 
@@ -366,12 +396,6 @@ export default function ThumbnailManager({
               label="OG 이미지"
             />
             <IconButton
-              onClick={() => setShowUrlInput(!showUrlInput)}
-              icon={Link2}
-              label="URL 입력"
-              variant={showUrlInput ? "success" : "default"}
-            />
-            <IconButton
               onClick={() => setShowHistory(!showHistory)}
               icon={History}
               label="히스토리"
@@ -383,12 +407,63 @@ export default function ThumbnailManager({
             )}
           </div>
 
-          {/* Help Text - Compact */}
-          <div className="text-[10px] text-white/40 leading-relaxed">
-            <span className="text-purple-400">AI 생성</span>: 제목/내용 기반 •{" "}
-            <span className="text-cyan-400">OG+AI</span>: OG 분석 후 생성 •{" "}
-            <span className="text-amber-400">히스토리</span>: 이전 이미지 선택/삭제
+          {/* Model Selection & Help */}
+          <div className="flex items-center gap-3">
+            {/* Model Selection Toggle */}
+            <button
+              onClick={() => setShowModelSettings(!showModelSettings)}
+              className={`
+                flex items-center gap-1 px-2 py-1 rounded text-[10px] transition-colors
+                ${
+                  showModelSettings
+                    ? "bg-purple-500/20 text-purple-400 border border-purple-500/30"
+                    : "text-white/40 hover:text-white/60"
+                }
+              `}
+            >
+              <Zap className="w-3 h-3" />
+              모델 설정
+              {useImagen && useGeminiFlash && (
+                <span className="ml-1 px-1 py-0.5 bg-amber-500/20 text-amber-400 text-[8px] rounded">
+                  듀얼
+                </span>
+              )}
+            </button>
+            {/* Help Text */}
+            <div className="text-[10px] text-white/40">
+              <span className="text-purple-400">AI</span>: 제목 기반 •{" "}
+              <span className="text-cyan-400">OG+AI</span>: 분석 후 생성
+            </div>
           </div>
+
+          {/* Model Selection Panel */}
+          {showModelSettings && (
+            <div className="flex items-center gap-4 p-2 bg-black/30 rounded-lg border border-white/10">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={useImagen}
+                  onChange={(e) => setUseImagen(e.target.checked)}
+                  className="w-3.5 h-3.5 rounded border-white/20 bg-white/5 text-purple-500 focus:ring-purple-500/50"
+                />
+                <span className="text-[11px] text-white/70">Imagen 4</span>
+                <span className="text-[9px] text-white/40">($0.04)</span>
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={useGeminiFlash}
+                  onChange={(e) => setUseGeminiFlash(e.target.checked)}
+                  className="w-3.5 h-3.5 rounded border-white/20 bg-white/5 text-blue-500 focus:ring-blue-500/50"
+                />
+                <span className="text-[11px] text-white/70">Gemini Flash</span>
+                <span className="text-[9px] text-white/40">($0.039)</span>
+              </label>
+              {useImagen && useGeminiFlash && (
+                <span className="text-[10px] text-amber-400">→ 두 모델로 동시 생성 후 선택</span>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
@@ -399,23 +474,111 @@ export default function ThumbnailManager({
         </div>
       )}
 
-      {/* Manual URL Input */}
-      {showUrlInput && (
-        <div className="flex gap-2">
-          <input
-            type="url"
-            value={manualUrl}
-            onChange={(e) => setManualUrl(e.target.value)}
-            placeholder="https://example.com/image.jpg"
-            className="flex-1 px-3 py-2 bg-black/30 border border-white/10 rounded-md text-[12px] text-white placeholder:text-white/30 focus:outline-none focus:border-emerald-500/50"
-          />
-          <button
-            onClick={applyManualUrl}
-            disabled={!manualUrl.trim()}
-            className="px-4 py-2 bg-emerald-500 text-white rounded-md text-[11px] font-medium hover:bg-emerald-600 transition-colors disabled:opacity-50"
-          >
-            적용
-          </button>
+      {/* Dual Generation Results */}
+      {dualResults && (
+        <div className="bg-gradient-to-r from-purple-500/10 to-blue-500/10 border border-purple-500/20 rounded-lg overflow-hidden">
+          <div className="px-3 py-2 border-b border-white/10 flex items-center justify-between">
+            <span className="text-[11px] font-medium text-white/70">
+              <Sparkles className="w-3.5 h-3.5 inline mr-1" />
+              생성된 이미지 선택
+            </span>
+            <button
+              onClick={() => setDualResults(null)}
+              className="p-1 text-white/40 hover:text-white/70 transition-colors"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+          <div className="p-3 grid grid-cols-2 gap-3">
+            {/* Imagen Result */}
+            <div
+              className={`rounded-lg overflow-hidden border-2 transition-all ${
+                dualResults.imagen?.success
+                  ? "border-purple-500/30 hover:border-purple-500/60"
+                  : "border-red-500/30"
+              }`}
+            >
+              <div className="px-2 py-1 bg-purple-500/10 text-[10px] font-medium text-purple-400 flex items-center justify-between">
+                <span>Imagen 4</span>
+                {dualResults.imagen?.success ? (
+                  <span className="text-emerald-400">✓ 성공</span>
+                ) : (
+                  <span className="text-red-400">✗ 실패</span>
+                )}
+              </div>
+              {dualResults.imagen?.success && dualResults.imagen.url ? (
+                <button
+                  onClick={() => selectDualResult("imagen")}
+                  className="relative w-full aspect-video bg-black/40 group"
+                >
+                  <Image
+                    src={dualResults.imagen.url}
+                    alt="Imagen 생성"
+                    fill
+                    className="object-cover"
+                    unoptimized
+                  />
+                  <div className="absolute inset-0 bg-purple-500/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                    <span className="px-2 py-1 bg-purple-500 text-white text-[10px] rounded font-medium">
+                      선택
+                    </span>
+                  </div>
+                </button>
+              ) : (
+                <div className="aspect-video bg-black/40 flex items-center justify-center">
+                  <span className="text-[10px] text-red-400 text-center px-2">
+                    {dualResults.imagen?.error || "생성 실패"}
+                  </span>
+                </div>
+              )}
+            </div>
+
+            {/* Gemini Flash Result */}
+            <div
+              className={`rounded-lg overflow-hidden border-2 transition-all ${
+                dualResults.gemini_flash?.success
+                  ? "border-blue-500/30 hover:border-blue-500/60"
+                  : "border-red-500/30"
+              }`}
+            >
+              <div className="px-2 py-1 bg-blue-500/10 text-[10px] font-medium text-blue-400 flex items-center justify-between">
+                <span>Gemini Flash</span>
+                {dualResults.gemini_flash?.success ? (
+                  <span className="text-emerald-400">✓ 성공</span>
+                ) : (
+                  <span className="text-red-400">✗ 실패</span>
+                )}
+              </div>
+              {dualResults.gemini_flash?.success && dualResults.gemini_flash.url ? (
+                <button
+                  onClick={() => selectDualResult("gemini_flash")}
+                  className="relative w-full aspect-video bg-black/40 group"
+                >
+                  <Image
+                    src={dualResults.gemini_flash.url}
+                    alt="Gemini Flash 생성"
+                    fill
+                    className="object-cover"
+                    unoptimized
+                  />
+                  <div className="absolute inset-0 bg-blue-500/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                    <span className="px-2 py-1 bg-blue-500 text-white text-[10px] rounded font-medium">
+                      선택
+                    </span>
+                  </div>
+                </button>
+              ) : (
+                <div className="aspect-video bg-black/40 flex items-center justify-center">
+                  <span className="text-[10px] text-red-400 text-center px-2">
+                    {dualResults.gemini_flash?.error || "생성 실패"}
+                  </span>
+                </div>
+              )}
+            </div>
+          </div>
+          <div className="px-3 py-2 border-t border-white/10 text-[10px] text-white/40 text-center">
+            이미지를 클릭하여 선택하세요 • 선택하지 않은 이미지는 히스토리에 저장됩니다
+          </div>
         </div>
       )}
 
@@ -424,7 +587,7 @@ export default function ThumbnailManager({
         <div className="bg-black/30 border border-white/10 rounded-lg overflow-hidden">
           <div className="px-3 py-2 border-b border-white/10 flex items-center justify-between">
             <span className="text-[11px] font-medium text-white/70">
-              생성 히스토리 ({history.length}개)
+              미사용 이미지 ({history.length}개)
             </span>
             <button
               onClick={() => setShowHistory(false)}
@@ -440,20 +603,27 @@ export default function ThumbnailManager({
             </div>
           ) : history.length === 0 ? (
             <div className="p-4 text-center text-[11px] text-white/40">
-              생성된 썸네일 히스토리가 없습니다.
+              미사용 썸네일이 없습니다.
             </div>
           ) : (
             <div className="p-2 grid grid-cols-4 gap-2 max-h-[200px] overflow-y-auto">
               {history.map((item) => {
                 const isSelected = currentThumbnail === item.url;
                 const isDeleting = deletingId === item.id;
+                const isFromCurrentContent = item.isCurrentContent;
 
                 return (
                   <div
                     key={item.id}
                     className={`
                       relative group rounded-md overflow-hidden border-2 transition-all
-                      ${isSelected ? "border-emerald-500" : "border-transparent hover:border-white/20"}
+                      ${
+                        isSelected
+                          ? "border-emerald-500"
+                          : isFromCurrentContent
+                            ? "border-purple-500/50 hover:border-purple-500"
+                            : "border-transparent hover:border-white/20"
+                      }
                     `}
                   >
                     {/* Thumbnail Image */}
@@ -466,14 +636,19 @@ export default function ThumbnailManager({
                         unoptimized
                       />
 
-                      {/* Selected Badge */}
-                      {isSelected && (
-                        <div className="absolute top-1 left-1">
+                      {/* Badges */}
+                      <div className="absolute top-1 left-1 flex flex-col gap-0.5">
+                        {isSelected && (
                           <span className="flex items-center gap-0.5 px-1 py-0.5 bg-emerald-500 text-white text-[8px] rounded">
                             <Check className="w-2.5 h-2.5" /> 사용중
                           </span>
-                        </div>
-                      )}
+                        )}
+                        {isFromCurrentContent && !isSelected && (
+                          <span className="px-1 py-0.5 bg-purple-500/80 text-white text-[7px] rounded">
+                            현재글
+                          </span>
+                        )}
+                      </div>
 
                       {/* Hover Actions */}
                       <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-1">

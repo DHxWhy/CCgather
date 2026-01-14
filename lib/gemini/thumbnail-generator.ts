@@ -1,10 +1,12 @@
 /**
- * Gemini Imagen 4 Thumbnail Generator
- * Generates AI thumbnails for news articles using Google Imagen 4 API
+ * Dual-Model Thumbnail Generator
+ * Generates AI thumbnails using both Imagen 4 and Gemini Flash Image models
  *
  * SDK: @google/genai
- * Model: imagen-4.0-generate-001 (Standard)
- * Pricing: $0.04 per image
+ * Models:
+ *   - imagen-4.0-generate-001 (Imagen 4 Standard) - $0.04/image
+ *   - gemini-2.5-flash-image (Gemini Flash Image) - $0.039/image
+ *   - gemini-3-pro-image-preview (Gemini Pro Image) - $0.134/image (higher quality)
  *
  * Theme Selection Priority:
  * 1. AI-classified article_type from DB (most accurate)
@@ -17,9 +19,47 @@ import type { ArticleType } from "@/lib/ai/gemini-client";
 
 // Configuration
 const IMAGEN_MODEL = "imagen-4.0-generate-001";
+const GEMINI_FLASH_IMAGE_MODEL = "gemini-2.5-flash-image";
 const VISION_MODEL = "gemini-2.0-flash"; // For OG image analysis
 const DEFAULT_PLACEHOLDER = "/images/news-placeholder.svg";
 const SUPABASE_BUCKET = "thumbnails";
+
+// ===========================================
+// Pricing Constants (USD per image/request)
+// ===========================================
+const IMAGE_GENERATION_COSTS = {
+  [IMAGEN_MODEL]: 0.04, // $0.04/image
+  [GEMINI_FLASH_IMAGE_MODEL]: 0.039, // $0.039/image
+  [VISION_MODEL]: 0.0001, // Vision API is token-based, approximate per request
+} as const;
+
+/**
+ * Log AI usage to database for cost tracking
+ */
+async function logAIUsage(params: {
+  model: string;
+  operation: string;
+  inputTokens?: number;
+  outputTokens?: number;
+  costUsd: number;
+  metadata?: Record<string, unknown>;
+}): Promise<void> {
+  try {
+    const supabase = createServiceClient();
+    await supabase.from("ai_usage_log").insert({
+      request_type: "image_generation",
+      model: params.model,
+      operation: params.operation,
+      input_tokens: params.inputTokens || 0,
+      output_tokens: params.outputTokens || 0,
+      total_tokens: (params.inputTokens || 0) + (params.outputTokens || 0),
+      cost_usd: params.costUsd,
+      metadata: params.metadata || {},
+    });
+  } catch (error) {
+    console.error("[Thumbnail] Failed to log AI usage:", error);
+  }
+}
 
 // ===========================================
 // Visual Theme System for News Categories
@@ -266,9 +306,15 @@ export interface ThumbnailRequest {
 export interface ThumbnailResult {
   success: boolean;
   thumbnail_url?: string;
-  source: "gemini" | "og_image" | "manual" | "default";
+  source: "imagen" | "gemini_flash" | "og_image" | "manual" | "default";
   error?: string;
   cost_usd?: number;
+  model?: string;
+}
+
+export interface DualThumbnailResult {
+  imagen?: ThumbnailResult;
+  gemini_flash?: ThumbnailResult;
 }
 
 // ===========================================
@@ -327,7 +373,9 @@ Quality: 4K resolution, high detail, sharp focus, professional grade photography
 Mood: ${theme.mood}
 Color palette: Deep navy blue, warm coral orange accents, electric blue highlights.
 
-Important: Do not include any text, words, letters, human faces, or company logos in the image.`;
+CRITICAL - ABSOLUTELY NO TEXT: The image must contain ZERO text, letters, words, numbers, symbols, labels, captions, watermarks, logos, or any readable characters. No code, no syntax, no programming text.
+AVOID: Human faces, company logos, abstract waves, flowing particles, sine wave patterns, any form of written text or code.
+PREFER: Abstract geometric shapes, glowing nodes, colorful rectangles, 3D architectural elements, light effects.`;
 }
 
 /**
@@ -445,11 +493,19 @@ export async function generateThumbnail(request: ThumbnailRequest): Promise<Thum
 
     console.log(`[Thumbnail] Generated successfully: ${url}`);
 
+    // Log AI usage for cost tracking
+    await logAIUsage({
+      model: IMAGEN_MODEL,
+      operation: "thumbnail_imagen",
+      costUsd: IMAGE_GENERATION_COSTS[IMAGEN_MODEL],
+      metadata: { content_id: request.content_id, title: request.title.slice(0, 100) },
+    });
+
     return {
       success: true,
       thumbnail_url: url,
-      source: "gemini",
-      cost_usd: 0.04,
+      source: "imagen",
+      cost_usd: IMAGE_GENERATION_COSTS[IMAGEN_MODEL],
     };
   } catch (error) {
     console.error("[Thumbnail] Generation error:", error);
@@ -586,6 +642,27 @@ function extractArticleConcepts(title: string): string[] {
     launch: "rocket or upward momentum visualization",
     update: "evolving transformation visual",
     security: "digital shield with protection elements",
+    // Developer/Code related - NO TEXT INDUCING WORDS
+    json: "layered geometric rectangles in dark interface with colorful accents",
+    schema: "interconnected nodes forming a validation flowchart without any labels",
+    structured: "organized hierarchy of colored blocks connected by lines",
+    output: "dark screen with glowing colorful horizontal bars",
+    code: "dark interface with stacked colorful rectangular blocks",
+    developer: "modern dark workspace with geometric UI elements",
+    programming: "modular colored blocks arranged in patterns",
+    sdk: "3D building blocks floating in organized formation",
+    cli: "dark terminal aesthetic with glowing geometric lines",
+    // AI/ML specific - ABSTRACT VISUALS ONLY
+    claude: "AI brain visualization with warm orange neural connections",
+    prompt: "glowing input interface with processing light effects",
+    llm: "layered transformer architecture with flowing light particles",
+    chatbot: "abstract conversation flow with connected speech bubbles shapes",
+    embedding: "3D vector space with clustered glowing spheres",
+    // Integration/System
+    integration: "puzzle pieces connecting in 3D space",
+    workflow: "connected geometric shapes forming a process flow",
+    pipeline: "sequential glowing tubes with data light flowing through",
+    config: "control panel with sliders and toggle switches",
   };
 
   const lowerTitle = title.toLowerCase();
@@ -637,7 +714,7 @@ function generateFusionPrompt(
   const conceptsDescription =
     articleConcepts.length > 0
       ? articleConcepts.join(", ")
-      : "abstract technology visualization with flowing data";
+      : "abstract 3D geometric composition with glowing nodes and interconnected shapes";
 
   // Build fusion prompt - ARTICLE CONTEXT IS PRIMARY
   const prompt = `Create a professional tech news thumbnail for this article:
@@ -657,11 +734,13 @@ COMPOSITION:
 - Apply the color palette from the reference to the primary subject
 
 STRICT RULES:
-- The image MUST represent the article topic: ${title.split(":")[0]}
+- The image MUST represent the article topic through ABSTRACT VISUALS ONLY
 - NO phones, laptops, generic devices, or unrelated objects
-- NO text, logos, watermarks, brand names, or human faces
-- Create abstract, symbolic representation of the article topic
-- Professional editorial magazine quality, 16:9 landscape`;
+- NO abstract waves, flowing particles, or sine wave patterns
+- Use geometric shapes, glowing nodes, colorful blocks, 3D elements
+- Professional editorial magazine quality, 16:9 landscape
+
+CRITICAL - ABSOLUTELY NO TEXT: The image must contain ZERO text, letters, words, numbers, symbols, labels, captions, watermarks, logos, brand names, code, syntax, or any readable characters. This is the most important rule.`;
 
   console.log(`[Thumbnail] Fusion prompt (concepts: ${articleConcepts.join(", ")})`);
   return prompt;
@@ -743,11 +822,25 @@ export async function generateThumbnailWithOgReference(
 
     console.log(`[Thumbnail] OG+AI fusion generated successfully: ${url}`);
 
+    // Log AI usage: Vision API for OG analysis + Imagen for generation
+    const totalCost = IMAGE_GENERATION_COSTS[VISION_MODEL] + IMAGE_GENERATION_COSTS[IMAGEN_MODEL];
+    await logAIUsage({
+      model: IMAGEN_MODEL,
+      operation: "thumbnail_og_fusion",
+      costUsd: totalCost,
+      metadata: {
+        content_id: request.content_id,
+        title: request.title.slice(0, 100),
+        og_image_url: request.og_image_url,
+        vision_model: VISION_MODEL,
+      },
+    });
+
     return {
       success: true,
       thumbnail_url: url,
-      source: "gemini", // Still 'gemini' as it's AI-generated
-      cost_usd: 0.04, // Same cost as standard generation
+      source: "imagen",
+      cost_usd: totalCost,
     };
   } catch (error) {
     console.error("[Thumbnail] Fusion generation error:", error);
@@ -842,7 +935,8 @@ export async function updateContentThumbnail(
       .update({
         thumbnail_url: thumbnailUrl,
         thumbnail_source: source,
-        thumbnail_generated_at: source === "gemini" ? new Date().toISOString() : null,
+        thumbnail_generated_at:
+          source === "imagen" || source === "gemini_flash" ? new Date().toISOString() : null,
       })
       .eq("id", contentId);
 
@@ -899,7 +993,7 @@ export async function getThumbnailWithFallback(
     geminiResult.thumbnail_url &&
     geminiResult.thumbnail_url !== DEFAULT_PLACEHOLDER
   ) {
-    await updateContentThumbnail(contentId, geminiResult.thumbnail_url, "gemini");
+    await updateContentThumbnail(contentId, geminiResult.thumbnail_url, "imagen");
     return geminiResult;
   }
 
@@ -910,4 +1004,206 @@ export async function getThumbnailWithFallback(
     thumbnail_url: DEFAULT_PLACEHOLDER,
     source: "default",
   };
+}
+
+// ===========================================
+// Gemini Flash Image Generation
+// ===========================================
+
+/**
+ * Generate thumbnail using Gemini 2.0 Flash Image model
+ * Uses conversational image generation approach
+ */
+export async function generateThumbnailWithGeminiFlash(
+  request: ThumbnailRequest
+): Promise<ThumbnailResult> {
+  const apiKey = process.env.GOOGLE_GEMINI_API_KEY;
+
+  if (!apiKey) {
+    console.warn("[Thumbnail] GOOGLE_GEMINI_API_KEY not configured");
+    return {
+      success: false,
+      thumbnail_url: DEFAULT_PLACEHOLDER,
+      source: "default",
+      error: "API key not configured",
+    };
+  }
+
+  const prompt = generatePrompt(request.title, request.summary, request.article_type);
+  console.log(`[Thumbnail] Gemini Flash generating for: "${request.title.slice(0, 50)}..."`);
+
+  try {
+    const ai = new GoogleGenAI({ apiKey });
+
+    console.log(`[Thumbnail] Using model: ${GEMINI_FLASH_IMAGE_MODEL}`);
+
+    // Generate image using Gemini Flash Image
+    const response = await ai.models.generateContent({
+      model: GEMINI_FLASH_IMAGE_MODEL,
+      contents: `Generate a professional tech news thumbnail image (16:9 aspect ratio).\n\n${prompt}`,
+      config: {
+        responseModalities: ["IMAGE", "TEXT"],
+      },
+    });
+
+    // Extract generated image from response
+    const candidate = response.candidates?.[0];
+    if (!candidate?.content?.parts) {
+      console.error("[Thumbnail] No content in Gemini Flash response");
+      return {
+        success: false,
+        thumbnail_url: DEFAULT_PLACEHOLDER,
+        source: "default",
+        error: "No content in response",
+      };
+    }
+
+    // Find image part in response
+    const imagePart = candidate.content.parts.find(
+      (part: { inlineData?: { mimeType?: string; data?: string } }) =>
+        part.inlineData?.mimeType?.startsWith("image/")
+    );
+
+    if (!imagePart?.inlineData?.data) {
+      console.error("[Thumbnail] No image data in Gemini Flash response");
+      return {
+        success: false,
+        thumbnail_url: DEFAULT_PLACEHOLDER,
+        source: "default",
+        error: "No image generated",
+      };
+    }
+
+    // Upload to Supabase Storage
+    const { url, error: uploadError } = await uploadToStorage(
+      imagePart.inlineData.data,
+      `flash-${request.content_id}`
+    );
+
+    if (uploadError || !url) {
+      console.error("[Thumbnail] Failed to upload Gemini Flash image:", uploadError);
+      return {
+        success: false,
+        thumbnail_url: DEFAULT_PLACEHOLDER,
+        source: "default",
+        error: uploadError || "Upload failed",
+      };
+    }
+
+    console.log(`[Thumbnail] Gemini Flash generated successfully: ${url}`);
+
+    // Log AI usage for cost tracking
+    await logAIUsage({
+      model: GEMINI_FLASH_IMAGE_MODEL,
+      operation: "thumbnail_gemini",
+      costUsd: IMAGE_GENERATION_COSTS[GEMINI_FLASH_IMAGE_MODEL],
+      metadata: { content_id: request.content_id, title: request.title.slice(0, 100) },
+    });
+
+    return {
+      success: true,
+      thumbnail_url: url,
+      source: "gemini_flash",
+      model: GEMINI_FLASH_IMAGE_MODEL,
+      cost_usd: IMAGE_GENERATION_COSTS[GEMINI_FLASH_IMAGE_MODEL],
+    };
+  } catch (error) {
+    console.error("[Thumbnail] Gemini Flash generation error:", error);
+
+    const errorMessage = error instanceof Error ? error.message : "Unknown error";
+
+    return {
+      success: false,
+      thumbnail_url: DEFAULT_PLACEHOLDER,
+      source: "default",
+      error: errorMessage,
+    };
+  }
+}
+
+// ===========================================
+// Dual Model Generation (Imagen + Gemini Flash)
+// ===========================================
+
+/**
+ * Generate thumbnails using BOTH Imagen 4 and Gemini Flash Image models
+ * Returns both results for comparison/selection
+ */
+export async function generateDualThumbnails(
+  request: ThumbnailRequest
+): Promise<DualThumbnailResult> {
+  console.log(`[Thumbnail] Dual generation for: "${request.title.slice(0, 50)}..."`);
+
+  // Run both generations in parallel
+  const [imagenResult, geminiFlashResult] = await Promise.allSettled([
+    generateThumbnail(request),
+    generateThumbnailWithGeminiFlash(request),
+  ]);
+
+  const result: DualThumbnailResult = {};
+
+  if (imagenResult.status === "fulfilled") {
+    result.imagen = imagenResult.value;
+  } else {
+    result.imagen = {
+      success: false,
+      source: "default",
+      error: imagenResult.reason?.message || "Imagen generation failed",
+    };
+  }
+
+  if (geminiFlashResult.status === "fulfilled") {
+    result.gemini_flash = geminiFlashResult.value;
+  } else {
+    result.gemini_flash = {
+      success: false,
+      source: "default",
+      error: geminiFlashResult.reason?.message || "Gemini Flash generation failed",
+    };
+  }
+
+  console.log(
+    `[Thumbnail] Dual generation complete - Imagen: ${result.imagen?.success}, Flash: ${result.gemini_flash?.success}`
+  );
+
+  return result;
+}
+
+/**
+ * Generate dual thumbnails with OG image reference
+ */
+export async function generateDualThumbnailsWithOgReference(
+  request: ThumbnailRequest & { og_image_url: string }
+): Promise<DualThumbnailResult> {
+  console.log(`[Thumbnail] Dual OG+AI generation for: "${request.title.slice(0, 50)}..."`);
+
+  // Run both generations in parallel
+  const [imagenResult, geminiFlashResult] = await Promise.allSettled([
+    generateThumbnailWithOgReference(request),
+    generateThumbnailWithGeminiFlash(request), // Gemini Flash uses standard prompt
+  ]);
+
+  const result: DualThumbnailResult = {};
+
+  if (imagenResult.status === "fulfilled") {
+    result.imagen = imagenResult.value;
+  } else {
+    result.imagen = {
+      success: false,
+      source: "default",
+      error: imagenResult.reason?.message || "Imagen OG+AI generation failed",
+    };
+  }
+
+  if (geminiFlashResult.status === "fulfilled") {
+    result.gemini_flash = geminiFlashResult.value;
+  } else {
+    result.gemini_flash = {
+      success: false,
+      source: "default",
+      error: geminiFlashResult.reason?.message || "Gemini Flash generation failed",
+    };
+  }
+
+  return result;
 }

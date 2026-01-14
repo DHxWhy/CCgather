@@ -3,16 +3,21 @@ import { createServiceClient } from "@/lib/supabase/server";
 import {
   generateThumbnail,
   generateThumbnailWithOgReference,
+  generateThumbnailWithGeminiFlash,
+  generateDualThumbnails,
+  generateDualThumbnailsWithOgReference,
   updateContentThumbnail,
 } from "@/lib/gemini/thumbnail-generator";
 import type { ArticleType } from "@/lib/ai/gemini-client";
+
+type ModelType = "imagen" | "gemini_flash" | "dual";
 
 export async function POST(request: NextRequest) {
   try {
     const supabase = createServiceClient();
 
     const body = await request.json();
-    const { content_id, title, summary, force_regenerate, og_image_url } = body;
+    const { content_id, title, summary, force_regenerate, og_image_url, model = "imagen" } = body;
 
     if (!content_id || !title) {
       return NextResponse.json({ error: "content_id and title are required" }, { status: 400 });
@@ -39,24 +44,53 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // Generate new thumbnail with AI-classified article type
-    // Use OG+AI fusion if og_image_url is provided
-    const result = og_image_url
-      ? await generateThumbnailWithOgReference({
-          content_id,
-          title,
-          summary,
-          article_type: content.ai_article_type as ArticleType | undefined,
-          force_regenerate,
-          og_image_url,
-        })
-      : await generateThumbnail({
-          content_id,
-          title,
-          summary,
-          article_type: content.ai_article_type as ArticleType | undefined,
-          force_regenerate,
-        });
+    const requestParams = {
+      content_id,
+      title,
+      summary,
+      article_type: content.ai_article_type as ArticleType | undefined,
+      force_regenerate,
+    };
+
+    // Handle dual model generation
+    if ((model as ModelType) === "dual") {
+      const dualResult = og_image_url
+        ? await generateDualThumbnailsWithOgReference({ ...requestParams, og_image_url })
+        : await generateDualThumbnails(requestParams);
+
+      // Return both results for UI selection
+      return NextResponse.json({
+        success: true,
+        dual_results: {
+          imagen: dualResult.imagen
+            ? {
+                url: dualResult.imagen.thumbnail_url,
+                success: dualResult.imagen.success,
+                error: dualResult.imagen.error,
+                cost_usd: dualResult.imagen.cost_usd,
+              }
+            : null,
+          gemini_flash: dualResult.gemini_flash
+            ? {
+                url: dualResult.gemini_flash.thumbnail_url,
+                success: dualResult.gemini_flash.success,
+                error: dualResult.gemini_flash.error,
+                cost_usd: dualResult.gemini_flash.cost_usd,
+              }
+            : null,
+        },
+      });
+    }
+
+    // Single model generation
+    let result;
+    if ((model as ModelType) === "gemini_flash") {
+      result = await generateThumbnailWithGeminiFlash(requestParams);
+    } else if (og_image_url) {
+      result = await generateThumbnailWithOgReference({ ...requestParams, og_image_url });
+    } else {
+      result = await generateThumbnail(requestParams);
+    }
 
     if (result.success && result.thumbnail_url) {
       // Update database
