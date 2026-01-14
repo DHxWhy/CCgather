@@ -5,6 +5,7 @@ import type { CronJob, CronRunHistory, CronLogEntry, TargetCategory } from "@/ty
 
 interface CronSchedulerProps {
   onRefresh?: () => void;
+  onCollectionComplete?: (count: number, type: "news" | "youtube") => void;
 }
 
 // Available cron jobs
@@ -35,7 +36,7 @@ const CATEGORY_OPTIONS: Array<{ value: TargetCategory; label: string; color: str
   { value: "youtube", label: "YouTube", color: "bg-red-500" },
 ];
 
-export default function CronScheduler({ onRefresh }: CronSchedulerProps) {
+export default function CronScheduler({ onRefresh, onCollectionComplete }: CronSchedulerProps) {
   const [selectedJobId, setSelectedJobId] = useState(CRON_JOBS[0]!.id);
   const [job, setJob] = useState<CronJob | null>(null);
   const [history, setHistory] = useState<CronRunHistory[]>([]);
@@ -111,13 +112,19 @@ export default function CronScheduler({ onRefresh }: CronSchedulerProps) {
             setRunning(false);
             fetchJobStatus();
             onRefresh?.();
+
+            // Notify about collection completion with count
+            if (data.status === "success" && data.items_saved > 0) {
+              const type = selectedJobId.includes("youtube") ? "youtube" : "news";
+              onCollectionComplete?.(data.items_saved, type);
+            }
           }
         }
       } catch (error) {
         console.error("Failed to poll progress:", error);
       }
     },
-    [stopPolling, onRefresh]
+    [stopPolling, onRefresh, onCollectionComplete, selectedJobId]
   );
 
   const startPolling = useCallback(

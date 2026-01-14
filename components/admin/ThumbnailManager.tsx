@@ -35,7 +35,9 @@ interface ThumbnailHistoryItem {
 }
 
 const SOURCE_LABELS: Record<ThumbnailSource, { label: string; color: string }> = {
-  gemini: { label: "AI 생성", color: "bg-purple-500/20 text-purple-400" },
+  gemini: { label: "Gemini Pro", color: "bg-purple-500/20 text-purple-400" },
+  imagen: { label: "Imagen 3", color: "bg-pink-500/20 text-pink-400" },
+  gemini_flash: { label: "Gemini Flash", color: "bg-amber-500/20 text-amber-400" },
   og_image: { label: "OG 이미지", color: "bg-blue-500/20 text-blue-400" },
   manual: { label: "수동 입력", color: "bg-green-500/20 text-green-400" },
   default: { label: "기본", color: "bg-gray-500/20 text-gray-400" },

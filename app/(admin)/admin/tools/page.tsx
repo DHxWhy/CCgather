@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Image from "next/image";
+import { Loader2, X, Clipboard } from "lucide-react";
 import {
   TOOL_CATEGORIES,
   TOOL_PRICING_TYPES,
@@ -476,6 +477,56 @@ function EditToolModal({
   const [pricingType, setPricingType] = useState<ToolPricingType>(tool.pricing_type);
   const [logoUrl, setLogoUrl] = useState(tool.logo_url || "");
   const [tags, setTags] = useState(tool.tags?.join(", ") || "");
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+
+  const handlePaste = useCallback(
+    async (e: ClipboardEvent) => {
+      const items = e.clipboardData?.items;
+      if (!items) return;
+
+      for (const item of Array.from(items)) {
+        if (item.type.startsWith("image/")) {
+          e.preventDefault();
+          const file = item.getAsFile();
+          if (!file) continue;
+
+          setIsUploading(true);
+          setUploadError(null);
+
+          try {
+            const formData = new FormData();
+            formData.append("file", file);
+            formData.append("toolSlug", tool.slug || "");
+
+            const response = await fetch("/api/admin/tools/logo", {
+              method: "POST",
+              body: formData,
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+              setLogoUrl(data.url);
+            } else {
+              setUploadError(data.error || "업로드 실패");
+            }
+          } catch {
+            setUploadError("업로드 중 오류가 발생했습니다");
+          } finally {
+            setIsUploading(false);
+          }
+          break;
+        }
+      }
+    },
+    [tool.slug]
+  );
+
+  useEffect(() => {
+    document.addEventListener("paste", handlePaste);
+    return () => document.removeEventListener("paste", handlePaste);
+  }, [handlePaste]);
 
   const handleSave = () => {
     onSave({
@@ -554,16 +605,67 @@ function EditToolModal({
             </select>
           </div>
 
-          {/* Logo URL */}
+          {/* Logo */}
           <div>
-            <label className="block text-[11px] font-medium text-white/50 mb-1.5">로고 URL</label>
-            <input
-              type="url"
-              value={logoUrl}
-              onChange={(e) => setLogoUrl(e.target.value)}
-              placeholder="https://example.com/logo.png"
-              className="w-full px-3 py-2 bg-white/5 border border-white/[0.06] rounded text-[13px] text-white focus:outline-none focus:border-white/20 placeholder:text-white/20"
-            />
+            <label className="block text-[11px] font-medium text-white/50 mb-1.5">
+              로고 <span className="text-white/30">(이미지를 복사 후 Ctrl+V)</span>
+            </label>
+            <div className="flex gap-3 items-start">
+              {/* Logo Preview / Paste Area */}
+              <div
+                className={`
+                  relative w-20 h-20 rounded-lg border-2 border-dashed overflow-hidden flex-shrink-0
+                  ${isUploading ? "border-[var(--color-claude-coral)] bg-[var(--color-claude-coral)]/10" : "border-white/20 bg-white/5"}
+                  ${!logoUrl && !isUploading ? "flex items-center justify-center" : ""}
+                `}
+              >
+                {isUploading ? (
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <Loader2 className="w-6 h-6 animate-spin text-[var(--color-claude-coral)]" />
+                  </div>
+                ) : logoUrl ? (
+                  <>
+                    <Image
+                      src={logoUrl}
+                      alt="Logo"
+                      fill
+                      className="object-contain p-1"
+                      unoptimized
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).style.display = "none";
+                      }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setLogoUrl("")}
+                      className="absolute top-1 right-1 p-1 bg-black/60 rounded-full hover:bg-black/80 transition-colors"
+                    >
+                      <X className="w-3 h-3 text-white" />
+                    </button>
+                  </>
+                ) : (
+                  <div className="text-center p-2">
+                    <Clipboard className="w-5 h-5 text-white/30 mx-auto mb-1" />
+                    <span className="text-[9px] text-white/30">Ctrl+V</span>
+                  </div>
+                )}
+              </div>
+
+              {/* URL Input */}
+              <div className="flex-1 space-y-2">
+                <input
+                  type="url"
+                  value={logoUrl}
+                  onChange={(e) => setLogoUrl(e.target.value)}
+                  placeholder="https://example.com/logo.png"
+                  className="w-full px-3 py-2 bg-white/5 border border-white/[0.06] rounded text-[13px] text-white focus:outline-none focus:border-white/20 placeholder:text-white/20"
+                />
+                {uploadError && <p className="text-[11px] text-red-400">{uploadError}</p>}
+                <p className="text-[10px] text-white/30">
+                  이미지를 복사하고 이 창에서 Ctrl+V를 누르세요
+                </p>
+              </div>
+            </div>
           </div>
 
           {/* Description */}

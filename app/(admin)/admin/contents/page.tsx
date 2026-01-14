@@ -1,11 +1,12 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Image from "next/image";
 import ThumbnailManager from "@/components/admin/ThumbnailManager";
 import TargetManager from "@/components/admin/TargetManager";
 import CronScheduler from "@/components/admin/CronScheduler";
 import UnusedThumbnailManager from "@/components/admin/UnusedThumbnailManager";
+import { useToast } from "@/components/ui/ToastProvider";
 import type { ThumbnailSource } from "@/types/automation";
 
 type ContentType = "news" | "youtube";
@@ -130,14 +131,9 @@ export default function AdminContentsPage() {
   const [filter, setFilter] = useState<"all" | ContentStatus>("all");
   const [editingItem, setEditingItem] = useState<ContentItem | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
+  const { showToast } = useToast();
 
-  useEffect(() => {
-    if (activeTab === "news" || activeTab === "youtube") {
-      fetchContents();
-    }
-  }, [activeTab]);
-
-  async function fetchContents() {
+  const fetchContents = useCallback(async () => {
     setLoading(true);
     try {
       const response = await fetch("/api/admin/contents");
@@ -150,7 +146,13 @@ export default function AdminContentsPage() {
     } finally {
       setLoading(false);
     }
-  }
+  }, []);
+
+  useEffect(() => {
+    if (activeTab === "news" || activeTab === "youtube") {
+      fetchContents();
+    }
+  }, [activeTab, fetchContents]);
 
   async function updateContentStatus(id: string, status: ContentStatus) {
     try {
@@ -368,8 +370,29 @@ function ContentCard({
   onStatusChange: (id: string, status: ContentStatus) => void;
   onDelete: () => void;
 }) {
+  // Check if original published_at is before created_at (collection date)
+  const publishedDate = item.published_at ? new Date(item.published_at) : null;
+  const createdDate = new Date(item.created_at);
+  const isPastContent = publishedDate && publishedDate < createdDate;
+  // Calculate days difference
+  const daysDiff = isPastContent
+    ? Math.floor((createdDate.getTime() - publishedDate.getTime()) / (1000 * 60 * 60 * 24))
+    : 0;
+
   return (
-    <div className="bg-[#161616] rounded-lg p-3 border border-white/[0.06] hover:border-white/10 transition-colors">
+    <div className="bg-[#161616] rounded-lg p-3 border border-white/[0.06] hover:border-white/10 transition-colors relative">
+      {/* Past Content Badge */}
+      {isPastContent && daysDiff > 0 && (
+        <div className="absolute top-2 right-2 z-10">
+          <span
+            className="px-1.5 py-0.5 rounded text-[9px] bg-amber-500/20 text-amber-400"
+            title={`원본 게시일: ${publishedDate.toLocaleDateString("ko-KR")}\n수집일: ${createdDate.toLocaleDateString("ko-KR")}`}
+          >
+            과거: {publishedDate.toLocaleDateString("ko-KR", { month: "numeric", day: "numeric" })}
+            <span className="text-amber-500/60 ml-0.5">({daysDiff}일 전)</span>
+          </span>
+        </div>
+      )}
       <div className="flex gap-3">
         {/* Thumbnail */}
         {item.thumbnail_url && (

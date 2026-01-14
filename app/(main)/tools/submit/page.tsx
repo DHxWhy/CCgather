@@ -14,6 +14,8 @@ import {
   Lock,
   TrendingUp,
   Calendar,
+  Clipboard,
+  X,
 } from "lucide-react";
 import { useAuth } from "@clerk/nextjs";
 import { cn } from "@/lib/utils";
@@ -151,6 +153,61 @@ export default function ToolSuggestPage() {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysisError, setAnalysisError] = useState<string | null>(null);
   const [hasAnalyzed, setHasAnalyzed] = useState(false);
+
+  // Logo upload state
+  const [isUploadingLogo, setIsUploadingLogo] = useState(false);
+  const [logoUploadError, setLogoUploadError] = useState<string | null>(null);
+
+  // Logo paste handler
+  const handleLogoPaste = useCallback(async (e: ClipboardEvent) => {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+
+    for (const item of Array.from(items)) {
+      if (item.type.startsWith("image/")) {
+        e.preventDefault();
+        const file = item.getAsFile();
+        if (!file) continue;
+
+        // File size check (512KB)
+        if (file.size > 512 * 1024) {
+          setLogoUploadError("파일 크기는 512KB 이하여야 합니다");
+          return;
+        }
+
+        setIsUploadingLogo(true);
+        setLogoUploadError(null);
+
+        try {
+          const uploadFormData = new FormData();
+          uploadFormData.append("file", file);
+
+          const response = await fetch("/api/tools/logo", {
+            method: "POST",
+            body: uploadFormData,
+          });
+
+          const data = await response.json();
+
+          if (data.success) {
+            setFormData((prev) => ({ ...prev, logo_url: data.url }));
+          } else {
+            setLogoUploadError(data.error || "업로드 실패");
+          }
+        } catch {
+          setLogoUploadError("업로드 중 오류가 발생했습니다");
+        } finally {
+          setIsUploadingLogo(false);
+        }
+        break;
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    document.addEventListener("paste", handleLogoPaste);
+    return () => document.removeEventListener("paste", handleLogoPaste);
+  }, [handleLogoPaste]);
 
   // Check eligibility on mount
   useEffect(() => {
@@ -639,7 +696,7 @@ export default function ToolSuggestPage() {
             )}
           </div>
 
-          {/* Name */}
+          {/* Name with Logo */}
           <div>
             <label
               htmlFor="name"
@@ -647,22 +704,75 @@ export default function ToolSuggestPage() {
             >
               도구 이름 <span className="text-red-500">*</span>
             </label>
-            <input
-              type="text"
-              id="name"
-              name="name"
-              value={formData.name}
-              onChange={handleChange}
-              placeholder="예: Cursor, Supabase, Vercel"
-              className={cn(
-                "w-full px-3 py-2 rounded-lg",
-                "bg-[var(--color-bg-card)] border",
-                "text-[var(--color-text-primary)]",
-                "placeholder:text-[var(--color-text-muted)]",
-                "focus:outline-none focus:ring-2 focus:ring-[var(--color-claude-coral)]",
-                errors.name ? "border-red-500" : "border-[var(--border-default)]"
-              )}
-            />
+            <div className="flex gap-3 items-center">
+              {/* Logo Preview / Paste Area */}
+              <div
+                className={cn(
+                  "relative w-14 h-14 rounded-lg border-2 border-dashed overflow-hidden flex-shrink-0",
+                  isUploadingLogo
+                    ? "border-[var(--color-claude-coral)] bg-[var(--color-claude-coral)]/10"
+                    : "border-[var(--border-default)] bg-[var(--color-bg-card)]",
+                  !formData.logo_url && !isUploadingLogo && "flex items-center justify-center"
+                )}
+                title="이미지를 복사 후 Ctrl+V로 붙여넣기"
+              >
+                {isUploadingLogo ? (
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <Loader2 className="w-5 h-5 animate-spin text-[var(--color-claude-coral)]" />
+                  </div>
+                ) : formData.logo_url ? (
+                  <>
+                    <Image
+                      src={formData.logo_url}
+                      alt="Logo preview"
+                      fill
+                      className="object-contain p-1"
+                      unoptimized
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).style.display = "none";
+                      }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setFormData((prev) => ({ ...prev, logo_url: "" }))}
+                      className="absolute -top-1 -right-1 p-1 bg-red-500 rounded-full hover:bg-red-600 transition-colors"
+                    >
+                      <X className="w-3 h-3 text-white" />
+                    </button>
+                  </>
+                ) : (
+                  <div className="text-center p-1">
+                    <Clipboard className="w-4 h-4 text-[var(--color-text-muted)] mx-auto" />
+                    <span className="text-[8px] text-[var(--color-text-muted)]">Ctrl+V</span>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex-1 space-y-1">
+                <input
+                  type="text"
+                  id="name"
+                  name="name"
+                  value={formData.name}
+                  onChange={handleChange}
+                  placeholder="예: Cursor, Supabase, Vercel"
+                  className={cn(
+                    "w-full px-3 py-2 rounded-lg",
+                    "bg-[var(--color-bg-card)] border",
+                    "text-[var(--color-text-primary)]",
+                    "placeholder:text-[var(--color-text-muted)]",
+                    "focus:outline-none focus:ring-2 focus:ring-[var(--color-claude-coral)]",
+                    errors.name ? "border-red-500" : "border-[var(--border-default)]"
+                  )}
+                />
+                {logoUploadError && <p className="text-[10px] text-red-500">{logoUploadError}</p>}
+                {!formData.logo_url && !logoUploadError && (
+                  <p className="text-[10px] text-[var(--color-text-muted)]">
+                    로고 이미지를 복사하고 Ctrl+V로 붙여넣기
+                  </p>
+                )}
+              </div>
+            </div>
             {errors.name && <p className="mt-1 text-xs text-red-500">{errors.name}</p>}
           </div>
 
@@ -714,10 +824,9 @@ export default function ToolSuggestPage() {
               onChange={handleChange}
               className={cn(
                 "w-full px-3 py-2 rounded-lg",
-                "bg-white dark:bg-[#1a1a1a] border",
+                "bg-[var(--color-bg-card)] border",
                 "text-[var(--color-text-primary)]",
                 "focus:outline-none focus:ring-2 focus:ring-[var(--color-claude-coral)]",
-                "[&>option]:bg-white [&>option]:text-gray-900 dark:[&>option]:bg-[#1a1a1a] dark:[&>option]:text-white",
                 errors.category ? "border-red-500" : "border-[var(--border-default)]"
               )}
             >
@@ -744,7 +853,7 @@ export default function ToolSuggestPage() {
               name="pricing_type"
               value={formData.pricing_type}
               onChange={handleChange}
-              className="w-full px-3 py-2 rounded-lg bg-white dark:bg-[#1a1a1a] border border-[var(--border-default)] text-[var(--color-text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-claude-coral)] [&>option]:bg-white [&>option]:text-gray-900 dark:[&>option]:bg-[#1a1a1a] dark:[&>option]:text-white"
+              className="w-full px-3 py-2 rounded-lg bg-[var(--color-bg-card)] border border-[var(--border-default)] text-[var(--color-text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-claude-coral)]"
             >
               {TOOL_PRICING_TYPES.map((type) => (
                 <option key={type} value={type}>
@@ -771,43 +880,6 @@ export default function ToolSuggestPage() {
               placeholder="도구에 대해 더 자세히 설명해주세요. 어떤 문제를 해결하나요? 왜 추천하시나요?"
               className="w-full px-3 py-2 rounded-lg bg-[var(--color-bg-card)] border border-[var(--border-default)] text-[var(--color-text-primary)] placeholder:text-[var(--color-text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--color-claude-coral)] resize-none"
             />
-          </div>
-
-          {/* Logo URL */}
-          <div>
-            <label
-              htmlFor="logo_url"
-              className="block text-sm font-medium text-[var(--color-text-primary)] mb-1.5"
-            >
-              로고 URL <span className="text-[var(--color-text-muted)]">(선택)</span>
-            </label>
-            <div className="flex gap-3 items-center">
-              <input
-                type="url"
-                id="logo_url"
-                name="logo_url"
-                value={formData.logo_url}
-                onChange={handleChange}
-                placeholder="https://example.com/logo.png"
-                className="flex-1 px-3 py-2 rounded-lg bg-[var(--color-bg-card)] border border-[var(--border-default)] text-[var(--color-text-primary)] placeholder:text-[var(--color-text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--color-claude-coral)]"
-              />
-              {formData.logo_url && (
-                <Image
-                  src={formData.logo_url}
-                  alt="Logo preview"
-                  width={40}
-                  height={40}
-                  className="rounded-lg object-cover"
-                  unoptimized
-                  onError={(e) => {
-                    (e.target as HTMLImageElement).style.display = "none";
-                  }}
-                />
-              )}
-            </div>
-            <p className="mt-1 text-xs text-[var(--color-text-muted)]">
-              비어있으면 자동으로 파비콘을 가져옵니다
-            </p>
           </div>
 
           {/* Submit Button */}
