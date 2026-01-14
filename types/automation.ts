@@ -242,7 +242,13 @@ export interface PublishOrderProps {
 export type ContentType = "news" | "youtube";
 export type ContentCategory = "version_update" | "official" | "press" | "community" | "youtube";
 export type ContentStatus = "pending" | "ready" | "published" | "rejected";
-export type ThumbnailSource = "gemini" | "og_image" | "manual" | "default";
+export type ThumbnailSource =
+  | "gemini"
+  | "imagen"
+  | "gemini_flash"
+  | "og_image"
+  | "manual"
+  | "default";
 
 export interface ContentItem {
   id: string;
