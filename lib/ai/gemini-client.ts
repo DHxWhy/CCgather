@@ -1,15 +1,21 @@
 /**
- * Gemini 3 Flash Client
- * Unified AI pipeline using Google Gemini 3 Flash
+ * Gemini 3 Flash Client - Refactored with Dynamic Prompt Generation
  *
- * Based on NEWS_TAB_STRATEGY.md v3.2:
- * - Stage 1: Fact Extraction
- * - Stage 2: Article Rewriting
- * - Stage 3: Fact Verification
+ * Based on NEWS_TAB_STRATEGY.md v3.2 + Prompt Engineering Analysis:
+ * - Stage 1: Fact Extraction + Article Type Classification (with Decision Tree)
+ * - Stage 2: Dynamic Article Rewriting (type-specific prompts)
+ * - Stage 3: Enhanced Fact Verification (with original content)
+ *
+ * Key Improvements:
+ * - Dynamic prompt generation (~40% token reduction)
+ * - Decision tree for type classification
+ * - Primary/secondary type support
+ * - Additional article types (research, integration, pricing, showcase, opinion)
+ * - Enhanced verification with original content
+ * - Length rules by article size
  *
  * Model: gemini-3-flash-preview (Gemini 3 Flash)
  * Pricing: $0.50/1M input, $3.00/1M output
- * Context: 1M tokens, multimodal input
  */
 
 import { GoogleGenerativeAI, GenerativeModel, GenerationConfig } from "@google/generative-ai";
@@ -18,11 +24,11 @@ import { GoogleGenerativeAI, GenerativeModel, GenerationConfig } from "@google/g
 // Configuration
 // ===========================================
 
-export const GEMINI_MODEL = "gemini-3-flash-preview"; // Gemini 3 Flash
+export const GEMINI_MODEL = "gemini-3-flash-preview";
 
 export const GEMINI_COSTS = {
-  input: 0.5, // $0.50 per 1M input tokens
-  output: 3.0, // $3.00 per 1M output tokens
+  input: 0.5,
+  output: 3.0,
 };
 
 // ===========================================
@@ -36,24 +42,42 @@ export interface GeminiUsage {
   costUsd: number;
 }
 
+// Extended article types based on prompt engineering analysis
 export type ArticleType =
-  | "product_launch"
-  | "version_update"
-  | "tutorial"
-  | "interview"
-  | "analysis"
-  | "security"
-  | "event"
-  | "general";
+  | "product_launch" // New product/feature release
+  | "version_update" // Existing product update, patch notes
+  | "tutorial" // How-to guides, step-by-step
+  | "interview" // Q&A, conversations
+  | "analysis" // Comparisons, reviews, deep dives
+  | "security" // Vulnerabilities, security advisories
+  | "event" // Conferences, announcements at events
+  | "research" // Papers, benchmarks, academic findings
+  | "integration" // Partnerships, tool integrations
+  | "pricing" // Pricing changes, policy updates
+  | "showcase" // Community projects, demos
+  | "opinion" // Editorials, subjective takes
+  | "general"; // Catch-all for unclassified
+
+export interface ArticleClassification {
+  primary: ArticleType;
+  secondary?: ArticleType;
+  confidence: number;
+  signals: string[];
+}
 
 export interface ExtractedFacts {
-  articleType: ArticleType;
+  classification: ArticleClassification;
   version?: string;
   releaseDate?: string;
   metrics: string[];
   features: string[];
   changes: string[];
   keywords: string[];
+  // Type-specific fields
+  severity?: string; // For security
+  cveId?: string; // For security
+  speakers?: string[]; // For interview/event
+  methodology?: string; // For research/analysis
 }
 
 export interface RewrittenArticle {
@@ -71,173 +95,173 @@ export interface RewrittenArticle {
 }
 
 export interface FactVerification {
-  score: number; // 0-100
+  score: number;
   passed: boolean;
   issues: string[];
   suggestions: string[];
+  checklist: {
+    factualAccuracy: boolean;
+    completeness: boolean;
+    toneAppropriateness: boolean;
+    noExaggeration: boolean;
+  };
 }
 
 // ===========================================
-// Prompts
+// Prompts - Modular Design
 // ===========================================
 
+// Stage 1: Fact Extraction with Decision Tree
 const FACT_EXTRACTION_PROMPT = `당신은 CCgather 뉴스 플랫폼의 팩트 추출 전문가입니다.
 
-주어진 기사에서 핵심 팩트를 구조화된 JSON으로 추출하세요.
+## 1단계: 기사 유형 분류 (Decision Tree)
 
-## 1단계: 기사 유형 분류 (articleType)
-기사를 읽고 가장 적합한 유형을 선택하세요:
+다음 의사결정 트리를 따라 기사 유형을 분류하세요:
 
-- **product_launch**: 새 제품/기능 발표, 서비스 출시
-- **version_update**: 기존 제품의 버전 업데이트, 패치 노트
-- **tutorial**: 사용법 가이드, How-to, 튜토리얼
-- **interview**: 인터뷰, 대담, Q&A
-- **analysis**: 의견, 분석, 비교, 리뷰
-- **security**: 보안 취약점, 버그 리포트, 긴급 공지
-- **event**: 컨퍼런스, 이벤트 보도, 발표 현장
-- **general**: 위 유형에 해당하지 않는 일반 뉴스
+\`\`\`
+Q1: 보안 취약점, CVE, 긴급 패치 관련인가?
+    → YES: primary = "security"
+    → NO: Q2로
+
+Q2: 버전 번호/릴리즈가 명시되어 있는가?
+    → YES: Q2-1로
+    → NO: Q3로
+
+Q2-1: 완전히 새로운 제품/서비스인가?
+    → YES: primary = "product_launch"
+    → NO: primary = "version_update"
+
+Q3: 단계별 가이드/How-to 형식인가?
+    → YES: primary = "tutorial"
+    → NO: Q4로
+
+Q4: 인터뷰/Q&A/대담 형식인가?
+    → YES: primary = "interview"
+    → NO: Q5로
+
+Q5: 학술 논문/벤치마크/실험 결과인가?
+    → YES: primary = "research"
+    → NO: Q6로
+
+Q6: 두 시스템 간 연동/파트너십 발표인가?
+    → YES: primary = "integration"
+    → NO: Q7로
+
+Q7: 가격/요금/정책 변경인가?
+    → YES: primary = "pricing"
+    → NO: Q8로
+
+Q8: 커뮤니티 프로젝트/데모/쇼케이스인가?
+    → YES: primary = "showcase"
+    → NO: Q9로
+
+Q9: 컨퍼런스/이벤트 보도인가?
+    → YES: primary = "event"
+    → NO: Q10으로
+
+Q10: 주관적 의견/사설/평론인가?
+    → YES: primary = "opinion"
+    → NO: Q11으로
+
+Q11: 비교/분석/리뷰인가?
+    → YES: primary = "analysis"
+    → NO: primary = "general"
+\`\`\`
+
+**복합 유형 처리:**
+- 기사가 두 유형에 걸쳐있으면 primary와 secondary를 모두 지정
+- 예: 이벤트에서 신제품 발표 → primary: "event", secondary: "product_launch"
+- confidence: 분류 확신도 (0.0-1.0)
+- signals: 분류 근거가 된 키워드/문구들
 
 ## 2단계: 팩트 추출
 - version: 버전 번호 (있는 경우)
-- releaseDate: 발표일 (있는 경우)
-- metrics: 수치 데이터 (성능 개선율, 속도, 비용 등)
+- releaseDate: 발표일/출시일 (있는 경우)
+- metrics: 수치 데이터 (성능, 속도, 비용, 가격 등)
 - features: 주요 기능/특징
 - changes: 변경 사항
-- keywords: Claude Code, Anthropic 관련 키워드
+- keywords: Claude, Anthropic, AI 관련 핵심 키워드
+
+**유형별 추가 필드:**
+- security: severity (심각도), cveId (CVE 번호)
+- interview/event: speakers (발언자/발표자)
+- research/analysis: methodology (방법론)
 
 ## 출력 형식
 JSON만 출력하세요.
 
 \`\`\`json
 {
-  "articleType": "product_launch|version_update|tutorial|interview|analysis|security|event|general",
+  "classification": {
+    "primary": "article_type",
+    "secondary": "article_type or null",
+    "confidence": 0.0-1.0,
+    "signals": ["근거1", "근거2"]
+  },
   "version": "string or null",
   "releaseDate": "string or null",
   "metrics": ["string"],
   "features": ["string"],
   "changes": ["string"],
-  "keywords": ["string"]
+  "keywords": ["string"],
+  "severity": "string or null",
+  "cveId": "string or null",
+  "speakers": ["string"] or null,
+  "methodology": "string or null"
 }
 \`\`\``;
 
-const ARTICLE_REWRITING_PROMPT = `You are a senior technical writer for CCgather news platform.
+// Stage 2: Base prompt (common rules)
+const REWRITE_BASE_PROMPT = `You are a senior technical writer for CCgather news platform.
 
 ## IMPORTANT: Language Requirement
 **ALL output content MUST be written in natural, fluent English.**
-Even if the source article is in Korean, Japanese, or any other language, translate and rewrite everything in English.
+Translate from any source language.
 
 ## CRITICAL: Original Content Only
 **NEVER copy sentences from the source article.**
 - Completely rewrite every sentence in your own words
 - Use different sentence structures and vocabulary
 - Preserve the FACTS but express them in a fresh, unique way
-- Your output must pass plagiarism detection tools
-- Think of yourself as a journalist who attended the same event and is writing your own story
+- Think of yourself as a journalist writing your own story
 
 ## CRITICAL: Information-First Writing
-Your summary must prioritize FACTS over FEELINGS. Readers must understand WHAT the news is about from the summary alone.
+Prioritize FACTS over FEELINGS. Readers must understand WHAT the news is about from the summary alone.
 
 ## CCgather Persona
 - Friendly yet professional tone
 - Content for the Claude Code developer community
 - Explain complex technology simply and clearly
 - Provide practical, actionable insights
-- Conversational but informative style
 
 ## Writing Guidelines
 
 ### 1. One-liner (oneLiner)
-Capture the essence in one shareable sentence containing at least ONE specific fact (feature, number, or availability).
-❌ "A new tool that changes how you work with AI"
-✅ "Claude Max subscribers can now automate file tasks with Cowork on macOS"
+One shareable sentence with at least ONE specific fact.
+Bad: "A new tool that changes how you work with AI"
+Good: "Claude Max subscribers can now automate file tasks with Cowork on macOS"
 
 ### 2. Title
-Create an original, engaging headline + relevant emoji. Include the product/feature name.
+Original, engaging headline + relevant emoji. Include product/feature name.
 
-### 3. Summary (COMPREHENSIVE SUMMARY - 50% of original length)
-Write a comprehensive summary that captures approximately **50% of the original article's length**.
-If the original is 3000 characters, write ~1500 characters. If it's 1000 characters, write ~500 characters.
-
-**IMPORTANT: Use the structure that matches the articleType from Stage 1 facts.**
-
-#### Structure by Article Type:
-
-**product_launch / version_update:**
-1. Lead: What was released, by whom, for whom
-2. Core Features: Key capabilities with specific examples
-3. Technical Details: How it works, specifications, requirements
-4. Context & Impact: Pricing, availability, limitations
-
-**tutorial:**
-1. Goal: What you will learn/build
-2. Prerequisites: Required knowledge, tools, setup
-3. Key Steps: Main steps summarized (not full tutorial)
-4. Outcome: What you achieve at the end
-
-**interview:**
-1. Who: Interviewee background and relevance
-2. Key Quotes: 2-3 most important statements (paraphrased)
-3. Main Topics: What was discussed
-4. Takeaways: Key insights from the conversation
-
-**analysis:**
-1. Topic: What is being analyzed/compared
-2. Key Arguments: Main points and evidence
-3. Findings: Conclusions or comparisons
-4. Implications: What this means for readers
-
-**security:**
-1. Vulnerability: What the issue is, severity level
-2. Affected: Products, versions, users impacted
-3. Risk: Potential impact if exploited
-4. Mitigation: How to fix or protect yourself
-
-**event:**
-1. Event: What, when, where
-2. Announcements: Key reveals or presentations
-3. Highlights: Notable moments or demos
-4. Significance: Why it matters
-
-**general:**
-1. Lead: Core news (WHO did WHAT)
-2. Details: Supporting information
-3. Context: Background and significance
-4. Impact: What this means going forward
-
-### Information Density Rules for Summary
-- Cover ALL major points from the original article, not just highlights
-- Include specific numbers, versions, dates, and technical details
-- Use action verbs: "reads", "creates", "organizes", "generates", "accesses"
-- Include: availability (who can use), platform (where), specific capabilities (what it does)
-- Preserve technical accuracy while making content accessible
-- NEVER use vague marketing words: "revolutionary", "game-changing", "proactive", "seamless", "powerful"
-
-### Summary Anti-patterns (NEVER write like this)
-❌ "functions more like a proactive teammate than a simple chatbot"
-✅ "reads and edits files in user-selected folders autonomously"
-
-❌ "complex file management and document creation tasks"
-✅ "organizing downloads, generating spreadsheets from screenshots, drafting reports from notes"
-
-❌ Brief 2-sentence summaries that miss important details
-✅ Comprehensive summaries that give readers full context without reading the original
-
-### Example Good Summary
-"Anthropic released Cowork, a file automation tool exclusively for Claude Max subscribers ($100/month) on macOS. The feature allows Claude to access designated folders on your computer, where it can read, edit, and create files autonomously—handling tasks like organizing cluttered downloads folders, generating expense spreadsheets from receipt screenshots, and drafting reports from scattered meeting notes. Unlike the standard Claude chat interface, Cowork operates in the background, letting users queue multiple tasks and continue their work while Claude processes them. The tool integrates with the existing Claude desktop app and requires explicit folder permission grants for security. Currently in beta, Cowork represents Anthropic's push toward more agentic AI capabilities, building on the foundations established with Claude Code for developers."
+### 3. Key Takeaways
+3-5 bullet points with icon + text. Each must contain a specific fact.
+Bad: { "icon": "rocket", "text": "Improved productivity" }
+Good: { "icon": "folder", "text": "Access and edit files in any folder you grant permission" }
 
 ### 4. Body (bodyHtml)
-HTML format using p/h2/ul/li/strong/code tags - COMPLETELY REWRITTEN with specific details.
+HTML format using p/h2/ul/li/strong/code tags. COMPLETELY REWRITTEN.
 
 ### 5. Insight (insightHtml)
-CCgather's unique analysis: What does this mean for Claude Code users? Practical implications.
+CCgather's unique analysis: What does this mean for Claude Code users?
 
-### 6. Key Takeaways
-3-5 bullet points with icon + text. Each must contain a specific fact, not generic statements.
-❌ { "icon": "🚀", "text": "Improved productivity" }
-✅ { "icon": "📁", "text": "Access and edit files in any folder you grant permission to" }
+### Information Density Rules
+- Cover ALL major points from the original
+- Include specific numbers, versions, dates, technical details
+- NEVER use: "revolutionary", "game-changing", "proactive", "seamless", "powerful"
 
 ## Output Format
-Output JSON only.
+JSON only.
 
 \`\`\`json
 {
@@ -252,20 +276,141 @@ Output JSON only.
 }
 \`\`\``;
 
+// Type-specific summary structures
+const TYPE_SUMMARY_PROMPTS: Record<ArticleType, string> = {
+  product_launch: `### Summary Structure (Product Launch)
+1. **Lead**: What product/feature was released, by whom, for whom (availability)
+2. **Core Features**: Key capabilities with specific examples and use cases
+3. **Technical Details**: How it works, specifications, requirements, pricing
+4. **Impact**: Why it matters, competitive positioning, limitations`,
+
+  version_update: `### Summary Structure (Version Update)
+1. **Release Info**: Version number, release date, target users
+2. **Key Changes**: Most important updates, new features
+3. **Technical Details**: Breaking changes, migration notes, requirements
+4. **Impact**: Benefits for existing users, upgrade recommendations`,
+
+  tutorial: `### Summary Structure (Tutorial)
+1. **Goal**: What readers will learn or build
+2. **Prerequisites**: Required knowledge, tools, setup needed
+3. **Key Steps**: Main steps summarized (not full tutorial)
+4. **Outcome**: What readers achieve, next steps`,
+
+  interview: `### Summary Structure (Interview)
+1. **Context**: Why this interview matters, the occasion
+2. **Who**: Interviewee background, interviewer/publication
+3. **Core Dialogue**: 2-3 key Q&A exchanges (preserve important quotes)
+4. **Implications**: What this interview reveals, future outlook`,
+
+  analysis: `### Summary Structure (Analysis)
+1. **Subject & Scope**: What is being analyzed, the analysis boundaries
+2. **Methodology**: Data sources, comparison criteria used
+3. **Key Findings**: Main conclusions with supporting evidence
+4. **Limitations & Implications**: Caveats, what readers should take away`,
+
+  security: `### Summary Structure (Security)
+1. **Vulnerability**: What the issue is, CVE if available, severity (Critical/High/Medium/Low)
+2. **Affected**: Products, versions, user groups impacted
+3. **Risk**: Potential impact if exploited, attack vectors
+4. **Mitigation**: How to fix, workarounds, timeline for patches`,
+
+  event: `### Summary Structure (Event)
+1. **Event Context**: What event, when, where, organizer
+2. **Key Announcements**: Major reveals, product launches at event
+3. **Highlights**: Notable demos, keynote moments, surprises
+4. **Significance**: Why this event matters, industry impact`,
+
+  research: `### Summary Structure (Research)
+1. **Research Question**: What was studied, hypothesis
+2. **Methodology**: How the research was conducted, data sources
+3. **Key Findings**: Main results, statistics, breakthrough points
+4. **Implications**: What this means for the field, limitations`,
+
+  integration: `### Summary Structure (Integration)
+1. **Partnership**: Who is partnering, nature of the integration
+2. **Capabilities**: What the integration enables, specific features
+3. **Technical Details**: How it works, API/SDK requirements
+4. **Benefits**: Value for users, use cases, availability`,
+
+  pricing: `### Summary Structure (Pricing/Policy)
+1. **Change Summary**: What is changing, effective date
+2. **Details**: New pricing tiers, policy specifics, comparison to before
+3. **Affected Users**: Who is impacted, grandfathering rules
+4. **Rationale & Impact**: Why the change, what users should do`,
+
+  showcase: `### Summary Structure (Showcase)
+1. **Project Overview**: What was built, creator/team
+2. **Key Features**: Notable capabilities, technical approach
+3. **Demo/Results**: What it demonstrates, performance
+4. **Availability**: How to try it, open source status, links`,
+
+  opinion: `### Summary Structure (Opinion/Editorial)
+1. **Thesis**: Main argument or position stated
+2. **Key Arguments**: Supporting points and evidence
+3. **Counter-perspectives**: Acknowledged opposing views
+4. **Conclusion**: Author's final take, call to action`,
+
+  general: `### Summary Structure (General / Unclassified)
+**For articles that don't fit other categories, preserve the original article's structure.**
+
+1. **Analyze the original structure**: Identify how the original article is organized
+2. **Mirror the flow**: Follow the same logical progression as the source
+3. **Maintain emphasis**: Keep the same parts emphasized as in the original
+4. **Preserve tone**: Match the formality/casualness of the source
+
+Do NOT force a rigid structure. Let the original article guide your rewrite.
+If the original uses chronological order, use chronological order.
+If the original leads with a quote, lead with that quote (paraphrased).
+If the original is list-heavy, keep the list format.`,
+};
+
+// Length rules based on original article size
+const LENGTH_RULES = `### Summary Length Rules
+Adjust summary length based on original article size:
+
+| Original Length | Summary Target | Notes |
+|-----------------|----------------|-------|
+| 0-500 chars     | Min 200 chars  | Preserve all key info |
+| 501-2000 chars  | ~40-50%        | Standard compression |
+| 2001-5000 chars | ~30-40%        | Focus on essentials |
+| 5000+ chars     | ~20-30%, max 2500 chars | Aggressive summarization |
+
+For very short articles, ensure you don't lose critical information.
+For very long articles, prioritize the most newsworthy elements.`;
+
+// Stage 3: Enhanced verification prompt
 const FACT_VERIFICATION_PROMPT = `당신은 CCgather 뉴스 플랫폼의 팩트체커입니다.
 
-재작성된 기사가 원본 팩트와 일치하는지 검증하세요.
+재작성된 기사가 원본 내용 및 추출된 팩트와 일치하는지 검증하세요.
 
-## 검증 기준
-1. 수치/버전 정보 정확성
-2. 기능 설명의 정확성
-3. 과장/왜곡 여부
-4. 누락된 중요 정보
+## 검증 체크리스트
+
+### 1. 사실적 정확성 (factualAccuracy)
+- [ ] 모든 숫자/버전/날짜가 원문과 일치하는가?
+- [ ] 인용문이 정확한가?
+- [ ] 기술 용어가 올바르게 사용되었는가?
+- [ ] 제품명/회사명/인명이 정확한가?
+
+### 2. 완전성 (completeness)
+- [ ] 원문의 핵심 정보가 모두 포함되었는가?
+- [ ] 중요한 제한사항/주의사항이 누락되지 않았는가?
+- [ ] 독자가 원문 없이도 전체 맥락을 이해할 수 있는가?
+
+### 3. 톤 적절성 (toneAppropriateness)
+- [ ] 추측을 팩트처럼 서술하지 않았는가?
+- [ ] 원문의 톤(긴급/일상/공식)이 유지되었는가?
+- [ ] CCgather 스타일(친근하지만 전문적)을 따르는가?
+
+### 4. 과장/왜곡 없음 (noExaggeration)
+- [ ] 원문보다 과장된 표현이 없는가?
+- [ ] 축소되거나 누락된 부정적 정보가 없는가?
+- [ ] 마케팅 용어로 대체된 중립적 표현이 없는가?
 
 ## 점수 기준
-- 90-100: 자동 승인 (정확함)
-- 70-89: 검토 필요 (일부 수정 권장)
-- 0-69: 거부 (재작성 필요)
+- 95-100: 완벽함, 자동 승인
+- 85-94: 우수함, 사소한 개선 가능
+- 70-84: 검토 필요, 수정 권장
+- 0-69: 거부, 재작성 필요
 
 ## 출력 형식
 JSON만 출력하세요.
@@ -274,14 +419,49 @@ JSON만 출력하세요.
 {
   "score": number,
   "passed": boolean,
-  "issues": ["string"],
-  "suggestions": ["string"]
+  "checklist": {
+    "factualAccuracy": boolean,
+    "completeness": boolean,
+    "toneAppropriateness": boolean,
+    "noExaggeration": boolean
+  },
+  "issues": ["구체적인 문제점"],
+  "suggestions": ["개선 제안"]
 }
 \`\`\``;
 
 // ===========================================
+// Dynamic Prompt Generator
+// ===========================================
+
+function buildRewritePrompt(articleType: ArticleType, originalLength: number): string {
+  const typePrompt = TYPE_SUMMARY_PROMPTS[articleType] || TYPE_SUMMARY_PROMPTS.general;
+
+  return `${REWRITE_BASE_PROMPT}
+
+${typePrompt}
+
+${LENGTH_RULES}
+
+**Current article type: ${articleType}**
+**Original article length: ${originalLength} characters**
+`;
+}
+
+// ===========================================
 // Gemini Client Class
 // ===========================================
+
+// ===========================================
+// Retry Configuration
+// ===========================================
+
+const RETRY_CONFIG = {
+  maxRetries: 3,
+  baseDelayMs: 1000,
+  maxDelayMs: 10000,
+  backoffMultiplier: 2,
+};
 
 export class GeminiClient {
   private genAI: GoogleGenerativeAI;
@@ -306,20 +486,162 @@ export class GeminiClient {
     );
   }
 
-  private parseJsonResponse<T>(text: string): T {
+  /**
+   * Sleep with exponential backoff
+   */
+  private async sleep(attemptNumber: number): Promise<void> {
+    const delay = Math.min(
+      RETRY_CONFIG.baseDelayMs * Math.pow(RETRY_CONFIG.backoffMultiplier, attemptNumber),
+      RETRY_CONFIG.maxDelayMs
+    );
+    if (this.debug) console.log(`[GeminiClient] Waiting ${delay}ms before retry...`);
+    await new Promise((resolve) => setTimeout(resolve, delay));
+  }
+
+  /**
+   * Check if JSON response appears truncated
+   */
+  private isTruncatedJson(text: string): boolean {
+    const trimmed = text.trim();
+
+    // Count braces and brackets
+    let braceCount = 0;
+    let bracketCount = 0;
+    let inString = false;
+    let escapeNext = false;
+
+    for (const char of trimmed) {
+      if (escapeNext) {
+        escapeNext = false;
+        continue;
+      }
+      if (char === "\\") {
+        escapeNext = true;
+        continue;
+      }
+      if (char === '"') {
+        inString = !inString;
+        continue;
+      }
+      if (inString) continue;
+
+      if (char === "{") braceCount++;
+      else if (char === "}") braceCount--;
+      else if (char === "[") bracketCount++;
+      else if (char === "]") bracketCount--;
+    }
+
+    // If counts don't balance, it's truncated
+    if (braceCount !== 0 || bracketCount !== 0) {
+      if (this.debug) {
+        console.log(
+          `[GeminiClient] Truncated JSON detected. Unbalanced: braces=${braceCount}, brackets=${bracketCount}`
+        );
+      }
+      return true;
+    }
+
+    // Check for incomplete ending patterns
+    const incompletePatterns = [
+      /,\s*$/, // Ends with comma
+      /:\s*$/, // Ends with colon
+      /"\s*$/, // Ends with quote (might be incomplete value)
+      /\[\s*$/, // Ends with open bracket
+      /{\s*$/, // Ends with open brace
+    ];
+
+    for (const pattern of incompletePatterns) {
+      if (pattern.test(trimmed)) {
+        if (this.debug) {
+          console.log(`[GeminiClient] Truncated JSON detected. Incomplete ending pattern.`);
+        }
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  /**
+   * Attempt to repair truncated JSON
+   */
+  private repairTruncatedJson(text: string): string {
+    let repaired = text.trim();
+
+    // Remove code block markers
+    const codeBlockMatch = repaired.match(/```(?:json|JSON)?\s*\n?([\s\S]*)/);
+    if (codeBlockMatch && codeBlockMatch[1]) {
+      repaired = codeBlockMatch[1].trim();
+    }
+
+    // Remove trailing incomplete content after last complete value
+    // Find the last complete key-value pair or array item
+    const lastCompleteValue = repaired.match(
+      /([\s\S]*(?:true|false|null|\d+|"[^"]*"|\}|\]))\s*[,\s]*$/
+    );
+    if (lastCompleteValue && lastCompleteValue[1]) {
+      repaired = lastCompleteValue[1];
+    }
+
+    // Count and close any open braces/brackets
+    let braceCount = 0;
+    let bracketCount = 0;
+    let inString = false;
+    let escapeNext = false;
+
+    for (const char of repaired) {
+      if (escapeNext) {
+        escapeNext = false;
+        continue;
+      }
+      if (char === "\\") {
+        escapeNext = true;
+        continue;
+      }
+      if (char === '"') {
+        inString = !inString;
+        continue;
+      }
+      if (inString) continue;
+
+      if (char === "{") braceCount++;
+      else if (char === "}") braceCount--;
+      else if (char === "[") bracketCount++;
+      else if (char === "]") bracketCount--;
+    }
+
+    // Close unclosed structures
+    while (bracketCount > 0) {
+      repaired += "]";
+      bracketCount--;
+    }
+    while (braceCount > 0) {
+      repaired += "}";
+      braceCount--;
+    }
+
+    if (this.debug && repaired !== text.trim()) {
+      console.log(`[GeminiClient] Attempted JSON repair. Added closing chars.`);
+    }
+
+    return repaired;
+  }
+
+  /**
+   * Parse JSON response with truncation detection and repair
+   */
+  private parseJsonResponse<T>(text: string, attemptRepair: boolean = true): T {
     let jsonStr = text.trim();
 
-    // Try multiple patterns to extract JSON from markdown code blocks
-    // Pattern 1: ```json ... ``` or ``` ... ```
+    // Extract from code block if present
     const codeBlockMatch = jsonStr.match(/```(?:json|JSON)?\s*\n?([\s\S]*?)\n?```/);
     if (codeBlockMatch && codeBlockMatch[1]) {
       jsonStr = codeBlockMatch[1].trim();
     } else {
-      // Pattern 2: Remove leading/trailing backticks if partial code block
       jsonStr = jsonStr.replace(/^`{3,}(?:json|JSON)?\s*\n?/, "").replace(/\n?`{3,}$/, "");
     }
 
-    // Pattern 3: Find JSON object/array boundaries if still wrapped
+    // Find JSON boundaries
     if (!jsonStr.startsWith("{") && !jsonStr.startsWith("[")) {
       const jsonStart = jsonStr.search(/[\[{]/);
       const jsonEndBrace = jsonStr.lastIndexOf("}");
@@ -331,21 +653,91 @@ export class GeminiClient {
       }
     }
 
+    // Check for truncation
+    const isTruncated = this.isTruncatedJson(jsonStr);
+
+    if (isTruncated && attemptRepair) {
+      jsonStr = this.repairTruncatedJson(jsonStr);
+    }
+
     try {
       return JSON.parse(jsonStr) as T;
     } catch (error) {
-      console.error("[GeminiClient] JSON parse error. Raw text:", text.substring(0, 500));
-      throw new Error(
-        `Failed to parse JSON response: ${error instanceof Error ? error.message : "Unknown error"}`
+      // If repair was attempted but still failed, throw with details
+      const errorMsg = error instanceof Error ? error.message : "Unknown error";
+      const truncatedNote = isTruncated ? " (response was truncated)" : "";
+
+      console.error(
+        `[GeminiClient] JSON parse error${truncatedNote}. Raw text (first 500 chars):`,
+        text.substring(0, 500)
       );
+      console.error(`[GeminiClient] Processed JSON (first 500 chars):`, jsonStr.substring(0, 500));
+
+      throw new Error(`Failed to parse JSON response${truncatedNote}: ${errorMsg}`);
     }
   }
 
   /**
-   * Stage 1: Extract facts from article
+   * Execute API call with retry logic for JSON parsing errors
+   */
+  private async executeWithRetry<T>(
+    operation: () => Promise<{ text: string; inputTokens: number; outputTokens: number }>,
+    operationName: string
+  ): Promise<{ result: T; inputTokens: number; outputTokens: number }> {
+    let lastError: Error | null = null;
+    let totalInputTokens = 0;
+    let totalOutputTokens = 0;
+
+    for (let attempt = 0; attempt <= RETRY_CONFIG.maxRetries; attempt++) {
+      try {
+        const response = await operation();
+        totalInputTokens += response.inputTokens;
+        totalOutputTokens += response.outputTokens;
+
+        // Try to parse - if truncated, this might throw
+        const result = this.parseJsonResponse<T>(response.text);
+
+        return {
+          result,
+          inputTokens: totalInputTokens,
+          outputTokens: totalOutputTokens,
+        };
+      } catch (error) {
+        lastError = error instanceof Error ? error : new Error(String(error));
+
+        // Check if it's a retryable error (JSON parsing or truncation)
+        const isRetryable =
+          lastError.message.includes("JSON") ||
+          lastError.message.includes("truncated") ||
+          lastError.message.includes("parse");
+
+        if (!isRetryable || attempt >= RETRY_CONFIG.maxRetries) {
+          if (this.debug) {
+            console.log(
+              `[GeminiClient] ${operationName} failed after ${attempt + 1} attempts: ${lastError.message}`
+            );
+          }
+          throw lastError;
+        }
+
+        console.warn(
+          `[GeminiClient] ${operationName} attempt ${attempt + 1} failed: ${lastError.message}. Retrying...`
+        );
+        await this.sleep(attempt);
+      }
+    }
+
+    throw (
+      lastError ||
+      new Error(`${operationName} failed after ${RETRY_CONFIG.maxRetries + 1} attempts`)
+    );
+  }
+
+  /**
+   * Stage 1: Extract facts with Decision Tree classification
    */
   async extractFacts(content: string): Promise<{ facts: ExtractedFacts; usage: GeminiUsage }> {
-    if (this.debug) console.log("[GeminiClient] Stage 1: Extracting facts...");
+    if (this.debug) console.log("[GeminiClient] Stage 1: Extracting facts with Decision Tree...");
 
     const config: GenerationConfig = {
       temperature: 0.1,
@@ -355,21 +747,29 @@ export class GeminiClient {
     const prompt = `${FACT_EXTRACTION_PROMPT}\n\n## 원문\n${content}`;
 
     try {
-      const result = await this.model.generateContent({
-        contents: [{ role: "user", parts: [{ text: prompt }] }],
-        generationConfig: config,
-      });
+      const {
+        result: facts,
+        inputTokens,
+        outputTokens,
+      } = await this.executeWithRetry<ExtractedFacts>(async () => {
+        const result = await this.model.generateContent({
+          contents: [{ role: "user", parts: [{ text: prompt }] }],
+          generationConfig: config,
+        });
+        const response = result.response;
+        return {
+          text: response.text(),
+          inputTokens: response.usageMetadata?.promptTokenCount || 0,
+          outputTokens: response.usageMetadata?.candidatesTokenCount || 0,
+        };
+      }, "Fact Extraction");
 
-      const response = result.response;
-      const text = response.text();
-      const facts = this.parseJsonResponse<ExtractedFacts>(text);
-
-      const inputTokens = response.usageMetadata?.promptTokenCount || 0;
-      const outputTokens = response.usageMetadata?.candidatesTokenCount || 0;
       const costUsd = this.calculateCost(inputTokens, outputTokens);
 
       if (this.debug) {
-        console.log(`[GeminiClient] Facts extracted. Cost: $${costUsd.toFixed(4)}`);
+        console.log(
+          `[GeminiClient] Facts extracted. Type: ${facts.classification.primary} (${facts.classification.confidence}). Cost: $${costUsd.toFixed(4)}`
+        );
       }
 
       return {
@@ -388,7 +788,7 @@ export class GeminiClient {
   }
 
   /**
-   * Stage 2: Rewrite article with CCgather style
+   * Stage 2: Rewrite article with dynamic type-specific prompt
    */
   async rewriteArticle(
     originalTitle: string,
@@ -396,39 +796,49 @@ export class GeminiClient {
     facts: ExtractedFacts,
     sourceName: string
   ): Promise<{ article: RewrittenArticle; usage: GeminiUsage }> {
-    if (this.debug) console.log("[GeminiClient] Stage 2: Rewriting article...");
+    const articleType = facts.classification.primary;
+    if (this.debug) console.log(`[GeminiClient] Stage 2: Rewriting as "${articleType}"...`);
 
     const config: GenerationConfig = {
       temperature: 0.7,
-      maxOutputTokens: 32768, // Large buffer for 50% summary + full bodyHtml of long articles
+      maxOutputTokens: 32768,
     };
 
-    const prompt = `${ARTICLE_REWRITING_PROMPT}
+    // Dynamic prompt based on article type
+    const dynamicPrompt = buildRewritePrompt(articleType, content.length);
 
-## 원본 제목
+    const prompt = `${dynamicPrompt}
+
+## Original Title
 ${originalTitle}
 
-## 출처
+## Source
 ${sourceName}
 
-## 추출된 팩트
+## Extracted Facts
 ${JSON.stringify(facts, null, 2)}
 
-## 원문 내용
+## Original Content
 ${content}`;
 
     try {
-      const result = await this.model.generateContent({
-        contents: [{ role: "user", parts: [{ text: prompt }] }],
-        generationConfig: config,
-      });
+      const {
+        result: article,
+        inputTokens,
+        outputTokens,
+      } = await this.executeWithRetry<RewrittenArticle>(async () => {
+        const result = await this.model.generateContent({
+          contents: [{ role: "user", parts: [{ text: prompt }] }],
+          generationConfig: config,
+        });
+        const response = result.response;
+        return {
+          text: response.text(),
+          inputTokens: response.usageMetadata?.promptTokenCount || 0,
+          outputTokens: response.usageMetadata?.candidatesTokenCount || 0,
+        };
+      }, "Article Rewrite");
 
-      const response = result.response;
-      const text = response.text();
-      const article = this.parseJsonResponse<RewrittenArticle>(text);
-
-      const inputTokens = response.usageMetadata?.promptTokenCount || 0;
-      const outputTokens = response.usageMetadata?.candidatesTokenCount || 0;
       const costUsd = this.calculateCost(inputTokens, outputTokens);
 
       if (this.debug) {
@@ -451,22 +861,26 @@ ${content}`;
   }
 
   /**
-   * Stage 3: Verify facts in rewritten article
+   * Stage 3: Verify facts with enhanced checklist (includes original content)
    */
   async verifyFacts(
     facts: ExtractedFacts,
-    article: RewrittenArticle
+    article: RewrittenArticle,
+    originalContent: string
   ): Promise<{ verification: FactVerification; usage: GeminiUsage }> {
-    if (this.debug) console.log("[GeminiClient] Stage 3: Verifying facts...");
+    if (this.debug) console.log("[GeminiClient] Stage 3: Verifying with enhanced checklist...");
 
     const config: GenerationConfig = {
       temperature: 0.1,
-      maxOutputTokens: 1536,
+      maxOutputTokens: 2048,
     };
 
     const prompt = `${FACT_VERIFICATION_PROMPT}
 
-## 원본 팩트
+## 원본 내용 (검증 기준)
+${originalContent.substring(0, 8000)}
+
+## 추출된 팩트
 ${JSON.stringify(facts, null, 2)}
 
 ## 재작성된 기사
@@ -478,17 +892,23 @@ ${JSON.stringify(facts, null, 2)}
 핵심 정리: ${JSON.stringify(article.keyTakeaways)}`;
 
     try {
-      const result = await this.model.generateContent({
-        contents: [{ role: "user", parts: [{ text: prompt }] }],
-        generationConfig: config,
-      });
+      const {
+        result: verification,
+        inputTokens,
+        outputTokens,
+      } = await this.executeWithRetry<FactVerification>(async () => {
+        const result = await this.model.generateContent({
+          contents: [{ role: "user", parts: [{ text: prompt }] }],
+          generationConfig: config,
+        });
+        const response = result.response;
+        return {
+          text: response.text(),
+          inputTokens: response.usageMetadata?.promptTokenCount || 0,
+          outputTokens: response.usageMetadata?.candidatesTokenCount || 0,
+        };
+      }, "Fact Verification");
 
-      const response = result.response;
-      const text = response.text();
-      const verification = this.parseJsonResponse<FactVerification>(text);
-
-      const inputTokens = response.usageMetadata?.promptTokenCount || 0;
-      const outputTokens = response.usageMetadata?.candidatesTokenCount || 0;
       const costUsd = this.calculateCost(inputTokens, outputTokens);
 
       if (this.debug) {

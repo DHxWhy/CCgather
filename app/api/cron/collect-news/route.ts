@@ -234,8 +234,8 @@ async function handleCronRequest(request: NextRequest, isManual: boolean) {
         if (hasRichContent) {
           const rewritten = pipelineResult!.rewrittenArticle;
 
-          insertData.summary = pipelineResult!.summary!.summaryPlain;
-          insertData.summary_md = rewritten?.summary;
+          // summary_md stores the AI-generated summary (no 'summary' column exists)
+          insertData.summary_md = rewritten?.summary || pipelineResult!.summary!.summaryPlain;
           insertData.rich_content = pipelineResult!.summary!.richContent;
           insertData.favicon_url = pipelineResult!.article?.favicon;
           insertData.difficulty = pipelineResult!.summary!.difficulty;
@@ -266,6 +266,16 @@ async function handleCronRequest(request: NextRequest, isManual: boolean) {
             pipelineResult!.aiUsage.inputTokens + pipelineResult!.aiUsage.outputTokens;
           insertData.ai_cost_usd = pipelineResult!.aiUsage.costUsd;
           insertData.ai_processed_at = new Date().toISOString();
+          insertData.ai_model_version = pipelineResult!.aiUsage.model;
+
+          // AI Classification fields (from Stage 1 fact extraction)
+          if (pipelineResult!.extractedFacts?.classification) {
+            const classification = pipelineResult!.extractedFacts.classification;
+            insertData.ai_article_type = classification.primary;
+            insertData.ai_article_type_secondary = classification.secondary || null;
+            insertData.ai_classification_confidence = classification.confidence;
+            insertData.ai_classification_signals = classification.signals;
+          }
         }
 
         const { error } = await supabase.from("contents").insert(insertData);

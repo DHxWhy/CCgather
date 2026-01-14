@@ -3,17 +3,31 @@ import { createClient } from "@/lib/supabase/server";
 
 /**
  * GET /api/news/contents
- * Fetch news from contents table with content_type filtering
+ * Fetch news from contents table with tag-based filtering
  *
  * Query params:
- * - content_type: "official" | "press" | "community" (optional)
+ * - tags: comma-separated tags (e.g., "claude,anthropic") - uses OR logic
+ * - content_type: legacy support (optional, deprecated)
  * - limit: number (default: 10)
  * - offset: number (default: 0)
+ *
+ * Available tags:
+ * - claude: Claude/Anthropic official news
+ * - anthropic: Anthropic company news
+ * - claude-code: Claude Code specific
+ * - industry: AI industry news
+ * - dev-tools: Developer tools (Supabase, Vercel, Cursor)
+ * - openai: OpenAI/GPT news
+ * - google: Google/Gemini news
+ * - meta: Meta/Llama news
+ * - community: Community content
+ * - youtube: YouTube content
  */
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
-    const contentType = searchParams.get("content_type");
+    const tagsParam = searchParams.get("tags");
+    const contentType = searchParams.get("content_type"); // Legacy support
     const limit = parseInt(searchParams.get("limit") || "10", 10);
     const offset = parseInt(searchParams.get("offset") || "0", 10);
 
@@ -27,8 +41,19 @@ export async function GET(request: NextRequest) {
       .order("published_at", { ascending: false, nullsFirst: false })
       .range(offset, offset + limit - 1);
 
-    // Filter by content_type if specified
-    if (contentType) {
+    // Tag-based filtering (new system)
+    if (tagsParam && tagsParam !== "all") {
+      const tags = tagsParam
+        .split(",")
+        .map((t) => t.trim())
+        .filter(Boolean);
+      if (tags.length > 0) {
+        // Use overlaps operator for array containment (OR logic)
+        query = query.overlaps("news_tags", tags);
+      }
+    }
+    // Legacy content_type support (deprecated)
+    else if (contentType) {
       query = query.eq("content_type", contentType);
     }
 

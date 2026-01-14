@@ -44,6 +44,7 @@ export interface GeminiPipelineResult extends PipelineResult {
   factVerification?: FactVerification;
   needsReview?: boolean; // True if fact-check score is below threshold after retries
   retryCount?: number; // Number of retries performed
+  newsTags?: string[]; // Automatically derived news tags for filtering
   stageResults?: {
     stage1?: GeminiUsage;
     stage2?: GeminiUsage;
@@ -74,6 +75,128 @@ export class GeminiPipeline {
       apiKey: options.apiKey,
       debug: this.debug,
     });
+  }
+
+  /**
+   * Derive news_tags from article content and classification
+   * Tags: claude, anthropic, claude-code, industry, dev-tools, openai, google, meta, community, youtube, update
+   */
+  private deriveNewsTags(
+    title: string,
+    _content: string, // Reserved for future content-based classification
+    sourceName: string,
+    sourceUrl: string,
+    contentType?: string
+  ): string[] {
+    const tags: Set<string> = new Set();
+    const lowerTitle = title.toLowerCase();
+    const lowerSource = (sourceName + " " + sourceUrl).toLowerCase();
+
+    // 1. Claude/Anthropic related
+    if (
+      lowerTitle.includes("claude") ||
+      lowerTitle.includes("anthropic") ||
+      lowerSource.includes("anthropic")
+    ) {
+      tags.add("claude");
+      if (lowerTitle.includes("anthropic") || lowerSource.includes("anthropic")) {
+        tags.add("anthropic");
+      }
+    }
+
+    // 2. Claude Code specific
+    if (
+      lowerTitle.includes("claude code") ||
+      lowerTitle.includes("claude-code") ||
+      contentType === "claude_code"
+    ) {
+      tags.add("claude");
+      tags.add("claude-code");
+    }
+
+    // 3. Version updates
+    if (
+      lowerTitle.includes("update") ||
+      lowerTitle.includes("release") ||
+      lowerTitle.includes("version") ||
+      lowerTitle.includes("patch") ||
+      contentType === "version_update"
+    ) {
+      if (tags.has("claude")) {
+        tags.add("update");
+      }
+    }
+
+    // 4. Dev Tools (Supabase, Vercel, Cursor, etc.)
+    const devToolPatterns = [
+      "supabase",
+      "vercel",
+      "cursor",
+      "github copilot",
+      "copilot",
+      "vscode",
+      "vs code",
+      "jetbrains",
+      "neovim",
+      "windsurf",
+    ];
+    for (const pattern of devToolPatterns) {
+      if (lowerTitle.includes(pattern) || lowerSource.includes(pattern)) {
+        tags.add("dev-tools");
+        break;
+      }
+    }
+
+    // 5. Competitors - OpenAI
+    if (
+      lowerTitle.includes("openai") ||
+      lowerTitle.includes("chatgpt") ||
+      lowerTitle.includes("gpt-4") ||
+      lowerTitle.includes("gpt-5") ||
+      lowerTitle.includes("gpt4") ||
+      lowerTitle.includes("gpt5")
+    ) {
+      tags.add("openai");
+      tags.add("industry");
+    }
+
+    // 6. Competitors - Google
+    if (
+      lowerTitle.includes("google") ||
+      lowerTitle.includes("gemini") ||
+      lowerTitle.includes("deepmind") ||
+      lowerTitle.includes("bard")
+    ) {
+      tags.add("google");
+      tags.add("industry");
+    }
+
+    // 7. Competitors - Meta
+    if (
+      lowerTitle.includes("meta ai") ||
+      lowerTitle.includes("llama") ||
+      lowerTitle.includes("meta's ai")
+    ) {
+      tags.add("meta");
+      tags.add("industry");
+    }
+
+    // 8. YouTube content
+    if (lowerSource.includes("youtube") || contentType === "youtube") {
+      tags.add("youtube");
+    }
+
+    // 9. Community content
+    if (contentType === "community") {
+      tags.add("community");
+    }
+
+    // 10. Default to industry if no specific tags
+    if (tags.size === 0) {
+      tags.add("industry");
+    }
+
+    return Array.from(tags);
   }
 
   /**
@@ -125,7 +248,7 @@ export class GeminiPipeline {
 
       if (this.debug) {
         console.log(
-          `[GeminiPipeline] Stage 1 complete: ${facts.features.length} features, ${facts.metrics.length} metrics`
+          `[GeminiPipeline] Stage 1 complete: type=${facts.classification.primary} (${facts.classification.confidence}), ${facts.features.length} features`
         );
       }
 
@@ -161,11 +284,12 @@ export class GeminiPipeline {
         );
       }
 
-      // Stage 3: Verify Facts (with retry loop)
+      // Stage 3: Verify Facts (with retry loop) - now includes original content
       if (!this.options.skipFactCheck) {
-        if (this.debug) console.log(`[GeminiPipeline] Stage 3: Verifying facts...`);
+        if (this.debug)
+          console.log(`[GeminiPipeline] Stage 3: Verifying facts with original content...`);
 
-        let verifyResult = await this.client.verifyFacts(facts, rewrittenArticle);
+        let verifyResult = await this.client.verifyFacts(facts, rewrittenArticle, article.content);
 
         factVerification = verifyResult.verification;
         stageResults.stage3 = verifyResult.usage;
@@ -202,10 +326,10 @@ export class GeminiPipeline {
           aiUsage.outputTokens += rewriteResult.usage.outputTokens;
           aiUsage.costUsd += rewriteResult.usage.costUsd;
 
-          // Retry Stage 3: Verify again
+          // Retry Stage 3: Verify again with original content
           if (this.debug) console.log(`[GeminiPipeline] Stage 3 Retry: Verifying again...`);
 
-          verifyResult = await this.client.verifyFacts(facts, rewrittenArticle);
+          verifyResult = await this.client.verifyFacts(facts, rewrittenArticle, article.content);
 
           factVerification = verifyResult.verification;
           stageResults.stage3Retry = verifyResult.usage;
@@ -239,10 +363,24 @@ export class GeminiPipeline {
       const richContent = this.buildRichContent(rewrittenArticle, article, category);
       const summary = this.buildSummarizerResult(rewrittenArticle, richContent);
 
+      // Derive news tags from article content
+      const newsTags = this.deriveNewsTags(
+        article.title,
+        article.content,
+        article.sourceName,
+        article.url,
+        category
+      );
+
+      if (this.debug) {
+        console.log(`[GeminiPipeline] Derived news_tags: ${newsTags.join(", ")}`);
+      }
+
       return {
         success: true,
         needsReview,
         retryCount,
+        newsTags,
         article: {
           url: article.url,
           title: article.title,

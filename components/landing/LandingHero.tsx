@@ -1,33 +1,17 @@
 "use client";
 
-import { useState, useEffect, Suspense } from "react";
+import { useState, useEffect } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { SignedIn, SignedOut } from "@clerk/nextjs";
 import { GetStartedButton } from "@/components/auth/GetStartedButton";
 import { GlobeParticles } from "@/components/ui/globe-particles";
 
-// Lazy load Globe for performance
+// Lazy load Globe for performance - no skeleton, just fade in
 const Globe = dynamic(
   () => import("@/components/globe/Globe").then((mod) => ({ default: mod.Globe })),
-  {
-    ssr: false,
-    loading: () => <GlobeSkeleton />,
-  }
+  { ssr: false }
 );
-
-// Globe skeleton for zero-latency perception
-function GlobeSkeleton() {
-  return (
-    <div className="w-full h-full flex items-center justify-center">
-      <div className="relative w-[300px] h-[300px] md:w-[400px] md:h-[400px]">
-        <div className="absolute inset-0 rounded-full bg-gradient-to-br from-[#1a2332] to-[#0d1117] animate-pulse" />
-        <div className="absolute inset-4 rounded-full border border-white/5" />
-        <div className="absolute inset-8 rounded-full border border-white/5" />
-      </div>
-    </div>
-  );
-}
 
 // All onboarding countries for globe visualization
 // Token values represent relative size (larger = bigger marker)
@@ -140,9 +124,36 @@ interface GlobalStats {
   showStats: boolean;
 }
 
+// Hook to get current breakpoint
+function useBreakpoint() {
+  const [breakpoint, setBreakpoint] = useState<"mobile" | "tablet" | "desktop">("desktop");
+
+  useEffect(() => {
+    const checkBreakpoint = () => {
+      if (window.innerWidth < 768) {
+        setBreakpoint("mobile");
+      } else if (window.innerWidth < 1024) {
+        setBreakpoint("tablet");
+      } else {
+        setBreakpoint("desktop");
+      }
+    };
+
+    checkBreakpoint();
+    window.addEventListener("resize", checkBreakpoint);
+    return () => window.removeEventListener("resize", checkBreakpoint);
+  }, []);
+
+  return breakpoint;
+}
+
 export function LandingHero() {
   const [mounted, setMounted] = useState(false);
   const [stats, setStats] = useState<GlobalStats | null>(null);
+  const breakpoint = useBreakpoint();
+
+  // Get globe size based on breakpoint
+  const globeSize = breakpoint === "mobile" ? 260 : breakpoint === "tablet" ? 280 : 400;
 
   useEffect(() => {
     setMounted(true);
@@ -161,17 +172,14 @@ export function LandingHero() {
         <div className="flex flex-col md:flex-row items-center justify-center gap-8 lg:gap-16 mx-auto md:w-fit">
           {/* Globe - Top on mobile, Left on tablet/PC */}
           <div className="flex-shrink-0 flex items-center justify-center">
-            <div className="relative w-[260px] h-[260px] md:w-[280px] md:h-[280px] lg:w-[400px] lg:h-[400px]">
+            <div
+              className="relative transition-all duration-300"
+              style={{ width: globeSize, height: globeSize }}
+            >
               {mounted && (
                 <>
-                  <GlobeParticles size={260} className="md:hidden" />
-                  <GlobeParticles size={280} className="hidden md:block lg:hidden" />
-                  <GlobeParticles size={400} className="hidden lg:block" />
-                  <Suspense fallback={<GlobeSkeleton />}>
-                    <Globe markers={GLOBE_STATS} size={260} className="md:hidden" />
-                    <Globe markers={GLOBE_STATS} size={280} className="hidden md:block lg:hidden" />
-                    <Globe markers={GLOBE_STATS} size={400} className="hidden lg:block" />
-                  </Suspense>
+                  <GlobeParticles size={globeSize} />
+                  <Globe markers={GLOBE_STATS} size={globeSize} />
                 </>
               )}
             </div>
@@ -205,87 +213,115 @@ export function LandingHero() {
 
             {/* Stats or Early Adopter Message */}
             {stats?.showStats ? (
-              // Real Stats Mode
-              <div className="flex items-center justify-center md:justify-start gap-4 md:gap-6 lg:gap-8 mb-10">
+              // Real Stats Mode - compact on mobile
+              <div className="flex items-center justify-center md:justify-start gap-3 min-[400px]:gap-4 md:gap-6 lg:gap-8 mb-8 md:mb-10">
                 <div className="text-center md:text-left">
-                  <div className="text-2xl md:text-3xl font-bold text-[var(--color-text-primary)]">
+                  <div className="text-xl min-[400px]:text-2xl md:text-3xl font-bold text-[var(--color-text-primary)]">
                     {stats.totalCountries}+
                   </div>
-                  <div className="text-xs text-[var(--color-text-muted)] uppercase tracking-wider">
+                  <div className="text-[10px] min-[400px]:text-xs text-[var(--color-text-muted)] uppercase tracking-wider">
                     Countries
                   </div>
                 </div>
-                <div className="w-px h-10 bg-white/10" />
+                <div className="w-px h-8 min-[400px]:h-10 bg-white/10" />
                 <div className="text-center md:text-left">
-                  <div className="text-2xl md:text-3xl font-bold text-[var(--color-claude-coral)]">
+                  <div className="text-xl min-[400px]:text-2xl md:text-3xl font-bold text-[var(--color-claude-coral)]">
                     {formatNumber(stats.totalTokens)}
                   </div>
-                  <div className="text-xs text-[var(--color-text-muted)] uppercase tracking-wider">
+                  <div className="text-[10px] min-[400px]:text-xs text-[var(--color-text-muted)] uppercase tracking-wider">
                     Tokens
                   </div>
                 </div>
-                <div className="w-px h-10 bg-white/10" />
+                <div className="w-px h-8 min-[400px]:h-10 bg-white/10" />
                 <div className="text-center md:text-left">
-                  <div className="text-2xl md:text-3xl font-bold text-emerald-400">
+                  <div className="text-xl min-[400px]:text-2xl md:text-3xl font-bold text-emerald-400">
                     {formatCost(stats.totalCost)}
                   </div>
-                  <div className="text-xs text-[var(--color-text-muted)] uppercase tracking-wider">
+                  <div className="text-[10px] min-[400px]:text-xs text-[var(--color-text-muted)] uppercase tracking-wider">
                     Spent
                   </div>
                 </div>
               </div>
             ) : (
-              // Early Adopter Mode - minimal & elegant
-              <div className="flex items-center justify-center md:justify-start gap-6 md:gap-8 mb-10">
+              // Early Adopter Mode - compact on mobile
+              <div className="flex items-center justify-center md:justify-start gap-4 min-[400px]:gap-6 md:gap-8 mb-8 md:mb-10">
                 <div className="text-center md:text-left">
-                  <div className="text-sm font-medium text-[var(--color-text-primary)]">
+                  <div className="text-xs min-[400px]:text-sm font-medium text-[var(--color-text-primary)]">
                     Be the first
                   </div>
-                  <div className="text-[10px] text-[var(--color-text-muted)] uppercase tracking-wider">
+                  <div className="text-[9px] min-[400px]:text-[10px] text-[var(--color-text-muted)] uppercase tracking-wider">
                     Pioneer
                   </div>
                 </div>
-                <div className="w-px h-8 bg-white/10" />
+                <div className="w-px h-6 min-[400px]:h-8 bg-white/10" />
                 <div className="text-center md:text-left">
-                  <div className="text-sm font-medium text-[var(--color-claude-coral)]">
+                  <div className="text-xs min-[400px]:text-sm font-medium text-[var(--color-claude-coral)]">
                     Your journey
                   </div>
-                  <div className="text-[10px] text-[var(--color-text-muted)] uppercase tracking-wider">
+                  <div className="text-[9px] min-[400px]:text-[10px] text-[var(--color-text-muted)] uppercase tracking-wider">
                     Starts here
                   </div>
                 </div>
-                <div className="w-px h-8 bg-white/10" />
+                <div className="w-px h-6 min-[400px]:h-8 bg-white/10" />
                 <div className="text-center md:text-left">
-                  <div className="text-sm font-medium text-emerald-400">Claim #1</div>
-                  <div className="text-[10px] text-[var(--color-text-muted)] uppercase tracking-wider">
+                  <div className="text-xs min-[400px]:text-sm font-medium text-emerald-400">
+                    Claim #1
+                  </div>
+                  <div className="text-[9px] min-[400px]:text-[10px] text-[var(--color-text-muted)] uppercase tracking-wider">
                     Rank
                   </div>
                 </div>
               </div>
             )}
 
-            {/* CTA Buttons */}
-            <div className="flex items-center justify-center md:justify-start gap-4">
+            {/* CTA Buttons - Stack on mobile (<400px), row on larger */}
+            <div className="flex flex-col min-[400px]:flex-row items-center justify-center md:justify-start gap-3">
               <SignedOut>
-                <GetStartedButton className="px-6 py-3 rounded-xl bg-[var(--color-claude-coral)] text-white text-sm font-semibold hover:opacity-90 hover:scale-[1.02] active:scale-95 transition-all shadow-lg shadow-[var(--color-claude-coral)]/20">
-                  Start Tracking
+                <GetStartedButton className="w-full min-[400px]:w-auto px-5 py-2.5 rounded-xl bg-[var(--color-claude-coral)] text-white text-sm font-semibold hover:opacity-90 hover:scale-[1.02] active:scale-95 transition-all shadow-lg shadow-[var(--color-claude-coral)]/20">
+                  CCgather Together
                 </GetStartedButton>
               </SignedOut>
               <SignedIn>
                 <Link
                   href="/leaderboard"
-                  className="px-6 py-3 rounded-xl bg-[var(--color-claude-coral)] text-white text-sm font-semibold hover:opacity-90 hover:scale-[1.02] active:scale-95 transition-all shadow-lg shadow-[var(--color-claude-coral)]/20"
+                  className="w-full min-[400px]:w-auto px-5 py-2.5 rounded-xl bg-[var(--color-claude-coral)] text-white text-sm font-semibold hover:opacity-90 hover:scale-[1.02] active:scale-95 transition-all shadow-lg shadow-[var(--color-claude-coral)]/20 text-center"
                 >
                   View My Progress
                 </Link>
               </SignedIn>
               <Link
                 href="/leaderboard"
-                className="px-6 py-3 rounded-xl bg-white/5 border border-white/10 text-[var(--color-text-secondary)] text-sm font-medium hover:bg-white/10 hover:text-[var(--color-text-primary)] transition-all"
+                className="w-full min-[400px]:w-auto px-5 py-2.5 rounded-xl bg-white/5 border border-white/10 text-[var(--color-text-secondary)] text-sm font-medium hover:bg-white/10 hover:text-[var(--color-text-primary)] transition-all text-center"
               >
-                See the Community
+                Explore Rankings
               </Link>
             </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Quick Start Steps - Bottom center (hidden on mobile) */}
+      <div className="hidden md:block absolute bottom-24 left-1/2 -translate-x-1/2">
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2">
+            <span className="w-7 h-7 rounded-full bg-amber-500/20 flex items-center justify-center text-sm">
+              🔐
+            </span>
+            <span className="text-xs text-[var(--color-text-muted)]">Sign in</span>
+          </div>
+          <div className="w-6 h-px bg-white/20" />
+          <div className="flex items-center gap-2">
+            <span className="w-7 h-7 rounded-full bg-yellow-500/20 flex items-center justify-center text-sm">
+              ⚡
+            </span>
+            <span className="text-xs text-[var(--color-text-muted)]">npx ccgather</span>
+          </div>
+          <div className="w-6 h-px bg-white/20" />
+          <div className="flex items-center gap-2">
+            <span className="w-7 h-7 rounded-full bg-emerald-500/20 flex items-center justify-center text-sm">
+              📊
+            </span>
+            <span className="text-xs text-[var(--color-text-muted)]">Auto sync</span>
           </div>
         </div>
       </div>

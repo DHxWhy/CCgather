@@ -1,35 +1,41 @@
-import { Newspaper, ExternalLink, Sparkles, Zap, Building2 } from "lucide-react";
+import { Newspaper, ExternalLink, Sparkles, Globe } from "lucide-react";
 import Image from "next/image";
 import { createClient } from "@/lib/supabase/server";
 import NewsCard from "@/components/news/NewsCard";
-import HorizontalScrollSection from "@/components/news/HorizontalScrollSection";
+import NewsTagFilter, {
+  NEWS_FILTER_TAGS,
+  type NewsFilterTag,
+} from "@/components/news/NewsTagFilter";
 import type { ContentItem } from "@/types/automation";
+import { Suspense } from "react";
 
 // ===========================================
 // SEO Metadata
 // ===========================================
 
 export const metadata = {
-  title: "News | CCgather - Claude Code News and AI Updates",
+  title: "News | CCgather - AI & Developer News",
   description:
-    "Stay updated with the latest Claude Code news, AI industry updates, and Anthropic announcements. Get curated news from trusted sources.",
+    "Claude에 몰입해도 시야를 잃지 마세요. Claude Code 소식부터 AI 업계 동향까지, 개발자를 위한 큐레이션 뉴스.",
   keywords: [
     "Claude Code",
     "Claude Code news",
     "AI news",
     "Anthropic",
     "AI coding",
-    "Claude Code updates",
+    "Developer tools",
+    "OpenAI",
+    "Google Gemini",
   ],
   openGraph: {
-    title: "News | CCgather",
-    description: "Latest Claude Code and AI news curated for developers",
+    title: "News | CCgather - AI & Developer News",
+    description: "Claude에 몰입해도 시야를 잃지 마세요. 개발자를 위한 AI 뉴스 큐레이션.",
     type: "website",
   },
 };
 
 // ===========================================
-// Quick Links Data (Official Anthropic/Claude Logos)
+// Quick Links Data
 // ===========================================
 
 const QUICK_LINKS = [
@@ -38,21 +44,21 @@ const QUICK_LINKS = [
     description: "Official release notes",
     url: "https://docs.anthropic.com/en/docs/claude-code/changelog",
     logo: "/logos/claude-symbol-clay.svg",
-    color: "claude",
+    color: "claude" as const,
   },
   {
     title: "Anthropic News",
     description: "Official announcements",
     url: "https://www.anthropic.com/news",
     logo: "/logos/anthropic-icon-ivory.svg",
-    color: "anthropic",
+    color: "anthropic" as const,
   },
   {
     title: "Claude Code Docs",
     description: "Documentation & guides",
     url: "https://docs.anthropic.com/en/docs/claude-code",
     logo: "/logos/claude-symbol-clay.svg",
-    color: "claude",
+    color: "claude" as const,
   },
 ];
 
@@ -60,63 +66,54 @@ const QUICK_LINKS = [
 // Data Fetching
 // ===========================================
 
-async function getNewsContent() {
+async function getNewsByTag(tag: NewsFilterTag) {
   try {
     const supabase = await createClient();
 
-    // Fetch latest article for LATEST card
-    const { data: latestArticle } = await supabase
+    let query = supabase
       .from("contents")
-      .select("*")
+      .select("*", { count: "exact" })
       .eq("type", "news")
       .eq("status", "published")
       .order("published_at", { ascending: false, nullsFirst: false })
-      .limit(1)
-      .single();
+      .limit(30);
 
-    // Fetch Claude Code related news (official + claude code keyword)
-    const { data: claudeCodeNews } = await supabase
-      .from("contents")
-      .select("*")
-      .eq("type", "news")
-      .eq("status", "published")
-      .or("content_type.eq.official,content_type.eq.claude_code")
-      .order("published_at", { ascending: false, nullsFirst: false })
-      .limit(10);
+    // Apply tag filter
+    if (tag !== "all") {
+      // Map filter tag to actual news_tags
+      const tagMapping: Record<string, string[]> = {
+        claude: ["claude", "anthropic", "claude-code", "update"],
+        "dev-tools": ["dev-tools"],
+        industry: ["industry", "openai", "google", "meta"],
+      };
 
-    // Fetch AI general news (press/general AI news)
-    const { data: aiNews } = await supabase
-      .from("contents")
-      .select("*")
-      .eq("type", "news")
-      .eq("status", "published")
-      .eq("content_type", "press")
-      .order("published_at", { ascending: false, nullsFirst: false })
-      .limit(12);
+      const targetTags = tagMapping[tag];
+      if (targetTags) {
+        query = query.overlaps("news_tags", targetTags);
+      }
+    }
 
-    // Filter out the latest article from other lists to avoid duplication
-    const latestId = latestArticle?.id;
-    const filteredClaudeCode = (claudeCodeNews || []).filter(
-      (a) => a.id !== latestId
-    ) as ContentItem[];
-    const filteredAiNews = (aiNews || []).filter((a) => a.id !== latestId) as ContentItem[];
+    const { data, count, error } = await query;
+
+    if (error) {
+      console.error("Failed to fetch news:", error);
+      return { articles: [], total: 0 };
+    }
 
     return {
-      latestArticle: latestArticle as ContentItem | null,
-      claudeCodeNews: filteredClaudeCode,
-      aiNews: filteredAiNews,
+      articles: (data || []) as ContentItem[],
+      total: count || 0,
     };
   } catch (error) {
-    console.error("Failed to fetch news content:", error);
-    return { latestArticle: null, claudeCodeNews: [], aiNews: [] };
+    console.error("News fetch error:", error);
+    return { articles: [], total: 0 };
   }
 }
 
 // ===========================================
-// Quick Link Card Component (Official Logos)
+// Quick Link Card Component
 // ===========================================
 
-// Color schemes matching Anthropic brand (supports light/dark mode)
 const COLOR_CLASSES = {
   claude:
     "bg-[#D97757]/20 dark:bg-[#D97757]/25 hover:border-[#D97757]/50 hover:bg-[#D97757]/30 dark:hover:bg-[#D97757]/35",
@@ -129,20 +126,16 @@ const LOGO_BG_CLASSES = {
   anthropic: "bg-black/10 dark:bg-white/10",
 } as const;
 
-type QuickLinkColor = keyof typeof COLOR_CLASSES;
-
 function QuickLinkCard({ link }: { link: (typeof QUICK_LINKS)[number] }) {
-  const color = link.color as QuickLinkColor;
-
   return (
     <a
       href={link.url}
       target="_blank"
       rel="noopener noreferrer"
-      className={`group flex items-center gap-3 p-3 rounded-xl border border-[var(--border-default)] transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#D97757] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--color-bg-primary)] ${COLOR_CLASSES[color]}`}
+      className={`group flex items-center gap-3 p-3 rounded-xl border border-[var(--border-default)] transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#D97757] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--color-bg-primary)] ${COLOR_CLASSES[link.color]}`}
       aria-label={`${link.title} - ${link.description} (opens in new tab)`}
     >
-      <div className={`p-2 rounded-lg ${LOGO_BG_CLASSES[color]} transition-colors`}>
+      <div className={`p-2 rounded-lg ${LOGO_BG_CLASSES[link.color]} transition-colors`}>
         <Image
           src={link.logo}
           alt=""
@@ -167,60 +160,81 @@ function QuickLinkCard({ link }: { link: (typeof QUICK_LINKS)[number] }) {
 }
 
 // ===========================================
-// Section Header Component
+// Empty State Component
 // ===========================================
 
-function SectionHeader({
-  icon: Icon,
-  iconColor,
-  title,
-  subtitle,
-  id,
-}: {
-  icon: React.ComponentType<{ className?: string }>;
-  iconColor: string;
-  title: string;
-  subtitle: string;
-  id?: string;
-}) {
+function EmptyState() {
   return (
-    <div className="flex items-center gap-2 mb-4">
-      <div className={`p-2 rounded-lg ${iconColor}`}>
-        <Icon className="w-4 h-4" aria-hidden="true" />
-      </div>
-      <div>
-        <h2 id={id} className="text-sm font-semibold text-[var(--color-text-primary)]">
-          {title}
-        </h2>
-        <p className="text-[10px] text-text-muted">{subtitle}</p>
-      </div>
+    <div
+      className="col-span-full text-center py-16 bg-black/[0.02] dark:bg-white/5 rounded-lg border border-[var(--border-default)]"
+      role="status"
+      aria-live="polite"
+    >
+      <Newspaper className="w-12 h-12 mx-auto mb-4 text-text-muted" aria-hidden="true" />
+      <p className="text-sm text-[var(--color-text-primary)] font-medium">
+        해당 카테고리의 뉴스가 없습니다
+      </p>
+      <p className="text-xs text-text-muted mt-1">곧 새로운 소식으로 돌아오겠습니다</p>
     </div>
   );
 }
 
 // ===========================================
-// Empty State Component
+// Loading Skeleton
 // ===========================================
 
-function EmptyState({
-  icon: Icon,
-  message,
-  submessage,
-}: {
-  icon: React.ComponentType<{ className?: string }>;
-  message: string;
-  submessage: string;
-}) {
+function NewsGridSkeleton() {
   return (
-    <div
-      className="text-center py-12 bg-black/[0.02] dark:bg-white/5 rounded-lg border border-[var(--border-default)]"
-      role="status"
-      aria-live="polite"
-    >
-      <Icon className="w-10 h-10 mx-auto mb-3 text-text-muted" aria-hidden="true" />
-      <p className="text-sm text-[var(--color-text-primary)]">{message}</p>
-      <p className="text-xs text-text-muted mt-1">{submessage}</p>
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      {Array.from({ length: 6 }).map((_, i) => (
+        <div
+          key={i}
+          className="h-48 rounded-xl bg-[var(--color-bg-secondary)] animate-pulse border border-[var(--border-default)]"
+        />
+      ))}
     </div>
+  );
+}
+
+// ===========================================
+// News Grid Component
+// ===========================================
+
+async function NewsGrid({ tag }: { tag: NewsFilterTag }) {
+  const { articles, total } = await getNewsByTag(tag);
+
+  if (articles.length === 0) {
+    return <EmptyState />;
+  }
+
+  const selectedFilter = NEWS_FILTER_TAGS.find((t) => t.id === tag);
+
+  return (
+    <>
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-2">
+          {selectedFilter && (
+            <div className={`p-1.5 rounded-md ${selectedFilter.bgColor}`}>
+              <selectedFilter.icon className={`w-4 h-4 ${selectedFilter.color}`} />
+            </div>
+          )}
+          <span className="text-sm font-medium text-[var(--color-text-primary)]">
+            {selectedFilter?.label || "All"} News
+          </span>
+          <span className="text-xs text-text-muted">({total})</span>
+        </div>
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {articles.map((article, index) => (
+          <NewsCard
+            key={article.id}
+            article={article}
+            variant={index === 0 && tag === "all" ? "featured" : "default"}
+            isLatest={index === 0 && tag === "all"}
+          />
+        ))}
+      </div>
+    </>
   );
 }
 
@@ -228,22 +242,34 @@ function EmptyState({
 // Main Page Component
 // ===========================================
 
-export default async function NewsPage() {
-  const { latestArticle, claudeCodeNews, aiNews } = await getNewsContent();
+interface NewsPageProps {
+  searchParams: Promise<{ tag?: string }>;
+}
+
+export default async function NewsPage({ searchParams }: NewsPageProps) {
+  const params = await searchParams;
+  const currentTag = (params.tag as NewsFilterTag) || "all";
+
+  // Validate tag
+  const validTags = NEWS_FILTER_TAGS.map((t) => t.id);
+  const safeTag = validTags.includes(currentTag) ? currentTag : "all";
 
   return (
     <div className="mx-auto max-w-7xl px-4 lg:px-6 xl:px-8 py-8 md:py-10 xl:py-12">
       {/* Header */}
       <header className="mb-8 md:mb-10">
-        <h1 className="text-2xl md:text-3xl xl:text-4xl font-bold text-[var(--color-text-primary)] mb-2">
-          News
-        </h1>
-        <p className="text-text-muted text-sm md:text-base">
-          Stay updated with the latest Claude Code and AI industry news
-        </p>
+        <div className="flex items-center gap-3 mb-2">
+          <div className="p-2 rounded-lg bg-gradient-to-br from-orange-500/20 to-purple-500/20">
+            <Globe className="w-6 h-6 text-orange-400" />
+          </div>
+          <h1 className="text-2xl md:text-3xl xl:text-4xl font-bold text-[var(--color-text-primary)]">
+            AI & Dev News
+          </h1>
+        </div>
+        <p className="text-text-muted text-sm md:text-base">Claude에 몰입해도 시야를 잃지 마세요</p>
       </header>
 
-      {/* Section 1: Quick Links (Compact) */}
+      {/* Quick Links */}
       <section className="mb-8">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
           {QUICK_LINKS.map((link) => (
@@ -252,70 +278,34 @@ export default async function NewsPage() {
         </div>
       </section>
 
-      {/* Section 2: LATEST Article + Claude Code News */}
-      <section className="mb-10" aria-labelledby="claude-code-news-heading">
-        <SectionHeader
-          icon={Zap}
-          iconColor="bg-orange-500/10 text-orange-400"
-          title="Claude Code News"
-          subtitle="Official updates and related news"
-          id="claude-code-news-heading"
-        />
+      {/* Main Content: Filter Sidebar + News Grid */}
+      <div className="flex flex-col lg:flex-row gap-6 lg:gap-8">
+        {/* Filter Sidebar */}
+        <aside className="lg:w-48 flex-shrink-0">
+          <div className="lg:sticky lg:top-24">
+            <NewsTagFilter currentTag={safeTag} />
+          </div>
+        </aside>
 
-        {latestArticle || claudeCodeNews.length > 0 ? (
-          <HorizontalScrollSection ariaLabel="Claude Code news list">
-            {/* LATEST Card */}
-            {latestArticle && <NewsCard article={latestArticle} variant="featured" isLatest />}
-            {/* Claude Code News Cards */}
-            {claudeCodeNews.map((article) => (
-              <NewsCard key={article.id} article={article} variant="default" />
-            ))}
-          </HorizontalScrollSection>
-        ) : (
-          <EmptyState
-            icon={Building2}
-            message="No Claude Code news yet"
-            submessage="Check back soon for the latest updates"
-          />
-        )}
-      </section>
+        {/* News Grid */}
+        <main className="flex-1 min-w-0">
+          <Suspense fallback={<NewsGridSkeleton />}>
+            <NewsGrid tag={safeTag} />
+          </Suspense>
+        </main>
+      </div>
 
-      {/* Section 3: AI News */}
-      <section className="mb-10" aria-labelledby="ai-news-heading">
-        <SectionHeader
-          icon={Newspaper}
-          iconColor="bg-purple-500/10 text-purple-400"
-          title="AI Industry News"
-          subtitle="Trends and highlights from the AI industry"
-          id="ai-news-heading"
-        />
-
-        {aiNews.length > 0 ? (
-          <HorizontalScrollSection ariaLabel="AI industry news list">
-            {aiNews.map((article) => (
-              <NewsCard key={article.id} article={article} variant="compact" />
-            ))}
-          </HorizontalScrollSection>
-        ) : (
-          <EmptyState
-            icon={Newspaper}
-            message="No AI news yet"
-            submessage="Check back soon for the latest AI industry updates"
-          />
-        )}
-      </section>
-
-      {/* Official Resources Footer */}
-      <section className="pt-6 border-t border-[var(--border-default)]">
+      {/* Footer */}
+      <section className="mt-10 pt-6 border-t border-[var(--border-default)]">
         <div className="flex items-center gap-2 mb-3">
           <Sparkles className="w-4 h-4 text-purple-400" />
           <span className="text-xs font-medium text-text-muted">
-            Always verify official information from the original source
+            공식 정보는 항상 원본 출처에서 확인하세요
           </span>
         </div>
         <p className="text-[11px] text-text-muted/60 leading-relaxed">
-          CCgather curates Claude Code related news. All news content cites original sources. For
-          official documentation and announcements, please visit Anthropic&apos;s official channels.
+          CCgather는 Claude Code 및 AI 관련 뉴스를 큐레이션합니다. 모든 뉴스는 원본 출처를
+          명시합니다. 공식 문서 및 공지사항은 Anthropic 공식 채널을 방문해주세요.
         </p>
       </section>
     </div>

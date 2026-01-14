@@ -11,6 +11,22 @@ type ContentType = "news" | "youtube";
 type ContentStatus = "pending" | "ready" | "published" | "rejected";
 type ContentTab = "news" | "youtube" | "targets" | "scheduler";
 
+// AI Article Types (from gemini-client.ts)
+type AIArticleType =
+  | "product_launch"
+  | "version_update"
+  | "tutorial"
+  | "interview"
+  | "analysis"
+  | "security"
+  | "event"
+  | "research"
+  | "integration"
+  | "pricing"
+  | "showcase"
+  | "opinion"
+  | "general";
+
 interface ContentItem {
   id: string;
   type: ContentType;
@@ -24,6 +40,7 @@ interface ContentItem {
   key_points?: string[];
   category?: string;
   tags?: string[];
+  news_tags?: string[]; // New tag-based filtering system
   status: ContentStatus;
   created_at: string;
   published_at?: string;
@@ -31,6 +48,12 @@ interface ContentItem {
   channel_name?: string;
   duration?: string;
   view_count?: number;
+  // AI Classification fields
+  ai_article_type?: AIArticleType;
+  ai_article_type_secondary?: AIArticleType;
+  ai_classification_confidence?: number;
+  ai_classification_signals?: string[];
+  ai_processed_at?: string;
 }
 
 const STATUS_STYLES: Record<ContentStatus, { bg: string; text: string; label: string }> = {
@@ -47,6 +70,56 @@ const CATEGORY_OPTIONS = [
   { value: "showcase", label: "쇼케이스" },
   { value: "news", label: "뉴스" },
   { value: "community", label: "커뮤니티" },
+];
+
+// AI Article Type Labels with colors
+const AI_TYPE_STYLES: Record<
+  AIArticleType,
+  { label: string; emoji: string; bg: string; text: string }
+> = {
+  product_launch: { label: "출시", emoji: "🚀", bg: "bg-purple-500/20", text: "text-purple-400" },
+  version_update: { label: "업데이트", emoji: "📦", bg: "bg-blue-500/20", text: "text-blue-400" },
+  tutorial: { label: "튜토리얼", emoji: "📚", bg: "bg-green-500/20", text: "text-green-400" },
+  interview: { label: "인터뷰", emoji: "🎤", bg: "bg-pink-500/20", text: "text-pink-400" },
+  analysis: { label: "분석", emoji: "🔍", bg: "bg-cyan-500/20", text: "text-cyan-400" },
+  security: { label: "보안", emoji: "🔒", bg: "bg-red-500/20", text: "text-red-400" },
+  event: { label: "이벤트", emoji: "🎪", bg: "bg-orange-500/20", text: "text-orange-400" },
+  research: { label: "연구", emoji: "🔬", bg: "bg-indigo-500/20", text: "text-indigo-400" },
+  integration: { label: "연동", emoji: "🔗", bg: "bg-teal-500/20", text: "text-teal-400" },
+  pricing: { label: "가격", emoji: "💰", bg: "bg-amber-500/20", text: "text-amber-400" },
+  showcase: { label: "쇼케이스", emoji: "✨", bg: "bg-fuchsia-500/20", text: "text-fuchsia-400" },
+  opinion: { label: "의견", emoji: "💬", bg: "bg-slate-500/20", text: "text-slate-400" },
+  general: { label: "일반", emoji: "📰", bg: "bg-gray-500/20", text: "text-gray-400" },
+};
+
+// News Tags Styles
+const NEWS_TAG_STYLES: Record<string, { label: string; bg: string; text: string }> = {
+  claude: { label: "Claude", bg: "bg-orange-500/20", text: "text-orange-400" },
+  anthropic: { label: "Anthropic", bg: "bg-orange-500/20", text: "text-orange-300" },
+  "claude-code": { label: "Claude Code", bg: "bg-orange-500/20", text: "text-orange-500" },
+  update: { label: "업데이트", bg: "bg-blue-500/20", text: "text-blue-400" },
+  industry: { label: "Industry", bg: "bg-purple-500/20", text: "text-purple-400" },
+  "dev-tools": { label: "Dev Tools", bg: "bg-green-500/20", text: "text-green-400" },
+  openai: { label: "OpenAI", bg: "bg-emerald-500/20", text: "text-emerald-400" },
+  google: { label: "Google", bg: "bg-blue-500/20", text: "text-blue-300" },
+  meta: { label: "Meta", bg: "bg-indigo-500/20", text: "text-indigo-400" },
+  community: { label: "커뮤니티", bg: "bg-pink-500/20", text: "text-pink-400" },
+  youtube: { label: "YouTube", bg: "bg-red-500/20", text: "text-red-400" },
+};
+
+// Available news tags for editing
+const AVAILABLE_NEWS_TAGS = [
+  "claude",
+  "anthropic",
+  "claude-code",
+  "update",
+  "industry",
+  "dev-tools",
+  "openai",
+  "google",
+  "meta",
+  "community",
+  "youtube",
 ];
 
 export default function AdminContentsPage() {
@@ -288,18 +361,73 @@ function ContentCard({
 
         {/* Content */}
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-1.5 mb-1">
+          <div className="flex items-center gap-1.5 mb-1 flex-wrap">
             <span
               className={`px-1.5 py-0.5 rounded text-[9px] ${STATUS_STYLES[item.status].bg} ${STATUS_STYLES[item.status].text}`}
             >
               {STATUS_STYLES[item.status].label}
             </span>
+            {/* AI Article Type Badge */}
+            {item.ai_article_type && (
+              <span
+                className={`px-1.5 py-0.5 rounded text-[9px] ${AI_TYPE_STYLES[item.ai_article_type].bg} ${AI_TYPE_STYLES[item.ai_article_type].text}`}
+                title={`AI 분류: ${item.ai_article_type}${item.ai_article_type_secondary ? ` + ${item.ai_article_type_secondary}` : ""}`}
+              >
+                {AI_TYPE_STYLES[item.ai_article_type].emoji}{" "}
+                {AI_TYPE_STYLES[item.ai_article_type].label}
+                {item.ai_article_type_secondary && (
+                  <span className="ml-0.5 opacity-70">
+                    +{AI_TYPE_STYLES[item.ai_article_type_secondary].emoji}
+                  </span>
+                )}
+              </span>
+            )}
+            {/* Confidence indicator */}
+            {item.ai_classification_confidence !== undefined && (
+              <span
+                className={`px-1.5 py-0.5 rounded text-[9px] ${
+                  item.ai_classification_confidence >= 0.9
+                    ? "bg-emerald-500/20 text-emerald-400"
+                    : item.ai_classification_confidence >= 0.7
+                      ? "bg-yellow-500/20 text-yellow-400"
+                      : "bg-red-500/20 text-red-400"
+                }`}
+                title={`신뢰도: ${(item.ai_classification_confidence * 100).toFixed(0)}%\n근거: ${item.ai_classification_signals?.join(", ") || "N/A"}`}
+              >
+                {(item.ai_classification_confidence * 100).toFixed(0)}%
+              </span>
+            )}
             {item.category && (
               <span className="px-1.5 py-0.5 rounded text-[9px] bg-white/10 text-white/50">
                 {CATEGORY_OPTIONS.find((c) => c.value === item.category)?.label || item.category}
               </span>
             )}
           </div>
+          {/* News Tags */}
+          {item.news_tags && item.news_tags.length > 0 && (
+            <div className="flex flex-wrap gap-1 mt-1">
+              {item.news_tags.slice(0, 4).map((tag) => {
+                const style = NEWS_TAG_STYLES[tag] || {
+                  label: tag,
+                  bg: "bg-gray-500/20",
+                  text: "text-gray-400",
+                };
+                return (
+                  <span
+                    key={tag}
+                    className={`px-1.5 py-0.5 rounded text-[8px] ${style.bg} ${style.text}`}
+                  >
+                    {style.label}
+                  </span>
+                );
+              })}
+              {item.news_tags.length > 4 && (
+                <span className="px-1.5 py-0.5 rounded text-[8px] bg-white/10 text-white/40">
+                  +{item.news_tags.length - 4}
+                </span>
+              )}
+            </div>
+          )}
           <h4 className="text-[13px] text-white font-medium line-clamp-1 mb-0.5">{item.title}</h4>
           <div className="text-[11px] text-white/40">
             {item.type === "youtube" ? item.channel_name : item.source_name}
@@ -391,6 +519,11 @@ function EditContentModal({
   const [thumbnailSource, setThumbnailSource] = useState<ThumbnailSource | undefined>(
     item.thumbnail_source
   );
+  const [newsTags, setNewsTags] = useState<string[]>(item.news_tags || []);
+
+  const toggleNewsTag = (tag: string) => {
+    setNewsTags((prev) => (prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]));
+  };
 
   const handleThumbnailUpdate = (url: string, source: ThumbnailSource) => {
     setThumbnailUrl(url);
@@ -406,6 +539,7 @@ function EditContentModal({
       key_points: keyPoints.split("\n").filter((p) => p.trim()),
       thumbnail_url: thumbnailUrl || undefined,
       thumbnail_source: thumbnailSource,
+      news_tags: newsTags.length > 0 ? newsTags : undefined,
     });
   };
 
@@ -473,6 +607,42 @@ function EditContentModal({
                   </option>
                 ))}
               </select>
+            </div>
+          )}
+
+          {/* News Tags */}
+          {item.type === "news" && (
+            <div>
+              <label className="block text-[11px] font-medium text-white/50 mb-1.5">
+                뉴스 태그 (필터링용)
+              </label>
+              <div className="flex flex-wrap gap-1.5">
+                {AVAILABLE_NEWS_TAGS.map((tag) => {
+                  const style = NEWS_TAG_STYLES[tag] || {
+                    label: tag,
+                    bg: "bg-gray-500/20",
+                    text: "text-gray-400",
+                  };
+                  const isSelected = newsTags.includes(tag);
+                  return (
+                    <button
+                      key={tag}
+                      type="button"
+                      onClick={() => toggleNewsTag(tag)}
+                      className={`px-2 py-1 rounded text-[10px] transition-all ${
+                        isSelected
+                          ? `${style.bg} ${style.text} ring-1 ring-white/20`
+                          : "bg-white/5 text-white/40 hover:bg-white/10"
+                      }`}
+                    >
+                      {style.label}
+                    </button>
+                  );
+                })}
+              </div>
+              {newsTags.length > 0 && (
+                <p className="text-[10px] text-white/30 mt-1.5">선택됨: {newsTags.join(", ")}</p>
+              )}
             </div>
           )}
 

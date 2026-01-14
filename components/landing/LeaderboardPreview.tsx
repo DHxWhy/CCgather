@@ -5,77 +5,79 @@ import Link from "next/link";
 import { motion } from "framer-motion";
 import { FlagIcon } from "@/components/ui/FlagIcon";
 
-// Mock leaderboard data with anime-style avatars
+// Mock leaderboard data - realistic values based on actual level system (Lv.1-10)
+// Level system: Novice(1) → Apprentice(2) → Journeyman(3) → Expert(4) → Master(5)
+//               → Grandmaster(6) → Legend(7) → Mythic(8) → Immortal(9) → Transcendent(10)
 const MOCK_LEADERBOARD = [
   {
     rank: 1,
     username: "user_1",
     displayName: "User1",
-    tokens: 12500000000,
-    cost: 45230,
+    tokens: 15_000_000_000, // 15B → Level 7 (Legend)
+    cost: 54230,
     country: "KR",
-    level: 42,
-    levelName: "Grandmaster",
-    levelIcon: "👑",
+    level: 7,
+    levelName: "Legend",
+    levelIcon: "🌟",
     globalRank: 1,
     countryRank: 1,
-    avgDaily: 342000000,
+    avgDaily: 85_000_000,
   },
   {
     rank: 2,
     username: "user_2",
     displayName: "User2",
-    tokens: 9800000000,
-    cost: 35420,
+    tokens: 8_500_000_000, // 8.5B → Level 6 (Grandmaster)
+    cost: 30720,
     country: "US",
-    level: 38,
-    levelName: "Master",
-    levelIcon: "⚔️",
+    level: 6,
+    levelName: "Grandmaster",
+    levelIcon: "👑",
     globalRank: 2,
     countryRank: 1,
-    avgDaily: 268000000,
+    avgDaily: 48_000_000,
   },
   {
     rank: 3,
     username: "user_3",
     displayName: "User3",
-    tokens: 7200000000,
-    cost: 26100,
+    tokens: 4_200_000_000, // 4.2B → Level 6 (Grandmaster)
+    cost: 15180,
     country: "JP",
-    level: 35,
-    levelName: "Expert",
-    levelIcon: "🎯",
+    level: 6,
+    levelName: "Grandmaster",
+    levelIcon: "👑",
     globalRank: 3,
     countryRank: 1,
-    avgDaily: 197000000,
+    avgDaily: 24_000_000,
   },
   {
     rank: 4,
     username: "user_4",
     displayName: "User4",
-    tokens: 5100000000,
-    cost: 18450,
+    tokens: 2_100_000_000, // 2.1B → Level 5 (Master)
+    cost: 7590,
     country: "DE",
-    level: 31,
-    levelName: "Advanced",
-    levelIcon: "🧙",
+    level: 5,
+    levelName: "Master",
+    levelIcon: "🔥",
     globalRank: 4,
     countryRank: 1,
-    avgDaily: 139000000,
+    avgDaily: 12_000_000,
   },
   {
     rank: 5,
     username: "user_5",
     displayName: "User5",
-    tokens: 4300000000,
-    cost: 15560,
+    tokens: 1_500_000_000, // 1.5B → Level 5 (Master)
+    cost: 5420,
     country: "GB",
-    level: 29,
-    levelName: "Skilled",
-    levelIcon: "✨",
+    level: 5,
+    levelName: "Master",
+    levelIcon: "🔥",
     globalRank: 5,
     countryRank: 1,
-    avgDaily: 117000000,
+    avgDaily: 8_500_000,
   },
 ];
 
@@ -106,29 +108,60 @@ function getAvatarUrl(username: string): string {
   return `https://api.dicebear.com/7.x/adventurer/svg?seed=${username}&backgroundColor=transparent`;
 }
 
-// Mock activity data for sparkline
+// Mock activity data for line chart
 const MOCK_ACTIVITY = [30, 45, 25, 60, 80, 55, 70, 90, 65, 85, 75, 95];
 
-// Simple sparkline component
-function Sparkline({ data }: { data: number[] }) {
+// Line chart component (mimics actual recharts style)
+function MiniLineChart({ data }: { data: number[] }) {
   const max = Math.max(...data);
   const min = Math.min(...data);
   const range = max - min || 1;
+  const width = 100;
+  const height = 32;
+  const padding = 2;
+
+  // Generate SVG path for smooth line
+  const points = data.map((value, i) => ({
+    x: padding + (i / (data.length - 1)) * (width - padding * 2),
+    y: padding + (1 - (value - min) / range) * (height - padding * 2),
+  }));
+
+  const pathD = points.reduce((acc, point, i) => {
+    if (i === 0) return `M ${point.x} ${point.y}`;
+    return `${acc} L ${point.x} ${point.y}`;
+  }, "");
+
+  // Area fill path
+  const areaD = `${pathD} L ${points[points.length - 1]?.x ?? 0} ${height - padding} L ${padding} ${height - padding} Z`;
 
   return (
-    <div className="flex items-end gap-[2px] h-8">
-      {data.map((value, i) => (
-        <div
-          key={i}
-          className="flex-1 bg-[var(--color-claude-coral)] rounded-t-sm opacity-60 hover:opacity-100 transition-opacity"
-          style={{ height: `${((value - min) / range) * 100}%`, minHeight: "4px" }}
-        />
-      ))}
-    </div>
+    <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-8">
+      {/* Grid lines */}
+      <line
+        x1={padding}
+        y1={height / 2}
+        x2={width - padding}
+        y2={height / 2}
+        stroke="var(--border-default)"
+        strokeWidth="0.5"
+        strokeDasharray="2,2"
+      />
+      {/* Area fill */}
+      <path d={areaD} fill="var(--color-claude-coral)" fillOpacity="0.1" />
+      {/* Line */}
+      <path
+        d={pathD}
+        fill="none"
+        stroke="var(--color-claude-coral)"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
   );
 }
 
-// Side Panel Component
+// Side Panel Component - matching real ProfileSidePanel layout
 function ProfilePanel({ user }: { user: (typeof MOCK_LEADERBOARD)[0] | null }) {
   if (!user) {
     return (
@@ -149,7 +182,7 @@ function ProfilePanel({ user }: { user: (typeof MOCK_LEADERBOARD)[0] | null }) {
       transition={{ duration: 0.3 }}
       className="p-4 flex flex-col gap-3"
     >
-      {/* Profile Header */}
+      {/* 1. Profile Header */}
       <div className="flex items-center gap-3">
         <img
           src={getAvatarUrl(user.username)}
@@ -175,50 +208,86 @@ function ProfilePanel({ user }: { user: (typeof MOCK_LEADERBOARD)[0] | null }) {
         </div>
       </div>
 
-      {/* Stats Grid */}
+      {/* 2. Level Progress (moved up to match real panel) */}
+      <div className="p-3 bg-[var(--color-bg-secondary)] rounded-xl border border-[var(--border-default)]">
+        <div className="flex items-center justify-between text-[10px] mb-1.5">
+          <span className="text-[var(--color-text-secondary)] flex items-center gap-1">
+            <span>{user.levelIcon}</span> {user.levelName} (Lv.{user.level})
+          </span>
+          {user.level < 10 && (
+            <span className="text-[var(--color-text-muted)]">
+              →{" "}
+              {user.level === 7
+                ? "🏆 Mythic"
+                : user.level === 6
+                  ? "🌟 Legend"
+                  : user.level === 5
+                    ? "👑 Grandmaster"
+                    : "🔥 Master"}
+            </span>
+          )}
+        </div>
+        <div className="h-2.5 bg-white/10 rounded-full overflow-hidden border border-[var(--border-default)]">
+          <div
+            className="h-full bg-[var(--color-claude-coral)] rounded-full transition-all duration-500"
+            style={{ width: `${65 + user.rank * 5}%` }}
+          />
+        </div>
+        <div className="text-[9px] text-[var(--color-text-muted)] mt-1.5">
+          Current Range:{" "}
+          <span className="text-[var(--color-text-secondary)]">
+            {user.level === 7
+              ? "10B ~ 30B"
+              : user.level === 6
+                ? "3B ~ 10B"
+                : user.level === 5
+                  ? "1B ~ 3B"
+                  : "500M ~ 1B"}
+          </span>{" "}
+          ({user.levelName})
+        </div>
+      </div>
+
+      {/* 3. Stats Grid (Global Rank / Cost, Country Rank / Tokens) */}
       <div className="grid grid-cols-2 gap-2">
         <div className="p-3 bg-[var(--color-bg-secondary)] rounded-xl border border-[var(--border-default)]">
           <div className="text-[10px] text-[var(--color-text-muted)] mb-1 flex items-center gap-1">
-            <span>🌍</span> Global Rank
+            <span className="w-2 h-2 rounded-full bg-emerald-400"></span> Global Rank
           </div>
           <div className="text-xl font-semibold text-[var(--color-text-primary)]">
             #{user.globalRank}
           </div>
         </div>
         <div className="p-3 bg-[var(--color-bg-secondary)] rounded-xl border border-[var(--border-default)]">
+          <div className="text-[10px] text-[var(--color-text-muted)] mb-1">All Time Cost $</div>
+          <div className="text-xl font-semibold text-emerald-400">{user.cost.toLocaleString()}</div>
+        </div>
+        <div className="p-3 bg-[var(--color-bg-secondary)] rounded-xl border border-[var(--border-default)]">
           <div className="text-[10px] text-[var(--color-text-muted)] mb-1 flex items-center gap-1">
             <FlagIcon countryCode={user.country} size="xs" />
-            <span>Country</span>
+            <span>Country Rank</span>
           </div>
           <div className="text-xl font-semibold text-[var(--color-text-primary)]">
             #{user.countryRank}
           </div>
         </div>
         <div className="p-3 bg-[var(--color-bg-secondary)] rounded-xl border border-[var(--border-default)]">
-          <div className="text-[10px] text-[var(--color-text-muted)] mb-1 flex items-center gap-1">
-            <span>💰</span> Total Cost
-          </div>
-          <div className="text-xl font-semibold text-emerald-400">{formatCost(user.cost)}</div>
-        </div>
-        <div className="p-3 bg-[var(--color-bg-secondary)] rounded-xl border border-[var(--border-default)]">
-          <div className="text-[10px] text-[var(--color-text-muted)] mb-1 flex items-center gap-1">
-            <span>🔥</span> Tokens
-          </div>
-          <div className="text-xl font-semibold text-[var(--color-claude-coral)]">
+          <div className="text-[10px] text-[var(--color-text-muted)] mb-1">All Time Tokens</div>
+          <div className="text-lg font-semibold text-[var(--color-claude-coral)]">
             {formatNumber(user.tokens)}
           </div>
         </div>
       </div>
 
-      {/* Activity Chart */}
+      {/* 4. Usage History - Line Chart Style (matches actual implementation) */}
       <div className="p-3 bg-[var(--color-bg-secondary)] rounded-xl border border-[var(--border-default)]">
         <div className="flex items-center justify-between mb-2">
-          <span className="text-[10px] text-[var(--color-text-muted)] flex items-center gap-1">
-            <span>📈</span> Recent Activity
+          <span className="text-[10px] text-[var(--color-text-muted)] uppercase tracking-wide flex items-center gap-1">
+            <span>📈</span> Usage History
           </span>
-          <span className="text-[9px] text-[var(--color-text-muted)]">Last 12 weeks</span>
+          <span className="text-[9px] text-[var(--color-text-muted)]">All Time</span>
         </div>
-        <Sparkline data={MOCK_ACTIVITY} />
+        <MiniLineChart data={MOCK_ACTIVITY} />
         <div className="text-[10px] text-[var(--color-text-secondary)] mt-2 pt-2 border-t border-[var(--border-default)] text-center">
           Avg Daily:{" "}
           <span className="font-medium text-[var(--color-claude-coral)]">
@@ -227,29 +296,13 @@ function ProfilePanel({ user }: { user: (typeof MOCK_LEADERBOARD)[0] | null }) {
           tokens
         </div>
       </div>
-
-      {/* Level Progress */}
-      <div className="p-3 bg-[var(--color-bg-secondary)] rounded-xl border border-[var(--border-default)]">
-        <div className="flex items-center justify-between text-[10px] mb-1.5">
-          <span className="text-[var(--color-text-secondary)] flex items-center gap-1">
-            <span>{user.levelIcon}</span> {user.levelName} (Lv.{user.level})
-          </span>
-          <span className="text-[var(--color-text-muted)]">→ Next Level</span>
-        </div>
-        <div className="h-2 bg-white/10 rounded-full overflow-hidden">
-          <div
-            className="h-full bg-[var(--color-claude-coral)] rounded-full transition-all duration-500"
-            style={{ width: `${65 + user.rank * 5}%` }}
-          />
-        </div>
-      </div>
     </motion.div>
   );
 }
 
 export function LeaderboardPreview() {
   const [selectedUser, setSelectedUser] = useState<(typeof MOCK_LEADERBOARD)[0] | null>(
-    MOCK_LEADERBOARD[0]
+    MOCK_LEADERBOARD[0] ?? null
   );
 
   return (
@@ -272,13 +325,67 @@ export function LeaderboardPreview() {
         <div className="flex gap-4">
           {/* Leaderboard Table */}
           <div className="flex-1 glass rounded-2xl border border-[var(--border-default)] overflow-hidden">
-            {/* Header row */}
-            <div className="grid grid-cols-12 gap-2 px-4 py-3 border-b border-[var(--border-default)] text-xs text-[var(--color-text-muted)]">
-              <div className="col-span-1 text-center">Rank</div>
+            {/* Filter Bar - Mobile optimized */}
+            <div className="px-2 sm:px-4 py-2 sm:py-3 border-b border-[var(--border-default)] bg-white/[0.02] space-y-2">
+              {/* Row 1: League Tabs - scrollable on mobile */}
+              <div className="flex items-center gap-1 overflow-x-auto scrollbar-hide">
+                <button className="flex-shrink-0 flex items-center gap-1 px-2 sm:px-3 py-1 sm:py-1.5 rounded-full text-[10px] sm:text-xs font-medium bg-white/10 border border-white/20 text-[var(--color-text-primary)]">
+                  <span>🏆</span> All<span className="hidden sm:inline"> League</span>
+                </button>
+                <button className="flex-shrink-0 flex items-center gap-1 px-2 sm:px-3 py-1 sm:py-1.5 rounded-full text-[10px] sm:text-xs text-[var(--color-text-muted)]">
+                  <span>🚀</span> Max
+                </button>
+                <button className="flex-shrink-0 flex items-center gap-1 px-2 sm:px-3 py-1 sm:py-1.5 rounded-full text-[10px] sm:text-xs text-[var(--color-text-muted)]">
+                  <span>⚡</span> Pro
+                </button>
+                <button className="flex-shrink-0 flex items-center gap-1 px-2 sm:px-3 py-1 sm:py-1.5 rounded-full text-[10px] sm:text-xs text-[var(--color-text-muted)]">
+                  <span className="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-zinc-500"></span> Free
+                </button>
+              </div>
+
+              {/* Row 2: Scope + Period */}
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-1.5 sm:gap-2">
+                  {/* Scope icons */}
+                  <div className="flex items-center rounded-md sm:rounded-lg overflow-hidden border border-white/10">
+                    <button className="p-1.5 sm:p-2 bg-[var(--color-claude-coral)] text-white">
+                      <span className="text-xs sm:text-sm">🌐</span>
+                    </button>
+                    <button className="p-1.5 sm:p-2 bg-[var(--color-bg-secondary)]">
+                      <FlagIcon countryCode="KR" size="xs" />
+                    </button>
+                  </div>
+
+                  {/* Period tabs */}
+                  <div className="flex items-center rounded-md sm:rounded-lg overflow-hidden border border-white/10 bg-[var(--color-bg-secondary)]">
+                    <button className="px-2 sm:px-3 py-1 sm:py-1.5 text-[10px] sm:text-xs font-medium bg-white/10 text-[var(--color-text-primary)]">
+                      All
+                    </button>
+                    <button className="px-1.5 sm:px-3 py-1 sm:py-1.5 text-[10px] sm:text-xs text-[var(--color-text-muted)]">
+                      7D
+                    </button>
+                    <button className="px-1.5 sm:px-3 py-1 sm:py-1.5 text-[10px] sm:text-xs text-[var(--color-text-muted)]">
+                      30D
+                    </button>
+                  </div>
+                </div>
+
+                {/* My Rank - hidden on very small screens */}
+                <button className="hidden min-[360px]:flex items-center gap-1 px-2 sm:px-3 py-1 sm:py-1.5 rounded-md sm:rounded-lg text-[10px] sm:text-xs font-medium bg-[var(--color-bg-secondary)] border border-white/10 text-[var(--color-text-secondary)]">
+                  <span>🏅</span> <span className="hidden sm:inline">My Rank</span>{" "}
+                  <span className="text-[var(--color-claude-coral)]">#1</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Header row - Mobile optimized */}
+            <div className="grid grid-cols-12 gap-1 sm:gap-2 px-2 sm:px-4 py-2 sm:py-3 border-b border-[var(--border-default)] text-[9px] sm:text-xs text-[var(--color-text-muted)]">
+              <div className="col-span-1 text-center">#</div>
               <div className="col-span-1 text-center"></div>
-              <div className="col-span-5">User</div>
-              <div className="col-span-2 text-right">Cost</div>
-              <div className="col-span-3 text-right">Tokens</div>
+              <div className="col-span-4 sm:col-span-3">User</div>
+              <div className="col-span-2 text-center hidden sm:block">Level</div>
+              <div className="col-span-3 sm:col-span-2 text-right">Cost</div>
+              <div className="col-span-3 sm:col-span-3 text-right">Tokens</div>
             </div>
 
             {/* Rows */}
@@ -294,7 +401,7 @@ export function LeaderboardPreview() {
                     viewport={{ once: true }}
                     transition={{ delay: index * 0.1, duration: 0.4 }}
                     onClick={() => setSelectedUser(user)}
-                    className={`grid grid-cols-12 gap-2 px-4 py-3 items-center cursor-pointer transition-colors ${
+                    className={`grid grid-cols-12 gap-1 sm:gap-2 px-2 sm:px-4 py-2 sm:py-3 items-center cursor-pointer transition-colors ${
                       isSelected
                         ? "bg-[var(--color-claude-coral)]/10 border-l-2 border-l-[var(--color-claude-coral)]"
                         : `${style.bg} hover:bg-white/5`
@@ -303,7 +410,7 @@ export function LeaderboardPreview() {
                     {/* Rank */}
                     <div className="col-span-1 text-center">
                       <span
-                        className={`text-sm font-semibold ${user.rank <= 3 ? "text-lg" : "text-[var(--color-text-muted)]"}`}
+                        className={`text-xs sm:text-sm font-semibold ${user.rank <= 3 ? "sm:text-lg" : "text-[var(--color-text-muted)]"}`}
                       >
                         {style.emoji}
                       </span>
@@ -311,31 +418,43 @@ export function LeaderboardPreview() {
 
                     {/* Country */}
                     <div className="col-span-1 flex justify-center">
-                      <FlagIcon countryCode={user.country} size="sm" />
+                      <FlagIcon countryCode={user.country} size="xs" className="sm:hidden" />
+                      <FlagIcon countryCode={user.country} size="sm" className="hidden sm:block" />
                     </div>
 
                     {/* User */}
-                    <div className="col-span-5 flex items-center gap-2">
+                    <div className="col-span-4 sm:col-span-3 flex items-center gap-1 sm:gap-2">
                       <img
                         src={getAvatarUrl(user.username)}
                         alt={user.displayName}
-                        className="w-7 h-7 rounded-full bg-[var(--color-bg-secondary)]"
+                        className="w-5 h-5 sm:w-7 sm:h-7 rounded-full bg-[var(--color-bg-secondary)]"
                       />
-                      <span className="text-sm font-medium text-[var(--color-text-primary)] truncate">
+                      <span className="text-[11px] sm:text-sm font-medium text-[var(--color-text-primary)] truncate">
                         {user.displayName}
                       </span>
                     </div>
 
+                    {/* Level - Orange badge style matching actual design - hidden on mobile */}
+                    <div className="col-span-2 hidden sm:flex justify-center">
+                      <span
+                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium"
+                        style={{ backgroundColor: "rgba(249, 115, 22, 0.2)", color: "#F97316" }}
+                      >
+                        <span>{user.levelIcon}</span>
+                        <span>Lv.{user.level}</span>
+                      </span>
+                    </div>
+
                     {/* Cost */}
-                    <div className="col-span-2 text-right">
-                      <span className="text-sm font-mono text-emerald-400">
+                    <div className="col-span-3 sm:col-span-2 text-right">
+                      <span className="text-[11px] sm:text-sm font-mono text-emerald-400">
                         {formatCost(user.cost)}
                       </span>
                     </div>
 
                     {/* Tokens */}
                     <div className="col-span-3 text-right">
-                      <span className="text-sm font-mono text-[var(--color-claude-coral)] font-semibold">
+                      <span className="text-[11px] sm:text-sm font-mono text-[var(--color-claude-coral)] font-semibold">
                         {formatNumber(user.tokens)}
                       </span>
                     </div>
