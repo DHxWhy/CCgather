@@ -8,6 +8,7 @@ import {
   getCurrentProjectName,
   CCGatherData,
   DailyUsage,
+  SessionFingerprint,
 } from "../lib/ccgather-json.js";
 import {
   colors,
@@ -39,6 +40,7 @@ interface UsageData {
   ccplan?: string | null;
   rateLimitTier?: string | null;
   dailyUsage: DailyUsage[];
+  sessionFingerprint?: SessionFingerprint;
 }
 
 interface SubmitOptions {
@@ -84,6 +86,7 @@ function ccgatherToUsageData(data: CCGatherData): UsageData {
     ccplan: data.account?.ccplan || null,
     rateLimitTier: data.account?.rateLimitTier || null,
     dailyUsage: data.dailyUsage || [],
+    sessionFingerprint: data.sessionFingerprint,
   };
 }
 
@@ -118,6 +121,8 @@ async function submitToServer(data: UsageData): Promise<SubmitResponse> {
         rateLimitTier: data.rateLimitTier,
         timestamp: new Date().toISOString(),
         dailyUsage: data.dailyUsage,
+        // Session fingerprint for duplicate prevention
+        sessionFingerprint: data.sessionFingerprint,
       }),
     });
 

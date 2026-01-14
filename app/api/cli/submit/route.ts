@@ -11,6 +11,12 @@ interface DailyUsage {
   sessions?: number;
 }
 
+interface SessionFingerprint {
+  sessionHashes: string[];
+  combinedHash: string;
+  sessionCount: number;
+}
+
 interface SubmitPayload {
   username?: string; // Now optional - use token auth instead
   totalTokens: number;
@@ -23,7 +29,8 @@ interface SubmitPayload {
   ccplan?: string | null;
   rateLimitTier?: string | null;
   timestamp: string;
-  dailyUsage?: DailyUsage[]; // NEW: Array of daily usage data
+  dailyUsage?: DailyUsage[]; // Array of daily usage data
+  sessionFingerprint?: SessionFingerprint; // For duplicate prevention
 }
 
 interface AuthenticatedUser {
@@ -97,31 +104,33 @@ export async function POST(request: NextRequest) {
 
     const authenticatedUser = user as AuthenticatedUser;
 
-    // Rate limit check: count submissions in the last hour
+    // Rate limit check: count unique submissions in the last hour
+    // Note: Each submission can create multiple rows (one per day), so we count DISTINCT submitted_at
     const oneHourAgo = new Date(
       Date.now() - RATE_LIMIT_WINDOW_HOURS * 60 * 60 * 1000
     ).toISOString();
 
-    const { count: recentSubmissions } = await supabase
+    // Get distinct submission timestamps for this user in the last hour
+    const { data: recentSubmissionData } = await supabase
       .from("usage_stats")
-      .select("*", { count: "exact", head: true })
+      .select("submitted_at")
       .eq("user_id", authenticatedUser.id)
       .gte("submitted_at", oneHourAgo);
 
-    if ((recentSubmissions ?? 0) >= RATE_LIMIT_MAX_SUBMISSIONS) {
-      // Calculate when they can submit again
-      const { data: oldestRecentSubmission } = await supabase
-        .from("usage_stats")
-        .select("submitted_at")
-        .eq("user_id", authenticatedUser.id)
-        .gte("submitted_at", oneHourAgo)
-        .order("submitted_at", { ascending: true })
-        .limit(1)
-        .single();
+    // Count unique submission timestamps
+    const submissionTimestamps: string[] =
+      recentSubmissionData?.map((r: { submitted_at: string }) => r.submitted_at) || [];
+    const uniqueSubmissions = new Set(submissionTimestamps);
+    const recentSubmissionCount = uniqueSubmissions.size;
+
+    if (recentSubmissionCount >= RATE_LIMIT_MAX_SUBMISSIONS) {
+      // Calculate when they can submit again (based on oldest unique submission)
+      const sortedTimestamps = Array.from(uniqueSubmissions).sort();
+      const oldestSubmissionTime = sortedTimestamps[0];
 
       let retryAfterMinutes = 60; // Default 60 minutes
-      if (oldestRecentSubmission?.submitted_at) {
-        const oldestTime = new Date(oldestRecentSubmission.submitted_at).getTime();
+      if (oldestSubmissionTime) {
+        const oldestTime = new Date(oldestSubmissionTime).getTime();
         const windowEndTime = oldestTime + RATE_LIMIT_WINDOW_HOURS * 60 * 60 * 1000;
         retryAfterMinutes = Math.ceil((windowEndTime - Date.now()) / (60 * 1000));
       }
@@ -134,6 +143,64 @@ export async function POST(request: NextRequest) {
         },
         { status: 429 }
       );
+    }
+
+    // Session fingerprint duplicate check (1 Project 1 Person principle)
+    if (body.sessionFingerprint?.sessionHashes?.length) {
+      const { sessionHashes } = body.sessionFingerprint;
+
+      // Check if any of these session hashes already belong to another user
+      const { data: existingHashes } = await supabase
+        .from("submitted_sessions")
+        .select("session_hash, user_id")
+        .in("session_hash", sessionHashes);
+
+      if (existingHashes && existingHashes.length > 0) {
+        // Check if any hash belongs to a different user
+        const foreignHashes = existingHashes.filter(
+          (h: { session_hash: string; user_id: string }) => h.user_id !== authenticatedUser.id
+        );
+
+        if (foreignHashes.length > 0) {
+          console.log(
+            `[CLI Submit] Duplicate session detected! User ${authenticatedUser.username} tried to submit sessions owned by another user. Conflicting hashes: ${foreignHashes.length}`
+          );
+          return NextResponse.json(
+            {
+              error: "These sessions have already been submitted by another account.",
+              hint: "Each project's data can only be submitted by one account (1 Project 1 Person).",
+              code: "DUPLICATE_SESSION",
+            },
+            { status: 409 }
+          );
+        }
+      }
+
+      // Store new session hashes for this user
+      const newHashes = sessionHashes.filter(
+        (hash: string) =>
+          !existingHashes?.some((e: { session_hash: string }) => e.session_hash === hash)
+      );
+
+      if (newHashes.length > 0) {
+        const hashRecords = newHashes.map((hash: string) => ({
+          session_hash: hash,
+          user_id: authenticatedUser.id,
+        }));
+
+        const { error: insertError } = await supabase
+          .from("submitted_sessions")
+          .insert(hashRecords);
+
+        if (insertError) {
+          console.error("[CLI Submit] Failed to store session hashes:", insertError);
+          // Don't fail the submission, just log the error
+        } else {
+          console.log(
+            `[CLI Submit] Stored ${newHashes.length} new session hashes for user ${authenticatedUser.username}`
+          );
+        }
+      }
     }
 
     // Update user stats (use max values to prevent lowering)

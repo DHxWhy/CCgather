@@ -1,6 +1,7 @@
 import * as fs from "fs";
 import * as path from "path";
 import * as os from "os";
+import * as crypto from "crypto";
 import { readCredentials } from "./credentials.js";
 
 export interface DailyUsage {
@@ -13,6 +14,12 @@ export interface DailyUsage {
   cacheReadTokens: number;
   sessions: number;
   models: Record<string, number>;
+}
+
+export interface SessionFingerprint {
+  sessionHashes: string[]; // SHA256 hashes of each session file
+  combinedHash: string; // SHA256 of all session hashes combined
+  sessionCount: number; // Number of sessions included
 }
 
 export interface CCGatherData {
@@ -48,6 +55,7 @@ export interface CCGatherData {
     ccplan: string | null;
     rateLimitTier: string | null;
   };
+  sessionFingerprint?: SessionFingerprint;
 }
 
 const CCGATHER_JSON_VERSION = "1.2.0";
@@ -204,6 +212,51 @@ function estimateCost(
   const cacheReadCost = (cacheReadTokens / 1_000_000) * price.cacheRead;
 
   return Math.round((inputCost + outputCost + cacheWriteCost + cacheReadCost) * 100) / 100;
+}
+
+/**
+ * Generate SHA256 hash of file content
+ * Uses first N lines to create a unique fingerprint
+ */
+function generateSessionHash(filePath: string, maxLines: number = 50): string | null {
+  try {
+    const content = fs.readFileSync(filePath, "utf-8");
+    const lines = content.split("\n").slice(0, maxLines).join("\n");
+
+    // Create hash from file content + filename (for uniqueness)
+    const fileName = path.basename(filePath);
+    const hashInput = `${fileName}:${lines}`;
+
+    return crypto.createHash("sha256").update(hashInput).digest("hex");
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Generate combined fingerprint from all session files
+ */
+function generateSessionFingerprint(sessionFiles: string[]): SessionFingerprint {
+  const sessionHashes: string[] = [];
+
+  for (const file of sessionFiles) {
+    const hash = generateSessionHash(file);
+    if (hash) {
+      sessionHashes.push(hash);
+    }
+  }
+
+  // Sort hashes for consistent combined hash
+  sessionHashes.sort();
+
+  // Create combined hash from all session hashes
+  const combinedHash = crypto.createHash("sha256").update(sessionHashes.join(":")).digest("hex");
+
+  return {
+    sessionHashes,
+    combinedHash,
+    sessionCount: sessionHashes.length,
+  };
 }
 
 export interface ScanOptions {
@@ -417,6 +470,9 @@ export function scanUsageData(options: ScanOptions = {}): CCGatherData | null {
   // Read account credentials
   const credentials = readCredentials();
 
+  // Generate session fingerprint for duplicate prevention
+  const sessionFingerprint = generateSessionFingerprint(jsonlFiles);
+
   return {
     version: CCGATHER_JSON_VERSION,
     lastUpdated: new Date().toISOString(),
@@ -442,6 +498,7 @@ export function scanUsageData(options: ScanOptions = {}): CCGatherData | null {
       ccplan: credentials.ccplan,
       rateLimitTier: credentials.rateLimitTier,
     },
+    sessionFingerprint,
   };
 }
 
