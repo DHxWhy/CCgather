@@ -297,19 +297,19 @@ export default async function NewsDetailPage({ params }: NewsDetailPageProps) {
           {/* Full Body HTML */}
           {bodyHtml && (
             <div
-              className="article-body"
+              className="not-prose article-body"
               dangerouslySetInnerHTML={{ __html: sanitizeHtml(bodyHtml) }}
             />
           )}
 
-          {/* Insight Box */}
+          {/* 쉽게 풀어보기 Box */}
           {insightHtml && (
-            <div className="not-prose my-8 p-5 rounded-xl bg-orange-500/10 border-l-4 border-orange-500/50">
+            <div className="not-prose my-8 p-5 rounded-xl bg-emerald-500/10 border-l-4 border-emerald-500/50">
               <h3 className="text-lg font-semibold text-white mb-3 flex items-center gap-2">
-                💡 CCgather 인사이트
+                🌱 쉽게 풀어보기
               </h3>
               <div
-                className="text-white/80 leading-relaxed"
+                className="text-white/80 leading-relaxed text-[15px]"
                 dangerouslySetInnerHTML={{ __html: sanitizeHtml(insightHtml) }}
               />
             </div>
@@ -317,11 +317,13 @@ export default async function NewsDetailPage({ params }: NewsDetailPageProps) {
 
           {/* Fallback Insight from rich_content */}
           {!insightHtml && richContent?.summary.analogy && (
-            <div className="not-prose my-8 p-5 rounded-xl bg-orange-500/10 border-l-4 border-orange-500/50">
+            <div className="not-prose my-8 p-5 rounded-xl bg-emerald-500/10 border-l-4 border-emerald-500/50">
               <h3 className="text-lg font-semibold text-white mb-3 flex items-center gap-2">
-                💡 CCgather 인사이트
+                🌱 쉽게 풀어보기
               </h3>
-              <p className="text-white/80 leading-relaxed">{richContent.summary.analogy.text}</p>
+              <p className="text-white/80 leading-relaxed text-[15px]">
+                {richContent.summary.analogy.text}
+              </p>
             </div>
           )}
         </div>

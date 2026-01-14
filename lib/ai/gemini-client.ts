@@ -58,6 +58,34 @@ export type ArticleType =
   | "opinion" // Editorials, subjective takes
   | "general"; // Catch-all for unclassified
 
+// ===========================================
+// Structure Intensity (Hybrid Approach)
+// ===========================================
+
+export type StructureIntensity = "high" | "medium" | "low";
+
+/**
+ * Structure intensity per article type
+ * - high: Tables required, max 2 consecutive paragraphs, bullet lists required
+ * - medium: Table OR bullet required, max 3 consecutive paragraphs, prose sections allowed
+ * - low: Structure elements recommended (not required), max 4 paragraphs, preserve original tone/flow
+ */
+export const STRUCTURE_INTENSITY: Record<ArticleType, StructureIntensity> = {
+  product_launch: "high", // Specs, features, pricing → table optimal
+  version_update: "high", // Changelog → list optimal
+  security: "high", // Urgent info → checklist optimal
+  pricing: "high", // Price comparison → table required
+  tutorial: "medium", // Sequential list + explanatory prose
+  analysis: "medium", // Comparison table + analysis prose
+  research: "medium", // Findings table + methodology prose
+  integration: "medium", // Features list + context prose
+  event: "medium", // Announcements list + highlights prose
+  showcase: "medium", // Features list + story elements
+  interview: "low", // Preserve dialogue flow and nuance
+  opinion: "low", // Preserve argumentation flow
+  general: "medium", // Universal structure
+};
+
 export interface ArticleClassification {
   primary: ArticleType;
   secondary?: ArticleType;
@@ -104,12 +132,83 @@ export interface FactVerification {
     completeness: boolean;
     toneAppropriateness: boolean;
     noExaggeration: boolean;
+    structureAppropriateness: boolean; // NEW: Hybrid structure check
   };
 }
 
 // ===========================================
 // Prompts - Modular Design
 // ===========================================
+
+// Universal Structure Rules (Always Applied - Hybrid Approach)
+const UNIVERSAL_STRUCTURE_RULES_HIGH = `## STRUCTURE RULES (High Intensity)
+
+**This article type requires strong structuring for optimal readability.**
+
+### Mandatory Elements:
+1. **Quick Facts Table** (REQUIRED)
+   \`\`\`html
+   <table>
+     <tr><th>Item</th><th>Details</th></tr>
+     <tr><td>Key info 1</td><td>Value</td></tr>
+   </table>
+   \`\`\`
+
+2. **Bullet Lists** (REQUIRED for 3+ related items)
+   \`\`\`html
+   <ul>
+     <li><strong>Feature Name</strong>: One-line description</li>
+   </ul>
+   \`\`\`
+
+### Constraints:
+- ❌ Maximum 2 consecutive <p> tags
+- ❌ No paragraphs longer than 3 sentences
+- ❌ No lists converted to prose
+- ✅ Use headers (<h2>) to break sections
+
+### Format Priority:
+**Table > Bullet List > Short Paragraph**`;
+
+const UNIVERSAL_STRUCTURE_RULES_MEDIUM = `## STRUCTURE RULES (Medium Intensity)
+
+**Balance structure with explanatory prose.**
+
+### Required Elements (at least ONE):
+- Quick Facts Table OR
+- Feature/Change Bullet List
+
+### Constraints:
+- ❌ Maximum 3 consecutive <p> tags
+- ❌ No paragraphs longer than 4 sentences
+- ✅ Prose sections allowed for context/analysis
+- ✅ Use headers (<h2>) to organize sections
+
+### Format Priority:
+**Table/Bullet for facts → Prose for analysis/context**`;
+
+const UNIVERSAL_STRUCTURE_RULES_LOW = `## STRUCTURE RULES (Low Intensity)
+
+**Preserve original tone, flow, and nuance.**
+
+### Recommended (not required):
+- Key points summary at top
+- Important quotes highlighted with <blockquote>
+
+### Constraints:
+- ❌ Maximum 4 consecutive <p> tags
+- ✅ Longer prose sections allowed
+- ✅ Maintain dialogue flow (for interviews)
+- ✅ Preserve argumentation structure (for opinions)
+
+### Priority:
+**Readability and original voice > Rigid structure**`;
+
+const STRUCTURE_RULES_BY_INTENSITY: Record<StructureIntensity, string> = {
+  high: UNIVERSAL_STRUCTURE_RULES_HIGH,
+  medium: UNIVERSAL_STRUCTURE_RULES_MEDIUM,
+  low: UNIVERSAL_STRUCTURE_RULES_LOW,
+};
 
 // Stage 1: Fact Extraction with Decision Tree
 const FACT_EXTRACTION_PROMPT = `당신은 CCgather 뉴스 플랫폼의 팩트 추출 전문가입니다.
@@ -252,8 +351,38 @@ Good: { "icon": "folder", "text": "Access and edit files in any folder you grant
 ### 4. Body (bodyHtml)
 HTML format using p/h2/ul/li/strong/code tags. COMPLETELY REWRITTEN.
 
-### 5. Insight (insightHtml)
-CCgather's unique analysis: What does this mean for Claude Code users?
+**Line Break Guidelines:**
+- Each paragraph should focus on ONE main idea
+- Break long paragraphs (>3 sentences) into shorter ones
+- Use <br> sparingly - prefer separate <p> tags for distinct thoughts
+- After tables or lists, start a new paragraph
+
+### 5. Insight (insightHtml) - "🌱 쉽게 풀어보기" Section
+**EXCEPTION: This section MUST be written in KOREAN (한국어)**
+**TARGET: Middle school reading level explanation (중학생 눈높이)**
+
+This is CCgather's signature section that explains the news in SIMPLE Korean terms.
+
+**Writing Rules:**
+- Write in Korean (한국어로 작성)
+- Explain like you're talking to a curious 14-year-old Korean student
+- Use everyday analogies (games, school, social media, shopping)
+- Avoid jargon - if you must use technical terms, explain them in Korean
+- Keep sentences SHORT (under 20 words each)
+- Use "~해요/~예요" style (친근한 존댓말)
+- Do NOT use English words when Korean equivalents exist
+
+**Structure (2-4 sentences total):**
+1. What is this? (이게 뭔지 한 문장으로)
+2. Why does it matter? (왜 중요한지)
+3. Simple analogy if helpful (비유가 도움된다면)
+
+**Examples:**
+Bad: "This feature leverages advanced LLM capabilities to enhance developer productivity."
+Good: "AI가 코드를 대신 써주는 기능이에요. 마치 숙제할 때 똑똑한 친구가 옆에서 도와주는 것처럼요!"
+
+Bad: "Anthropic releases new Claude model with improved reasoning."
+Good: "Claude가 더 똑똑해졌어요! 수학 문제도 더 잘 풀고, 복잡한 질문도 더 잘 이해해요."
 
 ### Information Density Rules
 - Cover ALL major points from the original
@@ -276,92 +405,351 @@ JSON only.
 }
 \`\`\``;
 
-// Type-specific summary structures
+// Type-specific summary structures with HTML examples (Hybrid Approach)
 const TYPE_SUMMARY_PROMPTS: Record<ArticleType, string> = {
-  product_launch: `### Summary Structure (Product Launch)
-1. **Lead**: What product/feature was released, by whom, for whom (availability)
-2. **Core Features**: Key capabilities with specific examples and use cases
-3. **Technical Details**: How it works, specifications, requirements, pricing
-4. **Impact**: Why it matters, competitive positioning, limitations`,
+  product_launch: `### Output Structure (Product Launch) - HIGH STRUCTURE
 
-  version_update: `### Summary Structure (Version Update)
-1. **Release Info**: Version number, release date, target users
-2. **Key Changes**: Most important updates, new features
-3. **Technical Details**: Breaking changes, migration notes, requirements
-4. **Impact**: Benefits for existing users, upgrade recommendations`,
+**Section 1: Quick Facts Table** (REQUIRED)
+\`\`\`html
+<table>
+  <tr><th>Item</th><th>Details</th></tr>
+  <tr><td>Product/Feature</td><td>[name]</td></tr>
+  <tr><td>Released By</td><td>[company]</td></tr>
+  <tr><td>Availability</td><td>[date or "available now"]</td></tr>
+  <tr><td>Target Users</td><td>[audience]</td></tr>
+  <tr><td>Pricing/Access</td><td>[free/paid/subscription]</td></tr>
+</table>
+\`\`\`
 
-  tutorial: `### Summary Structure (Tutorial)
-1. **Goal**: What readers will learn or build
-2. **Prerequisites**: Required knowledge, tools, setup needed
-3. **Key Steps**: Main steps summarized (not full tutorial)
-4. **Outcome**: What readers achieve, next steps`,
+**Section 2: Core Features** (REQUIRED - Bullet List)
+\`\`\`html
+<h2>Key Features</h2>
+<ul>
+  <li><strong>Feature Name</strong>: Specific capability with concrete example</li>
+  <li><strong>Feature Name</strong>: What it does and why it matters</li>
+</ul>
+\`\`\`
 
-  interview: `### Summary Structure (Interview)
-1. **Context**: Why this interview matters, the occasion
-2. **Who**: Interviewee background, interviewer/publication
-3. **Core Dialogue**: 2-3 key Q&A exchanges (preserve important quotes)
-4. **Implications**: What this interview reveals, future outlook`,
+**Section 3: Technical Details** (1-2 paragraphs max)
+- How it works, specifications, requirements
+- Use <code> tags for technical terms
 
-  analysis: `### Summary Structure (Analysis)
-1. **Subject & Scope**: What is being analyzed, the analysis boundaries
-2. **Methodology**: Data sources, comparison criteria used
-3. **Key Findings**: Main conclusions with supporting evidence
-4. **Limitations & Implications**: Caveats, what readers should take away`,
+**Section 4: Impact** (1 paragraph)
+- Why this matters for Claude Code users`,
 
-  security: `### Summary Structure (Security)
-1. **Vulnerability**: What the issue is, CVE if available, severity (Critical/High/Medium/Low)
-2. **Affected**: Products, versions, user groups impacted
-3. **Risk**: Potential impact if exploited, attack vectors
-4. **Mitigation**: How to fix, workarounds, timeline for patches`,
+  version_update: `### Output Structure (Version Update) - HIGH STRUCTURE
 
-  event: `### Summary Structure (Event)
-1. **Event Context**: What event, when, where, organizer
-2. **Key Announcements**: Major reveals, product launches at event
-3. **Highlights**: Notable demos, keynote moments, surprises
-4. **Significance**: Why this event matters, industry impact`,
+**Section 1: Release Info Table** (REQUIRED)
+\`\`\`html
+<table>
+  <tr><th>Item</th><th>Details</th></tr>
+  <tr><td>Version</td><td>[version number]</td></tr>
+  <tr><td>Release Date</td><td>[date]</td></tr>
+  <tr><td>Type</td><td>[major/minor/patch]</td></tr>
+  <tr><td>Breaking Changes</td><td>[yes/no]</td></tr>
+</table>
+\`\`\`
 
-  research: `### Summary Structure (Research)
-1. **Research Question**: What was studied, hypothesis
-2. **Methodology**: How the research was conducted, data sources
-3. **Key Findings**: Main results, statistics, breakthrough points
-4. **Implications**: What this means for the field, limitations`,
+**Section 2: What's New** (REQUIRED - Bullet List)
+\`\`\`html
+<h2>Changes</h2>
+<ul>
+  <li><strong>Added</strong>: [new feature]</li>
+  <li><strong>Changed</strong>: [modification]</li>
+  <li><strong>Fixed</strong>: [bug fix]</li>
+  <li><strong>Deprecated</strong>: [if any]</li>
+</ul>
+\`\`\`
 
-  integration: `### Summary Structure (Integration)
-1. **Partnership**: Who is partnering, nature of the integration
-2. **Capabilities**: What the integration enables, specific features
-3. **Technical Details**: How it works, API/SDK requirements
-4. **Benefits**: Value for users, use cases, availability`,
+**Section 3: Migration Notes** (if breaking changes)
+- Short paragraph on what users need to do
 
-  pricing: `### Summary Structure (Pricing/Policy)
-1. **Change Summary**: What is changing, effective date
-2. **Details**: New pricing tiers, policy specifics, comparison to before
-3. **Affected Users**: Who is impacted, grandfathering rules
-4. **Rationale & Impact**: Why the change, what users should do`,
+**Section 4: Upgrade Recommendation** (1 paragraph)`,
 
-  showcase: `### Summary Structure (Showcase)
-1. **Project Overview**: What was built, creator/team
-2. **Key Features**: Notable capabilities, technical approach
-3. **Demo/Results**: What it demonstrates, performance
-4. **Availability**: How to try it, open source status, links`,
+  tutorial: `### Output Structure (Tutorial) - MEDIUM STRUCTURE
 
-  opinion: `### Summary Structure (Opinion/Editorial)
-1. **Thesis**: Main argument or position stated
-2. **Key Arguments**: Supporting points and evidence
-3. **Counter-perspectives**: Acknowledged opposing views
-4. **Conclusion**: Author's final take, call to action`,
+**Section 1: Overview Box**
+\`\`\`html
+<table>
+  <tr><th>Item</th><th>Details</th></tr>
+  <tr><td>Goal</td><td>[what you'll build/learn]</td></tr>
+  <tr><td>Difficulty</td><td>[beginner/intermediate/advanced]</td></tr>
+  <tr><td>Time</td><td>[estimated time]</td></tr>
+  <tr><td>Prerequisites</td><td>[required knowledge/tools]</td></tr>
+</table>
+\`\`\`
 
-  general: `### Summary Structure (General / Unclassified)
-**For articles that don't fit other categories, preserve the original article's structure.**
+**Section 2: Key Steps** (Sequential List)
+\`\`\`html
+<h2>Steps Overview</h2>
+<ol>
+  <li><strong>Step Name</strong>: Brief description</li>
+  <li><strong>Step Name</strong>: Brief description</li>
+</ol>
+\`\`\`
 
-1. **Analyze the original structure**: Identify how the original article is organized
-2. **Mirror the flow**: Follow the same logical progression as the source
-3. **Maintain emphasis**: Keep the same parts emphasized as in the original
-4. **Preserve tone**: Match the formality/casualness of the source
+**Section 3: Key Concepts** (Prose allowed)
+- Explain important concepts mentioned in the tutorial
 
-Do NOT force a rigid structure. Let the original article guide your rewrite.
-If the original uses chronological order, use chronological order.
-If the original leads with a quote, lead with that quote (paraphrased).
-If the original is list-heavy, keep the list format.`,
+**Section 4: Outcome**
+- What readers will achieve, links to full tutorial`,
+
+  interview: `### Output Structure (Interview) - LOW STRUCTURE
+
+**Preserve dialogue flow and nuance.**
+
+**Section 1: Context** (1-2 paragraphs)
+- Who is being interviewed, why it matters, the occasion
+
+**Section 2: Key Quotes** (Use blockquote)
+\`\`\`html
+<blockquote>
+  <p>"[Important quote from interviewee]"</p>
+  <footer>— [Name], [Title]</footer>
+</blockquote>
+\`\`\`
+
+**Section 3: Discussion Highlights** (Prose with embedded quotes)
+- Summarize 2-3 key topics discussed
+- Preserve the interviewee's voice and tone
+- Use quotes to capture personality
+
+**Section 4: Implications**
+- What this interview reveals about future directions`,
+
+  analysis: `### Output Structure (Analysis) - MEDIUM STRUCTURE
+
+**Section 1: Analysis Overview**
+\`\`\`html
+<table>
+  <tr><th>Item</th><th>Details</th></tr>
+  <tr><td>Subject</td><td>[what's being analyzed]</td></tr>
+  <tr><td>Scope</td><td>[boundaries of analysis]</td></tr>
+  <tr><td>Methodology</td><td>[how it was analyzed]</td></tr>
+</table>
+\`\`\`
+
+**Section 2: Comparison Table** (if comparing items)
+\`\`\`html
+<table>
+  <tr><th>Criteria</th><th>Option A</th><th>Option B</th></tr>
+  <tr><td>[criterion]</td><td>[value]</td><td>[value]</td></tr>
+</table>
+\`\`\`
+
+**Section 3: Key Findings** (Bullet + Prose)
+- Main conclusions with supporting evidence
+- Analysis and interpretation (prose allowed)
+
+**Section 4: Limitations & Takeaways**`,
+
+  security: `### Output Structure (Security) - HIGH STRUCTURE
+
+**Section 1: Vulnerability Summary** (REQUIRED - Critical Info First)
+\`\`\`html
+<table>
+  <tr><th>Item</th><th>Details</th></tr>
+  <tr><td>Severity</td><td><strong>[Critical/High/Medium/Low]</strong></td></tr>
+  <tr><td>CVE</td><td>[CVE-XXXX-XXXXX or N/A]</td></tr>
+  <tr><td>Affected</td><td>[products/versions]</td></tr>
+  <tr><td>Patched In</td><td>[version or "pending"]</td></tr>
+</table>
+\`\`\`
+
+**Section 2: What You Need To Do** (REQUIRED - Checklist)
+\`\`\`html
+<h2>Action Required</h2>
+<ul>
+  <li>✅ <strong>Immediate</strong>: [urgent action]</li>
+  <li>⬜ <strong>Short-term</strong>: [follow-up action]</li>
+  <li>⬜ <strong>Long-term</strong>: [preventive measure]</li>
+</ul>
+\`\`\`
+
+**Section 3: Technical Details** (1 paragraph)
+- Attack vector, impact if exploited
+
+**Section 4: Timeline** (if available)`,
+
+  event: `### Output Structure (Event) - MEDIUM STRUCTURE
+
+**Section 1: Event Info**
+\`\`\`html
+<table>
+  <tr><th>Item</th><th>Details</th></tr>
+  <tr><td>Event</td><td>[name]</td></tr>
+  <tr><td>Date</td><td>[when]</td></tr>
+  <tr><td>Location</td><td>[where or "virtual"]</td></tr>
+  <tr><td>Organizer</td><td>[who]</td></tr>
+</table>
+\`\`\`
+
+**Section 2: Key Announcements** (Bullet List)
+\`\`\`html
+<h2>Major Announcements</h2>
+<ul>
+  <li><strong>[Announcement]</strong>: Brief description</li>
+</ul>
+\`\`\`
+
+**Section 3: Highlights** (Prose allowed)
+- Notable demos, keynote moments, surprises
+
+**Section 4: Why It Matters**`,
+
+  research: `### Output Structure (Research) - MEDIUM STRUCTURE
+
+**Section 1: Research Overview**
+\`\`\`html
+<table>
+  <tr><th>Item</th><th>Details</th></tr>
+  <tr><td>Topic</td><td>[what was studied]</td></tr>
+  <tr><td>Authors</td><td>[researchers/institution]</td></tr>
+  <tr><td>Methodology</td><td>[approach used]</td></tr>
+  <tr><td>Sample Size</td><td>[if applicable]</td></tr>
+</table>
+\`\`\`
+
+**Section 2: Key Findings** (Bullet List)
+\`\`\`html
+<h2>Main Results</h2>
+<ul>
+  <li><strong>Finding 1</strong>: [specific result with numbers]</li>
+  <li><strong>Finding 2</strong>: [specific result]</li>
+</ul>
+\`\`\`
+
+**Section 3: Analysis** (Prose allowed)
+- What the findings mean, context
+
+**Section 4: Limitations & Implications**`,
+
+  integration: `### Output Structure (Integration) - MEDIUM STRUCTURE
+
+**Section 1: Integration Overview**
+\`\`\`html
+<table>
+  <tr><th>Item</th><th>Details</th></tr>
+  <tr><td>Partners</td><td>[who is integrating]</td></tr>
+  <tr><td>Type</td><td>[API/SDK/native/etc.]</td></tr>
+  <tr><td>Availability</td><td>[when/how to access]</td></tr>
+</table>
+\`\`\`
+
+**Section 2: Capabilities** (Bullet List)
+\`\`\`html
+<h2>What You Can Do</h2>
+<ul>
+  <li><strong>Capability</strong>: Specific use case</li>
+</ul>
+\`\`\`
+
+**Section 3: Technical Requirements** (if applicable)
+- API keys, SDK versions, prerequisites
+
+**Section 4: Use Cases & Benefits**`,
+
+  pricing: `### Output Structure (Pricing/Policy) - HIGH STRUCTURE
+
+**Section 1: Change Summary** (REQUIRED)
+\`\`\`html
+<table>
+  <tr><th>Item</th><th>Before</th><th>After</th></tr>
+  <tr><td>[tier/feature]</td><td>[old price]</td><td>[new price]</td></tr>
+</table>
+\`\`\`
+
+**Section 2: Key Changes** (Bullet List)
+\`\`\`html
+<h2>What's Changing</h2>
+<ul>
+  <li><strong>Price Change</strong>: [specific change]</li>
+  <li><strong>New Tier</strong>: [if applicable]</li>
+  <li><strong>Removed</strong>: [if applicable]</li>
+</ul>
+\`\`\`
+
+**Section 3: Who Is Affected**
+- Existing users, new users, grandfathering rules
+
+**Section 4: Effective Date & Actions**`,
+
+  showcase: `### Output Structure (Showcase) - MEDIUM STRUCTURE
+
+**Section 1: Project Overview**
+\`\`\`html
+<table>
+  <tr><th>Item</th><th>Details</th></tr>
+  <tr><td>Project</td><td>[name]</td></tr>
+  <tr><td>Creator</td><td>[who built it]</td></tr>
+  <tr><td>Type</td><td>[tool/library/app/demo]</td></tr>
+  <tr><td>Status</td><td>[beta/stable/experimental]</td></tr>
+</table>
+\`\`\`
+
+**Section 2: Key Features** (Bullet List)
+\`\`\`html
+<h2>Highlights</h2>
+<ul>
+  <li><strong>Feature</strong>: What it does</li>
+</ul>
+\`\`\`
+
+**Section 3: Story/Context** (Prose allowed)
+- Why it was built, interesting background
+
+**Section 4: Try It**
+- Links, installation, open source status`,
+
+  opinion: `### Output Structure (Opinion/Editorial) - LOW STRUCTURE
+
+**Preserve the argumentation flow.**
+
+**Section 1: Thesis Statement**
+- What position is the author taking? (1-2 paragraphs)
+
+**Section 2: Key Arguments** (Prose with optional bullets)
+- Main supporting points
+- Evidence cited
+- Can use quotes from the author
+
+**Section 3: Counter-perspectives**
+- Opposing views acknowledged
+- Author's response to criticism
+
+**Section 4: Conclusion**
+- Author's final take, call to action if any
+
+**Note**: Do NOT force rigid structure. Let the argumentation flow naturally.`,
+
+  general: `### Output Structure (General) - MEDIUM STRUCTURE
+
+**When classification is uncertain, apply universal structure.**
+
+**Section 1: TL;DR Summary**
+\`\`\`html
+<p><strong>In brief:</strong> [1-2 sentence summary of the key point]</p>
+\`\`\`
+
+**Section 2: Key Information Table** (REQUIRED)
+\`\`\`html
+<table>
+  <tr><th>Item</th><th>Details</th></tr>
+  <tr><td>Who</td><td>[main actor/company]</td></tr>
+  <tr><td>What</td><td>[main subject]</td></tr>
+  <tr><td>When</td><td>[timing if relevant]</td></tr>
+  <tr><td>Why It Matters</td><td>[relevance to readers]</td></tr>
+</table>
+\`\`\`
+
+**Section 3: Details** (Bullet or Short Paragraphs)
+- Follow the original article's logical flow
+- Use bullets for lists of items
+- Use short paragraphs for explanations
+
+**Section 4: Context/Analysis** (if needed)
+
+**Note**: Even for "general" type, ensure at least ONE table OR bullet list.`,
 };
 
 // Length rules based on original article size
@@ -378,7 +766,7 @@ Adjust summary length based on original article size:
 For very short articles, ensure you don't lose critical information.
 For very long articles, prioritize the most newsworthy elements.`;
 
-// Stage 3: Enhanced verification prompt
+// Stage 3: Enhanced verification prompt with structure check (Hybrid Approach)
 const FACT_VERIFICATION_PROMPT = `당신은 CCgather 뉴스 플랫폼의 팩트체커입니다.
 
 재작성된 기사가 원본 내용 및 추출된 팩트와 일치하는지 검증하세요.
@@ -406,11 +794,38 @@ const FACT_VERIFICATION_PROMPT = `당신은 CCgather 뉴스 플랫폼의 팩트�
 - [ ] 축소되거나 누락된 부정적 정보가 없는가?
 - [ ] 마케팅 용어로 대체된 중립적 표현이 없는가?
 
+### 5. 구조 적절성 (structureAppropriateness) - NEW
+기사 유형에 따른 구조화 수준을 확인하세요.
+
+**High Intensity 유형** (product_launch, version_update, security, pricing):
+- [ ] Quick Facts 테이블이 포함되어 있는가?
+- [ ] 연속 문단이 2개를 초과하지 않는가?
+- [ ] 주요 기능/변경사항이 불릿 리스트로 정리되었는가?
+
+**Medium Intensity 유형** (tutorial, analysis, research, integration, event, showcase, general):
+- [ ] 테이블 또는 불릿 리스트 중 최소 1개가 포함되어 있는가?
+- [ ] 연속 문단이 3개를 초과하지 않는가?
+
+**Low Intensity 유형** (interview, opinion):
+- [ ] 원문의 톤과 흐름이 유지되었는가?
+- [ ] 연속 문단이 4개를 초과하지 않는가?
+- [ ] (interview) 중요 인용문이 보존되었는가?
+
+**공통 (5초 스캔 테스트)**:
+- [ ] 헤더와 볼드 텍스트만 읽어도 핵심을 파악할 수 있는가?
+
 ## 점수 기준
 - 95-100: 완벽함, 자동 승인
 - 85-94: 우수함, 사소한 개선 가능
 - 70-84: 검토 필요, 수정 권장
 - 0-69: 거부, 재작성 필요
+
+**구조 점수 가중치**:
+- 사실적 정확성: 30%
+- 완전성: 25%
+- 톤 적절성: 15%
+- 과장/왜곡 없음: 15%
+- 구조 적절성: 15%
 
 ## 출력 형식
 JSON만 출력하세요.
@@ -423,7 +838,8 @@ JSON만 출력하세요.
     "factualAccuracy": boolean,
     "completeness": boolean,
     "toneAppropriateness": boolean,
-    "noExaggeration": boolean
+    "noExaggeration": boolean,
+    "structureAppropriateness": boolean
   },
   "issues": ["구체적인 문제점"],
   "suggestions": ["개선 제안"]
@@ -431,21 +847,74 @@ JSON만 출력하세요.
 \`\`\``;
 
 // ===========================================
-// Dynamic Prompt Generator
+// Dynamic Prompt Generator (Hybrid Approach)
 // ===========================================
 
-function buildRewritePrompt(articleType: ArticleType, originalLength: number): string {
+interface BuildRewritePromptOptions {
+  articleType: ArticleType;
+  originalLength: number;
+  confidence: number;
+  secondaryType?: ArticleType;
+}
+
+function buildRewritePrompt(options: BuildRewritePromptOptions): string {
+  const { articleType, originalLength, confidence, secondaryType } = options;
+
+  // Get structure intensity for this article type
+  const intensity = STRUCTURE_INTENSITY[articleType] || "medium";
+  const structureRules = STRUCTURE_RULES_BY_INTENSITY[intensity];
+
+  // Get type-specific prompt
   const typePrompt = TYPE_SUMMARY_PROMPTS[articleType] || TYPE_SUMMARY_PROMPTS.general;
 
-  return `${REWRITE_BASE_PROMPT}
+  // Build the prompt
+  let prompt = REWRITE_BASE_PROMPT;
 
-${typePrompt}
+  // Add structure rules based on intensity
+  prompt += `\n\n${structureRules}`;
 
-${LENGTH_RULES}
+  // Add type-specific structure (confidence-based)
+  if (confidence >= 0.7) {
+    prompt += `\n\n${typePrompt}`;
 
-**Current article type: ${articleType}**
-**Original article length: ${originalLength} characters**
-`;
+    // Add secondary type hints if present
+    if (secondaryType && secondaryType !== articleType) {
+      const secondaryHint = getSecondaryTypeHint(secondaryType);
+      if (secondaryHint) {
+        prompt += `\n\n### Secondary Focus (${secondaryType})\n${secondaryHint}`;
+      }
+    }
+  } else {
+    // Low confidence: use general structure with note
+    prompt += `\n\n${TYPE_SUMMARY_PROMPTS.general}`;
+    prompt += `\n\n**Note**: Classification confidence is low (${(confidence * 100).toFixed(0)}%). `;
+    prompt += `Focus on the universal structure rules above. Prioritize clarity over type-specific formatting.`;
+  }
+
+  // Add length rules
+  prompt += `\n\n${LENGTH_RULES}`;
+
+  // Add metadata
+  prompt += `\n\n**Current article type: ${articleType}** (confidence: ${(confidence * 100).toFixed(0)}%)`;
+  prompt += `\n**Structure intensity: ${intensity.toUpperCase()}**`;
+  prompt += `\n**Original article length: ${originalLength} characters**`;
+
+  return prompt;
+}
+
+/**
+ * Get hints for secondary article type to include additional relevant sections
+ */
+function getSecondaryTypeHint(type: ArticleType): string | null {
+  const hints: Partial<Record<ArticleType, string>> = {
+    product_launch: "Include a brief product/feature summary table if a new product is announced.",
+    pricing: "Include pricing information in a comparison table if pricing changes are mentioned.",
+    security: "Highlight any security implications with severity level if security is mentioned.",
+    version_update: "List version changes if specific versions are mentioned.",
+    tutorial: "Include a steps overview if how-to content is present.",
+    research: "Include key findings if research/data is cited.",
+  };
+  return hints[type] || null;
 }
 
 // ===========================================
@@ -788,7 +1257,7 @@ export class GeminiClient {
   }
 
   /**
-   * Stage 2: Rewrite article with dynamic type-specific prompt
+   * Stage 2: Rewrite article with dynamic type-specific prompt (Hybrid Approach)
    */
   async rewriteArticle(
     originalTitle: string,
@@ -796,16 +1265,27 @@ export class GeminiClient {
     facts: ExtractedFacts,
     sourceName: string
   ): Promise<{ article: RewrittenArticle; usage: GeminiUsage }> {
-    const articleType = facts.classification.primary;
-    if (this.debug) console.log(`[GeminiClient] Stage 2: Rewriting as "${articleType}"...`);
+    const { primary: articleType, secondary: secondaryType, confidence } = facts.classification;
+    const intensity = STRUCTURE_INTENSITY[articleType] || "medium";
+
+    if (this.debug) {
+      console.log(
+        `[GeminiClient] Stage 2: Rewriting as "${articleType}" (confidence: ${(confidence * 100).toFixed(0)}%, intensity: ${intensity})...`
+      );
+    }
 
     const config: GenerationConfig = {
       temperature: 0.7,
       maxOutputTokens: 32768,
     };
 
-    // Dynamic prompt based on article type
-    const dynamicPrompt = buildRewritePrompt(articleType, content.length);
+    // Dynamic prompt based on article type with hybrid approach
+    const dynamicPrompt = buildRewritePrompt({
+      articleType,
+      originalLength: content.length,
+      confidence,
+      secondaryType,
+    });
 
     const prompt = `${dynamicPrompt}
 
