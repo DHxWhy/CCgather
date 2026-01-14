@@ -121,9 +121,10 @@ async function handleCronRequest(request: NextRequest, isManual: boolean) {
       try {
         log("info", `Processing target: ${target.type} - ${target.value}`);
 
-        // Add delay between requests
+        // Add random delay between requests (30-60 seconds for rate limiting safety)
         if (collectedArticles.length > 0) {
-          await delay(config.delay_ms);
+          const waitTime = await randomDelay(30, 60);
+          log("info", `Waited ${(waitTime / 1000).toFixed(1)}s before next request`);
         }
 
         // Collect based on target type (pass category as content_type)
@@ -390,6 +391,13 @@ async function handleCronRequest(request: NextRequest, isManual: boolean) {
 
 async function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+// Random delay between min and max seconds (for rate limiting safety)
+async function randomDelay(minSec: number, maxSec: number): Promise<number> {
+  const delayMs = Math.floor(Math.random() * (maxSec - minSec) * 1000) + minSec * 1000;
+  await delay(delayMs);
+  return delayMs;
 }
 
 async function collectFromUrl(
