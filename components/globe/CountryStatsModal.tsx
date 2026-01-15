@@ -2,7 +2,7 @@
 
 import { useEffect, useCallback, useState } from "react";
 import { motion, AnimatePresence, useSpring, useTransform } from "framer-motion";
-import { X } from "lucide-react";
+import { X, DollarSign, Coins } from "lucide-react";
 import { Globe } from "./Globe";
 import { FlagIcon } from "@/components/ui/FlagIcon";
 import { GlobeParticles } from "@/components/ui/globe-particles";
@@ -94,6 +94,8 @@ export function CountryStatsModal({
   totalCost,
   userCountryCode,
 }: CountryStatsModalProps) {
+  const [sortBy, setSortBy] = useState<"tokens" | "cost">("tokens");
+
   // ESC key handler
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
@@ -116,8 +118,14 @@ export function CountryStatsModal({
     };
   }, [isOpen, handleKeyDown]);
 
+  // Sort stats based on selected criteria
+  const sortedStats = [...stats].sort((a, b) =>
+    sortBy === "tokens" ? b.tokens - a.tokens : b.cost - a.cost
+  );
+
   // Calculate percentages
   const maxTokens = Math.max(...stats.map((s) => s.tokens), 1);
+  const maxCost = Math.max(...stats.map((s) => s.cost), 1);
 
   return (
     <AnimatePresence mode="wait">
@@ -143,7 +151,7 @@ export function CountryStatsModal({
               ease: [0.16, 1, 0.3, 1],
               opacity: { duration: 0.3 },
             }}
-            className="fixed left-1/2 top-[12%] sm:top-1/2 -translate-x-1/2 sm:-translate-y-1/2 z-[70] w-[95vw] sm:w-[90vw] max-w-[900px] max-h-[85vh] sm:max-h-[85vh] overflow-hidden"
+            className="fixed left-1/2 top-[12%] sm:top-1/2 -translate-x-1/2 sm:-translate-y-1/2 z-[70] w-[95vw] sm:w-[90vw] max-w-[1050px] max-h-[85vh] sm:max-h-[85vh] overflow-hidden"
           >
             {/* Glass container */}
             <motion.div
@@ -193,12 +201,40 @@ export function CountryStatsModal({
                     </p>
                   </div>
 
-                  <button
-                    onClick={onClose}
-                    className="p-2 rounded-lg hover:bg-white/10 transition-colors"
-                  >
-                    <X className="w-5 h-5 text-white/50" />
-                  </button>
+                  <div className="flex items-center gap-2">
+                    {/* Sort Toggle Buttons */}
+                    <div className="flex items-center bg-white/5 rounded-lg p-0.5">
+                      <button
+                        onClick={() => setSortBy("cost")}
+                        className={`p-1.5 sm:p-2 rounded-md transition-all ${
+                          sortBy === "cost"
+                            ? "bg-[#10b981]/20 text-[#10b981]"
+                            : "text-white/40 hover:text-white/60"
+                        }`}
+                        title="Sort by Cost"
+                      >
+                        <DollarSign className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => setSortBy("tokens")}
+                        className={`p-1.5 sm:p-2 rounded-md transition-all ${
+                          sortBy === "tokens"
+                            ? "bg-[#e57359]/20 text-[#e57359]"
+                            : "text-white/40 hover:text-white/60"
+                        }`}
+                        title="Sort by Tokens"
+                      >
+                        <Coins className="w-4 h-4" />
+                      </button>
+                    </div>
+
+                    <button
+                      onClick={onClose}
+                      className="p-2 rounded-lg hover:bg-white/10 transition-colors"
+                    >
+                      <X className="w-5 h-5 text-white/50" />
+                    </button>
+                  </div>
                 </div>
 
                 {/* Main content - Globe with stats + Rankings */}
@@ -285,13 +321,23 @@ export function CountryStatsModal({
                   {/* Right: Country Rankings - Always dark theme */}
                   <div className="flex-1 min-w-0 w-full lg:w-auto">
                     <div className="text-[10px] lg:text-xs text-white/50 uppercase tracking-wider mb-2">
-                      Top Countries by Token Usage
+                      Top Countries by {sortBy === "tokens" ? "Token Usage" : "Cost"}
                     </div>
 
                     <div className="space-y-0.5 max-h-[45vh] lg:max-h-[380px] overflow-y-auto pr-2 custom-scrollbar">
-                      {stats.map((stat, index) => {
-                        const percentage = (stat.tokens / totalTokens) * 100;
-                        const barWidth = (stat.tokens / maxTokens) * 100;
+                      {sortedStats.map((stat, index) => {
+                        const percentage =
+                          sortBy === "tokens"
+                            ? (stat.tokens / totalTokens) * 100
+                            : (stat.cost / totalCost) * 100;
+                        const barWidth =
+                          sortBy === "tokens"
+                            ? (stat.tokens / maxTokens) * 100
+                            : (stat.cost / maxCost) * 100;
+                        const barColor =
+                          sortBy === "tokens"
+                            ? "linear-gradient(90deg, #e57359 0%, rgba(229, 115, 89, 0.5) 100%)"
+                            : "linear-gradient(90deg, #10b981 0%, rgba(16, 185, 129, 0.5) 100%)";
                         const isUserCountry =
                           userCountryCode &&
                           stat.code.toUpperCase() === userCountryCode.toUpperCase();
@@ -326,11 +372,17 @@ export function CountryStatsModal({
                                     ease: "easeOut",
                                   }}
                                   className="h-full rounded-full"
-                                  style={{
-                                    background: `linear-gradient(90deg, #e57359 0%, rgba(229, 115, 89, 0.5) 100%)`,
-                                  }}
+                                  style={{ background: barColor }}
                                 />
                               </div>
+                              <span className="text-xs font-mono text-[#10b981] w-14 text-right">
+                                <AnimatedNumber
+                                  value={stat.cost}
+                                  formatter={formatCost}
+                                  duration={1}
+                                  delay={0.3 + index * 0.05}
+                                />
+                              </span>
                               <span className="text-xs font-mono text-[#e57359] w-12 text-right">
                                 <AnimatedNumber
                                   value={stat.tokens}
@@ -361,7 +413,7 @@ export function CountryStatsModal({
                                   {isUserCountry && <span className="ml-1 text-[10px]">🟢</span>}
                                 </span>
                               </div>
-                              {/* Row 2: Gauge bar + Token + Percentage */}
+                              {/* Row 2: Gauge bar + Cost + Token + Percentage */}
                               <div className="flex items-center gap-2 ml-6">
                                 <div className="flex-1 h-1.5 bg-white/10 rounded-full overflow-hidden min-w-[60px]">
                                   <motion.div
@@ -373,11 +425,12 @@ export function CountryStatsModal({
                                       ease: "easeOut",
                                     }}
                                     className="h-full rounded-full"
-                                    style={{
-                                      background: `linear-gradient(90deg, #e57359 0%, rgba(229, 115, 89, 0.5) 100%)`,
-                                    }}
+                                    style={{ background: barColor }}
                                   />
                                 </div>
+                                <span className="shrink-0 text-[10px] font-mono text-[#10b981]">
+                                  {formatCost(stat.cost)}
+                                </span>
                                 <span className="shrink-0 text-[10px] font-mono text-[#e57359]">
                                   {formatNumber(stat.tokens)}
                                 </span>
