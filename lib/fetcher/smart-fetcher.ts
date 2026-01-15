@@ -45,6 +45,24 @@ const SOURCE_CONFIGS: Record<
       thumbnail: 'meta[property="og:image"]',
     },
   },
+  "website.claude.com": {
+    name: "Claude",
+    selectors: {
+      title: "h1",
+      content: "article, .post-content, main",
+      date: 'time, [datetime], meta[property="article:published_time"]',
+      thumbnail: 'meta[property="og:image"]',
+    },
+  },
+  "claude.ai": {
+    name: "Claude",
+    selectors: {
+      title: "h1",
+      content: "article, .post-content, main",
+      date: 'time, [datetime], meta[property="article:published_time"]',
+      thumbnail: 'meta[property="og:image"]',
+    },
+  },
   "techcrunch.com": {
     name: "TechCrunch",
     selectors: {
