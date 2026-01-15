@@ -156,12 +156,14 @@ export async function POST(request: NextRequest) {
             throw new Error(insertError?.message || "Failed to insert content");
           }
 
-          // Generate thumbnail (using positional arguments)
+          // Generate thumbnail (with articleType for accurate theme selection)
           await getThumbnailWithFallback(
             insertedContent.id,
             url,
             richContent.title.text,
-            summary.summaryPlain
+            summary.summaryPlain,
+            false, // Don't skip AI generation
+            extractedFacts?.classification?.primary // articleType for theme selection
           );
 
           stats.success++;

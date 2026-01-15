@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import type { CronConfig, CronLogEntry, RawArticle } from "@/types/automation";
 import { GeminiPipeline, type GeminiPipelineResult } from "@/lib/ai";
+import { getThumbnailWithFallback } from "@/lib/gemini/thumbnail-generator";
 
 // Extended article type with AI processing results
 interface ProcessedArticle extends RawArticle {
@@ -279,9 +280,13 @@ async function handleCronRequest(request: NextRequest, isManual: boolean) {
           }
         }
 
-        const { error } = await supabase.from("contents").insert(insertData);
+        const { data: insertedContent, error } = await supabase
+          .from("contents")
+          .insert(insertData)
+          .select("id")
+          .single();
 
-        if (!error) {
+        if (!error && insertedContent) {
           savedCount++;
 
           // Log AI usage if processed (Gemini 3-stage pipeline)
@@ -297,6 +302,26 @@ async function handleCronRequest(request: NextRequest, isManual: boolean) {
                 content_length: pipelineResult!.article?.content.length,
                 stages: ["extract_facts", "rewrite_article", "verify_facts"],
               },
+            });
+          }
+
+          // Step 4: Generate thumbnail image (after AI processing)
+          try {
+            const title = String(insertData.title || article.original_title);
+            const summary = String(insertData.summary_md || "");
+            const articleType = pipelineResult?.extractedFacts?.classification?.primary;
+
+            await getThumbnailWithFallback(
+              insertedContent.id,
+              article.source_url,
+              title,
+              summary,
+              false, // Don't skip AI generation
+              articleType
+            );
+          } catch (thumbnailError) {
+            log("warn", `Failed to generate thumbnail for ${article.source_url}`, {
+              error: String(thumbnailError),
             });
           }
         } else {

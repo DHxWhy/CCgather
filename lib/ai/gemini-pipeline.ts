@@ -195,7 +195,18 @@ export class GeminiPipeline {
       tags.add("community");
     }
 
-    // 10. Default to industry if no specific tags
+    // 10. Official announcements (from user-specified category)
+    if (contentType === "official") {
+      tags.add("claude");
+      tags.add("anthropic");
+    }
+
+    // 11. Press/media content
+    if (contentType === "press") {
+      tags.add("industry");
+    }
+
+    // 12. Default to industry if no specific tags
     if (tags.size === 0) {
       tags.add("industry");
     }
