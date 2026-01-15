@@ -72,7 +72,7 @@ export default function ShareButtons({ url, title, oneLiner }: ShareButtonsProps
       {/* X (Twitter) */}
       <button
         onClick={handleShareX}
-        className="flex items-center justify-center w-10 h-10 rounded-lg bg-white/5 text-white/60 hover:bg-white/10 hover:text-white transition-colors"
+        className="flex items-center justify-center w-10 h-10 rounded-lg bg-[var(--color-section-bg)] text-[var(--color-text-muted)] hover:bg-[var(--color-section-bg-hover)] hover:text-[var(--color-text-primary)] transition-colors"
         aria-label="Share on X"
       >
         <span className="text-lg font-bold">𝕏</span>
@@ -81,7 +81,7 @@ export default function ShareButtons({ url, title, oneLiner }: ShareButtonsProps
       {/* LinkedIn */}
       <button
         onClick={handleShareLinkedIn}
-        className="flex items-center justify-center w-10 h-10 rounded-lg bg-white/5 text-white/60 hover:bg-[#0A66C2]/20 hover:text-[#0A66C2] transition-colors"
+        className="flex items-center justify-center w-10 h-10 rounded-lg bg-[var(--color-section-bg)] text-[var(--color-text-muted)] hover:bg-[#0A66C2]/20 hover:text-[#0A66C2] transition-colors"
         aria-label="Share on LinkedIn"
       >
         <Linkedin className="w-5 h-5" />
@@ -92,8 +92,8 @@ export default function ShareButtons({ url, title, oneLiner }: ShareButtonsProps
         onClick={handleCopyLink}
         className={`flex items-center justify-center w-10 h-10 rounded-lg transition-colors ${
           copied
-            ? "bg-green-500/20 text-green-400"
-            : "bg-white/5 text-white/60 hover:bg-white/10 hover:text-white"
+            ? "bg-green-500/20 text-green-600 dark:text-green-400"
+            : "bg-[var(--color-section-bg)] text-[var(--color-text-muted)] hover:bg-[var(--color-section-bg-hover)] hover:text-[var(--color-text-primary)]"
         }`}
         aria-label={copied ? "Link copied" : "Copy link"}
       >
@@ -104,7 +104,7 @@ export default function ShareButtons({ url, title, oneLiner }: ShareButtonsProps
       {canShare && (
         <button
           onClick={handleNativeShare}
-          className="flex items-center justify-center w-10 h-10 rounded-lg bg-white/5 text-white/60 hover:bg-white/10 hover:text-white transition-colors"
+          className="flex items-center justify-center w-10 h-10 rounded-lg bg-[var(--color-section-bg)] text-[var(--color-text-muted)] hover:bg-[var(--color-section-bg-hover)] hover:text-[var(--color-text-primary)] transition-colors"
           aria-label="Share"
         >
           <Share2 className="w-5 h-5" />
