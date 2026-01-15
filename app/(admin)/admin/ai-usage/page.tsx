@@ -2,28 +2,107 @@
 
 import { useState, useEffect } from "react";
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
+import { AlertTriangle } from "lucide-react";
 
-// Token costs per 1M tokens (Gemini - currently used)
-const GEMINI_TOKEN_COSTS = {
-  "gemini-3-flash-preview": { input: 0.5, output: 3.0, name: "Gemini 3 Flash", role: "뉴스 처리" },
-} as const;
+// =====================================================
+// Model Configuration with Pricing & Lifecycle Info
+// =====================================================
 
-// Token costs per 1M tokens (Claude - reserved for future)
-const CLAUDE_TOKEN_COSTS = {
-  "claude-3-5-haiku-20241022": { input: 0.8, output: 4.0, name: "Haiku 3.5", role: "검증" },
-  "claude-opus-4-5-20250514": { input: 15.0, output: 75.0, name: "Opus 4.5", role: "요약" },
-  "claude-sonnet-4-20250514": { input: 3.0, output: 15.0, name: "Sonnet 4", role: "범용" },
-} as const;
+interface ModelConfig {
+  name: string;
+  role: string;
+  input?: number; // per 1M tokens
+  output?: number; // per 1M tokens
+  perImage?: number; // per image
+  status: "ga" | "preview";
+  endDate?: string; // ISO date string (e.g., "2026-03-03")
+  note?: string;
+}
 
-// Combined for lookups
-const TOKEN_COSTS = { ...GEMINI_TOKEN_COSTS, ...CLAUDE_TOKEN_COSTS } as const;
+// Gemini LLM Models (per 1M tokens)
+const GEMINI_LLM_MODELS: Record<string, ModelConfig> = {
+  "gemini-3-flash-preview": {
+    name: "Gemini 3 Flash",
+    role: "News Processing",
+    input: 0.5,
+    output: 3.0,
+    status: "preview",
+    endDate: undefined, // New model, no deprecation announced
+    note: "Latest model - no end date announced",
+  },
+  "gemini-2.0-flash": {
+    name: "Gemini 2.0 Flash",
+    role: "Tools Analysis / OG Vision",
+    input: 0.1,
+    output: 0.4,
+    status: "ga",
+    endDate: "2026-03-03",
+    note: "Will be retired March 3, 2026",
+  },
+};
 
-// Image generation costs (Google AI pricing, per image)
-const IMAGE_COSTS = {
-  "imagen-4.0-generate-001": { cost: 0.04, name: "Imagen 4", role: "썸네일" },
-  "gemini-2.5-flash-image": { cost: 0.039, name: "Gemini Flash Image", role: "썸네일" },
-  "gemini-2.0-flash": { cost: 0.0001, name: "Gemini Flash Vision", role: "OG 분석" },
-} as const;
+// Image Generation Models (per image)
+const IMAGE_MODELS: Record<string, ModelConfig> = {
+  "imagen-4.0-generate-001": {
+    name: "Imagen 4",
+    role: "Thumbnail (AI Generation)",
+    perImage: 0.04,
+    status: "ga",
+    note: "Stable GA version",
+  },
+  "gemini-2.5-flash-image": {
+    name: "Gemini 2.5 Flash Image",
+    role: "Thumbnail (AI Generation)",
+    perImage: 0.039,
+    status: "preview",
+    endDate: "2026-01-15",
+    note: "Shutting down January 15, 2026",
+  },
+  "gemini-2.5-flash-image-preview": {
+    name: "Gemini 2.5 Flash Image",
+    role: "Thumbnail (AI Generation)",
+    perImage: 0.039,
+    status: "preview",
+    endDate: "2026-01-15",
+    note: "Shutting down January 15, 2026",
+  },
+};
+
+// Claude API Models (reserved for future use)
+const CLAUDE_MODELS: Record<string, ModelConfig> = {
+  "claude-3-5-haiku-20241022": {
+    name: "Haiku 3.5",
+    role: "Verification",
+    input: 0.8,
+    output: 4.0,
+    status: "ga",
+  },
+  "claude-opus-4-5-20250514": {
+    name: "Opus 4.5",
+    role: "Summary",
+    input: 15.0,
+    output: 75.0,
+    status: "ga",
+  },
+  "claude-sonnet-4-20250514": {
+    name: "Sonnet 4",
+    role: "General",
+    input: 3.0,
+    output: 15.0,
+    status: "ga",
+  },
+};
+
+// Combined lookups
+const ALL_MODELS: Record<string, ModelConfig> = {
+  ...GEMINI_LLM_MODELS,
+  ...IMAGE_MODELS,
+  ...CLAUDE_MODELS,
+};
+
+// =====================================================
+// Types
+// =====================================================
 
 interface AIUsageStats {
   totalRequests: number;
@@ -57,6 +136,51 @@ interface AIUsageStats {
   }[];
 }
 
+// =====================================================
+// Helper Components
+// =====================================================
+
+// Status Badge Component
+function StatusBadge({ config }: { config: ModelConfig }) {
+  const isPreview = config.status === "preview";
+  const hasEndDate = !!config.endDate;
+  const endDate = config.endDate ? new Date(config.endDate) : null;
+  const isEndingSoon = endDate && endDate.getTime() - Date.now() < 30 * 24 * 60 * 60 * 1000; // 30 days
+
+  if (!isPreview) {
+    return (
+      <span className="text-[9px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-400">
+        GA
+      </span>
+    );
+  }
+
+  return (
+    <div className="flex items-center gap-1">
+      <span
+        className={`text-[9px] px-1.5 py-0.5 rounded ${
+          isEndingSoon ? "bg-red-500/20 text-red-400" : "bg-amber-500/20 text-amber-400"
+        }`}
+      >
+        Preview
+      </span>
+      {hasEndDate ? (
+        <span
+          className={`text-[9px] px-1.5 py-0.5 rounded ${
+            isEndingSoon ? "bg-red-500/20 text-red-400" : "bg-white/10 text-white/60"
+          }`}
+        >
+          ~{config.endDate}
+        </span>
+      ) : (
+        <span className="text-amber-400" title="End date not announced">
+          <AlertTriangle className="w-3 h-3" />
+        </span>
+      )}
+    </div>
+  );
+}
+
 // Pricing Modal Component
 function PricingModal({ open, onClose }: { open: boolean; onClose: () => void }) {
   if (!open) return null;
@@ -64,9 +188,9 @@ function PricingModal({ open, onClose }: { open: boolean; onClose: () => void })
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       <div className="absolute inset-0 bg-black/60" onClick={onClose} />
-      <div className="relative bg-[#1a1a1a] rounded-lg border border-white/10 p-4 w-[380px] shadow-2xl max-h-[80vh] overflow-y-auto">
+      <div className="relative bg-[#1a1a1a] rounded-lg border border-white/10 p-4 w-[420px] shadow-2xl max-h-[85vh] overflow-y-auto">
         <div className="flex items-center justify-between mb-3">
-          <h3 className="text-[13px] font-semibold text-white">AI API 단가표</h3>
+          <h3 className="text-[13px] font-semibold text-white">AI API Pricing & Status</h3>
           <button
             onClick={onClose}
             className="text-white/40 hover:text-white/70 text-lg leading-none"
@@ -75,82 +199,95 @@ function PricingModal({ open, onClose }: { open: boolean; onClose: () => void })
           </button>
         </div>
 
-        {/* Gemini LLM Section - Currently Used */}
+        {/* Gemini LLM Section */}
         <div className="flex items-center gap-2 mb-2">
-          <div className="text-[10px] text-white/40">Gemini LLM (100만 토큰 당)</div>
+          <div className="text-[10px] text-white/40">Gemini LLM (per 1M tokens)</div>
           <span className="text-[9px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-400">
-            사용중
+            Active
           </span>
         </div>
         <div className="space-y-2">
-          {Object.entries(GEMINI_TOKEN_COSTS).map(([model, costs]) => (
+          {Object.entries(GEMINI_LLM_MODELS).map(([model, config]) => (
             <div key={model} className="bg-blue-500/5 rounded-lg p-2.5 border border-blue-500/10">
               <div className="flex items-center justify-between mb-1.5">
-                <span className="text-[12px] font-medium text-white">{costs.name}</span>
-                <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-400">
-                  {costs.role}
-                </span>
+                <div className="flex items-center gap-2">
+                  <span className="text-[12px] font-medium text-white">{config.name}</span>
+                  <StatusBadge config={config} />
+                </div>
               </div>
+              <div className="text-[10px] text-white/50 mb-1.5">{config.role}</div>
               <div className="grid grid-cols-2 gap-2 text-[11px]">
                 <div className="flex items-center justify-between">
                   <span className="text-white/40">Input</span>
-                  <span className="text-emerald-400 font-mono">${costs.input.toFixed(2)}</span>
+                  <span className="text-emerald-400 font-mono">${config.input?.toFixed(2)}</span>
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-white/40">Output</span>
-                  <span className="text-amber-400 font-mono">${costs.output.toFixed(2)}</span>
+                  <span className="text-amber-400 font-mono">${config.output?.toFixed(2)}</span>
                 </div>
               </div>
+              {config.note && <div className="mt-1.5 text-[9px] text-white/30">{config.note}</div>}
             </div>
           ))}
         </div>
 
-        {/* Gemini Image Section */}
-        <div className="text-[10px] text-white/40 mb-2 mt-4">Gemini 이미지 생성 (이미지 당)</div>
+        {/* Image Generation Section */}
+        <div className="flex items-center gap-2 mb-2 mt-4">
+          <div className="text-[10px] text-white/40">Image Generation (per image)</div>
+          <span className="text-[9px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-400">
+            Active
+          </span>
+        </div>
         <div className="space-y-2">
-          {Object.entries(IMAGE_COSTS).map(([model, costs]) => (
-            <div
-              key={model}
-              className="bg-purple-500/5 rounded-lg p-2.5 border border-purple-500/10"
-            >
-              <div className="flex items-center justify-between">
-                <span className="text-[12px] font-medium text-white">{costs.name}</span>
-                <div className="flex items-center gap-2">
-                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-400">
-                    {costs.role}
-                  </span>
+          {Object.entries(IMAGE_MODELS)
+            .filter(([model]) => !model.includes("-preview")) // Avoid duplicates
+            .map(([model, config]) => (
+              <div
+                key={model}
+                className="bg-purple-500/5 rounded-lg p-2.5 border border-purple-500/10"
+              >
+                <div className="flex items-center justify-between mb-1">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[12px] font-medium text-white">{config.name}</span>
+                    <StatusBadge config={config} />
+                  </div>
                   <span className="text-emerald-400 font-mono text-[11px]">
-                    ${costs.cost.toFixed(costs.cost < 0.01 ? 4 : 3)}
+                    ${config.perImage?.toFixed(config.perImage < 0.01 ? 4 : 3)}
                   </span>
                 </div>
+                <div className="text-[10px] text-white/50">{config.role}</div>
+                {config.note && (
+                  <div className="mt-1.5 text-[9px] text-white/30">{config.note}</div>
+                )}
               </div>
-            </div>
-          ))}
+            ))}
         </div>
 
         {/* Claude API Section - Not Currently Used */}
         <div className="flex items-center gap-2 mb-2 mt-4">
-          <div className="text-[10px] text-white/40">Claude API (100만 토큰 당)</div>
-          <span className="text-[9px] px-1.5 py-0.5 rounded bg-white/10 text-white/40">미사용</span>
+          <div className="text-[10px] text-white/40">Claude API (per 1M tokens)</div>
+          <span className="text-[9px] px-1.5 py-0.5 rounded bg-white/10 text-white/40">
+            Not in use
+          </span>
         </div>
         <div className="space-y-2 opacity-50">
-          {Object.entries(CLAUDE_TOKEN_COSTS).map(([model, costs]) => (
+          {Object.entries(CLAUDE_MODELS).map(([model, config]) => (
             <div key={model} className="bg-white/5 rounded-lg p-2.5">
               <div className="flex items-center justify-between mb-1.5">
-                <span className="text-[12px] font-medium text-white">{costs.name}</span>
+                <span className="text-[12px] font-medium text-white">{config.name}</span>
                 <span className="text-[10px] px-1.5 py-0.5 rounded bg-white/10 text-white/60">
-                  {costs.role}
+                  {config.role}
                 </span>
               </div>
               <div className="grid grid-cols-2 gap-2 text-[11px]">
                 <div className="flex items-center justify-between">
                   <span className="text-white/40">Input</span>
-                  <span className="text-emerald-400 font-mono">${costs.input.toFixed(2)}</span>
+                  <span className="text-emerald-400 font-mono">${config.input?.toFixed(2)}</span>
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-white/40">Output</span>
                   <span className="text-[var(--color-claude-coral)] font-mono">
-                    ${costs.output.toFixed(2)}
+                    ${config.output?.toFixed(2)}
                   </span>
                 </div>
               </div>
@@ -160,9 +297,13 @@ function PricingModal({ open, onClose }: { open: boolean; onClose: () => void })
 
         <div className="mt-3 pt-3 border-t border-white/[0.06]">
           <div className="text-[10px] text-white/30 space-y-0.5">
-            <div>* 현재 뉴스 처리에 Gemini 3 Flash 사용</div>
-            <div>* 썸네일 생성에 Gemini Flash Image 사용</div>
-            <div>* Output이 Input보다 비용이 높음</div>
+            <div>* News processing uses Gemini 3 Flash</div>
+            <div>* Thumbnail generation uses Imagen 4 / Gemini Flash Image</div>
+            <div>* Tools analysis uses Gemini 2.0 Flash</div>
+            <div className="text-amber-400/70 flex items-center gap-1 mt-1">
+              <AlertTriangle className="w-3 h-3" />
+              <span>Preview models may be discontinued</span>
+            </div>
           </div>
         </div>
       </div>
@@ -184,7 +325,7 @@ function ChartTooltip({
   return (
     <div className="bg-[#1a1a1a] border border-white/10 rounded px-2 py-1 text-[11px]">
       <div className="text-white/50">{label}</div>
-      <div className="text-white font-medium">{payload[0].value.toLocaleString()} 토큰</div>
+      <div className="text-white font-medium">{payload[0].value.toLocaleString()} tokens</div>
     </div>
   );
 }
@@ -222,30 +363,38 @@ function MetricCard({
   );
 }
 
-// Model Name Helper
-function getModelDisplayName(model: string): string {
-  const tokenModel = TOKEN_COSTS[model as keyof typeof TOKEN_COSTS];
-  if (tokenModel) return tokenModel.name;
-
-  const imageModel = IMAGE_COSTS[model as keyof typeof IMAGE_COSTS];
-  if (imageModel) return imageModel.name;
-
-  return model.split("-").slice(-1)[0] || model;
+// Model Display Helper
+function getModelInfo(modelId: string): { name: string; role: string; config?: ModelConfig } {
+  const config = ALL_MODELS[modelId];
+  if (config) {
+    return { name: config.name, role: config.role, config };
+  }
+  // Fallback for unknown models
+  return {
+    name: modelId.split("-").slice(-2).join(" ") || modelId,
+    role: "Unknown",
+  };
 }
 
 // Operation Name Helper
 function getOperationDisplayName(operation: string): string {
   const names: Record<string, string> = {
-    validate: "검증 (Validation)",
-    summarize: "요약 (Summarize)",
-    thumbnail_imagen: "썸네일 (Imagen)",
-    thumbnail_gemini: "썸네일 (Gemini Flash)",
-    thumbnail_og_fusion: "썸네일 (OG+AI 융합)",
-    image_generation: "이미지 생성",
-    unknown: "기타",
+    validate: "Validation",
+    summarize: "Summarize",
+    thumbnail_imagen: "Thumbnail (Imagen)",
+    thumbnail_gemini: "Thumbnail (Gemini Flash)",
+    thumbnail_og_fusion: "Thumbnail (OG+AI Fusion)",
+    thumbnail_generate: "Thumbnail (AI)",
+    image_generation: "Image Generation",
+    tool_analysis: "Tool Analysis",
+    unknown: "Other",
   };
   return names[operation] || operation;
 }
+
+// =====================================================
+// Main Component
+// =====================================================
 
 export default function AdminAIUsagePage() {
   const [stats, setStats] = useState<AIUsageStats | null>(null);
@@ -296,8 +445,10 @@ export default function AdminAIUsagePage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-lg font-semibold text-white">AI 사용량</h1>
-          <p className="text-[12px] text-white/50 mt-0.5">Claude API 사용량 및 비용 모니터링</p>
+          <h1 className="text-lg font-semibold text-white">AI Usage</h1>
+          <p className="text-[12px] text-white/50 mt-0.5">
+            Gemini & Imagen API usage and cost monitoring
+          </p>
         </div>
         <div className="flex items-center gap-2">
           {/* Pricing Button */}
@@ -306,7 +457,7 @@ export default function AdminAIUsagePage() {
             className="px-2.5 py-1.5 rounded text-[11px] bg-white/5 text-white/60 hover:text-white/80 hover:bg-white/10 transition-colors flex items-center gap-1"
           >
             <span>💰</span>
-            <span>단가표</span>
+            <span>Pricing</span>
           </button>
 
           {/* Period Selector */}
@@ -321,7 +472,7 @@ export default function AdminAIUsagePage() {
                     : "bg-white/5 text-white/50 hover:text-white/70"
                 }`}
               >
-                {p === "7d" ? "7일" : p === "30d" ? "30일" : "전체"}
+                {p === "7d" ? "7D" : p === "30d" ? "30D" : "All"}
               </button>
             ))}
           </div>
@@ -343,30 +494,30 @@ export default function AdminAIUsagePage() {
           {/* Summary Metric Cards */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
             <MetricCard
-              title="총 비용"
+              title="Total Cost"
               value={formatCost(stats?.totalCost || 0)}
-              subValue={`${stats?.totalRequests || 0}회 요청`}
+              subValue={`${stats?.totalRequests || 0} requests`}
               color="emerald"
               icon="💵"
             />
             <MetricCard
-              title="총 토큰"
+              title="Total Tokens"
               value={formatNumber(stats?.totalTokensUsed || 0)}
               subValue="Input + Output"
               color="coral"
               icon="🔢"
             />
             <MetricCard
-              title="입력 토큰"
+              title="Input Tokens"
               value={formatNumber(stats?.totalInputTokens || 0)}
-              subValue="프롬프트 비용"
+              subValue="Prompt cost"
               color="blue"
               icon="📥"
             />
             <MetricCard
-              title="출력 토큰"
+              title="Output Tokens"
               value={formatNumber(stats?.totalOutputTokens || 0)}
-              subValue="응답 비용 (더 비쌈)"
+              subValue="Response cost (higher)"
               color="coral"
               icon="📤"
             />
@@ -375,7 +526,7 @@ export default function AdminAIUsagePage() {
           {/* Usage Chart */}
           {chartData.length > 0 && (
             <div className="bg-[#161616] rounded-lg p-4 border border-white/[0.06]">
-              <div className="text-[12px] text-white/50 mb-3">일별 토큰 사용량</div>
+              <div className="text-[12px] text-white/50 mb-3">Daily Token Usage</div>
               <div className="h-36">
                 <ResponsiveContainer width="100%" height="100%">
                   <AreaChart data={chartData}>
@@ -417,22 +568,27 @@ export default function AdminAIUsagePage() {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
             {/* Model Breakdown */}
             <div className="bg-[#161616] rounded-lg p-4 border border-white/[0.06]">
-              <div className="text-[12px] text-white/50 mb-3">모델별 비용</div>
+              <div className="text-[12px] text-white/50 mb-3">Cost by Model</div>
               {stats?.topModels && stats.topModels.length > 0 ? (
                 <div className="space-y-2">
                   {stats.topModels.map((model) => {
                     const costPercent =
                       stats.totalCost > 0 ? (model.cost / stats.totalCost) * 100 : 0;
+                    const modelInfo = getModelInfo(model.model);
                     return (
-                      <div key={model.model} className="p-2 bg-white/[0.02] rounded">
+                      <div key={model.model} className="p-2.5 bg-white/[0.02] rounded">
                         <div className="flex items-center justify-between mb-1">
-                          <span className="text-[12px] text-white font-medium">
-                            {getModelDisplayName(model.model)}
-                          </span>
+                          <div className="flex items-center gap-2">
+                            <span className="text-[12px] text-white font-medium">
+                              {modelInfo.name}
+                            </span>
+                            {modelInfo.config && <StatusBadge config={modelInfo.config} />}
+                          </div>
                           <span className="text-[12px] text-emerald-400 font-mono">
                             {formatCost(model.cost)}
                           </span>
                         </div>
+                        <div className="text-[10px] text-white/40 mb-1.5">{modelInfo.role}</div>
                         <div className="h-1.5 bg-white/5 rounded overflow-hidden mb-1.5">
                           <div
                             className="h-full bg-[var(--color-claude-coral)]"
@@ -440,7 +596,7 @@ export default function AdminAIUsagePage() {
                           />
                         </div>
                         <div className="flex items-center justify-between text-[10px] text-white/40">
-                          <span>{model.count}회 요청</span>
+                          <span>{model.count} requests</span>
                           <span>
                             In: {formatNumber(model.inputTokens)} / Out:{" "}
                             {formatNumber(model.outputTokens)}
@@ -451,19 +607,19 @@ export default function AdminAIUsagePage() {
                   })}
                 </div>
               ) : (
-                <div className="text-center py-4 text-[12px] text-white/30">데이터가 없습니다</div>
+                <div className="text-center py-4 text-[12px] text-white/30">No data</div>
               )}
             </div>
 
             {/* Operation Breakdown */}
             <div className="bg-[#161616] rounded-lg p-4 border border-white/[0.06]">
-              <div className="text-[12px] text-white/50 mb-3">역할별 비용</div>
+              <div className="text-[12px] text-white/50 mb-3">Cost by Operation</div>
               {stats?.byOperation && stats.byOperation.length > 0 ? (
                 <div className="space-y-2">
                   {stats.byOperation.map((op) => {
                     const costPercent = stats.totalCost > 0 ? (op.cost / stats.totalCost) * 100 : 0;
                     return (
-                      <div key={op.operation} className="p-2 bg-white/[0.02] rounded">
+                      <div key={op.operation} className="p-2.5 bg-white/[0.02] rounded">
                         <div className="flex items-center justify-between mb-1">
                           <span className="text-[12px] text-white font-medium">
                             {getOperationDisplayName(op.operation)}
@@ -479,7 +635,7 @@ export default function AdminAIUsagePage() {
                           />
                         </div>
                         <div className="flex items-center justify-between text-[10px] text-white/40">
-                          <span>{op.count}회 호출</span>
+                          <span>{op.count} calls</span>
                           <span>
                             In: {formatNumber(op.inputTokens)} / Out:{" "}
                             {formatNumber(op.outputTokens)}
@@ -490,7 +646,7 @@ export default function AdminAIUsagePage() {
                   })}
                 </div>
               ) : (
-                <div className="text-center py-4 text-[12px] text-white/30">데이터가 없습니다</div>
+                <div className="text-center py-4 text-[12px] text-white/30">No data</div>
               )}
             </div>
           </div>
@@ -498,45 +654,61 @@ export default function AdminAIUsagePage() {
           {/* Detailed Model + Operation Breakdown */}
           {stats?.byModelAndOperation && stats.byModelAndOperation.length > 0 && (
             <div className="bg-[#161616] rounded-lg p-4 border border-white/[0.06]">
-              <div className="text-[12px] text-white/50 mb-3">상세 내역 (모델 + 역할)</div>
+              <div className="text-[12px] text-white/50 mb-3">
+                Detailed Breakdown (Model + Operation)
+              </div>
               <div className="overflow-x-auto">
                 <table className="w-full text-[11px]">
                   <thead>
                     <tr className="border-b border-white/[0.06]">
-                      <th className="px-2 py-2 text-left text-white/40 font-medium">모델</th>
-                      <th className="px-2 py-2 text-left text-white/40 font-medium">역할</th>
-                      <th className="px-2 py-2 text-right text-white/40 font-medium">요청</th>
+                      <th className="px-2 py-2 text-left text-white/40 font-medium">Model</th>
+                      <th className="px-2 py-2 text-left text-white/40 font-medium">Role</th>
+                      <th className="px-2 py-2 text-left text-white/40 font-medium">Operation</th>
+                      <th className="px-2 py-2 text-right text-white/40 font-medium">Requests</th>
                       <th className="px-2 py-2 text-right text-white/40 font-medium">Input</th>
                       <th className="px-2 py-2 text-right text-white/40 font-medium">Output</th>
-                      <th className="px-2 py-2 text-right text-white/40 font-medium">비용</th>
+                      <th className="px-2 py-2 text-right text-white/40 font-medium">Cost</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {stats.byModelAndOperation.map((item, idx) => (
-                      <tr key={idx} className="border-b border-white/[0.03]">
-                        <td className="px-2 py-2 text-white">{getModelDisplayName(item.model)}</td>
-                        <td className="px-2 py-2 text-white/60">
-                          {getOperationDisplayName(item.operation)}
-                        </td>
-                        <td className="px-2 py-2 text-right text-white/50 font-mono">
-                          {item.count}
-                        </td>
-                        <td className="px-2 py-2 text-right text-blue-400 font-mono">
-                          {formatNumber(item.inputTokens)}
-                        </td>
-                        <td className="px-2 py-2 text-right text-[var(--color-claude-coral)] font-mono">
-                          {formatNumber(item.outputTokens)}
-                        </td>
-                        <td className="px-2 py-2 text-right text-emerald-400 font-mono">
-                          {formatCost(item.cost)}
-                        </td>
-                      </tr>
-                    ))}
+                    {stats.byModelAndOperation.map((item, idx) => {
+                      const modelInfo = getModelInfo(item.model);
+                      return (
+                        <tr key={idx} className="border-b border-white/[0.03]">
+                          <td className="px-2 py-2">
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-white">{modelInfo.name}</span>
+                              {modelInfo.config?.status === "preview" && (
+                                <span className="text-[8px] px-1 py-0.5 rounded bg-amber-500/20 text-amber-400">
+                                  P
+                                </span>
+                              )}
+                            </div>
+                          </td>
+                          <td className="px-2 py-2 text-white/40">{modelInfo.role}</td>
+                          <td className="px-2 py-2 text-white/60">
+                            {getOperationDisplayName(item.operation)}
+                          </td>
+                          <td className="px-2 py-2 text-right text-white/50 font-mono">
+                            {item.count}
+                          </td>
+                          <td className="px-2 py-2 text-right text-blue-400 font-mono">
+                            {formatNumber(item.inputTokens)}
+                          </td>
+                          <td className="px-2 py-2 text-right text-[var(--color-claude-coral)] font-mono">
+                            {formatNumber(item.outputTokens)}
+                          </td>
+                          <td className="px-2 py-2 text-right text-emerald-400 font-mono">
+                            {formatCost(item.cost)}
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                   <tfoot>
                     <tr className="border-t border-white/[0.1]">
-                      <td colSpan={2} className="px-2 py-2 text-white font-medium">
-                        합계
+                      <td colSpan={3} className="px-2 py-2 text-white font-medium">
+                        Total
                       </td>
                       <td className="px-2 py-2 text-right text-white font-mono">
                         {stats.totalRequests}
@@ -560,9 +732,9 @@ export default function AdminAIUsagePage() {
           {/* Info */}
           <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg p-3">
             <p className="text-[11px] text-blue-400">
-              뉴스 요약(Opus), 팩트체크(Haiku) 등 CCgather 서비스 운영에 사용된 Claude API 호출을
-              집계합니다. Output 토큰이 Input보다 비용이 높으므로 응답 길이 최적화가 비용 절감의
-              핵심입니다.
+              Tracking Gemini API usage for news processing, tool analysis, and thumbnail
+              generation. Output tokens are more expensive than input - optimize response length for
+              cost savings.
             </p>
           </div>
         </>
