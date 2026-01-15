@@ -4,9 +4,12 @@ import { auth } from "@clerk/nextjs/server";
 import { calculateTrustTier, calculateVoteWeight } from "@/lib/tools/eligibility";
 
 // =====================================================
-// POST /api/tools/[id]/vote - Toggle vote on a tool
+// POST /api/tools/vote/[toolId] - Toggle vote on a tool
 // =====================================================
-export async function POST(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function POST(
+  _request: NextRequest,
+  { params }: { params: Promise<{ toolId: string }> }
+) {
   try {
     const { userId } = await auth();
 
@@ -14,7 +17,7 @@ export async function POST(_request: NextRequest, { params }: { params: Promise<
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { id: toolId } = await params;
+    const { toolId } = await params;
     const supabase = createServiceClient();
 
     // Get the current user from database
@@ -28,23 +31,15 @@ export async function POST(_request: NextRequest, { params }: { params: Promise<
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
-    // Get the tool to check if it exists and who submitted it
+    // Get the tool
     const { data: tool, error: toolError } = await supabase
       .from("tools")
-      .select("id, submitted_by, upvote_count, weighted_score")
+      .select("id, upvote_count, weighted_score")
       .eq("id", toolId)
       .single();
 
     if (toolError || !tool) {
       return NextResponse.json({ error: "Tool not found" }, { status: 404 });
-    }
-
-    // Prevent submitter from voting on their own tool
-    if (tool.submitted_by === dbUser.id) {
-      return NextResponse.json(
-        { error: "You cannot vote on your own submission" },
-        { status: 403 }
-      );
     }
 
     // Check if user already voted
@@ -76,17 +71,13 @@ export async function POST(_request: NextRequest, { params }: { params: Promise<
       const newUpvoteCount = Math.max(0, (tool.upvote_count || 0) - 1);
       const newWeightedScore = Math.max(0, (tool.weighted_score || 0) - (existingVote.weight || 1));
 
-      const { error: updateError } = await supabase
+      await supabase
         .from("tools")
         .update({
           upvote_count: newUpvoteCount,
           weighted_score: newWeightedScore,
         })
         .eq("id", toolId);
-
-      if (updateError) {
-        console.error("Error updating tool counts:", updateError);
-      }
 
       return NextResponse.json({
         voted: false,
@@ -110,17 +101,13 @@ export async function POST(_request: NextRequest, { params }: { params: Promise<
       const newUpvoteCount = (tool.upvote_count || 0) + 1;
       const newWeightedScore = (tool.weighted_score || 0) + voteWeight;
 
-      const { error: updateError } = await supabase
+      await supabase
         .from("tools")
         .update({
           upvote_count: newUpvoteCount,
           weighted_score: newWeightedScore,
         })
         .eq("id", toolId);
-
-      if (updateError) {
-        console.error("Error updating tool counts:", updateError);
-      }
 
       return NextResponse.json({
         voted: true,
@@ -129,7 +116,7 @@ export async function POST(_request: NextRequest, { params }: { params: Promise<
       });
     }
   } catch (error) {
-    console.error("Error in POST /api/tools/[id]/vote:", error);
+    console.error("Error in POST /api/tools/vote/[toolId]:", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }

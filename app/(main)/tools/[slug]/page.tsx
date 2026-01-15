@@ -85,7 +85,6 @@ export default function ToolDetailPage() {
   const [voted, setVoted] = useState(false);
   const [voteCount, setVoteCount] = useState(0);
   const [isVoting, setIsVoting] = useState(false);
-  const [isSubmitter, setIsSubmitter] = useState(false);
 
   // Profile Panel State
   const [selectedUser, setSelectedUser] = useState<DisplayUser | null>(null);
@@ -119,7 +118,6 @@ export default function ToolDetailPage() {
         setTool(data);
         setVoted(data.is_voted || false);
         setVoteCount(data.upvote_count || 0);
-        setIsSubmitter(data.is_submitter || false);
       } catch (err) {
         console.error("Error fetching tool:", err);
         setError("Failed to load tool");
@@ -141,16 +139,11 @@ export default function ToolDetailPage() {
       return;
     }
 
-    // Prevent submitter from voting on their own tool
-    if (isSubmitter) {
-      return;
-    }
-
     if (isVoting || !tool) return;
 
     setIsVoting(true);
     try {
-      const res = await fetch(`/api/tools/${tool.id}/vote`, {
+      const res = await fetch(`/api/tools/vote/${tool.id}`, {
         method: "POST",
       });
 
@@ -302,18 +295,15 @@ export default function ToolDetailPage() {
                 {/* Vote Button - Desktop */}
                 <motion.button
                   onClick={handleVote}
-                  disabled={isVoting || isSubmitter}
-                  whileHover={!isSubmitter ? { scale: 1.02 } : {}}
-                  whileTap={!isSubmitter ? { scale: 0.98 } : {}}
+                  disabled={isVoting}
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
                   className={cn(
                     "hidden sm:flex flex-col items-center gap-1 px-5 py-3 rounded-lg border transition-all",
-                    isSubmitter
-                      ? "bg-[var(--color-bg-card)] border-[var(--border-default)] text-[var(--color-text-muted)] cursor-not-allowed opacity-60"
-                      : voted
-                        ? "bg-[var(--color-claude-coral)]/20 border-[var(--color-claude-coral)]/50 text-[var(--color-claude-coral)]"
-                        : "bg-[var(--color-bg-card)] border-[var(--border-default)] text-[var(--color-text-secondary)] hover:border-[var(--color-claude-coral)]/30"
+                    voted
+                      ? "bg-[var(--color-claude-coral)]/20 border-[var(--color-claude-coral)]/50 text-[var(--color-claude-coral)]"
+                      : "bg-[var(--color-bg-card)] border-[var(--border-default)] text-[var(--color-text-secondary)] hover:border-[var(--color-claude-coral)]/30"
                   )}
-                  title={isSubmitter ? "You cannot vote on your own submission" : ""}
                 >
                   {isVoting ? (
                     <Loader2 className="w-5 h-5 animate-spin" />
@@ -371,15 +361,13 @@ export default function ToolDetailPage() {
           {/* Vote Button - Mobile */}
           <motion.button
             onClick={handleVote}
-            disabled={isVoting || isSubmitter}
-            whileTap={!isSubmitter ? { scale: 0.98 } : {}}
+            disabled={isVoting}
+            whileTap={{ scale: 0.98 }}
             className={cn(
               "sm:hidden w-full mt-4 flex items-center justify-center gap-2 px-4 py-3 rounded-lg border transition-all",
-              isSubmitter
-                ? "bg-[var(--color-bg-card)] border-[var(--border-default)] text-[var(--color-text-muted)] cursor-not-allowed opacity-60"
-                : voted
-                  ? "bg-[var(--color-claude-coral)]/20 border-[var(--color-claude-coral)]/50 text-[var(--color-claude-coral)]"
-                  : "bg-[var(--color-bg-card)] border-[var(--border-default)] text-[var(--color-text-secondary)]"
+              voted
+                ? "bg-[var(--color-claude-coral)]/20 border-[var(--color-claude-coral)]/50 text-[var(--color-claude-coral)]"
+                : "bg-[var(--color-bg-card)] border-[var(--border-default)] text-[var(--color-text-secondary)]"
             )}
           >
             {isVoting ? (
@@ -387,9 +375,7 @@ export default function ToolDetailPage() {
             ) : (
               <>
                 <ChevronUp className={cn("w-5 h-5", voted && "text-[var(--color-claude-coral)]")} />
-                <span className="font-bold">
-                  {isSubmitter ? "Your submission" : `${voteCount} Upvotes`}
-                </span>
+                <span className="font-bold">{voteCount} Upvotes</span>
               </>
             )}
           </motion.button>

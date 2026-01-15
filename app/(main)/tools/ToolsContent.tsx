@@ -171,7 +171,7 @@ export default function ToolsContent() {
       return;
     }
 
-    const res = await fetch(`/api/tools/${toolId}/vote`, {
+    const res = await fetch(`/api/tools/vote/${toolId}`, {
       method: "POST",
     });
 
