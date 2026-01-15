@@ -4,7 +4,7 @@ import { memo, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { ExternalLink, Bookmark, BookmarkCheck } from "lucide-react";
+import { ExternalLink } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { ToolWithVoters, ToolCardVariant } from "@/types/tools";
 import { CATEGORY_META, PRICING_META, isNewTool, isHotTool } from "@/types/tools";
@@ -19,9 +19,7 @@ interface ToolCardProps {
   tool: ToolWithVoters;
   variant?: ToolCardVariant;
   isVoted?: boolean;
-  isBookmarked?: boolean;
   onVote?: (toolId: string) => Promise<void>;
-  onBookmark?: (toolId: string) => Promise<void>;
   showVoters?: boolean;
   showComment?: boolean;
   className?: string;
@@ -35,18 +33,14 @@ function ToolCardComponent({
   tool,
   variant = "default",
   isVoted = false,
-  isBookmarked = false,
   onVote,
-  onBookmark,
   showVoters = true,
   showComment = true,
   className,
 }: ToolCardProps) {
   const [voted, setVoted] = useState(isVoted);
-  const [bookmarked, setBookmarked] = useState(isBookmarked);
   const [voteCount, setVoteCount] = useState(tool.upvote_count);
   const [isVoting, setIsVoting] = useState(false);
-  const [isBookmarking, setIsBookmarking] = useState(false);
 
   const categoryMeta = CATEGORY_META[tool.category];
   const pricingMeta = PRICING_META[tool.pricing_type];
@@ -68,22 +62,6 @@ function ToolCardComponent({
       // Revert on error
     } finally {
       setIsVoting(false);
-    }
-  };
-
-  const handleBookmark = async (e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (isBookmarking) return;
-
-    setIsBookmarking(true);
-    try {
-      await onBookmark?.(tool.id);
-      setBookmarked(!bookmarked);
-    } catch {
-      // Revert on error
-    } finally {
-      setIsBookmarking(false);
     }
   };
 
@@ -249,23 +227,6 @@ function ToolCardComponent({
                   onClick={handleVote}
                   size="sm"
                 />
-                <button
-                  onClick={handleBookmark}
-                  disabled={isBookmarking}
-                  className={cn(
-                    "p-1.5 rounded-md transition-colors",
-                    bookmarked
-                      ? "text-yellow-500 bg-yellow-500/10"
-                      : "text-[var(--color-text-muted)] hover:text-yellow-500 hover:bg-yellow-500/10"
-                  )}
-                  aria-label={bookmarked ? "북마크 해제" : "북마크"}
-                >
-                  {bookmarked ? (
-                    <BookmarkCheck className="w-4 h-4" />
-                  ) : (
-                    <Bookmark className="w-4 h-4" />
-                  )}
-                </button>
               </div>
             </div>
 

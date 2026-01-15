@@ -4,7 +4,7 @@ import { memo, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { ExternalLink, Bookmark, BookmarkCheck } from "lucide-react";
+import { ExternalLink } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { ToolWithVoters } from "@/types/tools";
 import { CATEGORY_META, PRICING_META, isNewTool, isHotTool } from "@/types/tools";
@@ -19,12 +19,9 @@ interface ToolListItemProps {
   tool: ToolWithVoters;
   rank?: number;
   isVoted?: boolean;
-  isBookmarked?: boolean;
   onVote?: (toolId: string) => Promise<void>;
-  onBookmark?: (toolId: string) => Promise<void>;
   onSuggesterClick?: (userId: string) => void;
   showRank?: boolean;
-  showWeighted?: boolean;
   showSuggester?: boolean;
   compact?: boolean;
   className?: string;
@@ -38,21 +35,16 @@ function ToolListItemComponent({
   tool,
   rank,
   isVoted = false,
-  isBookmarked = false,
   onVote,
-  onBookmark,
   onSuggesterClick,
   showRank = true,
-  showWeighted = false,
   showSuggester = true,
   compact = false,
   className,
 }: ToolListItemProps) {
   const [voted, setVoted] = useState(isVoted);
-  const [bookmarked, setBookmarked] = useState(isBookmarked);
   const [voteCount, setVoteCount] = useState(tool.upvote_count);
   const [isVoting, setIsVoting] = useState(false);
-  const [isBookmarking, setIsBookmarking] = useState(false);
 
   const categoryMeta = CATEGORY_META[tool.category];
   const pricingMeta = PRICING_META[tool.pricing_type];
@@ -74,22 +66,6 @@ function ToolListItemComponent({
       // Revert on error
     } finally {
       setIsVoting(false);
-    }
-  };
-
-  const handleBookmark = async (e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (isBookmarking) return;
-
-    setIsBookmarking(true);
-    try {
-      await onBookmark?.(tool.id);
-      setBookmarked(!bookmarked);
-    } catch {
-      // Revert on error
-    } finally {
-      setIsBookmarking(false);
     }
   };
 
@@ -267,15 +243,6 @@ function ToolListItemComponent({
           </div>
         )}
 
-        {/* Weighted Score */}
-        {showWeighted && (
-          <div className="hidden xl:block w-16 text-right flex-shrink-0">
-            <span className="text-[11px] text-[var(--color-text-muted)]">
-              {tool.weighted_score.toFixed(1)}
-            </span>
-          </div>
-        )}
-
         {/* Vote Button */}
         <div className="flex-shrink-0">
           <VoteButton
@@ -286,23 +253,6 @@ function ToolListItemComponent({
             size={compact ? "xs" : "sm"}
           />
         </div>
-
-        {/* Bookmark */}
-        <button
-          onClick={handleBookmark}
-          disabled={isBookmarking}
-          className={cn(
-            "p-1 rounded transition-colors flex-shrink-0",
-            bookmarked ? "text-yellow-500" : "text-[var(--color-text-muted)] hover:text-yellow-500"
-          )}
-          aria-label={bookmarked ? "북마크 해제" : "북마크"}
-        >
-          {bookmarked ? (
-            <BookmarkCheck className={cn(compact ? "w-3.5 h-3.5" : "w-4 h-4")} />
-          ) : (
-            <Bookmark className={cn(compact ? "w-3.5 h-3.5" : "w-4 h-4")} />
-          )}
-        </button>
 
         {/* External Link */}
         <a

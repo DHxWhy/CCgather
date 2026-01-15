@@ -66,9 +66,8 @@ export default function ToolsContent() {
   // View mode (local state)
   const [viewMode, setViewMode] = useState<ViewMode>("list");
 
-  // User interaction state (would be fetched with tools in production)
+  // User interaction state
   const [userVotes, setUserVotes] = useState<Set<string>>(new Set());
-  const [userBookmarks, setUserBookmarks] = useState<Set<string>>(new Set());
 
   // =====================================================
   // Data Fetching
@@ -195,30 +194,6 @@ export default function ToolsContent() {
             : tool
         )
       );
-    }
-  };
-
-  const handleBookmark = async (toolId: string) => {
-    if (!isSignedIn) {
-      router.push("/sign-in");
-      return;
-    }
-
-    const res = await fetch(`/api/tools/${toolId}/bookmark`, {
-      method: "POST",
-    });
-
-    if (res.ok) {
-      const data = await res.json();
-      if (data.bookmarked) {
-        setUserBookmarks((prev) => new Set(prev).add(toolId));
-      } else {
-        setUserBookmarks((prev) => {
-          const newSet = new Set(prev);
-          newSet.delete(toolId);
-          return newSet;
-        });
-      }
     }
   };
 
@@ -354,11 +329,8 @@ export default function ToolsContent() {
                   tool={tool}
                   rank={index + 1}
                   isVoted={userVotes.has(tool.id)}
-                  isBookmarked={userBookmarks.has(tool.id)}
                   onVote={handleVote}
-                  onBookmark={handleBookmark}
                   onSuggesterClick={handleSuggesterClick}
-                  showWeighted={sort === "weighted"}
                 />
               ))}
             </div>
@@ -370,9 +342,7 @@ export default function ToolsContent() {
                   tool={tool}
                   variant="default"
                   isVoted={userVotes.has(tool.id)}
-                  isBookmarked={userBookmarks.has(tool.id)}
                   onVote={handleVote}
-                  onBookmark={handleBookmark}
                 />
               ))}
             </div>
