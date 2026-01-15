@@ -47,46 +47,49 @@ const ALL_CATEGORIES: Array<{
 const SELECTED_STYLE =
   "bg-[var(--color-claude-coral)]/20 text-[var(--color-claude-coral)] ring-1 ring-[var(--color-claude-coral)]/30";
 
+// 비활성 상태 기본 스타일 (연한 배경 추가)
+const INACTIVE_BASE = "bg-[var(--color-section-bg)] text-[var(--color-text-secondary)]";
+
 const categoryColorClasses: Record<ToolCategory | "all", { active: string; inactive: string }> = {
   all: {
     active: SELECTED_STYLE,
-    inactive: "text-[var(--color-text-secondary)] hover:bg-white/5",
+    inactive: `${INACTIVE_BASE} hover:bg-[var(--color-section-bg-hover)]`,
   },
   "ai-coding": {
     active: SELECTED_STYLE,
-    inactive: "text-[var(--color-text-secondary)] hover:bg-purple-500/10 hover:text-purple-400",
+    inactive: `${INACTIVE_BASE} hover:bg-purple-500/10 hover:text-purple-400`,
   },
   devops: {
     active: SELECTED_STYLE,
-    inactive: "text-[var(--color-text-secondary)] hover:bg-orange-500/10 hover:text-orange-400",
+    inactive: `${INACTIVE_BASE} hover:bg-orange-500/10 hover:text-orange-400`,
   },
   productivity: {
     active: SELECTED_STYLE,
-    inactive: "text-[var(--color-text-secondary)] hover:bg-yellow-500/10 hover:text-yellow-400",
+    inactive: `${INACTIVE_BASE} hover:bg-yellow-500/10 hover:text-yellow-400`,
   },
   design: {
     active: SELECTED_STYLE,
-    inactive: "text-[var(--color-text-secondary)] hover:bg-pink-500/10 hover:text-pink-400",
+    inactive: `${INACTIVE_BASE} hover:bg-pink-500/10 hover:text-pink-400`,
   },
   "api-data": {
     active: SELECTED_STYLE,
-    inactive: "text-[var(--color-text-secondary)] hover:bg-cyan-500/10 hover:text-cyan-400",
+    inactive: `${INACTIVE_BASE} hover:bg-cyan-500/10 hover:text-cyan-400`,
   },
   "open-source": {
     active: SELECTED_STYLE,
-    inactive: "text-[var(--color-text-secondary)] hover:bg-green-500/10 hover:text-green-400",
+    inactive: `${INACTIVE_BASE} hover:bg-green-500/10 hover:text-green-400`,
   },
   learning: {
     active: SELECTED_STYLE,
-    inactive: "text-[var(--color-text-secondary)] hover:bg-blue-500/10 hover:text-blue-400",
+    inactive: `${INACTIVE_BASE} hover:bg-blue-500/10 hover:text-blue-400`,
   },
   social: {
     active: SELECTED_STYLE,
-    inactive: "text-[var(--color-text-secondary)] hover:bg-indigo-500/10 hover:text-indigo-400",
+    inactive: `${INACTIVE_BASE} hover:bg-indigo-500/10 hover:text-indigo-400`,
   },
   marketing: {
     active: SELECTED_STYLE,
-    inactive: "text-[var(--color-text-secondary)] hover:bg-red-500/10 hover:text-red-400",
+    inactive: `${INACTIVE_BASE} hover:bg-red-500/10 hover:text-red-400`,
   },
 };
 

@@ -55,11 +55,11 @@ export default function NewsTagFilter({
               onClick={() => handleTagChange(tag.id)}
               disabled={isPending}
               className={cn(
-                "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-all duration-200 flex-shrink-0",
+                "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap flex-shrink-0",
                 "focus:outline-none focus-visible:ring-2 focus-visible:ring-[#D97757]",
                 isActive
                   ? `${tag.bgColor} text-[var(--color-text-primary)] border border-[var(--border-default)]`
-                  : "bg-[var(--color-bg-secondary)] text-text-muted border border-transparent hover:border-[var(--border-default)]",
+                  : "bg-[var(--color-section-bg)] text-[var(--color-text-muted)] border border-transparent hover:bg-[var(--color-section-bg-hover)] hover:border-[var(--border-default)]",
                 isPending && "opacity-50 cursor-wait"
               )}
               aria-pressed={isActive}
@@ -81,7 +81,9 @@ export default function NewsTagFilter({
   // Desktop variant: vertical list (tablet: compact, desktop: with descriptions)
   return (
     <nav className={cn("flex flex-col gap-1", className)} aria-label="News filter">
-      <div className="text-xs font-medium text-text-muted mb-2 px-2 lg:block hidden">Filter</div>
+      <div className="text-xs font-medium text-[var(--color-text-muted)] mb-2 px-2 lg:block hidden">
+        Filter
+      </div>
       {NEWS_FILTER_TAGS.map((tag) => {
         const Icon = tag.icon;
         const isActive = currentTag === tag.id;
@@ -92,11 +94,11 @@ export default function NewsTagFilter({
             onClick={() => handleTagChange(tag.id)}
             disabled={isPending}
             className={cn(
-              "flex items-center gap-2 lg:gap-3 px-2 lg:px-3 py-2 lg:py-2.5 rounded-lg text-left transition-all duration-200",
+              "flex items-center gap-2 lg:gap-3 px-2 lg:px-3 py-2 lg:py-2.5 rounded-lg text-left",
               "focus:outline-none focus-visible:ring-2 focus-visible:ring-[#D97757] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--color-bg-primary)]",
               isActive
                 ? `${tag.bgColor} border border-[var(--border-default)]`
-                : "hover:bg-[var(--color-bg-secondary)] border border-transparent",
+                : "bg-[var(--color-section-bg)] hover:bg-[var(--color-section-bg-hover)] border border-transparent",
               isPending && "opacity-50 cursor-wait"
             )}
             aria-pressed={isActive}
@@ -113,13 +115,13 @@ export default function NewsTagFilter({
               <div
                 className={cn(
                   "text-xs lg:text-sm font-medium",
-                  isActive ? "text-[var(--color-text-primary)]" : "text-text-muted"
+                  isActive ? "text-[var(--color-text-primary)]" : "text-[var(--color-text-muted)]"
                 )}
               >
                 {tag.label}
               </div>
               {/* Description: only on large screens */}
-              <div className="hidden lg:block text-[10px] text-text-muted/70 truncate">
+              <div className="hidden lg:block text-[10px] text-[var(--color-text-muted)]/70 truncate">
                 {tag.description}
               </div>
             </div>
