@@ -66,6 +66,7 @@ function formatLevelRange(min: number, max: number): string {
 function LevelBadge({ tokens }: { tokens: number }) {
   const [isHovered, setIsHovered] = useState(false);
   const currentLevel = getLevelByTokens(tokens);
+  const useCssClass = currentLevel.level === 5 || currentLevel.level === 6;
 
   return (
     <div
@@ -74,8 +75,14 @@ function LevelBadge({ tokens }: { tokens: number }) {
       onMouseLeave={() => setIsHovered(false)}
     >
       <span
-        className="px-1.5 py-0.5 rounded text-[10px] font-medium cursor-default"
-        style={{ backgroundColor: `${currentLevel.color}20`, color: currentLevel.color }}
+        className={`px-1.5 py-0.5 rounded text-[10px] font-medium cursor-default ${
+          useCssClass ? `level-badge-${currentLevel.level}` : ""
+        }`}
+        style={
+          useCssClass
+            ? undefined
+            : { backgroundColor: `${currentLevel.color}20`, color: currentLevel.color }
+        }
       >
         {currentLevel.icon} Lv.{currentLevel.level}
       </span>
@@ -85,29 +92,35 @@ function LevelBadge({ tokens }: { tokens: number }) {
             Level System
           </div>
           <div className="space-y-0.5">
-            {LEVELS.map((level) => (
-              <div
-                key={level.level}
-                className={`flex items-center justify-between px-1.5 py-1 rounded text-[10px] ${
-                  level.level === currentLevel.level ? "font-medium" : ""
-                }`}
-                style={
-                  level.level === currentLevel.level
-                    ? { backgroundColor: `${level.color}20`, color: level.color }
-                    : { color: "#9CA3AF" }
-                }
-              >
-                <div className="flex items-center gap-1.5">
-                  <span>{level.icon}</span>
-                  <span>
-                    Lv.{level.level} {level.name}
+            {LEVELS.map((level) => {
+              const isCurrentLevel = level.level === currentLevel.level;
+              const levelUseCssClass = level.level === 5 || level.level === 6;
+              return (
+                <div
+                  key={level.level}
+                  className={`flex items-center justify-between px-1.5 py-1 rounded text-[10px] ${
+                    isCurrentLevel ? "font-medium" : ""
+                  } ${isCurrentLevel && levelUseCssClass ? `level-badge-${level.level}` : ""}`}
+                  style={
+                    isCurrentLevel
+                      ? levelUseCssClass
+                        ? undefined
+                        : { backgroundColor: `${level.color}20`, color: level.color }
+                      : { color: "#9CA3AF" }
+                  }
+                >
+                  <div className="flex items-center gap-1.5">
+                    <span>{level.icon}</span>
+                    <span>
+                      Lv.{level.level} {level.name}
+                    </span>
+                  </div>
+                  <span className="text-[8px] opacity-70">
+                    {formatLevelRange(level.minTokens, level.maxTokens)}
                   </span>
                 </div>
-                <span className="text-[8px] opacity-70">
-                  {formatLevelRange(level.minTokens, level.maxTokens)}
-                </span>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}

@@ -1008,6 +1008,36 @@ body {
 /* Clerk styles removed - using custom AuthModal */
 
 /* ========================================
+   LEVEL BADGE STYLES
+   Light mode uses darker text for visibility
+   ======================================== */
+
+/* Level 5 - Amber (Master) */
+.level-badge-5 {
+  background-color: rgba(245, 158, 11, 0.125);
+  color: #f59e0b;
+}
+
+/* Level 6 - Gold (Grandmaster) */
+.level-badge-6 {
+  background-color: rgba(234, 179, 8, 0.125);
+  color: #eab308;
+}
+
+/* Light mode overrides - darker text for visibility */
+:root.light .level-badge-5,
+.light .level-badge-5 {
+  background-color: rgba(217, 119, 6, 0.15);
+  color: #92400e;
+}
+
+:root.light .level-badge-6,
+.light .level-badge-6 {
+  background-color: rgba(202, 138, 4, 0.15);
+  color: #854d0e;
+}
+
+/* ========================================
    ARTICLE BODY TYPOGRAPHY
    Styles for AI-rewritten news content
    ======================================== */

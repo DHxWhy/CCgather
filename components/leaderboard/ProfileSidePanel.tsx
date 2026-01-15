@@ -894,8 +894,14 @@ export function ProfileSidePanel({
                       {currentUser.display_name || currentUser.username}
                     </h2>
                     <span
-                      className="px-1.5 py-0.5 rounded text-[9px] font-medium flex-shrink-0"
-                      style={{ backgroundColor: `${level.color}20`, color: level.color }}
+                      className={`px-1.5 py-0.5 rounded text-[9px] font-medium flex-shrink-0 ${
+                        level.level === 5 || level.level === 6 ? `level-badge-${level.level}` : ""
+                      }`}
+                      style={
+                        level.level !== 5 && level.level !== 6
+                          ? { backgroundColor: `${level.color}20`, color: level.color }
+                          : undefined
+                      }
                     >
                       {level.icon} Lv.{level.level}
                     </span>
