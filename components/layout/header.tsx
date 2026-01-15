@@ -11,7 +11,6 @@ import { ThemeSwitcher } from "@/components/ui/theme-switcher";
 import { MobileDrawer } from "./MobileDrawer";
 import { Button } from "@/components/ui/Button";
 import { CLIModal } from "@/components/cli/CLIModal";
-import { SettingsModal } from "@/components/settings/SettingsModal";
 import { AuthModal } from "@/components/auth/AuthModal";
 
 // ============================================
@@ -95,7 +94,6 @@ export function Header() {
   const pathname = usePathname();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [cliModalOpen, setCLIModalOpen] = useState(false);
-  const [settingsModalOpen, setSettingsModalOpen] = useState(false);
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const [clerkFailed, setClerkFailed] = useState(false);
 
@@ -199,8 +197,8 @@ export function Header() {
 
             {/* 로그인 상태: Clerk 로드 완료 + 로그인됨 */}
             {isLoaded && isSignedIn && !clerkFailed && (
-              <button
-                onClick={() => setSettingsModalOpen(true)}
+              <Link
+                href="/settings"
                 className="flex items-center justify-center w-8 h-8 rounded-full border border-[var(--border-default)] hover:border-[var(--color-text-muted)] transition-colors group"
                 aria-label="Settings"
               >
@@ -208,7 +206,7 @@ export function Header() {
                   size={14}
                   className="text-[var(--color-text-muted)] group-hover:text-[var(--color-text-secondary)] transition-colors"
                 />
-              </button>
+              </Link>
             )}
           </div>
 
@@ -282,11 +280,9 @@ export function Header() {
                 Sign In
               </Button>
             ) : (
-              <button
-                onClick={() => {
-                  closeMobileMenu();
-                  setSettingsModalOpen(true);
-                }}
+              <Link
+                href="/settings"
+                onClick={closeMobileMenu}
                 className={cn(
                   "w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl",
                   "text-base font-medium transition-all duration-200",
@@ -296,7 +292,7 @@ export function Header() {
               >
                 <Settings size={18} />
                 Settings
-              </button>
+              </Link>
             )}
           </div>
         </div>
@@ -304,9 +300,6 @@ export function Header() {
 
       {/* CLI Modal */}
       <CLIModal isOpen={cliModalOpen} onClose={() => setCLIModalOpen(false)} />
-
-      {/* Settings Modal */}
-      <SettingsModal isOpen={settingsModalOpen} onClose={() => setSettingsModalOpen(false)} />
 
       {/* Auth Modal */}
       <AuthModal isOpen={authModalOpen} onClose={() => setAuthModalOpen(false)} />

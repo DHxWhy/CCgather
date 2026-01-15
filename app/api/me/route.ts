@@ -9,7 +9,24 @@ const SocialLinksSchema = z
     github: z.string().optional(),
     twitter: z.string().optional(),
     linkedin: z.string().optional(),
-    website: z.string().url().optional().or(z.literal("")),
+    // Allow URL with or without protocol (will be normalized)
+    website: z
+      .string()
+      .refine(
+        (val) => {
+          if (!val || val === "") return true;
+          try {
+            const url = val.startsWith("http") ? val : `https://${val}`;
+            new URL(url);
+            return true;
+          } catch {
+            return false;
+          }
+        },
+        { message: "Invalid URL format" }
+      )
+      .optional()
+      .or(z.literal("")),
   })
   .optional();
 

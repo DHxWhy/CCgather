@@ -399,7 +399,7 @@ function XIcon({ className }: { className?: string }) {
   );
 }
 
-// Social Links Quick Access (Header Icons)
+// Social Links Quick Access (Header Icons) - Brand Colors Applied
 function SocialLinksQuickAccess({ socialLinks }: { socialLinks: SocialLinks | null | undefined }) {
   if (!socialLinks) return null;
 
@@ -408,25 +408,29 @@ function SocialLinksQuickAccess({ socialLinks }: { socialLinks: SocialLinks | nu
       key: "github",
       icon: Github,
       prefix: "https://github.com/",
-      hoverColor: "hover:text-white hover:bg-white/20",
+      color: "text-white", // GitHub brand
+      hoverColor: "hover:bg-white/20",
     },
     {
       key: "twitter",
       icon: XIcon,
       prefix: "https://x.com/",
-      hoverColor: "hover:text-white hover:bg-white/20",
+      color: "text-white", // X brand
+      hoverColor: "hover:bg-white/20",
     },
     {
       key: "linkedin",
       icon: Linkedin,
       prefix: "https://linkedin.com/in/",
-      hoverColor: "hover:text-[#0A66C2] hover:bg-[#0A66C2]/20",
+      color: "text-[#0A66C2]", // LinkedIn brand blue
+      hoverColor: "hover:bg-[#0A66C2]/20",
     },
     {
       key: "website",
       icon: Globe,
       prefix: "",
-      hoverColor: "hover:text-[var(--color-claude-coral)] hover:bg-[var(--color-claude-coral)]/20",
+      color: "text-emerald-400", // Custom website color
+      hoverColor: "hover:bg-emerald-400/20",
     },
   ] as const;
 
@@ -458,7 +462,7 @@ function SocialLinksQuickAccess({ socialLinks }: { socialLinks: SocialLinks | nu
             href={url}
             target="_blank"
             rel="noopener noreferrer"
-            className={`p-1.5 rounded-md text-[var(--color-text-muted)] transition-all ${link.hoverColor}`}
+            className={`p-1.5 rounded-md transition-all ${link.color} ${link.hoverColor}`}
             title={link.key === "website" ? new URL(url).hostname : value}
           >
             <Icon className="w-3.5 h-3.5" />
