@@ -116,7 +116,7 @@ function CategoryTabsComponent({ selected, onChange, counts, className }: Catego
     <div
       ref={scrollRef}
       className={cn(
-        "flex items-center gap-1.5 overflow-x-auto scrollbar-hide",
+        "flex items-center gap-1 lg:gap-1.5 overflow-x-auto scrollbar-hide",
         "pb-1", // Space for focus ring
         className
       )}
@@ -137,7 +137,7 @@ function CategoryTabsComponent({ selected, onChange, counts, className }: Catego
             role="tab"
             aria-selected={isSelected}
             className={cn(
-              "flex items-center gap-1.5 px-3 py-1.5 rounded-full",
+              "flex items-center gap-1 px-2 py-1.5 lg:px-2.5 rounded-full",
               "text-xs font-medium whitespace-nowrap",
               "transition-colors duration-200",
               "focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-claude-coral)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--color-bg-primary)]",
