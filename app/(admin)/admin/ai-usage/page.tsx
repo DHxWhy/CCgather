@@ -52,19 +52,10 @@ const IMAGE_MODELS: Record<string, ModelConfig> = {
   },
   "gemini-2.5-flash-image": {
     name: "Gemini 2.5 Flash Image",
-    role: "Thumbnail (AI Generation)",
+    role: "Thumbnail (Nano Banana)",
     perImage: 0.039,
-    status: "preview",
-    endDate: "2026-01-15",
-    note: "Shutting down January 15, 2026",
-  },
-  "gemini-2.5-flash-image-preview": {
-    name: "Gemini 2.5 Flash Image",
-    role: "Thumbnail (AI Generation)",
-    perImage: 0.039,
-    status: "preview",
-    endDate: "2026-01-15",
-    note: "Shutting down January 15, 2026",
+    status: "ga",
+    note: "Stable GA version - successor to preview",
   },
 };
 
