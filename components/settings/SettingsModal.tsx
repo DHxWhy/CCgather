@@ -25,6 +25,7 @@ import { getCountryByCode } from "@/lib/constants/countries";
 import { cn } from "@/lib/utils";
 import { FlagIcon } from "@/components/ui/FlagIcon";
 import { UsageStatsFullscreen } from "./UsageStatsFullscreen";
+import { AccountDeleteModal } from "./AccountDeleteModal";
 
 // X (formerly Twitter) icon component
 function XIcon({ className }: { className?: string }) {
@@ -326,9 +327,12 @@ function ProfileContent({
   onSocialLinksChange: (links: SocialLinks) => void;
 }) {
   const { user } = useUser();
+  const { signOut } = useClerk();
+  const router = useRouter();
   const [editedLinks, setEditedLinks] = useState<SocialLinks>(socialLinks);
   const [isSaving, setIsSaving] = useState(false);
   const [errors, setErrors] = useState<Partial<SocialLinks>>({});
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
 
   // Validation functions
   const validateSocialLink = (key: keyof SocialLinks, value: string): string | null => {
@@ -444,6 +448,17 @@ function ProfileContent({
     } finally {
       setIsSaving(false);
     }
+  };
+
+  const handleDeleteAccount = async () => {
+    const res = await fetch("/api/me", { method: "DELETE" });
+    if (!res.ok) {
+      const data = await res.json();
+      throw new Error(data.error || "Failed to delete account");
+    }
+    // Sign out and redirect to home
+    await signOut();
+    router.push("/");
   };
 
   if (!user) return null;
@@ -785,6 +800,38 @@ function ProfileContent({
           <span className="text-xs font-medium">Sign Out</span>
         </button>
       </div>
+
+      {/* Delete Account Section */}
+      <div className="pt-4 mt-4 border-t border-[var(--border-default)]">
+        <h4 className="text-xs font-semibold text-red-400/80 uppercase tracking-wide mb-2">
+          Danger Zone
+        </h4>
+        <div className="p-3 rounded-lg bg-red-500/5 border border-red-500/20">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-xs font-medium text-zinc-300">계정 삭제</p>
+              <p className="text-[10px] text-zinc-500 mt-0.5">
+                모든 데이터가 삭제됩니다 (3일 이내 복구 가능)
+              </p>
+            </div>
+            <button
+              onClick={() => setIsDeleteModalOpen(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-500/10 text-red-400 text-xs font-medium hover:bg-red-500/20 transition-colors"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              <span>삭제</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Delete Account Modal */}
+      <AccountDeleteModal
+        isOpen={isDeleteModalOpen}
+        onClose={() => setIsDeleteModalOpen(false)}
+        username={user.username || "user"}
+        onConfirmDelete={handleDeleteAccount}
+      />
     </motion.div>
   );
 }

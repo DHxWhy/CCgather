@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Globe, Trophy, Coins, Zap, Calendar } from "lucide-react";
+import { X, Globe, Trophy, Coins, Zap, Calendar, ChevronDown } from "lucide-react";
 import { FlagIcon } from "@/components/ui/FlagIcon";
 import { cn } from "@/lib/utils";
 import Image from "next/image";
@@ -30,6 +30,16 @@ interface UsageStatsFullscreenProps {
   isOpen: boolean;
   onClose: () => void;
 }
+
+// Period filter options
+type PeriodFilter = "3m" | "6m" | "12m" | "all";
+
+const PERIOD_OPTIONS: { value: PeriodFilter; label: string }[] = [
+  { value: "3m", label: "3개월" },
+  { value: "6m", label: "6개월" },
+  { value: "12m", label: "12개월" },
+  { value: "all", label: "전체" },
+];
 
 // Month names
 const MONTHS_SHORT = [
@@ -97,10 +107,35 @@ export function UsageStatsFullscreen({ isOpen, onClose }: UsageStatsFullscreenPr
   const [userStats, setUserStats] = useState<UserStats | null>(null);
   const [history, setHistory] = useState<HistoryEntry[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [periodFilter, setPeriodFilter] = useState<PeriodFilter>("12m");
+  const [isPeriodDropdownOpen, setIsPeriodDropdownOpen] = useState(false);
   const tableRef = useRef<HTMLDivElement>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
 
-  // Generate 12 months range (current month centered)
-  const monthRange = useMemo(() => generateMonthRange(12), []);
+  // Calculate months based on filter
+  const monthsToShow = useMemo(() => {
+    switch (periodFilter) {
+      case "3m":
+        return 3;
+      case "6m":
+        return 6;
+      case "12m":
+        return 12;
+      case "all":
+        return Math.max(
+          12,
+          Math.ceil(
+            (Date.now() - new Date(history[0]?.date || Date.now()).getTime()) /
+              (30 * 24 * 60 * 60 * 1000)
+          ) + 1
+        );
+      default:
+        return 12;
+    }
+  }, [periodFilter, history]);
+
+  // Generate months range (current month on the right)
+  const monthRange = useMemo(() => generateMonthRange(monthsToShow), [monthsToShow]);
 
   // Fetch data
   useEffect(() => {
@@ -143,7 +178,7 @@ export function UsageStatsFullscreen({ isOpen, onClose }: UsageStatsFullscreenPr
     fetchData();
   }, [isOpen]);
 
-  // Scroll to center (current month) when loaded
+  // Scroll to right side (current month) when loaded
   useEffect(() => {
     if (!isLoading && tableRef.current) {
       const scrollContainer = tableRef.current;
@@ -152,7 +187,24 @@ export function UsageStatsFullscreen({ isOpen, onClose }: UsageStatsFullscreenPr
         scrollContainer.scrollLeft = scrollContainer.scrollWidth;
       }, 100);
     }
-  }, [isLoading]);
+  }, [isLoading, monthsToShow]);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setIsPeriodDropdownOpen(false);
+      }
+    };
+
+    if (isPeriodDropdownOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [isPeriodDropdownOpen]);
 
   // Close on escape
   useEffect(() => {
@@ -365,14 +417,53 @@ export function UsageStatsFullscreen({ isOpen, onClose }: UsageStatsFullscreenPr
                   </div>
                 </div>
 
-                {/* Title */}
-                <div className="flex items-center gap-2 mb-3">
-                  <Calendar className="w-4 h-4 text-zinc-500" />
-                  <h2 className="text-sm font-semibold text-white">Usage Heatmap</h2>
-                  <span className="text-xs text-zinc-600">
-                    (Last 12 months: {formatNumber(yearlyTotal.tokens)} tokens,{" "}
-                    {formatCost(yearlyTotal.cost)})
-                  </span>
+                {/* Title with Period Filter */}
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2">
+                    <Calendar className="w-4 h-4 text-zinc-500" />
+                    <h2 className="text-sm font-semibold text-white">Usage Heatmap</h2>
+                    <span className="text-xs text-zinc-600">
+                      ({formatNumber(yearlyTotal.tokens)} tokens, {formatCost(yearlyTotal.cost)})
+                    </span>
+                  </div>
+
+                  {/* Period Filter Dropdown */}
+                  <div className="relative" ref={dropdownRef}>
+                    <button
+                      onClick={() => setIsPeriodDropdownOpen(!isPeriodDropdownOpen)}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-xs text-zinc-300 hover:bg-white/10 transition-colors"
+                    >
+                      <span>{PERIOD_OPTIONS.find((o) => o.value === periodFilter)?.label}</span>
+                      <ChevronDown
+                        className={cn(
+                          "w-3.5 h-3.5 transition-transform",
+                          isPeriodDropdownOpen && "rotate-180"
+                        )}
+                      />
+                    </button>
+
+                    {isPeriodDropdownOpen && (
+                      <div className="absolute right-0 top-full mt-1 z-30 bg-[#18181b] border border-white/10 rounded-lg shadow-xl overflow-hidden">
+                        {PERIOD_OPTIONS.map((option) => (
+                          <button
+                            key={option.value}
+                            onClick={() => {
+                              setPeriodFilter(option.value);
+                              setIsPeriodDropdownOpen(false);
+                            }}
+                            className={cn(
+                              "w-full px-4 py-2 text-xs text-left hover:bg-white/10 transition-colors",
+                              periodFilter === option.value
+                                ? "text-primary bg-primary/10"
+                                : "text-zinc-300"
+                            )}
+                          >
+                            {option.label}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 </div>
 
                 {/* Heatmap Table */}
@@ -394,7 +485,6 @@ export function UsageStatsFullscreen({ isOpen, onClose }: UsageStatsFullscreenPr
                             {group.year}
                           </th>
                         ))}
-                        <th className="w-16 bg-[#0a0a0d]" />
                       </tr>
                       {/* Month Header Row */}
                       <tr>
@@ -417,16 +507,12 @@ export function UsageStatsFullscreen({ isOpen, onClose }: UsageStatsFullscreenPr
                             </th>
                           );
                         })}
-                        <th className="px-2 py-2 text-[10px] font-semibold text-zinc-500 text-center border-b border-l border-white/10 w-16">
-                          Total
-                        </th>
                       </tr>
                     </thead>
                     <tbody>
                       {/* Days 1-31 */}
                       {Array.from({ length: 31 }, (_, dayIndex) => {
                         const day = dayIndex + 1;
-                        let dayTotal = 0;
 
                         return (
                           <tr key={day} className="hover:bg-white/[0.015]">
@@ -443,8 +529,6 @@ export function UsageStatsFullscreen({ isOpen, onClose }: UsageStatsFullscreenPr
                                 month === today.getMonth() &&
                                 day === today.getDate();
                               const isFuture = new Date(year, month, day) > today;
-
-                              if (entry) dayTotal += entry.cost;
 
                               return (
                                 <td key={`${year}-${month}-${day}`} className="px-1 py-0.5">
@@ -479,9 +563,6 @@ export function UsageStatsFullscreen({ isOpen, onClose }: UsageStatsFullscreenPr
                                 </td>
                               );
                             })}
-                            <td className="px-2 py-0.5 text-[10px] font-medium text-zinc-500 text-center border-l border-white/10">
-                              {dayTotal > 0 ? formatCost(dayTotal) : "-"}
-                            </td>
                           </tr>
                         );
                       })}
@@ -515,9 +596,6 @@ export function UsageStatsFullscreen({ isOpen, onClose }: UsageStatsFullscreenPr
                             </td>
                           );
                         })}
-                        <td className="px-2 py-2 text-[10px] font-bold text-emerald-400 text-center border-l border-white/10">
-                          {formatCost(yearlyTotal.cost)}
-                        </td>
                       </tr>
                     </tbody>
                   </table>
