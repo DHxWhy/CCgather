@@ -9,7 +9,6 @@ import {
   Clock,
   ChartBar,
   Vote,
-  Bookmark,
   Award,
   MessageSquare,
 } from "lucide-react";
@@ -44,7 +43,7 @@ export function AccountDeleteModal({
       await onConfirmDelete();
       onClose();
     } catch (err) {
-      setError("계정 삭제 중 오류가 발생했습니다. 다시 시도해주세요.");
+      setError("An error occurred while deleting your account. Please try again.");
       setIsDeleting(false);
     }
   };
@@ -58,11 +57,10 @@ export function AccountDeleteModal({
 
   // Data that will be deleted
   const deletedData = [
-    { icon: ChartBar, label: "사용 통계", desc: "토큰 사용량, 비용 기록" },
-    { icon: Vote, label: "투표 기록", desc: "추천/비추천한 도구들" },
-    { icon: Bookmark, label: "북마크", desc: "저장한 도구 목록" },
-    { icon: Award, label: "뱃지 및 레벨", desc: "획득한 뱃지, 레벨 정보" },
-    { icon: MessageSquare, label: "활동 내역", desc: "추천한 도구, 댓글" },
+    { icon: ChartBar, label: "Usage Statistics", desc: "Token usage, cost history" },
+    { icon: Vote, label: "Vote History", desc: "Tools you've upvoted" },
+    { icon: Award, label: "Badges & Level", desc: "Earned badges, level info" },
+    { icon: MessageSquare, label: "Activity History", desc: "Submitted tools, comments" },
   ];
 
   return (
@@ -94,8 +92,8 @@ export function AccountDeleteModal({
                   <AlertTriangle className="w-5 h-5 text-red-500" />
                 </div>
                 <div>
-                  <h2 className="text-lg font-bold text-white">계정 삭제</h2>
-                  <p className="text-xs text-zinc-500">이 작업은 되돌릴 수 없습니다</p>
+                  <h2 className="text-lg font-bold text-white">Delete Account</h2>
+                  <p className="text-xs text-zinc-500">This action cannot be undone</p>
                 </div>
               </div>
               <button
@@ -113,17 +111,19 @@ export function AccountDeleteModal({
               <div className="flex items-start gap-3 p-3 rounded-lg bg-amber-500/10 border border-amber-500/20">
                 <Clock className="w-5 h-5 text-amber-400 mt-0.5 flex-shrink-0" />
                 <div>
-                  <p className="text-sm font-medium text-amber-300">3일 이내 복구 가능</p>
+                  <p className="text-sm font-medium text-amber-300">
+                    Recovery available within 3 days
+                  </p>
                   <p className="text-xs text-amber-200/70 mt-1">
-                    계정 삭제 요청 후 3일 이내에 다시 로그인하시면 계정을 복구할 수 있습니다. 3일이
-                    지나면 모든 데이터가 영구 삭제됩니다.
+                    If you log in again within 3 days after requesting account deletion, you can
+                    recover your account. After 3 days, all data will be permanently deleted.
                   </p>
                 </div>
               </div>
 
               {/* Deleted Data List */}
               <div>
-                <p className="text-sm font-medium text-zinc-300 mb-3">삭제되는 데이터</p>
+                <p className="text-sm font-medium text-zinc-300 mb-3">Data to be deleted</p>
                 <div className="space-y-2">
                   {deletedData.map((item) => (
                     <div
@@ -144,8 +144,7 @@ export function AccountDeleteModal({
               {/* Confirmation Input */}
               <div>
                 <label className="block text-sm font-medium text-zinc-300 mb-2">
-                  확인을 위해 <span className="text-red-400 font-bold">{username}</span>을(를)
-                  입력하세요
+                  Type <span className="text-red-400 font-bold">{username}</span> to confirm
                 </label>
                 <input
                   type="text"
@@ -176,7 +175,7 @@ export function AccountDeleteModal({
                   disabled={isDeleting}
                   className="flex-1 px-4 py-3 rounded-xl bg-white/5 text-zinc-300 font-medium text-sm hover:bg-white/10 transition-all disabled:opacity-50"
                 >
-                  취소
+                  Cancel
                 </button>
                 <button
                   onClick={handleDelete}
@@ -188,7 +187,7 @@ export function AccountDeleteModal({
                   ) : (
                     <>
                       <Trash2 className="w-4 h-4" />
-                      <span>계정 삭제</span>
+                      <span>Delete Account</span>
                     </>
                   )}
                 </button>
