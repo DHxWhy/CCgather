@@ -96,7 +96,15 @@ export default function BatchCollector({ onComplete }: { onComplete?: () => void
               setLogs((prev) => [...prev, event]);
               setCurrentIndex(event.index);
 
-              if (event.type === "complete" && event.stats) {
+              // Update stats in real-time based on event type
+              if (event.type === "success") {
+                setStats((prev) => ({ ...prev, success: prev.success + 1 }));
+              } else if (event.type === "error") {
+                setStats((prev) => ({ ...prev, failed: prev.failed + 1 }));
+              } else if (event.type === "skip") {
+                setStats((prev) => ({ ...prev, skipped: prev.skipped + 1 }));
+              } else if (event.type === "complete" && event.stats) {
+                // Final stats from server (for accuracy)
                 setStats(event.stats);
               }
             } catch {
