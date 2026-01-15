@@ -26,10 +26,14 @@ export async function POST(request: NextRequest) {
       url,
       category = "press",
       force = false,
+      autoPublish = false,
+      thumbnailModel = "gemini_flash",
     } = body as {
       url: string;
       category?: TargetCategory;
       force?: boolean; // Force re-collection even if URL exists
+      autoPublish?: boolean; // Auto-publish if fact check passes
+      thumbnailModel?: "imagen" | "gemini_flash"; // Thumbnail generation model
     };
 
     if (!url) {
@@ -135,10 +139,18 @@ export async function POST(request: NextRequest) {
     };
     const validContentType = contentTypeMap[category] || "press";
 
-    // Determine status based on fact-check result
+    // Determine status based on autoPublish and fact-check result
+    // - published: Auto-publish enabled and fact check passed
     // - needs_review: Fact-check score below threshold after retries (requires manual review)
-    // - pending: Normal review queue
-    const status = pipelineResult.needsReview ? "needs_review" : "pending";
+    // - pending: Normal review queue (when autoPublish is false)
+    const needsReview = pipelineResult.needsReview || false;
+    const status = autoPublish
+      ? needsReview
+        ? "needs_review"
+        : "published"
+      : needsReview
+        ? "needs_review"
+        : "pending";
 
     // Determine published_at: HTML extracted > AI extracted > current time
     let publishedAt = result.article.publishedAt;
@@ -257,21 +269,28 @@ export async function POST(request: NextRequest) {
       !savedContent.thumbnail_url ||
       savedContent.thumbnail_url === "/images/news-placeholder.svg"
     ) {
-      console.log(`[Collect Single] Generating thumbnail for: ${savedContent.id}`);
+      console.log(
+        `[Collect Single] Generating thumbnail for: ${savedContent.id} (model: ${thumbnailModel})`
+      );
       thumbnailResult = await getThumbnailWithFallback(
         savedContent.id,
         url,
         savedContent.title,
         savedContent.summary_md,
         false, // skipAiGeneration
-        savedContent.ai_article_type // AI-classified article type for accurate theme selection
+        savedContent.ai_article_type, // AI-classified article type for accurate theme selection
+        thumbnailModel // User-selected model (imagen or gemini_flash)
       );
 
       // Log thumbnail generation cost
       if (thumbnailResult.cost_usd && thumbnailResult.cost_usd > 0) {
+        const thumbnailModelName =
+          thumbnailResult.source === "imagen"
+            ? "imagen-4.0-generate-001"
+            : "gemini-2.5-flash-image";
         await supabase.from("ai_usage_log").insert({
           request_type: "thumbnail_generate",
-          model: "imagen-4.0-generate-001",
+          model: thumbnailModelName,
           input_tokens: 0,
           output_tokens: 0,
           total_tokens: 0,

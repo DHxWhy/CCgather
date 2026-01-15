@@ -954,7 +954,9 @@ export async function updateContentThumbnail(
 
 /**
  * Get thumbnail with fallback strategy
- * Priority: 1. AI Generation (Gemini) -> 2. OG Image (fallback) -> 3. Default placeholder
+ * Priority: 1. AI Generation -> 2. OG Image (fallback) -> 3. Default placeholder
+ *
+ * @param model - "imagen" for Imagen 4, "gemini_flash" for Gemini Flash Image (default)
  *
  * Note: AI-generated thumbnails are preferred because OG images are excluded
  * from display in NewsCard for visual consistency.
@@ -965,7 +967,8 @@ export async function getThumbnailWithFallback(
   title: string,
   summary?: string,
   skipAiGeneration = false,
-  articleType?: ArticleType
+  articleType?: ArticleType,
+  model: "imagen" | "gemini_flash" = "gemini_flash"
 ): Promise<ThumbnailResult> {
   // Skip AI generation if requested (for cost savings)
   if (skipAiGeneration) {
@@ -982,21 +985,36 @@ export async function getThumbnailWithFallback(
     };
   }
 
-  // Try Gemini 2.5 Flash Image generation first (AI thumbnails are preferred)
-  const geminiResult = await generateThumbnailWithGeminiFlash({
+  // Generate AI thumbnail based on selected model
+  const request: ThumbnailRequest = {
     content_id: contentId,
     title,
     summary,
     article_type: articleType,
-  });
+  };
+
+  let aiResult: ThumbnailResult;
+  let thumbnailSource: ThumbnailResult["source"];
+
+  if (model === "imagen") {
+    // Use Imagen 4 model
+    console.log(`[Thumbnail] Using Imagen 4 for: "${title.slice(0, 50)}..."`);
+    aiResult = await generateThumbnail(request);
+    thumbnailSource = "imagen";
+  } else {
+    // Use Gemini Flash Image model (default)
+    console.log(`[Thumbnail] Using Gemini Flash for: "${title.slice(0, 50)}..."`);
+    aiResult = await generateThumbnailWithGeminiFlash(request);
+    thumbnailSource = "gemini_flash";
+  }
 
   if (
-    geminiResult.success &&
-    geminiResult.thumbnail_url &&
-    geminiResult.thumbnail_url !== DEFAULT_PLACEHOLDER
+    aiResult.success &&
+    aiResult.thumbnail_url &&
+    aiResult.thumbnail_url !== DEFAULT_PLACEHOLDER
   ) {
-    await updateContentThumbnail(contentId, geminiResult.thumbnail_url, "gemini_flash");
-    return geminiResult;
+    await updateContentThumbnail(contentId, aiResult.thumbnail_url, thumbnailSource);
+    return aiResult;
   }
 
   // Fallback to OG Image if AI generation fails

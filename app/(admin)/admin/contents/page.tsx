@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import Image from "next/image";
+import { Sparkles, Check } from "lucide-react";
 import ThumbnailManager from "@/components/admin/ThumbnailManager";
 import TargetManager from "@/components/admin/TargetManager";
 import CronScheduler from "@/components/admin/CronScheduler";
@@ -9,6 +10,16 @@ import UnusedThumbnailManager from "@/components/admin/UnusedThumbnailManager";
 import BatchCollector from "@/components/admin/BatchCollector";
 import { useToast } from "@/components/ui/ToastProvider";
 import type { ThumbnailSource } from "@/types/automation";
+
+// Thumbnail model types
+type ThumbnailModel = "imagen" | "gemini_flash";
+
+const THUMBNAIL_MODELS: Record<ThumbnailModel, { label: string; price: string; color: string }> = {
+  imagen: { label: "Imagen 4", price: "$0.04", color: "text-purple-400" },
+  gemini_flash: { label: "Gemini Flash", price: "$0.039", color: "text-blue-400" },
+};
+
+const THUMBNAIL_MODEL_STORAGE_KEY = "ccgather_thumbnail_model";
 
 type ContentType = "news" | "youtube";
 type ContentStatus = "pending" | "ready" | "published" | "rejected";
@@ -133,6 +144,31 @@ export default function AdminContentsPage() {
   const [editingItem, setEditingItem] = useState<ContentItem | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
   const { showToast } = useToast();
+
+  // Thumbnail model settings
+  const [thumbnailModel, setThumbnailModel] = useState<ThumbnailModel>("gemini_flash");
+  const [showModelSettings, setShowModelSettings] = useState(false);
+
+  // Load thumbnail model preference from localStorage
+  useEffect(() => {
+    const saved = localStorage.getItem(THUMBNAIL_MODEL_STORAGE_KEY);
+    if (saved && (saved === "imagen" || saved === "gemini_flash")) {
+      setThumbnailModel(saved);
+    }
+  }, []);
+
+  // Save thumbnail model preference to localStorage
+  const handleModelChange = (model: ThumbnailModel) => {
+    setThumbnailModel(model);
+    localStorage.setItem(THUMBNAIL_MODEL_STORAGE_KEY, model);
+    setShowModelSettings(false);
+    showToast({
+      type: "success",
+      title: "설정 저장",
+      message: `기본 이미지 모델이 ${THUMBNAIL_MODELS[model].label}(으)로 설정되었습니다.`,
+      duration: 3000,
+    });
+  };
 
   const fetchContents = useCallback(async () => {
     setLoading(true);
@@ -280,21 +316,90 @@ export default function AdminContentsPage() {
         {/* News/YouTube Content List */}
         {(activeTab === "news" || activeTab === "youtube") && (
           <>
-            {/* Status Filter */}
-            <div className="flex gap-1.5">
-              {(["all", "pending", "ready", "published", "rejected"] as const).map((s) => (
+            {/* Status Filter + Model Settings */}
+            <div className="flex items-center justify-between gap-4">
+              {/* Status Filter */}
+              <div className="flex gap-1.5">
+                {(["all", "pending", "ready", "published", "rejected"] as const).map((s) => (
+                  <button
+                    key={s}
+                    onClick={() => setFilter(s)}
+                    className={`px-3 py-1.5 rounded text-[11px] font-medium transition-colors ${
+                      filter === s
+                        ? "bg-white/15 text-white"
+                        : "bg-white/5 text-white/40 hover:text-white/60"
+                    }`}
+                  >
+                    {s === "all" ? "전체" : STATUS_STYLES[s].label}
+                  </button>
+                ))}
+              </div>
+
+              {/* Thumbnail Model Settings */}
+              <div className="relative">
                 <button
-                  key={s}
-                  onClick={() => setFilter(s)}
-                  className={`px-3 py-1.5 rounded text-[11px] font-medium transition-colors ${
-                    filter === s
-                      ? "bg-white/15 text-white"
-                      : "bg-white/5 text-white/40 hover:text-white/60"
+                  onClick={() => setShowModelSettings(!showModelSettings)}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-[11px] font-medium transition-colors ${
+                    showModelSettings
+                      ? "bg-purple-500/20 text-purple-400"
+                      : "bg-white/5 text-white/50 hover:text-white/70"
                   }`}
                 >
-                  {s === "all" ? "전체" : STATUS_STYLES[s].label}
+                  <Sparkles className="w-3.5 h-3.5" />
+                  <span>이미지 모델</span>
+                  <span className={`${THUMBNAIL_MODELS[thumbnailModel].color}`}>
+                    {THUMBNAIL_MODELS[thumbnailModel].label}
+                  </span>
                 </button>
-              ))}
+
+                {/* Model Selection Dropdown */}
+                {showModelSettings && (
+                  <>
+                    {/* Backdrop */}
+                    <div
+                      className="fixed inset-0 z-10"
+                      onClick={() => setShowModelSettings(false)}
+                    />
+                    {/* Dropdown */}
+                    <div className="absolute right-0 top-full mt-1 z-20 w-56 bg-[#1a1a1a] border border-white/10 rounded-lg shadow-xl overflow-hidden">
+                      <div className="px-3 py-2 border-b border-white/10">
+                        <div className="text-[11px] font-medium text-white/70">
+                          기본 이미지 생성 모델
+                        </div>
+                        <div className="text-[10px] text-white/40 mt-0.5">
+                          배치 수집 및 자동 수집 시 사용됩니다
+                        </div>
+                      </div>
+                      <div className="p-1.5">
+                        {(Object.keys(THUMBNAIL_MODELS) as ThumbnailModel[]).map((model) => (
+                          <button
+                            key={model}
+                            onClick={() => handleModelChange(model)}
+                            className={`w-full flex items-center justify-between px-3 py-2 rounded text-[11px] transition-colors ${
+                              thumbnailModel === model
+                                ? "bg-purple-500/20 text-purple-400"
+                                : "text-white/70 hover:bg-white/5"
+                            }`}
+                          >
+                            <div className="flex items-center gap-2">
+                              <span className={THUMBNAIL_MODELS[model].color}>
+                                {THUMBNAIL_MODELS[model].label}
+                              </span>
+                              <span className="text-white/40">{THUMBNAIL_MODELS[model].price}</span>
+                            </div>
+                            {thumbnailModel === model && (
+                              <Check className="w-3.5 h-3.5 text-emerald-400" />
+                            )}
+                          </button>
+                        ))}
+                      </div>
+                      <div className="px-3 py-2 border-t border-white/10 text-[9px] text-white/30">
+                        💡 Imagen 4: 사실적 스타일 • Gemini Flash: 일러스트 스타일
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
             </div>
 
             {/* Content List */}
@@ -337,7 +442,9 @@ export default function AdminContentsPage() {
         {activeTab === "storage" && <UnusedThumbnailManager />}
 
         {/* Batch Collection */}
-        {activeTab === "batch" && <BatchCollector onComplete={fetchContents} />}
+        {activeTab === "batch" && (
+          <BatchCollector onComplete={fetchContents} thumbnailModel={thumbnailModel} />
+        )}
       </div>
 
       {/* Edit Modal */}

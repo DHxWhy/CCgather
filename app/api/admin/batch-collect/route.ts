@@ -50,13 +50,16 @@ export async function POST(request: NextRequest) {
     urls,
     delayMs = 30000,
     autoPublish: shouldAutoPublish = true,
+    thumbnailModel: requestedModel = "gemini_flash",
   } = body as {
     urls: Array<{ url: string; category: TargetCategory }>;
     delayMs?: number;
     autoPublish?: boolean;
+    thumbnailModel?: "imagen" | "gemini_flash";
   };
   // Capture in local const for closure
   const autoPublish = shouldAutoPublish;
+  const thumbnailModel = requestedModel;
 
   if (!urls || !Array.isArray(urls) || urls.length === 0) {
     return new Response(JSON.stringify({ error: "URLs array is required" }), {
@@ -199,21 +202,26 @@ export async function POST(request: NextRequest) {
             throw new Error(insertError?.message || "Failed to insert content");
           }
 
-          // Generate thumbnail (with articleType for accurate theme selection)
+          // Generate thumbnail (with articleType and model selection)
           const thumbnailResult = await getThumbnailWithFallback(
             insertedContent.id,
             url,
             insertedContent.title,
             insertedContent.summary_md,
             false, // Don't skip AI generation
-            extractedFacts?.classification?.primary // articleType for theme selection
+            extractedFacts?.classification?.primary, // articleType for theme selection
+            thumbnailModel // User-selected model (imagen or gemini_flash)
           );
 
           // Log AI usage for thumbnail if generated
           if (thumbnailResult?.cost_usd && thumbnailResult.cost_usd > 0) {
+            const thumbnailModelName =
+              thumbnailResult.source === "imagen"
+                ? "imagen-4.0-generate-001"
+                : "gemini-2.5-flash-image";
             await supabase.from("ai_usage_log").insert({
               request_type: "thumbnail_generate",
-              model: "imagen-4.0-generate-001",
+              model: thumbnailModelName,
               input_tokens: 0,
               output_tokens: 0,
               total_tokens: 0,

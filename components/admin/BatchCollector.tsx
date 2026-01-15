@@ -10,7 +10,6 @@ interface LogEntry {
   url?: string;
   title?: string;
   message?: string;
-  stats?: { success: number; failed: number; skipped: number };
 }
 
 // Category options - must match DB check constraint
@@ -23,7 +22,23 @@ const CATEGORY_OPTIONS = [
   { value: "youtube", label: "📺 YouTube" },
 ];
 
-export default function BatchCollector({ onComplete }: { onComplete?: () => void }) {
+// Thumbnail model types
+type ThumbnailModel = "imagen" | "gemini_flash";
+
+const THUMBNAIL_MODEL_LABELS: Record<ThumbnailModel, string> = {
+  imagen: "Imagen 4",
+  gemini_flash: "Gemini Flash",
+};
+
+interface BatchCollectorProps {
+  onComplete?: () => void;
+  thumbnailModel?: ThumbnailModel;
+}
+
+export default function BatchCollector({
+  onComplete,
+  thumbnailModel = "gemini_flash",
+}: BatchCollectorProps) {
   const [urlInput, setUrlInput] = useState("");
   const [category, setCategory] = useState("official");
   const [isRunning, setIsRunning] = useState(false);
@@ -33,7 +48,7 @@ export default function BatchCollector({ onComplete }: { onComplete?: () => void
   const [delaySeconds, setDelaySeconds] = useState(60);
   const [autoPublish, setAutoPublish] = useState(true);
   const [showConfirm, setShowConfirm] = useState(false);
-  const abortControllerRef = useRef<AbortController | null>(null);
+  const abortRef = useRef(false);
   const logsEndRef = useRef<HTMLDivElement>(null);
 
   // Parse URLs from input
@@ -49,6 +64,43 @@ export default function BatchCollector({ onComplete }: { onComplete?: () => void
     logsEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [logs]);
 
+  // Delay helper
+  const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+  // Collect single URL using existing API
+  const collectSingleUrl = async (
+    url: string,
+    _index: number
+  ): Promise<{ success: boolean; title?: string; skipped?: boolean; error?: string }> => {
+    try {
+      const response = await fetch("/api/admin/collect-single", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          url,
+          category,
+          force: false,
+          autoPublish,
+          thumbnailModel,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        if (data.skipped) {
+          return { success: true, skipped: true, title: data.existingTitle || url };
+        }
+        return { success: true, title: data.title || url };
+      } else {
+        return { success: false, error: data.error || "Unknown error" };
+      }
+    } catch (error) {
+      return { success: false, error: error instanceof Error ? error.message : "Network error" };
+    }
+  };
+
+  // Client-side batch processing
   const startBatchCollection = async () => {
     if (totalArticles === 0) return;
 
@@ -56,94 +108,111 @@ export default function BatchCollector({ onComplete }: { onComplete?: () => void
     setLogs([]);
     setCurrentIndex(0);
     setStats({ success: 0, failed: 0, skipped: 0 });
+    abortRef.current = false;
 
-    abortControllerRef.current = new AbortController();
+    const newStats = { success: 0, failed: 0, skipped: 0 };
 
-    try {
-      const response = await fetch("/api/admin/batch-collect", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          urls: parsedUrls.map((url) => ({ url, category })),
-          delayMs: delaySeconds * 1000,
-          autoPublish,
-        }),
-        signal: abortControllerRef.current.signal,
-      });
-
-      if (!response.ok) {
-        throw new Error("Failed to start batch collection");
-      }
-
-      const reader = response.body?.getReader();
-      if (!reader) throw new Error("No response body");
-
-      const decoder = new TextDecoder();
-      let buffer = "";
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split("\n");
-        buffer = lines.pop() || "";
-
-        for (const line of lines) {
-          if (line.startsWith("data: ")) {
-            try {
-              const event = JSON.parse(line.slice(6)) as LogEntry;
-              setLogs((prev) => [...prev, event]);
-              setCurrentIndex(event.index);
-
-              // Update stats in real-time based on event type
-              if (event.type === "success") {
-                setStats((prev) => ({ ...prev, success: prev.success + 1 }));
-              } else if (event.type === "error") {
-                setStats((prev) => ({ ...prev, failed: prev.failed + 1 }));
-              } else if (event.type === "skip") {
-                setStats((prev) => ({ ...prev, skipped: prev.skipped + 1 }));
-              } else if (event.type === "complete" && event.stats) {
-                // Final stats from server (for accuracy)
-                setStats(event.stats);
-              }
-            } catch {
-              // Ignore parse errors
-            }
-          }
-        }
-      }
-    } catch (error) {
-      if ((error as Error).name === "AbortError") {
+    for (let i = 0; i < parsedUrls.length; i++) {
+      if (abortRef.current) {
         setLogs((prev) => [
           ...prev,
           {
             type: "error",
-            index: currentIndex,
+            index: i,
             total: totalArticles,
             message: "수집이 중단되었습니다",
           },
         ]);
-      } else {
+        break;
+      }
+
+      const url = parsedUrls[i];
+      if (!url) continue;
+      setCurrentIndex(i);
+
+      // Progress event
+      setLogs((prev) => [
+        ...prev,
+        {
+          type: "progress",
+          index: i,
+          total: totalArticles,
+          url,
+          message: `처리 중... (${i + 1}/${totalArticles})`,
+        },
+      ]);
+
+      // Collect single URL
+      const result = await collectSingleUrl(url, i);
+
+      if (result.skipped) {
+        newStats.skipped++;
+        setStats({ ...newStats });
         setLogs((prev) => [
-          ...prev,
+          ...prev.filter((l) => !(l.type === "progress" && l.index === i)),
+          {
+            type: "skip",
+            index: i,
+            total: totalArticles,
+            url,
+            title: result.title,
+            message: `이미 존재: ${result.title}`,
+          },
+        ]);
+      } else if (result.success) {
+        newStats.success++;
+        setStats({ ...newStats });
+        setLogs((prev) => [
+          ...prev.filter((l) => !(l.type === "progress" && l.index === i)),
+          {
+            type: "success",
+            index: i,
+            total: totalArticles,
+            url,
+            title: result.title,
+            message: `성공: ${result.title}`,
+          },
+        ]);
+      } else {
+        newStats.failed++;
+        setStats({ ...newStats });
+        setLogs((prev) => [
+          ...prev.filter((l) => !(l.type === "progress" && l.index === i)),
           {
             type: "error",
-            index: currentIndex,
+            index: i,
             total: totalArticles,
-            message: `오류: ${(error as Error).message}`,
+            url,
+            message: `실패: ${result.error}`,
           },
         ]);
       }
-    } finally {
-      setIsRunning(false);
-      abortControllerRef.current = null;
-      onComplete?.();
+
+      // Delay before next request (except for the last one or if aborted)
+      if (i < parsedUrls.length - 1 && !abortRef.current) {
+        await delay(delaySeconds * 1000);
+      }
     }
+
+    // Completion event
+    if (!abortRef.current) {
+      setLogs((prev) => [
+        ...prev,
+        {
+          type: "complete",
+          index: totalArticles,
+          total: totalArticles,
+          message: "배치 수집 완료",
+        },
+      ]);
+    }
+
+    setIsRunning(false);
+    onComplete?.();
   };
 
   const stopBatchCollection = () => {
-    abortControllerRef.current?.abort();
+    abortRef.current = true;
   };
 
   const clearUrls = () => {
@@ -407,10 +476,19 @@ export default function BatchCollector({ onComplete }: { onComplete?: () => void
                       </strong>
                     </span>
                   </li>
+                  <li className="flex items-center gap-2">
+                    <span className="w-1.5 h-1.5 bg-purple-500 rounded-full" />
+                    <span>
+                      이미지 모델:{" "}
+                      <strong className="text-purple-400">
+                        {THUMBNAIL_MODEL_LABELS[thumbnailModel]}
+                      </strong>
+                    </span>
+                  </li>
                 </ul>
               </div>
-              <div className="p-3 bg-yellow-500/10 border border-yellow-500/20 rounded text-[11px] text-yellow-400">
-                ⚠️ 수집이 시작되면 창을 닫지 마세요. 중간에 중단할 수 있습니다.
+              <div className="p-3 bg-emerald-500/10 border border-emerald-500/20 rounded text-[11px] text-emerald-400">
+                ✅ 클라이언트 측에서 순차 처리됩니다. 브라우저 탭을 열어두세요.
               </div>
             </div>
             <div className="p-4 border-t border-white/[0.06] flex gap-2">
