@@ -61,8 +61,9 @@ function ToolListItemComponent({
   // 댓글 수 계산 (comment가 있는 voter 수)
   const commentCount = voters.filter((v) => v.comment).length;
 
-  // 표시할 최대 아바타 수
-  const MAX_VISIBLE_AVATARS = 12;
+  // 표시할 최대 아바타 수 (모바일에서는 더 적게)
+  const MAX_VISIBLE_AVATARS_DESKTOP = 12;
+  const MAX_VISIBLE_AVATARS_MOBILE = 6;
 
   const handleVote = async (e: React.MouseEvent) => {
     e.preventDefault();
@@ -140,6 +141,100 @@ function ToolListItemComponent({
     }
   };
 
+  // 아바타 렌더링 헬퍼
+  const renderAvatars = (maxAvatars: number) => (
+    <AnimatePresence mode="popLayout">
+      <div className="flex items-center">
+        {voters.slice(0, maxAvatars).map((voter, index) => (
+          <motion.div
+            key={voter.user_id}
+            initial={{ opacity: 0, scale: 0.8, x: -10 }}
+            animate={{ opacity: 1, scale: 1, x: 0 }}
+            exit={{ opacity: 0, scale: 0.8, x: -10 }}
+            transition={{
+              type: "spring",
+              stiffness: 500,
+              damping: 30,
+              delay: index * 0.02,
+            }}
+            className={cn(
+              "relative w-6 h-6 rounded-full overflow-visible",
+              "border-2 border-[var(--color-bg-card)]",
+              "flex-shrink-0 group/avatar cursor-pointer"
+            )}
+            style={{
+              marginLeft: index === 0 ? 0 : -8,
+              zIndex: maxAvatars - index,
+            }}
+          >
+            <div className="w-full h-full rounded-full overflow-hidden">
+              {voter.avatar_url ? (
+                <Image
+                  src={voter.avatar_url}
+                  alt={voter.username}
+                  width={24}
+                  height={24}
+                  className="object-cover"
+                  unoptimized
+                />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center bg-[var(--color-bg-elevated)] text-[9px] font-medium text-[var(--color-text-muted)]">
+                  {voter.username.charAt(0).toUpperCase()}
+                </div>
+              )}
+            </div>
+            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 px-2 py-1 bg-[var(--color-bg-elevated)] border border-[var(--border-default)] rounded text-[10px] text-[var(--color-text-primary)] whitespace-nowrap opacity-0 group-hover/avatar:opacity-100 transition-opacity pointer-events-none z-50 shadow-lg">
+              @{voter.username}
+            </div>
+          </motion.div>
+        ))}
+        {voters.length > maxAvatars && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.8 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className={cn(
+              "w-6 h-6 rounded-full",
+              "border-2 border-[var(--color-bg-card)]",
+              "bg-[var(--color-bg-elevated)]",
+              "flex items-center justify-center",
+              "text-[9px] font-medium text-[var(--color-text-muted)]",
+              "flex-shrink-0"
+            )}
+            style={{ marginLeft: -8, zIndex: 0 }}
+          >
+            +{voters.length - maxAvatars}
+          </motion.div>
+        )}
+      </div>
+    </AnimatePresence>
+  );
+
+  // 상태 뱃지 렌더링 헬퍼
+  const renderStatusBadge = () => {
+    if (isFeatured) {
+      return (
+        <span className="px-1.5 py-0.5 rounded text-[9px] bg-gradient-to-r from-[var(--color-claude-coral)]/20 to-purple-500/20 text-[var(--color-claude-coral)] flex-shrink-0">
+          ⭐
+        </span>
+      );
+    }
+    if (isHot) {
+      return (
+        <span className="px-1.5 py-0.5 rounded text-[9px] bg-orange-500/20 text-orange-400 flex-shrink-0">
+          🔥
+        </span>
+      );
+    }
+    if (isNew) {
+      return (
+        <span className="px-1.5 py-0.5 rounded text-[9px] bg-green-500/20 text-green-400 font-medium flex-shrink-0">
+          NEW
+        </span>
+      );
+    }
+    return null;
+  };
+
   return (
     <Link href={`/tools/${tool.slug}`} className="block group">
       <motion.div
@@ -156,8 +251,103 @@ function ToolListItemComponent({
         )}
         style={getRankStyle()}
       >
-        {/* Main Content Grid - 3 columns: Left(info) / Center(avatars) / Right(vote) */}
-        <div className="flex items-center gap-3">
+        {/* ==================== MOBILE LAYOUT (3-row) ==================== */}
+        <div className="sm:hidden flex gap-2">
+          {/* Left: Rank (vertically centered to entire card height) */}
+          {showRank && rank && (
+            <div className="w-6 flex-shrink-0 flex items-center justify-center">
+              {getRankBadge() ? (
+                <span className="text-base">{getRankBadge()}</span>
+              ) : (
+                <span className="text-[10px] font-bold text-[var(--color-text-muted)]">
+                  #{rank}
+                </span>
+              )}
+            </div>
+          )}
+
+          {/* Right: Logo + Content */}
+          <div className="flex-1 min-w-0">
+            {/* Top section: Logo + Name/Avatars */}
+            <div className="flex gap-2.5">
+              {/* Logo */}
+              <div className="flex-shrink-0">
+                {tool.logo_url ? (
+                  <Image
+                    src={tool.logo_url}
+                    alt={tool.name}
+                    width={40}
+                    height={40}
+                    className="rounded-lg object-cover"
+                    unoptimized
+                  />
+                ) : (
+                  <div className="w-10 h-10 rounded-lg bg-[var(--color-bg-elevated)] flex items-center justify-center text-xl">
+                    {categoryMeta.emoji}
+                  </div>
+                )}
+              </div>
+
+              {/* Name + Avatars column */}
+              <div
+                className={cn(
+                  "flex-1 min-w-0 flex flex-col",
+                  // vote한 사람이 없으면 세로 중앙 정렬
+                  voters.length === 0 && "justify-center"
+                )}
+              >
+                {/* Row 1: Name + Badge */}
+                <div className="flex items-center gap-1.5">
+                  <h3 className="font-semibold text-sm text-[var(--color-text-primary)] truncate group-hover:text-[var(--color-claude-coral)] transition-colors">
+                    {tool.name}
+                  </h3>
+                  {renderStatusBadge()}
+                </div>
+
+                {/* Row 2: Avatars + Vote Button (only if voters exist) */}
+                {voters.length > 0 ? (
+                  <div className="flex items-center justify-between mt-1">
+                    <div className="flex items-center gap-2">
+                      {renderAvatars(MAX_VISIBLE_AVATARS_MOBILE)}
+                      {commentCount > 0 && (
+                        <div className="flex items-center gap-0.5 text-[var(--color-text-muted)]">
+                          <MessageCircle className="w-3 h-3" />
+                          <span className="text-[10px]">{commentCount}</span>
+                        </div>
+                      )}
+                    </div>
+                    <VoteButton
+                      count={voteCount}
+                      voted={voted}
+                      loading={isVoting}
+                      onClick={handleVote}
+                      size="sm"
+                    />
+                  </div>
+                ) : (
+                  /* No voters: Vote button next to name */
+                  <div className="flex items-center justify-end mt-1">
+                    <VoteButton
+                      count={voteCount}
+                      voted={voted}
+                      loading={isVoting}
+                      onClick={handleVote}
+                      size="sm"
+                    />
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Row 3: Description (below logo, left-aligned with logo) */}
+            <p className="text-[11px] text-[var(--color-text-muted)] line-clamp-2 mt-1.5">
+              {tool.tagline}
+            </p>
+          </div>
+        </div>
+
+        {/* ==================== DESKTOP LAYOUT (original) ==================== */}
+        <div className="hidden sm:flex items-center gap-3">
           {/* Rank Badge */}
           {showRank && rank && (
             <div className="w-7 flex-shrink-0 flex items-center justify-center">
@@ -187,32 +377,13 @@ function ToolListItemComponent({
             )}
           </div>
 
-          {/* Left: Name + Tagline + Price */}
+          {/* Name + Tagline + Price */}
           <div className="flex-1 min-w-0">
-            {/* Row 1: Name + Badges + Price */}
             <div className="flex items-center gap-2 mb-0.5">
               <h3 className="font-semibold text-sm text-[var(--color-text-primary)] truncate group-hover:text-[var(--color-claude-coral)] transition-colors">
                 {tool.name}
               </h3>
-
-              {/* Status Badges */}
-              {isFeatured && (
-                <span className="px-1.5 py-0.5 rounded text-[9px] bg-gradient-to-r from-[var(--color-claude-coral)]/20 to-purple-500/20 text-[var(--color-claude-coral)] flex-shrink-0">
-                  ⭐
-                </span>
-              )}
-              {isHot && !isFeatured && (
-                <span className="px-1.5 py-0.5 rounded text-[9px] bg-orange-500/20 text-orange-400 flex-shrink-0">
-                  🔥
-                </span>
-              )}
-              {isNew && !isHot && !isFeatured && (
-                <span className="px-1.5 py-0.5 rounded text-[9px] bg-green-500/20 text-green-400 font-medium flex-shrink-0">
-                  NEW
-                </span>
-              )}
-
-              {/* Price Label */}
+              {renderStatusBadge()}
               <span
                 className={cn(
                   "text-[11px] font-medium flex-shrink-0 ml-auto",
@@ -222,85 +393,14 @@ function ToolListItemComponent({
                 {pricingMeta.label}
               </span>
             </div>
-
-            {/* Row 2: Tagline */}
             <p className="text-[11px] text-[var(--color-text-muted)] truncate pr-2">
               {tool.tagline}
             </p>
           </div>
 
-          {/* Center: Voter Avatars */}
+          {/* Voter Avatars */}
           <div className="flex-shrink-0 flex items-center gap-2">
-            <AnimatePresence mode="popLayout">
-              <div className="flex items-center">
-                {voters.slice(0, MAX_VISIBLE_AVATARS).map((voter, index) => (
-                  <motion.div
-                    key={voter.user_id}
-                    initial={{ opacity: 0, scale: 0.8, x: -10 }}
-                    animate={{ opacity: 1, scale: 1, x: 0 }}
-                    exit={{ opacity: 0, scale: 0.8, x: -10 }}
-                    transition={{
-                      type: "spring",
-                      stiffness: 500,
-                      damping: 30,
-                      delay: index * 0.02,
-                    }}
-                    className={cn(
-                      "relative w-6 h-6 rounded-full overflow-visible",
-                      "border-2 border-[var(--color-bg-card)]",
-                      "flex-shrink-0 group/avatar cursor-pointer"
-                    )}
-                    style={{
-                      marginLeft: index === 0 ? 0 : -8,
-                      zIndex: MAX_VISIBLE_AVATARS - index,
-                    }}
-                  >
-                    {/* Avatar Image */}
-                    <div className="w-full h-full rounded-full overflow-hidden">
-                      {voter.avatar_url ? (
-                        <Image
-                          src={voter.avatar_url}
-                          alt={voter.username}
-                          width={24}
-                          height={24}
-                          className="object-cover"
-                          unoptimized
-                        />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center bg-[var(--color-bg-elevated)] text-[9px] font-medium text-[var(--color-text-muted)]">
-                          {voter.username.charAt(0).toUpperCase()}
-                        </div>
-                      )}
-                    </div>
-                    {/* Hover Tooltip */}
-                    <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 px-2 py-1 bg-[var(--color-bg-elevated)] border border-[var(--border-default)] rounded text-[10px] text-[var(--color-text-primary)] whitespace-nowrap opacity-0 group-hover/avatar:opacity-100 transition-opacity pointer-events-none z-50 shadow-lg">
-                      @{voter.username}
-                    </div>
-                  </motion.div>
-                ))}
-
-                {/* +n 표시 */}
-                {voters.length > MAX_VISIBLE_AVATARS && (
-                  <motion.div
-                    initial={{ opacity: 0, scale: 0.8 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    className={cn(
-                      "w-6 h-6 rounded-full",
-                      "border-2 border-[var(--color-bg-card)]",
-                      "bg-[var(--color-bg-elevated)]",
-                      "flex items-center justify-center",
-                      "text-[9px] font-medium text-[var(--color-text-muted)]",
-                      "flex-shrink-0"
-                    )}
-                    style={{ marginLeft: -8, zIndex: 0 }}
-                  >
-                    +{voters.length - MAX_VISIBLE_AVATARS}
-                  </motion.div>
-                )}
-              </div>
-            </AnimatePresence>
-
-            {/* Comment Count - 댓글 있을 때만 표시 */}
+            {renderAvatars(MAX_VISIBLE_AVATARS_DESKTOP)}
             {commentCount > 0 && (
               <div className="flex items-center gap-1 text-[var(--color-text-muted)] ml-1">
                 <MessageCircle className="w-3 h-3" />
@@ -309,7 +409,7 @@ function ToolListItemComponent({
             )}
           </div>
 
-          {/* Right: Vote Button */}
+          {/* Vote Button */}
           <div className="flex-shrink-0 pl-2">
             <VoteButton
               count={voteCount}

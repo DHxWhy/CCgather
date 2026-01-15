@@ -64,7 +64,7 @@ function CTASectionComponent({ articleUrl, articleTitle, oneLiner }: CTASectionP
   // Show nothing while loading to prevent layout shift
   if (isLoading) {
     return (
-      <div className="p-6 rounded-2xl bg-white/[0.02] border border-white/10 animate-pulse">
+      <div className="p-6 rounded-2xl bg-[var(--color-section-bg)] border border-[var(--border-default)] animate-pulse">
         <div className="h-20" />
       </div>
     );
@@ -79,10 +79,15 @@ function CTASectionComponent({ articleUrl, articleTitle, oneLiner }: CTASectionP
       >
         <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
           <div>
-            <h3 id="share-heading" className="text-lg font-semibold text-white mb-1">
+            <h3
+              id="share-heading"
+              className="text-lg font-semibold text-[var(--color-text-primary)] mb-1"
+            >
               Was this article helpful?
             </h3>
-            <p className="text-sm text-text-muted">Share it with your fellow developers</p>
+            <p className="text-sm text-[var(--color-text-muted)]">
+              Share it with your fellow developers
+            </p>
           </div>
           <ShareButtons url={articleUrl} title={articleTitle} oneLiner={oneLiner} />
         </div>
@@ -100,12 +105,12 @@ function CTASectionComponent({ articleUrl, articleTitle, oneLiner }: CTASectionP
         <div className="flex-1">
           <h3
             id="cta-heading"
-            className="text-xl font-semibold text-white mb-2 flex items-center gap-2 justify-center sm:justify-start"
+            className="text-xl font-semibold text-[var(--color-text-primary)] mb-2 flex items-center gap-2 justify-center sm:justify-start"
           >
             <Sparkles className="w-5 h-5 text-orange-400" aria-hidden="true" />
             Are you a Claude Code user?
           </h3>
-          <p className="text-text-muted mb-3">
+          <p className="text-[var(--color-text-muted)] mb-3">
             Join CCgather and share your usage to discover how other developers are using Claude
             Code.
           </p>
@@ -119,14 +124,14 @@ function CTASectionComponent({ articleUrl, articleTitle, oneLiner }: CTASectionP
         <nav className="flex flex-col sm:flex-row gap-3" aria-label="Sign up options">
           <Link
             href="/login"
-            className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-lg bg-orange-500 text-white font-medium hover:bg-orange-600 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-500 focus-visible:ring-offset-2 focus-visible:ring-offset-black"
+            className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-lg bg-orange-500 text-white font-medium hover:bg-orange-600 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-500 focus-visible:ring-offset-2"
           >
             Get Started Free
             <ArrowRight className="w-4 h-4" aria-hidden="true" />
           </Link>
           <Link
             href="/"
-            className="inline-flex items-center justify-center px-6 py-3 rounded-lg border border-white/20 text-white/70 font-medium hover:bg-white/5 hover:text-white transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-white/50 focus-visible:ring-offset-2 focus-visible:ring-offset-black"
+            className="inline-flex items-center justify-center px-6 py-3 rounded-lg border border-[var(--border-default)] text-[var(--color-text-secondary)] font-medium hover:bg-[var(--color-section-bg)] hover:text-[var(--color-text-primary)] transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-text-muted)] focus-visible:ring-offset-2"
           >
             Learn More
           </Link>

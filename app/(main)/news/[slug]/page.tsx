@@ -354,7 +354,7 @@ export default async function NewsDetailPage({ params }: NewsDetailPageProps) {
         {/* Back Navigation */}
         <Link
           href="/news"
-          className="inline-flex items-center gap-2 text-text-muted hover:text-white transition-colors mb-6 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-500 focus-visible:ring-offset-2 focus-visible:ring-offset-black rounded"
+          className="inline-flex items-center gap-2 text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] transition-colors mb-6 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-500 focus-visible:ring-offset-2 rounded"
           aria-label="Back to news list"
         >
           <ArrowLeft className="w-4 h-4" aria-hidden="true" />
@@ -364,7 +364,9 @@ export default async function NewsDetailPage({ params }: NewsDetailPageProps) {
         {/* One-Liner Summary with Copy Button */}
         {oneLiner && (
           <div className="flex items-center justify-between gap-3 p-4 rounded-xl bg-orange-500/10 border border-orange-500/20 mb-6">
-            <p className="text-base font-semibold text-white flex-1">{oneLiner}</p>
+            <p className="text-base font-semibold text-[var(--color-text-primary)] flex-1">
+              {oneLiner}
+            </p>
             <CopyButton text={oneLiner} />
           </div>
         )}
@@ -372,13 +374,13 @@ export default async function NewsDetailPage({ params }: NewsDetailPageProps) {
         {/* Article Header */}
         <header className="mb-8">
           {/* Title */}
-          <h1 className="text-2xl md:text-3xl lg:text-4xl font-bold text-white mb-4 leading-tight">
+          <h1 className="text-2xl md:text-3xl lg:text-4xl font-bold text-[var(--color-text-primary)] mb-4 leading-tight">
             {titleEmoji && <span className="mr-2">{titleEmoji}</span>}
             {title}
           </h1>
 
           {/* Meta Information */}
-          <div className="flex flex-wrap items-center gap-3 text-sm text-text-muted">
+          <div className="flex flex-wrap items-center gap-3 text-sm text-[var(--color-text-muted)]">
             <time
               className="flex items-center gap-1.5"
               dateTime={article.published_at || article.created_at}
@@ -388,14 +390,17 @@ export default async function NewsDetailPage({ params }: NewsDetailPageProps) {
             </time>
 
             {category && (
-              <span className="flex items-center gap-1.5 px-2 py-0.5 rounded bg-white/10">
+              <span className="flex items-center gap-1.5 px-2 py-0.5 rounded bg-[var(--color-bg-elevated)]">
                 <Tag className="w-3.5 h-3.5" aria-hidden="true" />
                 {category}
               </span>
             )}
 
             {readTime && (
-              <span className="text-text-muted/60" aria-label={`Reading time: ${readTime}`}>
+              <span
+                className="text-[var(--color-text-muted)]"
+                aria-label={`Reading time: ${readTime}`}
+              >
                 <span aria-hidden="true">📖</span> {readTime}
               </span>
             )}
@@ -451,17 +456,17 @@ export default async function NewsDetailPage({ params }: NewsDetailPageProps) {
         })()}
 
         {/* Article Body */}
-        <div className="prose prose-invert prose-lg max-w-none mb-8">
+        <div className="prose prose-lg max-w-none mb-8">
           {/* Summary/Intro */}
           {summary && !bodyHtml && (
-            <p className="text-lg text-white/90 leading-relaxed">{summary}</p>
+            <p className="text-lg text-[var(--color-text-secondary)] leading-relaxed">{summary}</p>
           )}
 
           {/* Analogy Box */}
           {analogy && (
             <div className="not-prose my-6 p-4 rounded-lg bg-blue-500/10 border-l-4 border-blue-500/50">
               <span className="mr-2 text-lg">{analogy.icon}</span>
-              <span className="text-white/80 italic">{analogy.text}</span>
+              <span className="text-[var(--color-text-secondary)] italic">{analogy.text}</span>
             </div>
           )}
 
@@ -476,11 +481,11 @@ export default async function NewsDetailPage({ params }: NewsDetailPageProps) {
           {/* 쉽게 풀어보기 Box */}
           {insightHtml && (
             <div className="not-prose my-8 p-5 rounded-xl bg-emerald-500/10 border-l-4 border-emerald-500/50">
-              <h3 className="text-lg font-semibold text-white mb-3 flex items-center gap-2">
+              <h3 className="text-lg font-semibold text-[var(--color-text-primary)] mb-3 flex items-center gap-2">
                 🌱 In Simple Terms
               </h3>
               <div
-                className="text-white/80 leading-relaxed text-[15px]"
+                className="text-[var(--color-text-secondary)] leading-relaxed text-[15px]"
                 dangerouslySetInnerHTML={{ __html: sanitizeHtml(insightHtml) }}
               />
             </div>
@@ -489,10 +494,10 @@ export default async function NewsDetailPage({ params }: NewsDetailPageProps) {
           {/* Fallback Insight from rich_content */}
           {!insightHtml && richContent?.summary?.analogy && (
             <div className="not-prose my-8 p-5 rounded-xl bg-emerald-500/10 border-l-4 border-emerald-500/50">
-              <h3 className="text-lg font-semibold text-white mb-3 flex items-center gap-2">
+              <h3 className="text-lg font-semibold text-[var(--color-text-primary)] mb-3 flex items-center gap-2">
                 🌱 In Simple Terms
               </h3>
-              <p className="text-white/80 leading-relaxed text-[15px]">
+              <p className="text-[var(--color-text-secondary)] leading-relaxed text-[15px]">
                 {richContent.summary?.analogy?.text}
               </p>
             </div>
@@ -501,11 +506,16 @@ export default async function NewsDetailPage({ params }: NewsDetailPageProps) {
 
         {/* Key Takeaways */}
         {keyTakeaways && keyTakeaways.length > 0 && (
-          <section className="mb-8 p-5 rounded-xl bg-white/[0.02] border border-white/10">
-            <h2 className="text-lg font-semibold text-white mb-4">📌 Key Takeaways</h2>
+          <section className="mb-8 p-5 rounded-xl bg-[var(--color-section-bg)] border border-[var(--border-default)]">
+            <h2 className="text-lg font-semibold text-[var(--color-text-primary)] mb-4">
+              📌 Key Takeaways
+            </h2>
             <ul className="space-y-2.5">
               {keyTakeaways.map((point, index) => (
-                <li key={index} className="flex items-start gap-2.5 text-white/80">
+                <li
+                  key={index}
+                  className="flex items-start gap-2.5 text-[var(--color-text-secondary)]"
+                >
                   <span className="text-base flex-shrink-0">{iconToEmoji(point.icon)}</span>
                   <span className="text-[15px] leading-relaxed">{point.text}</span>
                 </li>
@@ -517,7 +527,9 @@ export default async function NewsDetailPage({ params }: NewsDetailPageProps) {
         {/* Related Articles (OG 이미지 배제) */}
         {relatedNews.length > 0 && (
           <section className="mb-8">
-            <h2 className="text-lg font-semibold text-white mb-4">🔗 Related Articles</h2>
+            <h2 className="text-lg font-semibold text-[var(--color-text-primary)] mb-4">
+              🔗 Related Articles
+            </h2>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               {relatedNews.map((related) => {
                 const relatedThumbnail = getThumbnailSrc(related as ContentItem);
@@ -528,9 +540,9 @@ export default async function NewsDetailPage({ params }: NewsDetailPageProps) {
                   <Link
                     key={related.id}
                     href={related.slug ? `/news/${related.slug}` : "#"}
-                    className="group p-3 rounded-lg bg-white/[0.02] border border-white/10 hover:border-white/20 transition-colors"
+                    className="group p-3 rounded-lg bg-[var(--color-section-bg)] border border-[var(--border-default)] hover:border-[var(--border-hover)] transition-colors"
                   >
-                    <div className="relative w-full aspect-video rounded-md overflow-hidden mb-2 bg-black/20">
+                    <div className="relative w-full aspect-video rounded-md overflow-hidden mb-2 bg-[var(--color-bg-elevated)]">
                       {relatedThumbnail ? (
                         <Image
                           src={relatedThumbnail}
@@ -552,7 +564,7 @@ export default async function NewsDetailPage({ params }: NewsDetailPageProps) {
                         </div>
                       )}
                     </div>
-                    <h4 className="text-sm font-medium text-white group-hover:text-blue-400 transition-colors line-clamp-2">
+                    <h4 className="text-sm font-medium text-[var(--color-text-primary)] group-hover:text-[var(--color-claude-coral)] transition-colors line-clamp-2">
                       {related.title}
                     </h4>
                   </Link>
@@ -563,19 +575,19 @@ export default async function NewsDetailPage({ params }: NewsDetailPageProps) {
         )}
 
         {/* Reference - 작은 footer 스타일 */}
-        <div className="mb-8 pt-4 border-t border-white/[0.06]">
-          <p className="text-[11px] text-white/30 leading-relaxed">
+        <div className="mb-8 pt-4 border-t border-[var(--border-default)]">
+          <p className="text-[11px] text-[var(--color-text-muted)] leading-relaxed">
             Source:{" "}
             <a
               href={article.source_url}
               target="_blank"
               rel="noopener noreferrer"
-              className="text-white/40 hover:text-white/60 underline underline-offset-2 transition-colors"
+              className="text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] underline underline-offset-2 transition-colors"
             >
               {article.source_name || new URL(article.source_url).hostname}
             </a>
             {article.fact_check_score && article.fact_check_score >= 0.8 && (
-              <span className="ml-2 text-green-500/60">✓ verified</span>
+              <span className="ml-2 text-green-500">✓ verified</span>
             )}
             <span className="mx-1.5">·</span>
             AI-reconstructed content. Verify with original source.
