@@ -24,6 +24,7 @@ export async function GET(request: NextRequest) {
   try {
     const supabase = createServiceClient();
     const { searchParams } = new URL(request.url);
+    const { userId: clerkId } = await auth();
 
     // Parse query parameters
     const params: GetToolsParams = {
@@ -33,6 +34,17 @@ export async function GET(request: NextRequest) {
       limit: Math.min(parseInt(searchParams.get("limit") || "20"), 50),
       offset: parseInt(searchParams.get("offset") || "0"),
     };
+
+    // Get current user's database ID if authenticated
+    let currentUserDbId: string | null = null;
+    if (clerkId) {
+      const { data: dbUser } = await supabase
+        .from("users")
+        .select("id")
+        .eq("clerk_id", clerkId)
+        .single();
+      currentUserDbId = dbUser?.id || null;
+    }
 
     // Base query - only approved/featured tools
     let query = supabase
@@ -207,10 +219,23 @@ export async function GET(request: NextRequest) {
         };
       }) || [];
 
-    const response: GetToolsResponse = {
+    // Get current user's voted tool IDs
+    let myVotedToolIds: string[] = [];
+    if (currentUserDbId && toolIds.length > 0) {
+      const { data: myVotes } = await supabase
+        .from("tool_votes")
+        .select("tool_id")
+        .eq("user_id", currentUserDbId)
+        .in("tool_id", toolIds);
+      myVotedToolIds = myVotes?.map((v: { tool_id: string }) => v.tool_id) || [];
+    }
+
+    const response: GetToolsResponse & { currentUserDbId?: string } = {
       tools: toolsWithVoters,
       total: count || 0,
       hasMore: (params.offset || 0) + (params.limit || 20) < (count || 0),
+      myVotedToolIds, // 현재 사용자가 투표한 도구 ID 목록
+      currentUserDbId: currentUserDbId || undefined, // 현재 사용자의 DB ID (아바타 필터링용)
     };
 
     return NextResponse.json(response);

@@ -35,7 +35,6 @@ export default function ToolsContent() {
   const { user } = useUser();
 
   // 현재 로그인된 사용자 정보 (optimistic update용)
-  const currentUserId = user?.id;
   const currentUserAvatar = user?.imageUrl;
   const currentUserName = user?.username || user?.firstName || "User";
 
@@ -61,6 +60,7 @@ export default function ToolsContent() {
 
   // User interaction state
   const [userVotes, setUserVotes] = useState<Set<string>>(new Set());
+  const [currentUserDbId, setCurrentUserDbId] = useState<string | null>(null);
 
   // =====================================================
   // Data Fetching
@@ -87,8 +87,24 @@ export default function ToolsContent() {
 
         if (append) {
           setTools((prev) => [...prev, ...data.tools]);
+          // Load more 시에도 새로운 투표 상태 추가
+          if (data.myVotedToolIds) {
+            setUserVotes((prev) => {
+              const newSet = new Set(prev);
+              data.myVotedToolIds.forEach((id: string) => newSet.add(id));
+              return newSet;
+            });
+          }
         } else {
           setTools(data.tools);
+          // 초기 로드 시 사용자의 투표 상태 설정
+          if (data.myVotedToolIds) {
+            setUserVotes(new Set(data.myVotedToolIds));
+          }
+          // 현재 사용자의 DB ID 설정 (아바타 필터링용)
+          if (data.currentUserDbId) {
+            setCurrentUserDbId(data.currentUserDbId);
+          }
         }
 
         setTotal(data.total);
@@ -286,7 +302,7 @@ export default function ToolsContent() {
                   rank={index + 1}
                   isVoted={userVotes.has(tool.id)}
                   onVote={handleVote}
-                  currentUserId={currentUserId}
+                  currentUserId={currentUserDbId || undefined}
                   currentUserAvatar={currentUserAvatar}
                   currentUserName={currentUserName}
                 />

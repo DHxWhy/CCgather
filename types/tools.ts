@@ -191,6 +191,7 @@ export interface GetToolsResponse {
   tools: ToolWithVoters[];
   total: number;
   hasMore: boolean;
+  myVotedToolIds?: string[]; // 현재 사용자가 투표한 도구 ID 목록
 }
 
 export interface SubmitToolRequest {
