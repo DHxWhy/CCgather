@@ -202,10 +202,11 @@ export function MobileDrawer({
       aria-modal="true"
       aria-labelledby={title ? "drawer-title" : undefined}
     >
-      {/* Overlay */}
+      {/* Overlay - clickable to close */}
       <div
         className={cn("absolute inset-0", "bg-black/50 backdrop-blur-sm", "animate-fade-in-up")}
         style={{ animationDuration: "0.2s" }}
+        onClick={closeOnOutsideClick ? onClose : undefined}
       />
 
       {/* Drawer Panel */}
