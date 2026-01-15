@@ -121,35 +121,78 @@ export async function POST(request: NextRequest) {
           }
 
           // Extract data from pipeline result
-          const { article, summary, newsTags, extractedFacts } = result;
+          const {
+            article,
+            summary,
+            newsTags,
+            extractedFacts,
+            rewrittenArticle,
+            factVerification,
+            aiUsage,
+          } = result;
           const richContent = summary.richContent;
 
+          // Determine published_at (use extracted date if available, otherwise article date)
+          let publishedAt = article.publishedAt;
+          if (extractedFacts?.publishedAt) {
+            const aiDate = new Date(extractedFacts.publishedAt);
+            if (!isNaN(aiDate.getTime())) {
+              publishedAt = aiDate.toISOString();
+            }
+          }
+
+          // Determine status
+          const needsReview = result.needsReview || false;
+          const contentStatus = autoPublish
+            ? needsReview
+              ? "needs_review"
+              : "published"
+            : "pending";
+
+          // Build insert data (matching single collect)
+          const insertData: Record<string, unknown> = {
+            type: "news",
+            content_type: category,
+            source_url: url,
+            source_name: article.sourceName || "Unknown",
+            title: richContent.title.text,
+            thumbnail_url: article.thumbnail,
+            published_at: publishedAt,
+            status: contentStatus,
+            category: richContent.meta.category,
+            tags: [],
+            news_tags: newsTags || [],
+            rich_content: richContent,
+            // Summary fields
+            summary_md: rewrittenArticle?.summary || summary.summaryPlain,
+            difficulty: summary.difficulty,
+            original_content: article.content,
+            favicon_url: article.favicon,
+            // Rewritten article fields
+            one_liner: rewrittenArticle?.oneLiner,
+            body_html: rewrittenArticle?.bodyHtml,
+            insight_html: rewrittenArticle?.insightHtml,
+            key_takeaways: rewrittenArticle?.keyTakeaways,
+            // Fact check fields
+            fact_check_score: factVerification ? factVerification.score / 100 : null,
+            fact_check_reason: factVerification?.issues?.join("; ") || null,
+            // AI usage fields
+            ai_model_used: aiUsage.model,
+            ai_tokens_used: aiUsage.inputTokens + aiUsage.outputTokens,
+            ai_cost_usd: aiUsage.costUsd,
+            ai_processed_at: new Date().toISOString(),
+            // AI classification fields
+            ai_article_type: extractedFacts?.classification?.primary,
+            ai_article_type_secondary: extractedFacts?.classification?.secondary,
+            ai_classification_confidence: extractedFacts?.classification?.confidence,
+            ai_classification_signals: extractedFacts?.classification?.signals,
+          };
+
           // Insert into database
-          const contentStatus = autoPublish ? "published" : "pending";
           const { data: insertedContent, error: insertError } = await supabase
             .from("contents")
-            .insert({
-              type: "news",
-              content_type: category,
-              source_url: url,
-              source_name: article.sourceName || "Unknown",
-              title: richContent.title.text,
-              summary_md: summary.summaryPlain,
-              key_points: summary.keyPointsPlain,
-              category: richContent.meta.category,
-              tags: [],
-              news_tags: newsTags || [],
-              status: contentStatus,
-              published_at: autoPublish ? new Date().toISOString() : null,
-              rich_content: richContent,
-              // AI classification fields from extractedFacts
-              ai_article_type: extractedFacts?.classification?.primary,
-              ai_article_type_secondary: extractedFacts?.classification?.secondary,
-              ai_classification_confidence: extractedFacts?.classification?.confidence,
-              ai_classification_signals: extractedFacts?.classification?.signals,
-              ai_processed_at: new Date().toISOString(),
-            })
-            .select("id, title")
+            .insert(insertData)
+            .select("id, title, summary_md")
             .single();
 
           if (insertError || !insertedContent) {
@@ -157,14 +200,48 @@ export async function POST(request: NextRequest) {
           }
 
           // Generate thumbnail (with articleType for accurate theme selection)
-          await getThumbnailWithFallback(
+          const thumbnailResult = await getThumbnailWithFallback(
             insertedContent.id,
             url,
-            richContent.title.text,
-            summary.summaryPlain,
+            insertedContent.title,
+            insertedContent.summary_md,
             false, // Don't skip AI generation
             extractedFacts?.classification?.primary // articleType for theme selection
           );
+
+          // Log AI usage for thumbnail if generated
+          if (thumbnailResult?.cost_usd && thumbnailResult.cost_usd > 0) {
+            await supabase.from("ai_usage_log").insert({
+              request_type: "thumbnail_generate",
+              model: "imagen-4.0-generate-001",
+              input_tokens: 0,
+              output_tokens: 0,
+              total_tokens: 0,
+              cost_usd: thumbnailResult.cost_usd,
+              metadata: {
+                content_id: insertedContent.id,
+                source: thumbnailResult.source,
+                batch: true,
+              },
+            });
+          }
+
+          // Log AI usage for content processing
+          if (aiUsage.costUsd > 0) {
+            await supabase.from("ai_usage_log").insert({
+              request_type: "batch_collect",
+              model: aiUsage.model,
+              input_tokens: aiUsage.inputTokens,
+              output_tokens: aiUsage.outputTokens,
+              total_tokens: aiUsage.inputTokens + aiUsage.outputTokens,
+              cost_usd: aiUsage.costUsd,
+              metadata: {
+                source_url: url,
+                content_id: insertedContent.id,
+                batch: true,
+              },
+            });
+          }
 
           stats.success++;
           sendEvent(controller, encoder, {
