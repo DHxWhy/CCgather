@@ -980,8 +980,8 @@ export async function getThumbnailWithFallback(
     };
   }
 
-  // Try Gemini Imagen 4 generation
-  const geminiResult = await generateThumbnail({
+  // Try Gemini 2.5 Flash Image generation (default model)
+  const geminiResult = await generateThumbnailWithGeminiFlash({
     content_id: contentId,
     title,
     summary,
@@ -993,7 +993,7 @@ export async function getThumbnailWithFallback(
     geminiResult.thumbnail_url &&
     geminiResult.thumbnail_url !== DEFAULT_PLACEHOLDER
   ) {
-    await updateContentThumbnail(contentId, geminiResult.thumbnail_url, "imagen");
+    await updateContentThumbnail(contentId, geminiResult.thumbnail_url, "gemini_flash");
     return geminiResult;
   }
 
