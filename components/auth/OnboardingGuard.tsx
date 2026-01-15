@@ -1,8 +1,22 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { useUser } from "@clerk/nextjs";
+import { AccountRecoveryModal } from "./AccountRecoveryModal";
+
+interface PendingDeletionInfo {
+  pending_deletion: true;
+  deleted_at: string;
+  expires_at: string;
+  remaining_hours: number;
+  stats: {
+    tools_submitted: number;
+    votes_count: number;
+    level: number;
+    username: string;
+  };
+}
 
 interface OnboardingGuardProps {
   children: React.ReactNode;
@@ -13,6 +27,7 @@ export function OnboardingGuard({ children }: OnboardingGuardProps) {
   const pathname = usePathname();
   const { isSignedIn, isLoaded } = useUser();
   const [isChecking, setIsChecking] = useState(true);
+  const [pendingDeletionInfo, setPendingDeletionInfo] = useState<PendingDeletionInfo | null>(null);
 
   // Pages that don't require onboarding check (public pages + auth pages)
   const skipOnboardingCheck = [
@@ -26,6 +41,32 @@ export function OnboardingGuard({ children }: OnboardingGuardProps) {
   ];
 
   const shouldSkipCheck = skipOnboardingCheck.some((path) => pathname.startsWith(path));
+
+  // Handler for account recovery
+  const handleRecover = useCallback(async () => {
+    try {
+      const response = await fetch("/api/auth/recover", { method: "POST" });
+      if (!response.ok) throw new Error("Recovery failed");
+      setPendingDeletionInfo(null);
+      // Refresh the page to load recovered user data
+      window.location.reload();
+    } catch (error) {
+      throw error;
+    }
+  }, []);
+
+  // Handler for fresh start
+  const handleFreshStart = useCallback(async () => {
+    try {
+      const response = await fetch("/api/auth/fresh-start", { method: "POST" });
+      if (!response.ok) throw new Error("Fresh start failed");
+      setPendingDeletionInfo(null);
+      // Redirect to onboarding for new account
+      router.replace("/onboarding");
+    } catch (error) {
+      throw error;
+    }
+  }, [router]);
 
   useEffect(() => {
     async function checkOnboardingStatus() {
@@ -53,6 +94,21 @@ export function OnboardingGuard({ children }: OnboardingGuardProps) {
       }
 
       try {
+        // First, check for pending deletion
+        const recoveryResponse = await fetch("/api/auth/recovery-check", {
+          cache: "no-store",
+        });
+
+        if (recoveryResponse.ok) {
+          const recoveryData = await recoveryResponse.json();
+          if (recoveryData.pending_deletion) {
+            // Show recovery modal instead of proceeding
+            setPendingDeletionInfo(recoveryData);
+            setIsChecking(false);
+            return;
+          }
+        }
+
         const response = await fetch("/api/me", {
           cache: "no-store",
           headers: {
@@ -99,6 +155,21 @@ export function OnboardingGuard({ children }: OnboardingGuardProps) {
           <span className="text-text-muted text-sm">Loading...</span>
         </div>
       </div>
+    );
+  }
+
+  // Show recovery modal if there's a pending deletion
+  if (pendingDeletionInfo) {
+    return (
+      <>
+        <div className="min-h-screen bg-bg-primary" />
+        <AccountRecoveryModal
+          isOpen={true}
+          pendingInfo={pendingDeletionInfo}
+          onRecover={handleRecover}
+          onFreshStart={handleFreshStart}
+        />
+      </>
     );
   }
 

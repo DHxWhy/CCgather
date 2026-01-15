@@ -3,6 +3,10 @@
     {
       "path": "/api/cron/collect-news",
       "schedule": "0 0 * * *"
+    },
+    {
+      "path": "/api/cron/cleanup-deleted-users",
+      "schedule": "0 0 * * *"
     }
   ]
 }

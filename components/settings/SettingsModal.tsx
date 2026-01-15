@@ -19,10 +19,12 @@ import {
   Loader2,
   Trash2,
   CornerDownLeft,
+  Maximize2,
 } from "lucide-react";
 import { getCountryByCode } from "@/lib/constants/countries";
 import { cn } from "@/lib/utils";
 import { FlagIcon } from "@/components/ui/FlagIcon";
+import { UsageStatsFullscreen } from "./UsageStatsFullscreen";
 
 // X (formerly Twitter) icon component
 function XIcon({ className }: { className?: string }) {
@@ -792,6 +794,7 @@ function ActivityContent() {
   const [history, setHistory] = useState<{ date: string; tokens: number; cost: number }[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isFullscreenOpen, setIsFullscreenOpen] = useState(false);
 
   useEffect(() => {
     async function fetchHistory() {
@@ -832,10 +835,24 @@ function ActivityContent() {
       animate={{ opacity: 1, x: 0 }}
       exit={{ opacity: 0, x: -10 }}
     >
-      <h3 className="text-xs font-semibold text-text-muted uppercase tracking-wide mb-1">
-        Submission History
-      </h3>
+      <div className="flex items-center justify-between mb-1">
+        <h3 className="text-xs font-semibold text-text-muted uppercase tracking-wide">
+          Submission History
+        </h3>
+        {/* PC Only: Expand Button */}
+        <button
+          onClick={() => setIsFullscreenOpen(true)}
+          className="hidden md:flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-medium text-text-muted hover:text-text-primary hover:bg-white/5 transition-colors"
+          title="View full year heatmap"
+        >
+          <Maximize2 className="w-3 h-3" />
+          <span>Expand</span>
+        </button>
+      </div>
       <p className="text-[10px] text-text-muted mb-3">Your daily usage data (last 30 days)</p>
+
+      {/* Fullscreen Modal */}
+      <UsageStatsFullscreen isOpen={isFullscreenOpen} onClose={() => setIsFullscreenOpen(false)} />
 
       {isLoading ? (
         <div className="space-y-1.5">

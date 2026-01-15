@@ -427,6 +427,45 @@ export async function PATCH(request: NextRequest) {
   }
 }
 
+// =====================================================
+// DELETE /api/me - Soft Delete (3일 유예 기간)
+// =====================================================
+export async function DELETE() {
+  const { userId } = await auth();
+
+  if (!userId) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const supabase = createServiceClient();
+
+  try {
+    // Call the soft_delete_user function
+    const { data, error } = await supabase.rpc("soft_delete_user", {
+      target_clerk_id: userId,
+    });
+
+    if (error) {
+      console.error("Soft delete error:", error);
+      return NextResponse.json({ error: "Failed to delete account" }, { status: 500 });
+    }
+
+    if (!data.success) {
+      return NextResponse.json({ error: data.error }, { status: 400 });
+    }
+
+    return NextResponse.json({
+      success: true,
+      message: "계정이 3일 후 완전히 삭제됩니다. 그 전에 로그인하시면 복구할 수 있습니다.",
+      deleted_at: data.deleted_at,
+      deletion_scheduled_at: data.expires_at,
+    });
+  } catch (error) {
+    console.error("DELETE /api/me error:", error);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+  }
+}
+
 export async function POST(request: NextRequest) {
   const { userId } = await auth();
 
