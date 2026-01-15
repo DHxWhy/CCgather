@@ -954,7 +954,10 @@ export async function updateContentThumbnail(
 
 /**
  * Get thumbnail with fallback strategy
- * Priority: 1. OG Image (free) -> 2. Gemini Imagen ($0.03) -> 3. Default placeholder
+ * Priority: 1. AI Generation (Gemini) -> 2. OG Image (fallback) -> 3. Default placeholder
+ *
+ * Note: AI-generated thumbnails are preferred because OG images are excluded
+ * from display in NewsCard for visual consistency.
  */
 export async function getThumbnailWithFallback(
   contentId: string,
@@ -964,15 +967,14 @@ export async function getThumbnailWithFallback(
   skipAiGeneration = false,
   articleType?: ArticleType
 ): Promise<ThumbnailResult> {
-  // Try OG Image first (faster and free)
-  const ogResult = await fetchOgImage(sourceUrl);
-  if (ogResult.success && ogResult.thumbnail_url) {
-    await updateContentThumbnail(contentId, ogResult.thumbnail_url, "og_image");
-    return ogResult;
-  }
-
   // Skip AI generation if requested (for cost savings)
   if (skipAiGeneration) {
+    // Try OG Image as fallback
+    const ogResult = await fetchOgImage(sourceUrl);
+    if (ogResult.success && ogResult.thumbnail_url) {
+      await updateContentThumbnail(contentId, ogResult.thumbnail_url, "og_image");
+      return ogResult;
+    }
     return {
       success: true,
       thumbnail_url: DEFAULT_PLACEHOLDER,
@@ -980,7 +982,7 @@ export async function getThumbnailWithFallback(
     };
   }
 
-  // Try Gemini 2.5 Flash Image generation (default model)
+  // Try Gemini 2.5 Flash Image generation first (AI thumbnails are preferred)
   const geminiResult = await generateThumbnailWithGeminiFlash({
     content_id: contentId,
     title,
@@ -995,6 +997,13 @@ export async function getThumbnailWithFallback(
   ) {
     await updateContentThumbnail(contentId, geminiResult.thumbnail_url, "gemini_flash");
     return geminiResult;
+  }
+
+  // Fallback to OG Image if AI generation fails
+  const ogResult = await fetchOgImage(sourceUrl);
+  if (ogResult.success && ogResult.thumbnail_url) {
+    await updateContentThumbnail(contentId, ogResult.thumbnail_url, "og_image");
+    return ogResult;
   }
 
   // Return default placeholder
