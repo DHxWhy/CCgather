@@ -48,10 +48,10 @@ export const CATEGORY_META: Record<ToolCategory, { label: string; emoji: string;
   };
 
 export const PRICING_META: Record<ToolPricingType, { label: string; color: string }> = {
-  free: { label: "Free", color: "green" },
-  freemium: { label: "Freemium", color: "blue" },
-  paid: { label: "Paid", color: "purple" },
-  open_source: { label: "Open Source", color: "cyan" },
+  free: { label: "무료", color: "green" },
+  freemium: { label: "부분유료", color: "blue" },
+  paid: { label: "유료", color: "purple" },
+  open_source: { label: "오픈소스", color: "cyan" },
 };
 
 export const TRUST_TIER_META: Record<
