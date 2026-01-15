@@ -13,17 +13,19 @@ interface LogEntry {
   stats?: { success: number; failed: number; skipped: number };
 }
 
-// Category options
+// Category options - must match DB check constraint
+// Valid values: 'version_update', 'official', 'press', 'community', 'youtube'
 const CATEGORY_OPTIONS = [
-  { value: "announcement", label: "📢 Announcement" },
-  { value: "engineering", label: "🛠️ Engineering" },
-  { value: "use_cases", label: "💡 Use Cases" },
-  { value: "etc", label: "📝 Etc" },
+  { value: "official", label: "🏢 Official" },
+  { value: "press", label: "📰 Press" },
+  { value: "community", label: "👥 Community" },
+  { value: "version_update", label: "🔄 Version Update" },
+  { value: "youtube", label: "📺 YouTube" },
 ];
 
 export default function BatchCollector({ onComplete }: { onComplete?: () => void }) {
   const [urlInput, setUrlInput] = useState("");
-  const [category, setCategory] = useState("announcement");
+  const [category, setCategory] = useState("official");
   const [isRunning, setIsRunning] = useState(false);
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
