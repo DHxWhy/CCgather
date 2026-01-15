@@ -1,4 +1,3 @@
-// @ts-nocheck - TODO: Update to new GeminiPipeline API
 import { NextRequest } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { createServiceClient } from "@/lib/supabase/server";
@@ -117,49 +116,53 @@ export async function POST(request: NextRequest) {
           const pipeline = new GeminiPipeline();
           const result = await pipeline.process(url, category);
 
-          if (!result.success || !result.content) {
+          if (!result.success || !result.article || !result.summary) {
             throw new Error(result.error || "Failed to process URL");
           }
 
+          // Extract data from pipeline result
+          const { article, summary, newsTags, extractedFacts } = result;
+          const richContent = summary.richContent;
+
           // Insert into database
-          const status = autoPublish ? "published" : "pending";
-          const { data: content, error: insertError } = await supabase
+          const contentStatus = autoPublish ? "published" : "pending";
+          const { data: insertedContent, error: insertError } = await supabase
             .from("contents")
             .insert({
               type: "news",
               content_type: category,
               source_url: url,
-              source_name: result.content.sourceName || "Unknown",
-              title: result.content.title,
-              summary_md: result.content.summaryMd,
-              key_points: result.content.keyPoints,
-              category: result.content.category,
-              tags: result.content.tags,
-              news_tags: result.content.newsTags,
-              status,
+              source_name: article.sourceName || "Unknown",
+              title: richContent.title.text,
+              summary_md: summary.summaryPlain,
+              key_points: summary.keyPointsPlain,
+              category: richContent.meta.category,
+              tags: [],
+              news_tags: newsTags || [],
+              status: contentStatus,
               published_at: autoPublish ? new Date().toISOString() : null,
-              rich_content: result.content.richContent,
-              // AI classification fields
-              ai_article_type: result.content.articleType,
-              ai_article_type_secondary: result.content.articleTypeSecondary,
-              ai_classification_confidence: result.content.classificationConfidence,
-              ai_classification_signals: result.content.classificationSignals,
+              rich_content: richContent,
+              // AI classification fields from extractedFacts
+              ai_article_type: extractedFacts?.classification?.primary,
+              ai_article_type_secondary: extractedFacts?.classification?.secondary,
+              ai_classification_confidence: extractedFacts?.classification?.confidence,
+              ai_classification_signals: extractedFacts?.classification?.signals,
               ai_processed_at: new Date().toISOString(),
             })
             .select("id, title")
             .single();
 
-          if (insertError || !content) {
+          if (insertError || !insertedContent) {
             throw new Error(insertError?.message || "Failed to insert content");
           }
 
-          // Generate thumbnail
-          await getThumbnailWithFallback({
-            contentId: content.id,
-            title: result.content.title,
-            summary: result.content.summaryMd || "",
-            sourceUrl: url,
-          });
+          // Generate thumbnail (using positional arguments)
+          await getThumbnailWithFallback(
+            insertedContent.id,
+            url,
+            richContent.title.text,
+            summary.summaryPlain
+          );
 
           stats.success++;
           sendEvent(controller, encoder, {
@@ -167,8 +170,8 @@ export async function POST(request: NextRequest) {
             index: i,
             total: urls.length,
             url,
-            title: content.title,
-            message: `성공: ${content.title}`,
+            title: insertedContent.title,
+            message: `성공: ${insertedContent.title}`,
           });
         } catch (error) {
           stats.failed++;
