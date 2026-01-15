@@ -156,11 +156,11 @@ function ToolListItemComponent({
         )}
         style={getRankStyle()}
       >
-        {/* Main Content Grid */}
-        <div className="flex gap-3">
+        {/* Main Content Grid - 3 columns: Left(info) / Center(avatars) / Right(vote) */}
+        <div className="flex items-center gap-3">
           {/* Rank Badge */}
           {showRank && rank && (
-            <div className="w-7 flex-shrink-0 flex items-start justify-center pt-1">
+            <div className="w-7 flex-shrink-0 flex items-center justify-center">
               {getRankBadge() ? (
                 <span className="text-lg">{getRankBadge()}</span>
               ) : (
@@ -170,7 +170,7 @@ function ToolListItemComponent({
           )}
 
           {/* Logo */}
-          <div className="flex-shrink-0 pt-0.5">
+          <div className="flex-shrink-0">
             {tool.logo_url ? (
               <Image
                 src={tool.logo_url}
@@ -187,129 +187,137 @@ function ToolListItemComponent({
             )}
           </div>
 
-          {/* Content Area */}
+          {/* Left: Name + Tagline + Price */}
           <div className="flex-1 min-w-0">
             {/* Row 1: Name + Badges + Price */}
-            <div className="flex items-center justify-between gap-2 mb-0.5">
-              <div className="flex items-center gap-2 min-w-0">
-                <h3 className="font-semibold text-sm text-[var(--color-text-primary)] truncate group-hover:text-[var(--color-claude-coral)] transition-colors">
-                  {tool.name}
-                </h3>
+            <div className="flex items-center gap-2 mb-0.5">
+              <h3 className="font-semibold text-sm text-[var(--color-text-primary)] truncate group-hover:text-[var(--color-claude-coral)] transition-colors">
+                {tool.name}
+              </h3>
 
-                {/* Status Badges */}
-                {isFeatured && (
-                  <span className="px-1.5 py-0.5 rounded text-[9px] bg-gradient-to-r from-[var(--color-claude-coral)]/20 to-purple-500/20 text-[var(--color-claude-coral)] flex-shrink-0">
-                    ⭐
-                  </span>
-                )}
-                {isHot && !isFeatured && (
-                  <span className="px-1.5 py-0.5 rounded text-[9px] bg-orange-500/20 text-orange-400 flex-shrink-0">
-                    🔥
-                  </span>
-                )}
-                {isNew && !isHot && !isFeatured && (
-                  <span className="px-1.5 py-0.5 rounded text-[9px] bg-green-500/20 text-green-400 font-medium flex-shrink-0">
-                    NEW
-                  </span>
-                )}
-              </div>
+              {/* Status Badges */}
+              {isFeatured && (
+                <span className="px-1.5 py-0.5 rounded text-[9px] bg-gradient-to-r from-[var(--color-claude-coral)]/20 to-purple-500/20 text-[var(--color-claude-coral)] flex-shrink-0">
+                  ⭐
+                </span>
+              )}
+              {isHot && !isFeatured && (
+                <span className="px-1.5 py-0.5 rounded text-[9px] bg-orange-500/20 text-orange-400 flex-shrink-0">
+                  🔥
+                </span>
+              )}
+              {isNew && !isHot && !isFeatured && (
+                <span className="px-1.5 py-0.5 rounded text-[9px] bg-green-500/20 text-green-400 font-medium flex-shrink-0">
+                  NEW
+                </span>
+              )}
 
               {/* Price Label */}
-              <span className={cn("text-[11px] font-medium flex-shrink-0", getPricingColorClass())}>
+              <span
+                className={cn(
+                  "text-[11px] font-medium flex-shrink-0 ml-auto",
+                  getPricingColorClass()
+                )}
+              >
                 {pricingMeta.label}
               </span>
             </div>
 
             {/* Row 2: Tagline */}
-            <p className="text-[11px] text-[var(--color-text-muted)] truncate mb-2">
+            <p className="text-[11px] text-[var(--color-text-muted)] truncate pr-2">
               {tool.tagline}
             </p>
+          </div>
 
-            {/* Row 3: Voter Avatars + Comments */}
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                {/* Voter Avatars with Sliding Animation */}
-                <AnimatePresence mode="popLayout">
-                  <div className="flex items-center">
-                    {voters.slice(0, MAX_VISIBLE_AVATARS).map((voter, index) => (
-                      <motion.div
-                        key={voter.user_id}
-                        initial={{ opacity: 0, scale: 0.8, x: -10 }}
-                        animate={{ opacity: 1, scale: 1, x: 0 }}
-                        exit={{ opacity: 0, scale: 0.8, x: -10 }}
-                        transition={{
-                          type: "spring",
-                          stiffness: 500,
-                          damping: 30,
-                          delay: index * 0.02,
-                        }}
-                        className={cn(
-                          "w-5 h-5 rounded-full overflow-hidden",
-                          "border-2 border-[var(--color-bg-card)]",
-                          "flex-shrink-0"
-                        )}
-                        style={{
-                          marginLeft: index === 0 ? 0 : -6,
-                          zIndex: MAX_VISIBLE_AVATARS - index,
-                        }}
-                        title={`@${voter.username}`}
-                      >
-                        {voter.avatar_url ? (
-                          <Image
-                            src={voter.avatar_url}
-                            alt={voter.username}
-                            width={20}
-                            height={20}
-                            className="object-cover"
-                            unoptimized
-                          />
-                        ) : (
-                          <div className="w-full h-full flex items-center justify-center bg-[var(--color-bg-elevated)] text-[8px] font-medium text-[var(--color-text-muted)]">
-                            {voter.username.charAt(0).toUpperCase()}
-                          </div>
-                        )}
-                      </motion.div>
-                    ))}
-
-                    {/* +n 표시 */}
-                    {voters.length > MAX_VISIBLE_AVATARS && (
-                      <motion.div
-                        initial={{ opacity: 0, scale: 0.8 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        className={cn(
-                          "w-5 h-5 rounded-full",
-                          "border-2 border-[var(--color-bg-card)]",
-                          "bg-[var(--color-bg-elevated)]",
-                          "flex items-center justify-center",
-                          "text-[8px] font-medium text-[var(--color-text-muted)]",
-                          "flex-shrink-0"
-                        )}
-                        style={{ marginLeft: -6, zIndex: 0 }}
-                      >
-                        +{voters.length - MAX_VISIBLE_AVATARS}
-                      </motion.div>
+          {/* Center: Voter Avatars */}
+          <div className="flex-shrink-0 flex items-center gap-2">
+            <AnimatePresence mode="popLayout">
+              <div className="flex items-center">
+                {voters.slice(0, MAX_VISIBLE_AVATARS).map((voter, index) => (
+                  <motion.div
+                    key={voter.user_id}
+                    initial={{ opacity: 0, scale: 0.8, x: -10 }}
+                    animate={{ opacity: 1, scale: 1, x: 0 }}
+                    exit={{ opacity: 0, scale: 0.8, x: -10 }}
+                    transition={{
+                      type: "spring",
+                      stiffness: 500,
+                      damping: 30,
+                      delay: index * 0.02,
+                    }}
+                    className={cn(
+                      "relative w-6 h-6 rounded-full overflow-visible",
+                      "border-2 border-[var(--color-bg-card)]",
+                      "flex-shrink-0 group/avatar cursor-pointer"
                     )}
-                  </div>
-                </AnimatePresence>
+                    style={{
+                      marginLeft: index === 0 ? 0 : -8,
+                      zIndex: MAX_VISIBLE_AVATARS - index,
+                    }}
+                  >
+                    {/* Avatar Image */}
+                    <div className="w-full h-full rounded-full overflow-hidden">
+                      {voter.avatar_url ? (
+                        <Image
+                          src={voter.avatar_url}
+                          alt={voter.username}
+                          width={24}
+                          height={24}
+                          className="object-cover"
+                          unoptimized
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center bg-[var(--color-bg-elevated)] text-[9px] font-medium text-[var(--color-text-muted)]">
+                          {voter.username.charAt(0).toUpperCase()}
+                        </div>
+                      )}
+                    </div>
+                    {/* Hover Tooltip */}
+                    <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 px-2 py-1 bg-[var(--color-bg-elevated)] border border-[var(--border-default)] rounded text-[10px] text-[var(--color-text-primary)] whitespace-nowrap opacity-0 group-hover/avatar:opacity-100 transition-opacity pointer-events-none z-50 shadow-lg">
+                      @{voter.username}
+                    </div>
+                  </motion.div>
+                ))}
 
-                {/* Comment Count - 댓글 있을 때만 표시 */}
-                {commentCount > 0 && (
-                  <div className="flex items-center gap-1 text-[var(--color-text-muted)]">
-                    <MessageCircle className="w-3 h-3" />
-                    <span className="text-[10px]">{commentCount}</span>
-                  </div>
+                {/* +n 표시 */}
+                {voters.length > MAX_VISIBLE_AVATARS && (
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.8 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    className={cn(
+                      "w-6 h-6 rounded-full",
+                      "border-2 border-[var(--color-bg-card)]",
+                      "bg-[var(--color-bg-elevated)]",
+                      "flex items-center justify-center",
+                      "text-[9px] font-medium text-[var(--color-text-muted)]",
+                      "flex-shrink-0"
+                    )}
+                    style={{ marginLeft: -8, zIndex: 0 }}
+                  >
+                    +{voters.length - MAX_VISIBLE_AVATARS}
+                  </motion.div>
                 )}
               </div>
+            </AnimatePresence>
 
-              {/* Vote Button */}
-              <VoteButton
-                count={voteCount}
-                voted={voted}
-                loading={isVoting}
-                onClick={handleVote}
-                size="sm"
-              />
-            </div>
+            {/* Comment Count - 댓글 있을 때만 표시 */}
+            {commentCount > 0 && (
+              <div className="flex items-center gap-1 text-[var(--color-text-muted)] ml-1">
+                <MessageCircle className="w-3 h-3" />
+                <span className="text-[10px]">{commentCount}</span>
+              </div>
+            )}
+          </div>
+
+          {/* Right: Vote Button */}
+          <div className="flex-shrink-0 pl-2">
+            <VoteButton
+              count={voteCount}
+              voted={voted}
+              loading={isVoting}
+              onClick={handleVote}
+              size="sm"
+            />
           </div>
         </div>
       </motion.div>
