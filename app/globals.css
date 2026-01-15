@@ -134,6 +134,12 @@
   /* Cost Color (Yellow/Gold for dark mode) */
   --color-cost: #fbbf24;
 
+  /* Level Colors - for badges and indicators */
+  --color-level-amber: #f59e0b;
+  --color-level-gold: #eab308;
+  --color-level-amber-text: #f59e0b;
+  --color-level-gold-text: #eab308;
+
   /* Cursor Colors */
   --cursor-color: var(--color-claude-coral);
   --cursor-glow: rgba(218, 119, 86, 0.5);
@@ -246,6 +252,12 @@
 
   /* Cost Color (Dark Gold for light mode) */
   --color-cost: #b8860b;
+
+  /* Level Colors - darker for light mode visibility */
+  --color-level-amber: #d97706;
+  --color-level-gold: #ca8a04;
+  --color-level-amber-text: #92400e;
+  --color-level-gold-text: #854d0e;
 
   /* Cursor Colors */
   --cursor-glow: rgba(218, 119, 86, 0.3);

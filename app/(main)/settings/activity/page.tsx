@@ -54,14 +54,14 @@ export default function SettingsActivityPage() {
   const activeDays = history.length;
 
   return (
-    <div className="max-w-2xl p-6 space-y-6">
+    <div className="max-w-2xl mx-auto p-6 space-y-6">
       <div className="flex items-center justify-between">
-        <h2 className="text-xs font-semibold text-text-muted uppercase tracking-wide">
+        <h2 className="text-sm font-medium text-[var(--color-text-secondary)]">
           Submission History
         </h2>
         <Link
           href="/settings/usage"
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-text-muted hover:text-text-primary hover:bg-white/5 transition-colors"
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] hover:bg-white/5 transition-colors"
         >
           <BarChart3 className="w-3.5 h-3.5" />
           <span>View Heatmap</span>
@@ -72,23 +72,23 @@ export default function SettingsActivityPage() {
       {!isLoading && !error && history.length > 0 && (
         <div className="grid grid-cols-3 gap-3">
           <div className="p-4 rounded-xl bg-[var(--color-bg-tertiary)] border border-[var(--border-default)]">
-            <p className="text-2xl font-bold text-text-primary">{activeDays}</p>
-            <p className="text-xs text-text-muted mt-1">Active Days</p>
+            <p className="text-2xl font-bold text-[var(--color-text-primary)]">{activeDays}</p>
+            <p className="text-xs text-[var(--color-text-muted)] mt-1">Active Days</p>
           </div>
           <div className="p-4 rounded-xl bg-[var(--color-bg-tertiary)] border border-[var(--border-default)]">
             <p className="text-2xl font-bold text-[var(--color-claude-coral)]">
               {formatNumber(totalTokens)}
             </p>
-            <p className="text-xs text-text-muted mt-1">Total Tokens</p>
+            <p className="text-xs text-[var(--color-text-muted)] mt-1">Total Tokens</p>
           </div>
           <div className="p-4 rounded-xl bg-[var(--color-bg-tertiary)] border border-[var(--border-default)]">
             <p className="text-2xl font-bold text-emerald-400">${totalCost.toFixed(2)}</p>
-            <p className="text-xs text-text-muted mt-1">Total Cost</p>
+            <p className="text-xs text-[var(--color-text-muted)] mt-1">Total Cost</p>
           </div>
         </div>
       )}
 
-      <p className="text-xs text-text-muted">Your daily usage data (last 30 days)</p>
+      <p className="text-xs text-[var(--color-text-muted)]">Your daily usage data (last 30 days)</p>
 
       {isLoading ? (
         <div className="space-y-2">
@@ -102,11 +102,15 @@ export default function SettingsActivityPage() {
         </div>
       ) : history.length === 0 ? (
         <div className="text-center py-12 rounded-xl bg-[var(--color-bg-tertiary)] border border-[var(--border-default)]">
-          <Activity className="w-12 h-12 text-text-muted mx-auto mb-3 opacity-50" />
-          <p className="text-text-muted text-sm font-medium">No submission history yet</p>
-          <p className="text-text-muted text-xs mt-1">
+          <Activity className="w-12 h-12 text-[var(--color-text-muted)] mx-auto mb-3 opacity-50" />
+          <p className="text-[var(--color-text-muted)] text-sm font-medium">
+            No submission history yet
+          </p>
+          <p className="text-[var(--color-text-muted)] text-xs mt-1">
             Run{" "}
-            <code className="text-primary px-1.5 py-0.5 rounded bg-primary/10">npx ccgather</code>{" "}
+            <code className="text-[var(--color-claude-coral)] px-1.5 py-0.5 rounded bg-[var(--color-claude-coral)]/10">
+              npx ccgather
+            </code>{" "}
             to submit
           </p>
         </div>
@@ -121,26 +125,26 @@ export default function SettingsActivityPage() {
                 className="flex items-center justify-between px-4 py-3 rounded-xl bg-[var(--color-bg-tertiary)] border border-[var(--border-default)] hover:border-[var(--border-hover)] transition-colors"
               >
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
-                    <Calendar className="w-5 h-5 text-primary" />
+                  <div className="w-10 h-10 rounded-lg bg-[var(--color-claude-coral)]/10 flex items-center justify-center">
+                    <Calendar className="w-5 h-5 text-[var(--color-claude-coral)]" />
                   </div>
                   <div>
-                    <p className="text-sm font-medium text-text-primary">
+                    <p className="text-sm font-medium text-[var(--color-text-primary)]">
                       {formatDate(entry.date)}
                     </p>
-                    <p className="text-xs text-text-muted">{entry.date}</p>
+                    <p className="text-xs text-[var(--color-text-muted)]">{entry.date}</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-6 text-right">
                   <div>
-                    <p className="text-sm font-medium text-text-primary">
+                    <p className="text-sm font-medium text-[var(--color-text-primary)]">
                       {formatNumber(entry.tokens)}
                     </p>
-                    <p className="text-xs text-text-muted">tokens</p>
+                    <p className="text-xs text-[var(--color-text-muted)]">tokens</p>
                   </div>
                   <div className="min-w-[60px]">
                     <p className="text-sm font-medium text-emerald-400">${entry.cost.toFixed(2)}</p>
-                    <p className="text-xs text-text-muted">cost</p>
+                    <p className="text-xs text-[var(--color-text-muted)]">cost</p>
                   </div>
                 </div>
               </div>

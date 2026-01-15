@@ -53,14 +53,16 @@ export default function SettingsLayout({ children }: { children: React.ReactNode
           {/* Back Button */}
           <Link
             href="/"
-            className="flex items-center gap-2 px-3 py-2 mb-4 text-sm text-text-muted hover:text-text-primary transition-colors"
+            className="flex items-center gap-2 px-3 py-2 mb-4 text-sm text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] transition-colors"
           >
             <ChevronLeft className="w-4 h-4" />
             <span>Back to Home</span>
           </Link>
 
           {/* Title */}
-          <h1 className="px-3 text-lg font-semibold text-text-primary mb-4">Settings</h1>
+          <h1 className="px-3 text-lg font-semibold text-[var(--color-text-primary)] mb-4">
+            Settings
+          </h1>
 
           {/* Navigation */}
           <nav className="flex-1 space-y-1">
@@ -75,8 +77,8 @@ export default function SettingsLayout({ children }: { children: React.ReactNode
                   className={cn(
                     "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all",
                     isActive
-                      ? "bg-primary/10 text-primary"
-                      : "text-text-muted hover:text-text-primary hover:bg-white/5"
+                      ? "bg-[var(--color-claude-coral)]/10 text-[var(--color-claude-coral)]"
+                      : "text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] hover:bg-white/5"
                   )}
                 >
                   <Icon className="w-4 h-4" />
