@@ -6,12 +6,13 @@ import ThumbnailManager from "@/components/admin/ThumbnailManager";
 import TargetManager from "@/components/admin/TargetManager";
 import CronScheduler from "@/components/admin/CronScheduler";
 import UnusedThumbnailManager from "@/components/admin/UnusedThumbnailManager";
+import BatchCollector from "@/components/admin/BatchCollector";
 import { useToast } from "@/components/ui/ToastProvider";
 import type { ThumbnailSource } from "@/types/automation";
 
 type ContentType = "news" | "youtube";
 type ContentStatus = "pending" | "ready" | "published" | "rejected";
-type ContentTab = "news" | "youtube" | "targets" | "scheduler" | "storage";
+type ContentTab = "news" | "youtube" | "targets" | "scheduler" | "storage" | "batch";
 
 // AI Article Types (from gemini-client.ts)
 type AIArticleType =
@@ -269,6 +270,9 @@ export default function AdminContentsPage() {
         <TabButton active={activeTab === "storage"} onClick={() => setActiveTab("storage")}>
           🗂️ 스토리지
         </TabButton>
+        <TabButton active={activeTab === "batch"} onClick={() => setActiveTab("batch")}>
+          📚 배치 수집
+        </TabButton>
       </div>
 
       {/* Tab Content */}
@@ -323,11 +327,17 @@ export default function AdminContentsPage() {
 
         {/* Cron Scheduler */}
         {activeTab === "scheduler" && (
-          <CronScheduler onRefresh={handleRefresh} onCollectionComplete={handleCollectionComplete} />
+          <CronScheduler
+            onRefresh={handleRefresh}
+            onCollectionComplete={handleCollectionComplete}
+          />
         )}
 
         {/* Storage - Unused Thumbnails */}
         {activeTab === "storage" && <UnusedThumbnailManager />}
+
+        {/* Batch Collection */}
+        {activeTab === "batch" && <BatchCollector onComplete={fetchContents} />}
       </div>
 
       {/* Edit Modal */}
