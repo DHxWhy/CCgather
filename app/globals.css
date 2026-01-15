@@ -79,13 +79,13 @@
   --color-text-disabled: #52525b;
 
   /* Borders - Dark */
-  --border-default: rgba(255, 255, 255, 0.08);
-  --border-hover: rgba(255, 255, 255, 0.15);
+  --border-default: rgba(255, 255, 255, 0.12);
+  --border-hover: rgba(255, 255, 255, 0.18);
   --border-focus: rgba(218, 119, 86, 0.5);
 
   /* Glass Effect - Dark */
   --glass-bg: rgba(255, 255, 255, 0.03);
-  --glass-border: rgba(255, 255, 255, 0.08);
+  --glass-border: rgba(255, 255, 255, 0.12);
   --glass-blur: 12px;
 
   /* Shadows - Dark */

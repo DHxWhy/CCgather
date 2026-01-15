@@ -76,14 +76,14 @@ export default function SettingsActivityPage() {
             <p className="text-xs text-[var(--color-text-muted)] mt-1">Active Days</p>
           </div>
           <div className="p-4 rounded-xl bg-[var(--color-bg-tertiary)] border border-[var(--border-default)]">
+            <p className="text-2xl font-bold text-[var(--color-cost)]">${totalCost.toFixed(2)}</p>
+            <p className="text-xs text-[var(--color-text-muted)] mt-1">Total Cost</p>
+          </div>
+          <div className="p-4 rounded-xl bg-[var(--color-bg-tertiary)] border border-[var(--border-default)]">
             <p className="text-2xl font-bold text-[var(--color-claude-coral)]">
               {formatNumber(totalTokens)}
             </p>
             <p className="text-xs text-[var(--color-text-muted)] mt-1">Total Tokens</p>
-          </div>
-          <div className="p-4 rounded-xl bg-[var(--color-bg-tertiary)] border border-[var(--border-default)]">
-            <p className="text-2xl font-bold text-emerald-400">${totalCost.toFixed(2)}</p>
-            <p className="text-xs text-[var(--color-text-muted)] mt-1">Total Cost</p>
           </div>
         </div>
       )}
@@ -136,15 +136,17 @@ export default function SettingsActivityPage() {
                   </div>
                 </div>
                 <div className="flex items-center gap-6 text-right">
+                  <div className="min-w-[60px]">
+                    <p className="text-sm font-medium text-[var(--color-cost)]">
+                      ${entry.cost.toFixed(2)}
+                    </p>
+                    <p className="text-xs text-[var(--color-text-muted)]">cost</p>
+                  </div>
                   <div>
                     <p className="text-sm font-medium text-[var(--color-text-primary)]">
                       {formatNumber(entry.tokens)}
                     </p>
                     <p className="text-xs text-[var(--color-text-muted)]">tokens</p>
-                  </div>
-                  <div className="min-w-[60px]">
-                    <p className="text-sm font-medium text-emerald-400">${entry.cost.toFixed(2)}</p>
-                    <p className="text-xs text-[var(--color-text-muted)]">cost</p>
                   </div>
                 </div>
               </div>
