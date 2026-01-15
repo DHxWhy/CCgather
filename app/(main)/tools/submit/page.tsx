@@ -78,29 +78,29 @@ function validateForm(data: ToolFormData): FormErrors {
   const errors: FormErrors = {};
 
   if (!data.name.trim()) {
-    errors.name = "도구 이름을 입력해주세요";
+    errors.name = "Tool name is required";
   } else if (data.name.length < 2) {
-    errors.name = "이름은 최소 2자 이상이어야 합니다";
+    errors.name = "Name must be at least 2 characters";
   }
 
   if (!data.website_url.trim()) {
-    errors.website_url = "웹사이트 URL을 입력해주세요";
+    errors.website_url = "Website URL is required";
   } else {
     try {
       new URL(data.website_url);
     } catch {
-      errors.website_url = "유효한 URL을 입력해주세요";
+      errors.website_url = "Please enter a valid URL";
     }
   }
 
   if (!data.tagline.trim()) {
-    errors.tagline = "한 줄 설명을 입력해주세요";
+    errors.tagline = "Tagline is required";
   } else if (data.tagline.length > 100) {
-    errors.tagline = "한 줄 설명은 100자 이내로 작성해주세요";
+    errors.tagline = "Tagline must be under 100 characters";
   }
 
   if (!data.category) {
-    errors.category = "카테고리를 선택해주세요";
+    errors.category = "Please select a category";
   }
 
   return errors;
@@ -140,7 +140,7 @@ export default function ToolSuggestPage() {
     tagline: "",
     description: "",
     category: "",
-    pricing_type: "freemium",
+    pricing_type: "free",
     logo_url: "",
     tags: [],
   });
@@ -171,7 +171,7 @@ export default function ToolSuggestPage() {
 
         // File size check (512KB)
         if (file.size > 512 * 1024) {
-          setLogoUploadError("파일 크기는 512KB 이하여야 합니다");
+          setLogoUploadError("File size must be under 512KB");
           return;
         }
 
@@ -192,10 +192,10 @@ export default function ToolSuggestPage() {
           if (data.success) {
             setFormData((prev) => ({ ...prev, logo_url: data.url }));
           } else {
-            setLogoUploadError(data.error || "업로드 실패");
+            setLogoUploadError(data.error || "Upload failed");
           }
         } catch {
-          setLogoUploadError("업로드 중 오류가 발생했습니다");
+          setLogoUploadError("An error occurred during upload");
         } finally {
           setIsUploadingLogo(false);
         }
@@ -233,14 +233,14 @@ export default function ToolSuggestPage() {
   // Analyze URL handler
   const analyzeUrl = useCallback(async () => {
     if (!formData.website_url.trim()) {
-      setErrors((prev) => ({ ...prev, website_url: "URL을 입력해주세요" }));
+      setErrors((prev) => ({ ...prev, website_url: "Please enter a URL" }));
       return;
     }
 
     try {
       new URL(formData.website_url);
     } catch {
-      setErrors((prev) => ({ ...prev, website_url: "유효한 URL을 입력해주세요" }));
+      setErrors((prev) => ({ ...prev, website_url: "Please enter a valid URL" }));
       return;
     }
 
@@ -259,12 +259,12 @@ export default function ToolSuggestPage() {
 
       if (res.status === 409) {
         // Duplicate tool
-        setAnalysisError(`이미 등록된 도구입니다: ${data.existing?.name}`);
+        setAnalysisError(`This tool is already registered: ${data.existing?.name}`);
         return;
       }
 
       if (data.error === "analysis_failed") {
-        setAnalysisError("URL 분석에 실패했습니다. 직접 정보를 입력해주세요.");
+        setAnalysisError("URL analysis failed. Please fill in the information manually.");
         setHasAnalyzed(true);
         return;
       }
@@ -289,7 +289,9 @@ export default function ToolSuggestPage() {
       }
     } catch (error) {
       console.error("Analysis error:", error);
-      setAnalysisError(error instanceof Error ? error.message : "분석 중 오류가 발생했습니다");
+      setAnalysisError(
+        error instanceof Error ? error.message : "An error occurred during analysis"
+      );
     } finally {
       setIsAnalyzing(false);
     }
@@ -343,9 +345,9 @@ export default function ToolSuggestPage() {
 
       if (!res.ok) {
         if (res.status === 403) {
-          setErrors({ general: data.message || "도구 추천 권한이 없습니다" });
+          setErrors({ general: data.message || "You don't have permission to submit tools" });
         } else {
-          throw new Error(data.error || "Failed to suggest tool");
+          throw new Error(data.error || "Failed to submit tool");
         }
         return;
       }
@@ -354,7 +356,7 @@ export default function ToolSuggestPage() {
     } catch (error) {
       console.error("Submit error:", error);
       setErrors({
-        general: error instanceof Error ? error.message : "제출 중 오류가 발생했습니다",
+        general: error instanceof Error ? error.message : "An error occurred during submission",
       });
     } finally {
       setIsSubmitting(false);
@@ -368,7 +370,7 @@ export default function ToolSuggestPage() {
         <div className="max-w-2xl mx-auto px-4 py-12">
           <div className="flex items-center justify-center gap-3">
             <Loader2 className="w-5 h-5 animate-spin text-[var(--color-claude-coral)]" />
-            <span className="text-[var(--color-text-secondary)]">자격 확인 중...</span>
+            <span className="text-[var(--color-text-secondary)]">Checking eligibility...</span>
           </div>
         </div>
       </main>
@@ -385,7 +387,7 @@ export default function ToolSuggestPage() {
             className="inline-flex items-center gap-1.5 text-sm text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] transition-colors mb-8"
           >
             <ArrowLeft className="w-4 h-4" />
-            도구 목록으로
+            Back to Tools
           </Link>
 
           <div className="text-center mb-8">
@@ -393,10 +395,10 @@ export default function ToolSuggestPage() {
               <Lock className="w-8 h-8 text-[var(--color-text-muted)]" />
             </div>
             <h1 className="text-2xl font-bold text-[var(--color-text-primary)] mb-2">
-              도구 추천 자격이 필요합니다
+              Tool Submission Requirements
             </h1>
             <p className="text-[var(--color-text-secondary)]">
-              신뢰할 수 있는 추천을 위해 다음 요건을 충족해야 합니다.
+              Meet one of the following requirements to submit tools.
             </p>
           </div>
 
@@ -442,12 +444,12 @@ export default function ToolSuggestPage() {
                         {req.label}
                         {req.key === "level" && status && "current" in status && (
                           <span className="ml-2 text-sm font-normal text-[var(--color-text-muted)]">
-                            (현재: Lv.{status.current})
+                            (Current: Lv.{status.current})
                           </span>
                         )}
                         {req.key === "data_days" && status && "current" in status && (
                           <span className="ml-2 text-sm font-normal text-[var(--color-text-muted)]">
-                            (현재: {status.current}일)
+                            (Current: {status.current} days)
                           </span>
                         )}
                       </h3>
@@ -469,7 +471,7 @@ export default function ToolSuggestPage() {
           </div>
 
           <p className="text-center text-sm text-[var(--color-text-secondary)] mb-8">
-            둘 중 하나의 조건만 충족하면 도구를 추천할 수 있습니다.
+            You only need to meet one of the above requirements.
           </p>
 
           {/* Action buttons */}
@@ -478,13 +480,13 @@ export default function ToolSuggestPage() {
               href="/tools"
               className="px-4 py-2 rounded-lg bg-[var(--color-bg-card)] border border-[var(--border-default)] text-[var(--color-text-primary)] hover:bg-[var(--color-bg-card-hover)] transition-colors"
             >
-              도구 목록으로
+              Back to Tools
             </Link>
             <Link
               href="/leaderboard"
               className="px-4 py-2 rounded-lg bg-[var(--color-claude-coral)] text-white hover:bg-[var(--color-claude-rust)] transition-colors"
             >
-              레벨업하기
+              Level Up
             </Link>
           </div>
         </div>
@@ -499,11 +501,13 @@ export default function ToolSuggestPage() {
         <div className="max-w-2xl mx-auto px-4 py-12">
           <div className="text-center">
             <CheckCircle className="w-16 h-16 text-green-500 mx-auto mb-4" />
-            <h1 className="text-2xl font-bold text-[var(--color-text-primary)] mb-2">추천 완료!</h1>
+            <h1 className="text-2xl font-bold text-[var(--color-text-primary)] mb-2">
+              Submission Complete!
+            </h1>
             <p className="text-[var(--color-text-secondary)] mb-6">
-              도구가 성공적으로 추천되었습니다.
+              Your tool has been submitted successfully.
               <br />
-              관리자 검토 후 목록에 표시됩니다.
+              It will be listed after admin review.
             </p>
 
             {/* Suggester info */}
@@ -537,7 +541,7 @@ export default function ToolSuggestPage() {
                 href="/tools"
                 className="px-4 py-2 rounded-lg bg-[var(--color-bg-card)] border border-[var(--border-default)] text-[var(--color-text-primary)] hover:bg-[var(--color-bg-card-hover)] transition-colors"
               >
-                도구 목록으로
+                Back to Tools
               </Link>
               <button
                 onClick={() => {
@@ -549,14 +553,14 @@ export default function ToolSuggestPage() {
                     tagline: "",
                     description: "",
                     category: "",
-                    pricing_type: "freemium",
+                    pricing_type: "free",
                     logo_url: "",
                     tags: [],
                   });
                 }}
                 className="px-4 py-2 rounded-lg bg-[var(--color-claude-coral)] text-white hover:bg-[var(--color-claude-rust)] transition-colors"
               >
-                다른 도구 추천
+                Submit Another
               </button>
             </div>
           </div>
@@ -575,11 +579,11 @@ export default function ToolSuggestPage() {
             className="inline-flex items-center gap-1.5 text-sm text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] transition-colors mb-4"
           >
             <ArrowLeft className="w-4 h-4" />
-            도구 목록으로
+            Back to Tools
           </Link>
-          <h1 className="text-2xl font-bold text-[var(--color-text-primary)]">도구 추천하기</h1>
+          <h1 className="text-2xl font-bold text-[var(--color-text-primary)]">Submit a Tool</h1>
           <p className="text-sm text-[var(--color-text-secondary)] mt-1">
-            유용한 개발 도구를 커뮤니티와 공유하세요
+            Share useful developer tools with CCgather users
           </p>
 
           {/* Suggester badge */}
@@ -599,7 +603,7 @@ export default function ToolSuggestPage() {
                   {eligibility.user.username.charAt(0).toUpperCase()}
                 </div>
               )}
-              <span className="text-xs text-[var(--color-text-secondary)]">추천자:</span>
+              <span className="text-xs text-[var(--color-text-secondary)]">Submitted by:</span>
               <span className="text-sm font-medium text-[var(--color-text-primary)]">
                 {eligibility.user.username}
               </span>
@@ -626,7 +630,7 @@ export default function ToolSuggestPage() {
               htmlFor="website_url"
               className="block text-sm font-medium text-[var(--color-text-primary)] mb-1.5"
             >
-              웹사이트 URL <span className="text-red-500">*</span>
+              Website URL <span className="text-red-500">*</span>
             </label>
             <div className="flex gap-2">
               <div className="relative flex-1">
@@ -675,12 +679,12 @@ export default function ToolSuggestPage() {
                 {isAnalyzing ? (
                   <>
                     <Loader2 className="w-4 h-4 animate-spin" />
-                    분석 중...
+                    Analyzing...
                   </>
                 ) : (
                   <>
                     <Sparkles className="w-4 h-4" />
-                    AI 분석
+                    AI Analyze
                   </>
                 )}
               </button>
@@ -691,7 +695,7 @@ export default function ToolSuggestPage() {
             {analysisError && <p className="mt-1 text-xs text-orange-500">{analysisError}</p>}
             {hasAnalyzed && !analysisError && (
               <p className="mt-1 text-xs text-green-500">
-                AI가 정보를 자동으로 채웠습니다. 확인 후 수정하세요.
+                AI filled in the information. Please review and edit.
               </p>
             )}
           </div>
@@ -702,50 +706,53 @@ export default function ToolSuggestPage() {
               htmlFor="name"
               className="block text-sm font-medium text-[var(--color-text-primary)] mb-1.5"
             >
-              도구 이름 <span className="text-red-500">*</span>
+              Tool Name <span className="text-red-500">*</span>
             </label>
-            <div className="flex gap-3 items-center">
+            <div className="flex gap-3 items-start">
               {/* Logo Preview / Paste Area */}
-              <div
-                className={cn(
-                  "relative w-14 h-14 rounded-lg border-2 border-dashed overflow-hidden flex-shrink-0",
-                  isUploadingLogo
-                    ? "border-[var(--color-claude-coral)] bg-[var(--color-claude-coral)]/10"
-                    : "border-[var(--border-default)] bg-[var(--color-bg-card)]",
-                  !formData.logo_url && !isUploadingLogo && "flex items-center justify-center"
-                )}
-                title="이미지를 복사 후 Ctrl+V로 붙여넣기"
-              >
-                {isUploadingLogo ? (
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <Loader2 className="w-5 h-5 animate-spin text-[var(--color-claude-coral)]" />
-                  </div>
-                ) : formData.logo_url ? (
-                  <>
-                    <Image
-                      src={formData.logo_url}
-                      alt="Logo preview"
-                      fill
-                      className="object-contain p-1"
-                      unoptimized
-                      onError={(e) => {
-                        (e.target as HTMLImageElement).style.display = "none";
-                      }}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setFormData((prev) => ({ ...prev, logo_url: "" }))}
-                      className="absolute -top-1 -right-1 p-1 bg-red-500 rounded-full hover:bg-red-600 transition-colors"
-                    >
-                      <X className="w-3 h-3 text-white" />
-                    </button>
-                  </>
-                ) : (
-                  <div className="text-center p-1">
-                    <Clipboard className="w-4 h-4 text-[var(--color-text-muted)] mx-auto" />
-                    <span className="text-[8px] text-[var(--color-text-muted)]">Ctrl+V</span>
-                  </div>
-                )}
+              <div className="flex-shrink-0">
+                <div
+                  className={cn(
+                    "relative w-14 h-14 rounded-lg border-2 border-dashed overflow-hidden",
+                    isUploadingLogo
+                      ? "border-[var(--color-claude-coral)] bg-[var(--color-claude-coral)]/10"
+                      : "border-[var(--border-default)] bg-[var(--color-bg-card)]",
+                    !formData.logo_url && !isUploadingLogo && "flex items-center justify-center"
+                  )}
+                  title="Copy logo and paste with Ctrl+V"
+                >
+                  {isUploadingLogo ? (
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <Loader2 className="w-5 h-5 animate-spin text-[var(--color-claude-coral)]" />
+                    </div>
+                  ) : formData.logo_url ? (
+                    <>
+                      <Image
+                        src={formData.logo_url}
+                        alt="Logo preview"
+                        fill
+                        className="object-contain p-1"
+                        unoptimized
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).style.display = "none";
+                        }}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setFormData((prev) => ({ ...prev, logo_url: "" }))}
+                        className="absolute -top-1 -right-1 p-1 bg-red-500 rounded-full hover:bg-red-600 transition-colors"
+                      >
+                        <X className="w-3 h-3 text-white" />
+                      </button>
+                    </>
+                  ) : (
+                    <div className="text-center p-1">
+                      <Clipboard className="w-4 h-4 text-[var(--color-text-muted)] mx-auto" />
+                    </div>
+                  )}
+                </div>
+                {/* Paste hint below logo */}
+                <p className="text-[9px] text-[var(--color-text-muted)] text-center mt-1">Ctrl+V</p>
               </div>
 
               <div className="flex-1 space-y-1">
@@ -755,7 +762,7 @@ export default function ToolSuggestPage() {
                   name="name"
                   value={formData.name}
                   onChange={handleChange}
-                  placeholder="예: Cursor, Supabase, Vercel"
+                  placeholder="e.g. Cursor, Supabase, Vercel"
                   className={cn(
                     "w-full px-3 py-2 rounded-lg",
                     "bg-[var(--color-bg-card)] border",
@@ -766,9 +773,9 @@ export default function ToolSuggestPage() {
                   )}
                 />
                 {logoUploadError && <p className="text-[10px] text-red-500">{logoUploadError}</p>}
-                {!formData.logo_url && !logoUploadError && (
+                {!logoUploadError && (
                   <p className="text-[10px] text-[var(--color-text-muted)]">
-                    로고 이미지를 복사하고 Ctrl+V로 붙여넣기
+                    Please attach a square logo image separately
                   </p>
                 )}
               </div>
@@ -782,7 +789,7 @@ export default function ToolSuggestPage() {
               htmlFor="tagline"
               className="block text-sm font-medium text-[var(--color-text-primary)] mb-1.5"
             >
-              한 줄 설명 <span className="text-red-500">*</span>
+              Tagline <span className="text-red-500">*</span>
             </label>
             <input
               type="text"
@@ -791,7 +798,7 @@ export default function ToolSuggestPage() {
               value={formData.tagline}
               onChange={handleChange}
               maxLength={100}
-              placeholder="이 도구가 무엇인지 간단히 설명해주세요"
+              placeholder="Briefly describe what this tool does"
               className={cn(
                 "w-full px-3 py-2 rounded-lg",
                 "bg-[var(--color-bg-card)] border",
@@ -809,58 +816,70 @@ export default function ToolSuggestPage() {
             </div>
           </div>
 
-          {/* Category */}
+          {/* Category - Tag Style */}
           <div>
-            <label
-              htmlFor="category"
-              className="block text-sm font-medium text-[var(--color-text-primary)] mb-1.5"
-            >
-              카테고리 <span className="text-red-500">*</span>
+            <label className="block text-sm font-medium text-[var(--color-text-primary)] mb-2">
+              Category <span className="text-red-500">*</span>
             </label>
-            <select
-              id="category"
-              name="category"
-              value={formData.category}
-              onChange={handleChange}
-              className={cn(
-                "w-full px-3 py-2 rounded-lg",
-                "bg-[var(--color-bg-card)] border",
-                "text-[var(--color-text-primary)]",
-                "focus:outline-none focus:ring-2 focus:ring-[var(--color-claude-coral)]",
-                errors.category ? "border-red-500" : "border-[var(--border-default)]"
-              )}
-            >
-              <option value="">카테고리 선택</option>
-              {TOOL_CATEGORIES.map((cat) => (
-                <option key={cat} value={cat}>
-                  {CATEGORY_META[cat].emoji} {CATEGORY_META[cat].label}
-                </option>
-              ))}
-            </select>
-            {errors.category && <p className="mt-1 text-xs text-red-500">{errors.category}</p>}
+            <div className="flex flex-wrap gap-2">
+              {TOOL_CATEGORIES.map((cat) => {
+                const isSelected = formData.category === cat;
+                const meta = CATEGORY_META[cat];
+                return (
+                  <button
+                    key={cat}
+                    type="button"
+                    onClick={() => {
+                      setFormData((prev) => ({ ...prev, category: cat }));
+                      if (errors.category) {
+                        setErrors((prev) => ({ ...prev, category: undefined }));
+                      }
+                    }}
+                    className={cn(
+                      "px-3 py-1.5 rounded-full text-sm font-medium",
+                      "transition-all duration-200",
+                      "flex items-center gap-1.5",
+                      isSelected
+                        ? "bg-[var(--color-claude-coral)]/20 text-[var(--color-claude-coral)] ring-1 ring-[var(--color-claude-coral)]/30"
+                        : "bg-[var(--color-bg-card)] border border-[var(--border-default)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-card-hover)]"
+                    )}
+                  >
+                    <span>{meta.emoji}</span>
+                    <span>{meta.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+            {errors.category && <p className="mt-2 text-xs text-red-500">{errors.category}</p>}
           </div>
 
-          {/* Pricing Type */}
+          {/* Pricing Type - Tag Style */}
           <div>
-            <label
-              htmlFor="pricing_type"
-              className="block text-sm font-medium text-[var(--color-text-primary)] mb-1.5"
-            >
-              가격 유형
+            <label className="block text-sm font-medium text-[var(--color-text-primary)] mb-2">
+              Pricing
             </label>
-            <select
-              id="pricing_type"
-              name="pricing_type"
-              value={formData.pricing_type}
-              onChange={handleChange}
-              className="w-full px-3 py-2 rounded-lg bg-[var(--color-bg-card)] border border-[var(--border-default)] text-[var(--color-text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-claude-coral)]"
-            >
-              {TOOL_PRICING_TYPES.map((type) => (
-                <option key={type} value={type}>
-                  {PRICING_META[type].label}
-                </option>
-              ))}
-            </select>
+            <div className="flex flex-wrap gap-2">
+              {TOOL_PRICING_TYPES.map((type) => {
+                const isSelected = formData.pricing_type === type;
+                const meta = PRICING_META[type];
+                return (
+                  <button
+                    key={type}
+                    type="button"
+                    onClick={() => setFormData((prev) => ({ ...prev, pricing_type: type }))}
+                    className={cn(
+                      "px-3 py-1.5 rounded-full text-sm font-medium",
+                      "transition-all duration-200",
+                      isSelected
+                        ? "bg-[var(--color-claude-coral)]/20 text-[var(--color-claude-coral)] ring-1 ring-[var(--color-claude-coral)]/30"
+                        : "bg-[var(--color-bg-card)] border border-[var(--border-default)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-card-hover)]"
+                    )}
+                  >
+                    {meta.label}
+                  </button>
+                );
+              })}
+            </div>
           </div>
 
           {/* Description */}
@@ -869,7 +888,7 @@ export default function ToolSuggestPage() {
               htmlFor="description"
               className="block text-sm font-medium text-[var(--color-text-primary)] mb-1.5"
             >
-              상세 설명 <span className="text-[var(--color-text-muted)]">(선택)</span>
+              Description <span className="text-[var(--color-text-muted)]">(optional)</span>
             </label>
             <textarea
               id="description"
@@ -877,7 +896,7 @@ export default function ToolSuggestPage() {
               value={formData.description}
               onChange={handleChange}
               rows={4}
-              placeholder="도구에 대해 더 자세히 설명해주세요. 어떤 문제를 해결하나요? 왜 추천하시나요?"
+              placeholder="Tell us more about this tool. What problems does it solve? Why do you recommend it?"
               className="w-full px-3 py-2 rounded-lg bg-[var(--color-bg-card)] border border-[var(--border-default)] text-[var(--color-text-primary)] placeholder:text-[var(--color-text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--color-claude-coral)] resize-none"
             />
           </div>
@@ -899,19 +918,19 @@ export default function ToolSuggestPage() {
               {isSubmitting ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin" />
-                  추천 중...
+                  Submitting...
                 </>
               ) : (
-                "도구 추천하기"
+                "Submit Tool"
               )}
             </button>
           </div>
 
           {/* Notice */}
           <p className="text-xs text-center text-[var(--color-text-muted)]">
-            추천된 도구는 관리자 검토 후 승인됩니다.
+            Submitted tools will be reviewed by admins.
             <br />
-            당신의 프로필이 추천자로 표시됩니다.
+            Your profile will be shown as the submitter.
           </p>
         </form>
       </div>
