@@ -230,6 +230,7 @@ async function handleCronRequest(request: NextRequest, isManual: boolean) {
           published_at: article.published_at,
           status: articleStatus,
           category: articleContentType, // Keep for backwards compatibility
+          news_tags: pipelineResult?.newsTags || [], // Tag-based filtering
         };
 
         // Add rich content fields if AI processing succeeded (Gemini pipeline)
