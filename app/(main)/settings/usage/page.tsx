@@ -1,10 +1,9 @@
 "use client";
 
 import { useState, useEffect, useMemo, useRef } from "react";
-import { Globe, Trophy, Coins, Zap, Calendar, ChevronDown, ExternalLink } from "lucide-react";
+import { Globe, Trophy, Coins, Zap, Calendar, ChevronDown } from "lucide-react";
 import { FlagIcon } from "@/components/ui/FlagIcon";
 import { cn } from "@/lib/utils";
-import Link from "next/link";
 
 interface UserStats {
   id: string;
@@ -256,13 +255,24 @@ export default function SettingsUsagePage() {
         <h2 className="text-xs font-semibold text-text-muted uppercase tracking-wide">
           Usage Heatmap
         </h2>
-        <Link
-          href="/usage"
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-text-muted hover:text-text-primary hover:bg-white/5 transition-colors"
-        >
-          <ExternalLink className="w-3.5 h-3.5" />
-          <span>Fullscreen</span>
-        </Link>
+        {userStats && (
+          <div className="flex items-center gap-2">
+            {userStats.avatar_url ? (
+              <img
+                src={userStats.avatar_url}
+                alt={userStats.username}
+                className="w-6 h-6 rounded-full object-cover"
+              />
+            ) : (
+              <div className="w-6 h-6 rounded-full bg-gradient-to-br from-orange-500 to-amber-500 flex items-center justify-center text-xs font-semibold text-white">
+                {userStats.username.charAt(0).toUpperCase()}
+              </div>
+            )}
+            <span className="text-sm font-medium text-text-primary">
+              {userStats.display_name || userStats.username}
+            </span>
+          </div>
+        )}
       </div>
 
       {/* Stats Pills */}
@@ -393,7 +403,7 @@ export default function SettingsUsagePage() {
                       <th
                         key={`${year}-${month}`}
                         className={cn(
-                          "px-1 py-2 text-[10px] font-semibold text-center border-b border-white/10",
+                          "px-1 py-2 text-[10px] font-semibold text-center border-b border-r border-white/10",
                           isCurrentMonth ? "text-white bg-orange-400/10" : "text-zinc-500"
                         )}
                         style={{ minWidth: "80px" }}
@@ -429,37 +439,42 @@ export default function SettingsUsagePage() {
                           : 0;
 
                         return (
-                          <td key={`${year}-${month}-${day}`} className="px-1 py-0.5">
+                          <td
+                            key={`${year}-${month}-${day}`}
+                            className="px-1 py-0.5 border-r border-white/5"
+                          >
                             {!isValidDay ? (
-                              <div className="h-5" />
+                              <div className="h-6" />
                             ) : isFuture ? (
-                              <div className="h-5 mx-0.5 rounded" />
+                              <div className="h-6 mx-0.5 rounded" />
                             ) : entry && entry.tokens > 0 ? (
                               <div
                                 className={cn(
-                                  "h-5 mx-0.5 rounded flex items-center justify-center gap-1 transition-transform hover:scale-[1.02] cursor-default",
+                                  "h-6 mx-0.5 px-1.5 rounded flex items-center justify-between transition-transform hover:scale-[1.02] cursor-default",
                                   isToday &&
                                     "ring-2 ring-orange-400 ring-offset-1 ring-offset-[#0a0a0d]"
                                 )}
                                 title={`${entry.date}\nTokens: ${formatNumber(entry.tokens)}\nCost: $${entry.cost.toFixed(2)}`}
                               >
-                                <span className="text-[8px] font-medium text-amber-400">
+                                <span className="text-[10px] font-medium text-amber-400 text-left">
                                   {formatCost(entry.cost)}
                                 </span>
-                                <span className="text-[8px] font-medium text-orange-400">
-                                  {formatNumber(entry.tokens)}
-                                </span>
-                                <span
-                                  className="w-1.5 h-1.5 rounded-full flex-shrink-0"
-                                  style={{
-                                    backgroundColor: `rgba(251, 146, 60, ${0.2 + intensity * 0.8})`,
-                                  }}
-                                />
+                                <div className="flex items-center gap-1">
+                                  <span className="text-[10px] font-medium text-orange-400 text-right">
+                                    {formatNumber(entry.tokens)}
+                                  </span>
+                                  <span
+                                    className="w-1.5 h-1.5 rounded-full flex-shrink-0"
+                                    style={{
+                                      backgroundColor: `rgba(251, 146, 60, ${0.2 + intensity * 0.8})`,
+                                    }}
+                                  />
+                                </div>
                               </div>
                             ) : (
                               <div
                                 className={cn(
-                                  "h-5 mx-0.5 rounded flex items-center justify-center text-[8px] text-zinc-700",
+                                  "h-6 mx-0.5 rounded flex items-center justify-center text-[10px] text-zinc-700",
                                   isToday && "ring-1 ring-orange-400/50"
                                 )}
                               >
@@ -487,19 +502,22 @@ export default function SettingsUsagePage() {
                     return (
                       <td
                         key={monthKey}
-                        className={cn("px-1 py-2 text-center", isCurrentMonth && "bg-orange-400/5")}
+                        className={cn(
+                          "px-1.5 py-2 border-r border-white/5",
+                          isCurrentMonth && "bg-orange-400/5"
+                        )}
                       >
                         {monthTotal && monthTotal.tokens > 0 ? (
-                          <div className="flex items-center justify-center gap-1">
-                            <span className="text-[8px] font-semibold text-amber-400">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[10px] font-semibold text-amber-400 text-left">
                               {formatCost(monthTotal.cost)}
                             </span>
-                            <span className="text-[8px] font-semibold text-orange-400">
+                            <span className="text-[10px] font-semibold text-orange-400 text-right">
                               {formatNumber(monthTotal.tokens)}
                             </span>
                           </div>
                         ) : (
-                          <span className="text-[8px] text-zinc-700">-</span>
+                          <span className="text-[10px] text-zinc-700 block text-center">-</span>
                         )}
                       </td>
                     );
