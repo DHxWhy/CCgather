@@ -1,14 +1,13 @@
 "use client";
 
-import { memo, useState } from "react";
+import { memo, useState, useEffect } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { motion } from "framer-motion";
-import { ExternalLink } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import { MessageCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { ToolWithVoters } from "@/types/tools";
 import { CATEGORY_META, PRICING_META, isNewTool, isHotTool } from "@/types/tools";
-import { AvatarGroup } from "@/components/ui/avatar-group";
 import VoteButton from "./VoteButton";
 
 // =====================================================
@@ -22,13 +21,14 @@ interface ToolListItemProps {
   onVote?: (toolId: string) => Promise<void>;
   onSuggesterClick?: (userId: string) => void;
   showRank?: boolean;
-  showSuggester?: boolean;
-  compact?: boolean;
+  currentUserId?: string; // 현재 로그인된 사용자 ID
+  currentUserAvatar?: string; // 현재 사용자 아바타
+  currentUserName?: string; // 현재 사용자 이름
   className?: string;
 }
 
 // =====================================================
-// Component - 테이블 행 스타일의 밀도 높은 리스트 아이템
+// Component - 새로운 2줄 레이아웃
 // =====================================================
 
 function ToolListItemComponent({
@@ -36,15 +36,21 @@ function ToolListItemComponent({
   rank,
   isVoted = false,
   onVote,
-  onSuggesterClick,
   showRank = true,
-  showSuggester = true,
-  compact = false,
+  currentUserId,
+  currentUserAvatar,
+  currentUserName,
   className,
 }: ToolListItemProps) {
   const [voted, setVoted] = useState(isVoted);
   const [voteCount, setVoteCount] = useState(tool.upvote_count);
   const [isVoting, setIsVoting] = useState(false);
+  const [voters, setVoters] = useState(tool.voters);
+
+  // isVoted prop이 변경되면 상태 동기화
+  useEffect(() => {
+    setVoted(isVoted);
+  }, [isVoted]);
 
   const categoryMeta = CATEGORY_META[tool.category];
   const pricingMeta = PRICING_META[tool.pricing_type];
@@ -52,18 +58,48 @@ function ToolListItemComponent({
   const isHot = isHotTool(tool.upvote_count, tool.created_at);
   const isFeatured = tool.status === "featured";
 
+  // 댓글 수 계산 (comment가 있는 voter 수)
+  const commentCount = voters.filter((v) => v.comment).length;
+
+  // 표시할 최대 아바타 수
+  const MAX_VISIBLE_AVATARS = 12;
+
   const handleVote = async (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
     if (isVoting) return;
 
     setIsVoting(true);
+    const wasVoted = voted;
+
     try {
+      // Optimistic UI 업데이트
+      setVoted(!wasVoted);
+      setVoteCount((prev) => (wasVoted ? prev - 1 : prev + 1));
+
+      // 아바타 목록 optimistic 업데이트
+      if (!wasVoted && currentUserId) {
+        // 투표 추가 - 내 아바타를 맨 앞에 추가
+        const newVoter = {
+          user_id: currentUserId,
+          username: currentUserName || "You",
+          avatar_url: currentUserAvatar || null,
+          trust_tier: "member" as const,
+          weight: 1,
+          comment: null,
+        };
+        setVoters((prev) => [newVoter, ...prev]);
+      } else if (wasVoted && currentUserId) {
+        // 투표 취소 - 내 아바타 제거 (슬라이딩 윈도우 효과)
+        setVoters((prev) => prev.filter((v) => v.user_id !== currentUserId));
+      }
+
       await onVote?.(tool.id);
-      setVoted(!voted);
-      setVoteCount((prev) => (voted ? prev - 1 : prev + 1));
     } catch {
-      // Revert on error
+      // 실패 시 롤백
+      setVoted(wasVoted);
+      setVoteCount((prev) => (wasVoted ? prev + 1 : prev - 1));
+      setVoters(tool.voters);
     } finally {
       setIsVoting(false);
     }
@@ -88,12 +124,28 @@ function ToolListItemComponent({
     return null;
   };
 
+  // 가격 색상 클래스
+  const getPricingColorClass = () => {
+    switch (pricingMeta.color) {
+      case "green":
+        return "text-green-400";
+      case "blue":
+        return "text-blue-400";
+      case "purple":
+        return "text-purple-400";
+      case "cyan":
+        return "text-cyan-400";
+      default:
+        return "text-[var(--color-text-secondary)]";
+    }
+  };
+
   return (
     <Link href={`/tools/${tool.slug}`} className="block group">
       <motion.div
         whileHover={{ x: 2 }}
         className={cn(
-          "flex items-center gap-3 px-3 py-2 rounded-lg",
+          "px-3 py-3 rounded-lg",
           "bg-[var(--color-bg-card)]",
           "border border-[var(--border-default)]",
           "hover:border-[var(--color-claude-coral)]/30",
@@ -104,166 +156,162 @@ function ToolListItemComponent({
         )}
         style={getRankStyle()}
       >
-        {/* Rank */}
-        {showRank && rank && (
-          <div className="w-8 flex-shrink-0 text-center">
-            {getRankBadge() ? (
-              <span className="text-lg">{getRankBadge()}</span>
-            ) : (
-              <span className="text-sm font-bold text-[var(--color-text-muted)]">#{rank}</span>
-            )}
-          </div>
-        )}
-
-        {/* Logo */}
-        {tool.logo_url ? (
-          <Image
-            src={tool.logo_url}
-            alt={tool.name}
-            width={compact ? 28 : 32}
-            height={compact ? 28 : 32}
-            className="rounded-md object-cover flex-shrink-0"
-            unoptimized
-          />
-        ) : (
-          <div
-            className={cn(
-              "rounded-md bg-[var(--color-bg-elevated)] flex items-center justify-center flex-shrink-0",
-              compact ? "w-7 h-7 text-base" : "w-8 h-8 text-lg"
-            )}
-          >
-            {categoryMeta.emoji}
-          </div>
-        )}
-
-        {/* Name & Tagline */}
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2">
-            <h3
-              className={cn(
-                "font-medium text-[var(--color-text-primary)] truncate group-hover:text-[var(--color-claude-coral)] transition-colors",
-                compact ? "text-xs" : "text-sm"
+        {/* Main Content Grid */}
+        <div className="flex gap-3">
+          {/* Rank Badge */}
+          {showRank && rank && (
+            <div className="w-7 flex-shrink-0 flex items-start justify-center pt-1">
+              {getRankBadge() ? (
+                <span className="text-lg">{getRankBadge()}</span>
+              ) : (
+                <span className="text-xs font-bold text-[var(--color-text-muted)]">#{rank}</span>
               )}
-            >
-              {tool.name}
-            </h3>
-
-            {/* Badges */}
-            {isFeatured && (
-              <span className="px-1 py-0.5 rounded text-[9px] bg-gradient-to-r from-[var(--color-claude-coral)]/20 to-purple-500/20 text-[var(--color-claude-coral)] flex-shrink-0">
-                ⭐
-              </span>
-            )}
-            {isHot && !isFeatured && (
-              <span className="px-1 py-0.5 rounded text-[9px] bg-orange-500/20 text-orange-400 flex-shrink-0">
-                🔥
-              </span>
-            )}
-            {isNew && !isHot && !isFeatured && (
-              <span className="px-1 py-0.5 rounded text-[9px] bg-green-500/20 text-green-400 flex-shrink-0">
-                NEW
-              </span>
-            )}
-          </div>
-
-          {!compact && (
-            <p className="text-[11px] text-[var(--color-text-muted)] truncate">{tool.tagline}</p>
+            </div>
           )}
-        </div>
 
-        {/* Category */}
-        <div className="hidden sm:flex items-center gap-1 w-24 flex-shrink-0">
-          <span className="text-xs">{categoryMeta.emoji}</span>
-          <span className="text-[11px] text-[var(--color-text-secondary)] truncate">
-            {categoryMeta.label}
-          </span>
-        </div>
-
-        {/* Pricing */}
-        <div className="hidden md:block w-16 flex-shrink-0">
-          <span
-            className={cn(
-              "px-1.5 py-0.5 rounded text-[10px]",
-              `bg-${pricingMeta.color}-500/15 text-${pricingMeta.color}-400`
-            )}
-          >
-            {pricingMeta.label}
-          </span>
-        </div>
-
-        {/* Suggester Info */}
-        {showSuggester && tool.submitter && !compact && (
-          <button
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              onSuggesterClick?.(tool.submitter!.id);
-            }}
-            className={cn(
-              "hidden md:flex items-center gap-1.5 px-2 py-1 rounded-md",
-              "bg-[var(--color-bg-elevated)]/50",
-              "hover:bg-[var(--color-bg-elevated)]",
-              "transition-colors flex-shrink-0",
-              "text-[10px] text-[var(--color-text-secondary)]",
-              "hover:text-[var(--color-claude-coral)]"
-            )}
-          >
-            {tool.submitter.avatar_url ? (
+          {/* Logo */}
+          <div className="flex-shrink-0 pt-0.5">
+            {tool.logo_url ? (
               <Image
-                src={tool.submitter.avatar_url}
-                alt={tool.submitter.username}
-                width={16}
-                height={16}
-                className="rounded-full"
+                src={tool.logo_url}
+                alt={tool.name}
+                width={40}
+                height={40}
+                className="rounded-lg object-cover"
                 unoptimized
               />
             ) : (
-              <div className="w-4 h-4 rounded-full bg-[var(--color-bg-elevated)] flex items-center justify-center text-[8px]">
-                {tool.submitter.username.charAt(0).toUpperCase()}
+              <div className="w-10 h-10 rounded-lg bg-[var(--color-bg-elevated)] flex items-center justify-center text-xl">
+                {categoryMeta.emoji}
               </div>
             )}
-            <span className="truncate max-w-[80px]">@{tool.submitter.username}</span>
-          </button>
-        )}
-
-        {/* Top Voters Preview */}
-        {tool.voters.length > 0 && (
-          <div className="hidden lg:block flex-shrink-0">
-            <AvatarGroup
-              avatars={tool.voters.slice(0, 4).map((voter) => ({
-                src: voter.avatar_url || "",
-                alt: voter.username,
-                label: `@${voter.username}`,
-                fallback: voter.username.charAt(0).toUpperCase(),
-              }))}
-              maxVisible={4}
-              size="sm"
-              overlap="tight"
-            />
           </div>
-        )}
 
-        {/* Vote Button */}
-        <div className="flex-shrink-0">
-          <VoteButton
-            count={voteCount}
-            voted={voted}
-            loading={isVoting}
-            onClick={handleVote}
-            size={compact ? "xs" : "sm"}
-          />
+          {/* Content Area */}
+          <div className="flex-1 min-w-0">
+            {/* Row 1: Name + Badges + Price */}
+            <div className="flex items-center justify-between gap-2 mb-0.5">
+              <div className="flex items-center gap-2 min-w-0">
+                <h3 className="font-semibold text-sm text-[var(--color-text-primary)] truncate group-hover:text-[var(--color-claude-coral)] transition-colors">
+                  {tool.name}
+                </h3>
+
+                {/* Status Badges */}
+                {isFeatured && (
+                  <span className="px-1.5 py-0.5 rounded text-[9px] bg-gradient-to-r from-[var(--color-claude-coral)]/20 to-purple-500/20 text-[var(--color-claude-coral)] flex-shrink-0">
+                    ⭐
+                  </span>
+                )}
+                {isHot && !isFeatured && (
+                  <span className="px-1.5 py-0.5 rounded text-[9px] bg-orange-500/20 text-orange-400 flex-shrink-0">
+                    🔥
+                  </span>
+                )}
+                {isNew && !isHot && !isFeatured && (
+                  <span className="px-1.5 py-0.5 rounded text-[9px] bg-green-500/20 text-green-400 font-medium flex-shrink-0">
+                    NEW
+                  </span>
+                )}
+              </div>
+
+              {/* Price Label */}
+              <span className={cn("text-[11px] font-medium flex-shrink-0", getPricingColorClass())}>
+                {pricingMeta.label}
+              </span>
+            </div>
+
+            {/* Row 2: Tagline */}
+            <p className="text-[11px] text-[var(--color-text-muted)] truncate mb-2">
+              {tool.tagline}
+            </p>
+
+            {/* Row 3: Voter Avatars + Comments */}
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                {/* Voter Avatars with Sliding Animation */}
+                <AnimatePresence mode="popLayout">
+                  <div className="flex items-center">
+                    {voters.slice(0, MAX_VISIBLE_AVATARS).map((voter, index) => (
+                      <motion.div
+                        key={voter.user_id}
+                        initial={{ opacity: 0, scale: 0.8, x: -10 }}
+                        animate={{ opacity: 1, scale: 1, x: 0 }}
+                        exit={{ opacity: 0, scale: 0.8, x: -10 }}
+                        transition={{
+                          type: "spring",
+                          stiffness: 500,
+                          damping: 30,
+                          delay: index * 0.02,
+                        }}
+                        className={cn(
+                          "w-5 h-5 rounded-full overflow-hidden",
+                          "border-2 border-[var(--color-bg-card)]",
+                          "flex-shrink-0"
+                        )}
+                        style={{
+                          marginLeft: index === 0 ? 0 : -6,
+                          zIndex: MAX_VISIBLE_AVATARS - index,
+                        }}
+                        title={`@${voter.username}`}
+                      >
+                        {voter.avatar_url ? (
+                          <Image
+                            src={voter.avatar_url}
+                            alt={voter.username}
+                            width={20}
+                            height={20}
+                            className="object-cover"
+                            unoptimized
+                          />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center bg-[var(--color-bg-elevated)] text-[8px] font-medium text-[var(--color-text-muted)]">
+                            {voter.username.charAt(0).toUpperCase()}
+                          </div>
+                        )}
+                      </motion.div>
+                    ))}
+
+                    {/* +n 표시 */}
+                    {voters.length > MAX_VISIBLE_AVATARS && (
+                      <motion.div
+                        initial={{ opacity: 0, scale: 0.8 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        className={cn(
+                          "w-5 h-5 rounded-full",
+                          "border-2 border-[var(--color-bg-card)]",
+                          "bg-[var(--color-bg-elevated)]",
+                          "flex items-center justify-center",
+                          "text-[8px] font-medium text-[var(--color-text-muted)]",
+                          "flex-shrink-0"
+                        )}
+                        style={{ marginLeft: -6, zIndex: 0 }}
+                      >
+                        +{voters.length - MAX_VISIBLE_AVATARS}
+                      </motion.div>
+                    )}
+                  </div>
+                </AnimatePresence>
+
+                {/* Comment Count - 댓글 있을 때만 표시 */}
+                {commentCount > 0 && (
+                  <div className="flex items-center gap-1 text-[var(--color-text-muted)]">
+                    <MessageCircle className="w-3 h-3" />
+                    <span className="text-[10px]">{commentCount}</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Vote Button */}
+              <VoteButton
+                count={voteCount}
+                voted={voted}
+                loading={isVoting}
+                onClick={handleVote}
+                size="sm"
+              />
+            </div>
+          </div>
         </div>
-
-        {/* External Link */}
-        <a
-          href={tool.website_url}
-          target="_blank"
-          rel="noopener noreferrer"
-          onClick={(e) => e.stopPropagation()}
-          className="text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] transition-colors flex-shrink-0"
-        >
-          <ExternalLink className={cn(compact ? "w-3.5 h-3.5" : "w-4 h-4")} />
-        </a>
       </motion.div>
     </Link>
   );
