@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { Loader2, CheckCircle, XCircle, SkipForward, Play, Square, X } from "lucide-react";
+import { Loader2, CheckCircle, XCircle, SkipForward, Play, Square } from "lucide-react";
 
 // Predefined Claude blog articles
 const CLAUDE_BLOG_ARTICLES = [
@@ -491,6 +491,8 @@ export default function BatchCollector({ onComplete }: { onComplete?: () => void
   const [currentIndex, setCurrentIndex] = useState(0);
   const [stats, setStats] = useState({ success: 0, failed: 0, skipped: 0 });
   const [delaySeconds, setDelaySeconds] = useState(60);
+  const [autoPublish, setAutoPublish] = useState(true);
+  const [showConfirm, setShowConfirm] = useState(false);
   const abortControllerRef = useRef<AbortController | null>(null);
   const logsEndRef = useRef<HTMLDivElement>(null);
 
@@ -517,6 +519,7 @@ export default function BatchCollector({ onComplete }: { onComplete?: () => void
         body: JSON.stringify({
           urls: articlesToProcess.map((a) => ({ url: a.url, category: a.category })),
           delayMs: delaySeconds * 1000,
+          autoPublish,
         }),
         signal: abortControllerRef.current.signal,
       });
@@ -639,11 +642,34 @@ export default function BatchCollector({ onComplete }: { onComplete?: () => void
           </div>
         </div>
 
+        {/* Auto Publish Option */}
+        <div className="flex items-center justify-between py-2 px-3 bg-white/[0.03] rounded-lg">
+          <div>
+            <div className="text-[11px] text-white/70 font-medium">자동 게시</div>
+            <div className="text-[10px] text-white/40">
+              {autoPublish ? "수집 즉시 게시됩니다" : "수집 후 검토 대기 상태로 저장됩니다"}
+            </div>
+          </div>
+          <button
+            onClick={() => setAutoPublish(!autoPublish)}
+            disabled={isRunning}
+            className={`relative w-11 h-6 rounded-full transition-colors ${
+              autoPublish ? "bg-emerald-500" : "bg-white/20"
+            } ${isRunning ? "opacity-50 cursor-not-allowed" : ""}`}
+          >
+            <div
+              className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-transform ${
+                autoPublish ? "translate-x-6" : "translate-x-1"
+              }`}
+            />
+          </button>
+        </div>
+
         {/* Action Buttons */}
         <div className="flex gap-2">
           {!isRunning ? (
             <button
-              onClick={startBatchCollection}
+              onClick={() => setShowConfirm(true)}
               className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-[var(--color-claude-coral)] text-white rounded text-[12px] font-medium hover:opacity-90 transition-colors"
             >
               <Play className="w-4 h-4" />
@@ -704,6 +730,78 @@ export default function BatchCollector({ onComplete }: { onComplete?: () => void
             <LogItem key={i} log={log} />
           ))}
           <div ref={logsEndRef} />
+        </div>
+      )}
+
+      {/* Confirm Modal */}
+      {showConfirm && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+          <div className="bg-[#1a1a1a] rounded-lg w-full max-w-md border border-white/10 shadow-xl">
+            <div className="p-4 border-b border-white/[0.06]">
+              <h3 className="text-[14px] font-semibold text-white">배치 수집 확인</h3>
+            </div>
+            <div className="p-4 space-y-3">
+              <div className="text-[12px] text-white/70 space-y-2">
+                <p>다음 설정으로 배치 수집을 시작합니다:</p>
+                <ul className="space-y-1.5 pl-4">
+                  <li className="flex items-center gap-2">
+                    <span className="w-1.5 h-1.5 bg-[var(--color-claude-coral)] rounded-full" />
+                    <span>
+                      총 <strong className="text-white">{totalArticles}개</strong> 기사
+                    </span>
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <span className="w-1.5 h-1.5 bg-[var(--color-claude-coral)] rounded-full" />
+                    <span>
+                      요청 간격:{" "}
+                      <strong className="text-white">
+                        {delaySeconds >= 60
+                          ? `${Math.floor(delaySeconds / 60)}분 ${delaySeconds % 60 > 0 ? `${delaySeconds % 60}초` : ""}`
+                          : `${delaySeconds}초`}
+                      </strong>
+                    </span>
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <span className="w-1.5 h-1.5 bg-[var(--color-claude-coral)] rounded-full" />
+                    <span>
+                      예상 소요 시간: <strong className="text-white">~{estimatedTimeText}</strong>
+                    </span>
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <span
+                      className={`w-1.5 h-1.5 ${autoPublish ? "bg-emerald-500" : "bg-yellow-500"} rounded-full`}
+                    />
+                    <span>
+                      게시 상태:{" "}
+                      <strong className={autoPublish ? "text-emerald-400" : "text-yellow-400"}>
+                        {autoPublish ? "자동 게시" : "검토 대기"}
+                      </strong>
+                    </span>
+                  </li>
+                </ul>
+              </div>
+              <div className="p-3 bg-yellow-500/10 border border-yellow-500/20 rounded text-[11px] text-yellow-400">
+                ⚠️ 수집이 시작되면 창을 닫지 마세요. 중간에 중단할 수 있습니다.
+              </div>
+            </div>
+            <div className="p-4 border-t border-white/[0.06] flex gap-2">
+              <button
+                onClick={() => setShowConfirm(false)}
+                className="flex-1 px-4 py-2 bg-white/5 text-white/70 rounded text-[12px] hover:bg-white/10 transition-colors"
+              >
+                취소
+              </button>
+              <button
+                onClick={() => {
+                  setShowConfirm(false);
+                  startBatchCollection();
+                }}
+                className="flex-1 px-4 py-2 bg-[var(--color-claude-coral)] text-white rounded text-[12px] font-medium hover:opacity-90 transition-colors"
+              >
+                수집 시작
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

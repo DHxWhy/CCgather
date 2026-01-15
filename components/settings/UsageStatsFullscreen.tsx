@@ -62,16 +62,10 @@ function getDaysInMonth(year: number, month: number): number {
   return new Date(year, month + 1, 0).getDate();
 }
 
-// Color scale for heatmap
-function getHeatmapColor(cost: number, maxCost: number): string {
-  if (cost === 0) return "rgba(255, 255, 255, 0.02)";
-
-  const intensity = Math.min(cost / Math.max(maxCost * 0.5, 100), 1);
-
-  if (intensity < 0.25) return "rgba(16, 185, 129, 0.15)";
-  if (intensity < 0.5) return "rgba(16, 185, 129, 0.3)";
-  if (intensity < 0.75) return "rgba(16, 185, 129, 0.5)";
-  return "rgba(16, 185, 129, 0.7)";
+// Heatmap dot intensity based on tokens (returns opacity 0-1)
+function getHeatmapIntensity(tokens: number, maxTokens: number): number {
+  if (tokens === 0 || maxTokens === 0) return 0;
+  return Math.min(tokens / (maxTokens * 0.5), 1);
 }
 
 // Format number
@@ -182,7 +176,6 @@ export function UsageStatsFullscreen({ isOpen, onClose }: UsageStatsFullscreenPr
   useEffect(() => {
     if (!isLoading && tableRef.current) {
       const scrollContainer = tableRef.current;
-      // Scroll to right side (most recent data)
       setTimeout(() => {
         scrollContainer.scrollLeft = scrollContainer.scrollWidth;
       }, 100);
@@ -224,10 +217,10 @@ export function UsageStatsFullscreen({ isOpen, onClose }: UsageStatsFullscreenPr
   }, [isOpen, onClose]);
 
   // Process data into year/month/day structure
-  const { dataMap, monthTotals, maxDailyCost, yearlyTotal } = useMemo(() => {
+  const { dataMap, monthTotals, maxDailyTokens, periodTotal } = useMemo(() => {
     const dataMap: Map<string, HistoryEntry> = new Map();
     const monthTotals: Map<string, { tokens: number; cost: number }> = new Map();
-    let maxDailyCost = 0;
+    let maxDailyTokens = 0;
     let totalTokens = 0;
     let totalCost = 0;
 
@@ -258,14 +251,14 @@ export function UsageStatsFullscreen({ isOpen, onClose }: UsageStatsFullscreenPr
       totalTokens += entry.tokens;
       totalCost += entry.cost;
 
-      if (entry.cost > maxDailyCost) maxDailyCost = entry.cost;
+      if (entry.tokens > maxDailyTokens) maxDailyTokens = entry.tokens;
     });
 
     return {
       dataMap,
       monthTotals,
-      maxDailyCost,
-      yearlyTotal: { tokens: totalTokens, cost: totalCost },
+      maxDailyTokens,
+      periodTotal: { tokens: totalTokens, cost: totalCost },
     };
   }, [history, monthRange]);
 
@@ -299,6 +292,7 @@ export function UsageStatsFullscreen({ isOpen, onClose }: UsageStatsFullscreenPr
   if (!isOpen) return null;
 
   const today = new Date();
+  const currentYear = today.getFullYear();
 
   return (
     <AnimatePresence>
@@ -363,7 +357,7 @@ export function UsageStatsFullscreen({ isOpen, onClose }: UsageStatsFullscreenPr
                       <Zap className="w-3.5 h-3.5" />
                       <span>Total Tokens</span>
                     </div>
-                    <p className="text-xl font-bold text-white">
+                    <p className="text-xl font-bold text-primary">
                       {formatNumber(userStats?.total_tokens || 0)}
                     </p>
                   </div>
@@ -374,7 +368,7 @@ export function UsageStatsFullscreen({ isOpen, onClose }: UsageStatsFullscreenPr
                       <Coins className="w-3.5 h-3.5" />
                       <span>Total Cost</span>
                     </div>
-                    <p className="text-xl font-bold text-emerald-400">
+                    <p className="text-xl font-bold text-amber-400">
                       $
                       {(userStats?.total_cost || 0).toLocaleString(undefined, {
                         minimumFractionDigits: 2,
@@ -423,7 +417,9 @@ export function UsageStatsFullscreen({ isOpen, onClose }: UsageStatsFullscreenPr
                     <Calendar className="w-4 h-4 text-zinc-500" />
                     <h2 className="text-sm font-semibold text-white">Usage Heatmap</h2>
                     <span className="text-xs text-zinc-600">
-                      ({formatNumber(yearlyTotal.tokens)} tokens, {formatCost(yearlyTotal.cost)})
+                      (<span className="text-primary">{formatNumber(periodTotal.tokens)}</span>{" "}
+                      tokens, <span className="text-amber-400">{formatCost(periodTotal.cost)}</span>
+                      )
                     </span>
                   </div>
 
@@ -476,15 +472,23 @@ export function UsageStatsFullscreen({ isOpen, onClose }: UsageStatsFullscreenPr
                     <thead>
                       <tr>
                         <th className="sticky left-0 z-20 bg-[#0a0a0d] w-10" />
-                        {yearGroups.map((group) => (
-                          <th
-                            key={group.year}
-                            colSpan={group.count}
-                            className="px-2 py-1.5 text-[11px] font-bold text-primary text-center border-b border-white/5 bg-primary/5"
-                          >
-                            {group.year}
-                          </th>
-                        ))}
+                        {yearGroups.map((group) => {
+                          const isCurrentYear = group.year === currentYear;
+                          return (
+                            <th
+                              key={group.year}
+                              colSpan={group.count}
+                              className={cn(
+                                "px-2 py-1.5 text-[11px] font-bold text-center border-b border-white/5",
+                                isCurrentYear
+                                  ? "text-white bg-primary/20"
+                                  : "text-zinc-500 bg-white/[0.03]"
+                              )}
+                            >
+                              {group.year}
+                            </th>
+                          );
+                        })}
                       </tr>
                       {/* Month Header Row */}
                       <tr>
@@ -499,9 +503,9 @@ export function UsageStatsFullscreen({ isOpen, onClose }: UsageStatsFullscreenPr
                               key={`${year}-${month}`}
                               className={cn(
                                 "px-1 py-2 text-[10px] font-semibold text-center border-b border-white/10",
-                                isCurrentMonth ? "text-primary bg-primary/5" : "text-zinc-500"
+                                isCurrentMonth ? "text-white bg-primary/10" : "text-zinc-500"
                               )}
-                              style={{ minWidth: "80px" }}
+                              style={{ minWidth: "90px" }}
                             >
                               {MONTHS_SHORT[month]}
                             </th>
@@ -530,30 +534,46 @@ export function UsageStatsFullscreen({ isOpen, onClose }: UsageStatsFullscreenPr
                                 day === today.getDate();
                               const isFuture = new Date(year, month, day) > today;
 
+                              // Calculate heatmap intensity based on tokens
+                              const intensity = entry
+                                ? getHeatmapIntensity(entry.tokens, maxDailyTokens)
+                                : 0;
+
                               return (
                                 <td key={`${year}-${month}-${day}`} className="px-1 py-0.5">
                                   {!isValidDay ? (
-                                    <div className="h-8" />
+                                    <div className="h-7" />
                                   ) : isFuture ? (
-                                    <div className="h-8 mx-0.5 rounded bg-white/[0.01]" />
-                                  ) : entry && entry.cost > 0 ? (
+                                    <div className="h-7 mx-0.5 rounded" />
+                                  ) : entry && entry.tokens > 0 ? (
                                     <div
                                       className={cn(
-                                        "h-8 mx-0.5 rounded flex items-center justify-center text-[10px] font-medium text-white/90 transition-transform hover:scale-105 cursor-default",
+                                        "h-7 mx-0.5 rounded flex items-center justify-center gap-1 transition-transform hover:scale-[1.02] cursor-default",
                                         isToday &&
                                           "ring-2 ring-primary ring-offset-1 ring-offset-[#0a0a0d]"
                                       )}
-                                      style={{
-                                        background: getHeatmapColor(entry.cost, maxDailyCost),
-                                      }}
                                       title={`${entry.date}\nTokens: ${formatNumber(entry.tokens)}\nCost: $${entry.cost.toFixed(2)}`}
                                     >
-                                      {formatCost(entry.cost)}
+                                      {/* Cost (yellow) */}
+                                      <span className="text-[9px] font-medium text-amber-400">
+                                        {formatCost(entry.cost)}
+                                      </span>
+                                      {/* Token (primary/coral) */}
+                                      <span className="text-[9px] font-medium text-primary">
+                                        {formatNumber(entry.tokens)}
+                                      </span>
+                                      {/* Heatmap dot based on tokens */}
+                                      <span
+                                        className="w-2 h-2 rounded-full flex-shrink-0"
+                                        style={{
+                                          backgroundColor: `rgba(218, 119, 86, ${0.2 + intensity * 0.8})`,
+                                        }}
+                                      />
                                     </div>
                                   ) : (
                                     <div
                                       className={cn(
-                                        "h-8 mx-0.5 rounded bg-white/[0.02] flex items-center justify-center text-[10px] text-zinc-700",
+                                        "h-7 mx-0.5 rounded flex items-center justify-center text-[9px] text-zinc-700",
                                         isToday && "ring-1 ring-primary/50"
                                       )}
                                     >
@@ -586,12 +606,17 @@ export function UsageStatsFullscreen({ isOpen, onClose }: UsageStatsFullscreenPr
                                 isCurrentMonth && "bg-primary/5"
                               )}
                             >
-                              {monthTotal && monthTotal.cost > 0 ? (
-                                <span className="text-[10px] font-semibold text-emerald-400">
-                                  {formatCost(monthTotal.cost)}
-                                </span>
+                              {monthTotal && monthTotal.tokens > 0 ? (
+                                <div className="flex items-center justify-center gap-1">
+                                  <span className="text-[9px] font-semibold text-amber-400">
+                                    {formatCost(monthTotal.cost)}
+                                  </span>
+                                  <span className="text-[9px] font-semibold text-primary">
+                                    {formatNumber(monthTotal.tokens)}
+                                  </span>
+                                </div>
                               ) : (
-                                <span className="text-[10px] text-zinc-700">-</span>
+                                <span className="text-[9px] text-zinc-700">-</span>
                               )}
                             </td>
                           );
@@ -601,31 +626,19 @@ export function UsageStatsFullscreen({ isOpen, onClose }: UsageStatsFullscreenPr
                   </table>
                 </div>
 
-                {/* Footer */}
+                {/* Footer - Heatmap Legend */}
                 <div className="flex items-center justify-between mt-4">
                   <div className="flex items-center gap-3 text-[10px] text-zinc-600">
+                    <span>Tokens:</span>
                     <span>Less</span>
-                    <div className="flex gap-0.5">
-                      <div
-                        className="w-3 h-3 rounded"
-                        style={{ background: "rgba(255, 255, 255, 0.02)" }}
-                      />
-                      <div
-                        className="w-3 h-3 rounded"
-                        style={{ background: "rgba(16, 185, 129, 0.15)" }}
-                      />
-                      <div
-                        className="w-3 h-3 rounded"
-                        style={{ background: "rgba(16, 185, 129, 0.3)" }}
-                      />
-                      <div
-                        className="w-3 h-3 rounded"
-                        style={{ background: "rgba(16, 185, 129, 0.5)" }}
-                      />
-                      <div
-                        className="w-3 h-3 rounded"
-                        style={{ background: "rgba(16, 185, 129, 0.7)" }}
-                      />
+                    <div className="flex gap-1">
+                      {[0.2, 0.4, 0.6, 0.8, 1.0].map((opacity) => (
+                        <div
+                          key={opacity}
+                          className="w-2.5 h-2.5 rounded-full"
+                          style={{ backgroundColor: `rgba(218, 119, 86, ${opacity})` }}
+                        />
+                      ))}
                     </div>
                     <span>More</span>
                   </div>

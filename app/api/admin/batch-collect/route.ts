@@ -46,10 +46,17 @@ export async function POST(request: NextRequest) {
   }
 
   const body = await request.json();
-  const { urls, delayMs = 30000 } = body as {
+  const {
+    urls,
+    delayMs = 30000,
+    autoPublish: shouldAutoPublish = true,
+  } = body as {
     urls: Array<{ url: string; category: TargetCategory }>;
     delayMs?: number;
+    autoPublish?: boolean;
   };
+  // Capture in local const for closure
+  const autoPublish = shouldAutoPublish;
 
   if (!urls || !Array.isArray(urls) || urls.length === 0) {
     return new Response(JSON.stringify({ error: "URLs array is required" }), {
@@ -66,7 +73,9 @@ export async function POST(request: NextRequest) {
       const stats = { success: 0, failed: 0, skipped: 0 };
 
       for (let i = 0; i < urls.length; i++) {
-        const { url, category } = urls[i];
+        const item = urls[i];
+        if (!item) continue;
+        const { url, category } = item;
 
         try {
           // Send progress event
@@ -105,8 +114,6 @@ export async function POST(request: NextRequest) {
 
           // Initialize pipeline and process
           const pipeline = new GeminiPipeline();
-          await pipeline.initialize();
-
           const result = await pipeline.processUrl(url, category);
 
           if (!result.success || !result.content) {
@@ -114,6 +121,7 @@ export async function POST(request: NextRequest) {
           }
 
           // Insert into database
+          const status = autoPublish ? "published" : "pending";
           const { data: content, error: insertError } = await supabase
             .from("contents")
             .insert({
@@ -127,8 +135,8 @@ export async function POST(request: NextRequest) {
               category: result.content.category,
               tags: result.content.tags,
               news_tags: result.content.newsTags,
-              status: "published",
-              published_at: new Date().toISOString(),
+              status,
+              published_at: autoPublish ? new Date().toISOString() : null,
               rich_content: result.content.richContent,
               // AI classification fields
               ai_article_type: result.content.articleType,
