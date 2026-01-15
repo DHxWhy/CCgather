@@ -204,7 +204,7 @@ export default function SettingsProfilePage() {
   }
 
   return (
-    <div className="max-w-xl mx-auto p-6 space-y-8">
+    <div className="max-w-xl mx-auto p-4 sm:p-6 space-y-6 sm:space-y-8">
       {/* Profile Card */}
       <section>
         <h2 className="text-sm font-medium text-[var(--color-text-secondary)] mb-3">Profile</h2>
@@ -259,7 +259,10 @@ export default function SettingsProfilePage() {
                   : "text-[var(--color-text-muted)]"
               )}
             />
-            <span className="text-xs text-[var(--color-text-muted)]">github.com/</span>
+            <span className="hidden sm:inline text-xs text-[var(--color-text-muted)]">
+              github.com/
+            </span>
+            <span className="sm:hidden text-xs text-[var(--color-text-muted)]">@</span>
             <input
               type="text"
               placeholder="username"
@@ -271,7 +274,7 @@ export default function SettingsProfilePage() {
               }
               readOnly={!!githubAccount?.username}
               className={cn(
-                "flex-1 bg-transparent text-sm focus:outline-none",
+                "flex-1 min-w-0 bg-transparent text-sm focus:outline-none",
                 githubAccount?.username || editedLinks.github
                   ? "text-[var(--color-text-primary)] cursor-default"
                   : "text-[var(--color-text-primary)] placeholder:text-[var(--color-text-muted)]"
@@ -279,10 +282,10 @@ export default function SettingsProfilePage() {
             />
             {githubAccount?.username ? (
               <span className="text-[10px] text-green-500 flex items-center gap-1 whitespace-nowrap">
-                <Check className="w-3 h-3" /> Connected
+                <Check className="w-3 h-3" /> <span className="hidden xs:inline">Connected</span>
               </span>
             ) : editedLinks.github ? (
-              <Check className="w-4 h-4 text-green-500" />
+              <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
             ) : null}
           </div>
 
@@ -308,7 +311,10 @@ export default function SettingsProfilePage() {
                       : "text-[var(--color-text-muted)]"
                 )}
               />
-              <span className="text-xs text-[var(--color-text-muted)]">x.com/</span>
+              <span className="hidden sm:inline text-xs text-[var(--color-text-muted)]">
+                x.com/
+              </span>
+              <span className="sm:hidden text-xs text-[var(--color-text-muted)]">@</span>
               <input
                 type="text"
                 placeholder="username"
@@ -320,7 +326,7 @@ export default function SettingsProfilePage() {
                   editedLinks.twitter &&
                   handleSaveSocialLinks()
                 }
-                className="flex-1 bg-transparent text-sm text-[var(--color-text-primary)] placeholder:text-[var(--color-text-muted)] focus:outline-none"
+                className="flex-1 min-w-0 bg-transparent text-sm text-[var(--color-text-primary)] placeholder:text-[var(--color-text-muted)] focus:outline-none"
               />
               {editedLinks.twitter &&
                 !errors.twitter &&
@@ -370,7 +376,10 @@ export default function SettingsProfilePage() {
                       : "text-[var(--color-text-muted)]"
                 )}
               />
-              <span className="text-xs text-[var(--color-text-muted)]">linkedin.com/in/</span>
+              <span className="hidden sm:inline text-xs text-[var(--color-text-muted)]">
+                linkedin.com/in/
+              </span>
+              <span className="sm:hidden text-xs text-[var(--color-text-muted)]">/in/</span>
               <input
                 type="text"
                 placeholder="username"
@@ -382,7 +391,7 @@ export default function SettingsProfilePage() {
                   editedLinks.linkedin &&
                   handleSaveSocialLinks()
                 }
-                className="flex-1 bg-transparent text-sm text-[var(--color-text-primary)] placeholder:text-[var(--color-text-muted)] focus:outline-none"
+                className="flex-1 min-w-0 bg-transparent text-sm text-[var(--color-text-primary)] placeholder:text-[var(--color-text-muted)] focus:outline-none"
               />
               {editedLinks.linkedin &&
                 !errors.linkedin &&
@@ -443,7 +452,7 @@ export default function SettingsProfilePage() {
                   editedLinks.website &&
                   handleSaveSocialLinks()
                 }
-                className="flex-1 bg-transparent text-sm text-[var(--color-text-primary)] placeholder:text-[var(--color-text-muted)] focus:outline-none"
+                className="flex-1 min-w-0 bg-transparent text-sm text-[var(--color-text-primary)] placeholder:text-[var(--color-text-muted)] focus:outline-none"
               />
               {editedLinks.website &&
                 !errors.website &&
@@ -520,7 +529,7 @@ export default function SettingsProfilePage() {
       <section className="pt-6 border-t border-[var(--border-default)]">
         <h2 className="text-sm font-medium text-red-400/80 mb-3">Danger Zone</h2>
         <div className="p-4 rounded-xl bg-red-500/5 border border-red-500/20">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <div>
               <p className="text-sm font-medium text-zinc-300">Delete Account</p>
               <p className="text-xs text-zinc-500 mt-0.5">
@@ -529,7 +538,7 @@ export default function SettingsProfilePage() {
             </div>
             <button
               onClick={() => setIsDeleteModalOpen(true)}
-              className="flex items-center gap-2 px-4 py-2 rounded-lg bg-red-500/10 text-red-400 text-sm font-medium hover:bg-red-500/20 transition-colors"
+              className="flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-red-500/10 text-red-400 text-sm font-medium hover:bg-red-500/20 transition-colors w-full sm:w-auto"
             >
               <Trash2 className="w-4 h-4" />
               <span>Delete</span>

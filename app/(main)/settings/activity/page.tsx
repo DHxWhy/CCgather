@@ -54,7 +54,7 @@ export default function SettingsActivityPage() {
   const activeDays = history.length;
 
   return (
-    <div className="max-w-2xl mx-auto p-6 space-y-6">
+    <div className="max-w-2xl mx-auto p-4 sm:p-6 space-y-4 sm:space-y-6">
       <div className="flex items-center justify-between">
         <h2 className="text-sm font-medium text-[var(--color-text-secondary)]">
           Submission History

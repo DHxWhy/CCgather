@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { useUser, useClerk } from "@clerk/nextjs";
 import Link from "next/link";
@@ -10,7 +10,7 @@ import { cn } from "@/lib/utils";
 const NAV_ITEMS = [
   { href: "/settings", label: "Profile", icon: User },
   { href: "/settings/activity", label: "Activity", icon: Activity },
-  { href: "/settings/usage", label: "Usage Heatmap", icon: BarChart3 },
+  { href: "/settings/usage", label: "Heatmap", icon: BarChart3 },
 ];
 
 export default function SettingsLayout({ children }: { children: React.ReactNode }) {
@@ -18,6 +18,8 @@ export default function SettingsLayout({ children }: { children: React.ReactNode
   const { signOut } = useClerk();
   const router = useRouter();
   const pathname = usePathname();
+  const tabsRef = useRef<HTMLDivElement>(null);
+  const activeTabRef = useRef<HTMLAnchorElement>(null);
 
   // Redirect to home if not logged in
   useEffect(() => {
@@ -25,6 +27,20 @@ export default function SettingsLayout({ children }: { children: React.ReactNode
       router.replace("/");
     }
   }, [isLoaded, user, router]);
+
+  // Scroll active tab into view on mobile
+  useEffect(() => {
+    if (activeTabRef.current && tabsRef.current) {
+      const container = tabsRef.current;
+      const element = activeTabRef.current;
+      const containerRect = container.getBoundingClientRect();
+      const elementRect = element.getBoundingClientRect();
+
+      if (elementRect.left < containerRect.left || elementRect.right > containerRect.right) {
+        element.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" });
+      }
+    }
+  }, [pathname]);
 
   // Show loading while checking auth
   if (!isLoaded) {
@@ -46,9 +62,59 @@ export default function SettingsLayout({ children }: { children: React.ReactNode
   };
 
   return (
-    <div className="min-h-[calc(100vh-4rem)] flex">
-      {/* Sidebar */}
-      <aside className="w-56 flex-shrink-0 border-r border-[var(--border-default)] bg-[var(--color-bg-secondary)]">
+    <div className="min-h-[calc(100vh-4rem)] md:flex">
+      {/* Mobile Header - Top Tabs */}
+      <div className="md:hidden sticky top-16 z-40 bg-[var(--color-bg-primary)] border-b border-[var(--border-default)]">
+        {/* Back + Title Row */}
+        <div className="flex items-center justify-between px-4 py-2">
+          <Link
+            href="/"
+            className="flex items-center gap-1.5 text-sm text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] transition-colors"
+          >
+            <ChevronLeft className="w-4 h-4" />
+            <span>Back</span>
+          </Link>
+          <h1 className="text-base font-semibold text-[var(--color-text-primary)]">Settings</h1>
+          <button
+            onClick={handleSignOut}
+            className="p-2 rounded-lg text-red-400 hover:bg-red-500/10 transition-colors"
+            aria-label="Sign out"
+          >
+            <LogOut className="w-4 h-4" />
+          </button>
+        </div>
+
+        {/* Navigation Tabs */}
+        <div
+          ref={tabsRef}
+          className="flex items-center gap-1 px-4 pb-3 overflow-x-auto scrollbar-hide"
+        >
+          {NAV_ITEMS.map((item) => {
+            const isActive = pathname === item.href;
+            const Icon = item.icon;
+
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                ref={isActive ? activeTabRef : undefined}
+                className={cn(
+                  "flex items-center gap-1.5 px-3 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-colors",
+                  isActive
+                    ? "bg-[var(--color-claude-coral)]/15 text-[var(--color-claude-coral)]"
+                    : "bg-[var(--color-section-bg)] text-[var(--color-text-secondary)] hover:bg-[var(--color-section-bg-hover)]"
+                )}
+              >
+                <Icon className="w-4 h-4" />
+                <span>{item.label}</span>
+              </Link>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Desktop Sidebar - Hidden on Mobile */}
+      <aside className="hidden md:block w-56 flex-shrink-0 border-r border-[var(--border-default)] bg-[var(--color-bg-secondary)]">
         <div className="sticky top-16 p-4 flex flex-col h-[calc(100vh-4rem)]">
           {/* Back Button */}
           <Link

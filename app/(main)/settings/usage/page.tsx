@@ -249,26 +249,26 @@ export default function SettingsUsagePage() {
   const currentYear = today.getFullYear();
 
   return (
-    <div className="p-6 space-y-4">
+    <div className="p-4 sm:p-6 space-y-4">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-2">
         <h2 className="text-xs font-semibold text-text-muted uppercase tracking-wide">
           Usage Heatmap
         </h2>
         {userStats && (
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 min-w-0">
             {userStats.avatar_url ? (
               <img
                 src={userStats.avatar_url}
                 alt={userStats.username}
-                className="w-6 h-6 rounded-full object-cover"
+                className="w-6 h-6 rounded-full object-cover flex-shrink-0"
               />
             ) : (
-              <div className="w-6 h-6 rounded-full bg-gradient-to-br from-orange-500 to-amber-500 flex items-center justify-center text-xs font-semibold text-white">
+              <div className="w-6 h-6 rounded-full bg-gradient-to-br from-orange-500 to-amber-500 flex items-center justify-center text-xs font-semibold text-white flex-shrink-0">
                 {userStats.username.charAt(0).toUpperCase()}
               </div>
             )}
-            <span className="text-sm font-medium text-text-primary">
+            <span className="text-sm font-medium text-text-primary truncate">
               {userStats.display_name || userStats.username}
             </span>
           </div>
@@ -277,33 +277,37 @@ export default function SettingsUsagePage() {
 
       {/* Stats Pills */}
       {userStats && (
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-white/5 border border-white/10">
-            <Zap className="w-3.5 h-3.5 text-orange-400" />
-            <span className="text-xs font-semibold text-orange-400">
+        <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+          <div className="flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 py-1 sm:py-1.5 rounded-lg bg-white/5 border border-white/10">
+            <Zap className="w-3 sm:w-3.5 h-3 sm:h-3.5 text-orange-400" />
+            <span className="text-[11px] sm:text-xs font-semibold text-orange-400">
               {formatNumber(userStats.total_tokens)}
             </span>
-            <span className="text-[10px] text-text-muted">tokens</span>
+            <span className="hidden sm:inline text-[10px] text-text-muted">tokens</span>
           </div>
-          <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-white/5 border border-white/10">
-            <Coins className="w-3.5 h-3.5 text-amber-400" />
-            <span className="text-xs font-semibold text-amber-400">
+          <div className="flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 py-1 sm:py-1.5 rounded-lg bg-white/5 border border-white/10">
+            <Coins className="w-3 sm:w-3.5 h-3 sm:h-3.5 text-amber-400" />
+            <span className="text-[11px] sm:text-xs font-semibold text-amber-400">
               ${userStats.total_cost.toFixed(2)}
             </span>
-            <span className="text-[10px] text-text-muted">cost</span>
+            <span className="hidden sm:inline text-[10px] text-text-muted">cost</span>
           </div>
-          <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-white/5 border border-white/10">
-            <Trophy className="w-3.5 h-3.5 text-amber-400" />
-            <span className="text-xs font-semibold text-white">Lv.{userStats.current_level}</span>
+          <div className="flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 py-1 sm:py-1.5 rounded-lg bg-white/5 border border-white/10">
+            <Trophy className="w-3 sm:w-3.5 h-3 sm:h-3.5 text-amber-400" />
+            <span className="text-[11px] sm:text-xs font-semibold text-white">
+              Lv.{userStats.current_level}
+            </span>
           </div>
-          <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-white/5 border border-white/10">
-            <Globe className="w-3.5 h-3.5 text-zinc-400" />
-            <span className="text-xs font-medium text-white">#{userStats.global_rank || "-"}</span>
+          <div className="flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 py-1 sm:py-1.5 rounded-lg bg-white/5 border border-white/10">
+            <Globe className="w-3 sm:w-3.5 h-3 sm:h-3.5 text-zinc-400" />
+            <span className="text-[11px] sm:text-xs font-medium text-white">
+              #{userStats.global_rank || "-"}
+            </span>
           </div>
           {userStats.country_code && (
-            <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-white/5 border border-white/10">
+            <div className="flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 py-1 sm:py-1.5 rounded-lg bg-white/5 border border-white/10">
               <FlagIcon countryCode={userStats.country_code} size="sm" />
-              <span className="text-xs font-medium text-white">
+              <span className="text-[11px] sm:text-xs font-medium text-white">
                 #{userStats.country_rank || "-"}
               </span>
             </div>
@@ -318,24 +322,25 @@ export default function SettingsUsagePage() {
       ) : (
         <>
           {/* Title with Period Filter */}
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Calendar className="w-4 h-4 text-zinc-500" />
-              <span className="text-xs text-zinc-600">
-                <span className="text-orange-400">{formatNumber(periodTotal.tokens)}</span> tokens,{" "}
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
+              <Calendar className="w-3.5 sm:w-4 h-3.5 sm:h-4 text-zinc-500 flex-shrink-0" />
+              <span className="text-[11px] sm:text-xs text-zinc-600 truncate">
+                <span className="text-orange-400">{formatNumber(periodTotal.tokens)}</span>
+                <span className="hidden sm:inline"> tokens</span>,{" "}
                 <span className="text-amber-400">{formatCost(periodTotal.cost)}</span>
               </span>
             </div>
 
-            <div className="relative" ref={dropdownRef}>
+            <div className="relative flex-shrink-0" ref={dropdownRef}>
               <button
                 onClick={() => setIsPeriodDropdownOpen(!isPeriodDropdownOpen)}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-xs text-zinc-300 hover:bg-white/10 transition-colors"
+                className="flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg bg-white/5 border border-white/10 text-[11px] sm:text-xs text-zinc-300 hover:bg-white/10 transition-colors"
               >
                 <span>{PERIOD_OPTIONS.find((o) => o.value === periodFilter)?.label}</span>
                 <ChevronDown
                   className={cn(
-                    "w-3.5 h-3.5 transition-transform",
+                    "w-3 sm:w-3.5 h-3 sm:h-3.5 transition-transform",
                     isPeriodDropdownOpen && "rotate-180"
                   )}
                 />
@@ -351,7 +356,7 @@ export default function SettingsUsagePage() {
                         setIsPeriodDropdownOpen(false);
                       }}
                       className={cn(
-                        "w-full px-4 py-2 text-xs text-left hover:bg-white/10 transition-colors",
+                        "w-full px-3 sm:px-4 py-1.5 sm:py-2 text-[11px] sm:text-xs text-left hover:bg-white/10 transition-colors",
                         periodFilter === option.value
                           ? "text-orange-400 bg-orange-400/10"
                           : "text-zinc-300"
@@ -366,181 +371,187 @@ export default function SettingsUsagePage() {
           </div>
 
           {/* Heatmap Table */}
-          <div
-            ref={tableRef}
-            className="overflow-x-auto rounded-xl border border-white/10 bg-white/[0.02]"
-          >
-            <table className="w-full border-collapse" style={{ minWidth: "900px" }}>
-              <thead>
-                <tr>
-                  <th className="sticky left-0 z-20 bg-[#0a0a0d] w-10" />
-                  {yearGroups.map((group) => {
-                    const isCurrentYear = group.year === currentYear;
+          <div className="relative">
+            {/* Mobile scroll hint */}
+            <div className="sm:hidden absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l from-[#0a0a0d] to-transparent pointer-events-none z-10 rounded-r-xl" />
+            <div
+              ref={tableRef}
+              className="overflow-x-auto rounded-xl border border-white/10 bg-white/[0.02]"
+            >
+              <table className="w-full border-collapse min-w-[600px] sm:min-w-[900px]">
+                <thead>
+                  <tr>
+                    <th className="sticky left-0 z-20 bg-[#0a0a0d] w-10" />
+                    {yearGroups.map((group) => {
+                      const isCurrentYear = group.year === currentYear;
+                      return (
+                        <th
+                          key={group.year}
+                          colSpan={group.count}
+                          className={cn(
+                            "px-2 py-1.5 text-[11px] font-bold text-center border-b border-white/5",
+                            isCurrentYear
+                              ? "text-white bg-orange-400/20"
+                              : "text-zinc-500 bg-white/[0.03]"
+                          )}
+                        >
+                          {group.year}
+                        </th>
+                      );
+                    })}
+                  </tr>
+                  <tr>
+                    <th className="sticky left-0 z-20 bg-[#0a0a0d] px-2 py-2 text-[10px] font-semibold text-zinc-500 text-center border-b border-r border-white/10 w-10">
+                      Day
+                    </th>
+                    {monthRange.map(({ year, month }) => {
+                      const isCurrentMonth =
+                        year === today.getFullYear() && month === today.getMonth();
+                      return (
+                        <th
+                          key={`${year}-${month}`}
+                          className={cn(
+                            "px-1 py-1.5 sm:py-2 text-[9px] sm:text-[10px] font-semibold text-center border-b border-r border-white/10 min-w-[50px] sm:min-w-[80px]",
+                            isCurrentMonth ? "text-white bg-orange-400/10" : "text-zinc-500"
+                          )}
+                        >
+                          {MONTHS_SHORT[month]}
+                        </th>
+                      );
+                    })}
+                  </tr>
+                </thead>
+                <tbody>
+                  {Array.from({ length: 31 }, (_, dayIndex) => {
+                    const day = dayIndex + 1;
+
                     return (
-                      <th
-                        key={group.year}
-                        colSpan={group.count}
-                        className={cn(
-                          "px-2 py-1.5 text-[11px] font-bold text-center border-b border-white/5",
-                          isCurrentYear
-                            ? "text-white bg-orange-400/20"
-                            : "text-zinc-500 bg-white/[0.03]"
-                        )}
-                      >
-                        {group.year}
-                      </th>
-                    );
-                  })}
-                </tr>
-                <tr>
-                  <th className="sticky left-0 z-20 bg-[#0a0a0d] px-2 py-2 text-[10px] font-semibold text-zinc-500 text-center border-b border-r border-white/10 w-10">
-                    Day
-                  </th>
-                  {monthRange.map(({ year, month }) => {
-                    const isCurrentMonth =
-                      year === today.getFullYear() && month === today.getMonth();
-                    return (
-                      <th
-                        key={`${year}-${month}`}
-                        className={cn(
-                          "px-1 py-2 text-[10px] font-semibold text-center border-b border-r border-white/10",
-                          isCurrentMonth ? "text-white bg-orange-400/10" : "text-zinc-500"
-                        )}
-                        style={{ minWidth: "80px" }}
-                      >
-                        {MONTHS_SHORT[month]}
-                      </th>
-                    );
-                  })}
-                </tr>
-              </thead>
-              <tbody>
-                {Array.from({ length: 31 }, (_, dayIndex) => {
-                  const day = dayIndex + 1;
+                      <tr key={day} className="hover:bg-white/[0.015]">
+                        <td className="sticky left-0 z-10 bg-[#0a0a0d] px-2 py-0.5 text-[10px] font-medium text-zinc-600 text-center border-r border-white/10">
+                          {day}
+                        </td>
+                        {monthRange.map(({ year, month }) => {
+                          const daysInMonth = getDaysInMonth(year, month);
+                          const dateKey = `${year}-${month}-${day}`;
+                          const entry = dataMap.get(dateKey);
+                          const isValidDay = day <= daysInMonth;
+                          const isToday =
+                            year === today.getFullYear() &&
+                            month === today.getMonth() &&
+                            day === today.getDate();
+                          const isFuture = new Date(year, month, day) > today;
 
-                  return (
-                    <tr key={day} className="hover:bg-white/[0.015]">
-                      <td className="sticky left-0 z-10 bg-[#0a0a0d] px-2 py-0.5 text-[10px] font-medium text-zinc-600 text-center border-r border-white/10">
-                        {day}
-                      </td>
-                      {monthRange.map(({ year, month }) => {
-                        const daysInMonth = getDaysInMonth(year, month);
-                        const dateKey = `${year}-${month}-${day}`;
-                        const entry = dataMap.get(dateKey);
-                        const isValidDay = day <= daysInMonth;
-                        const isToday =
-                          year === today.getFullYear() &&
-                          month === today.getMonth() &&
-                          day === today.getDate();
-                        const isFuture = new Date(year, month, day) > today;
+                          const intensity = entry
+                            ? getHeatmapIntensity(entry.tokens, maxDailyTokens)
+                            : 0;
 
-                        const intensity = entry
-                          ? getHeatmapIntensity(entry.tokens, maxDailyTokens)
-                          : 0;
-
-                        return (
-                          <td
-                            key={`${year}-${month}-${day}`}
-                            className="px-1 py-0.5 border-r border-white/5"
-                          >
-                            {!isValidDay ? (
-                              <div className="h-6" />
-                            ) : isFuture ? (
-                              <div className="h-6 mx-0.5 rounded" />
-                            ) : entry && entry.tokens > 0 ? (
-                              <div
-                                className={cn(
-                                  "h-6 mx-0.5 px-1.5 rounded flex items-center justify-between transition-transform hover:scale-[1.02] cursor-default",
-                                  isToday &&
-                                    "ring-2 ring-orange-400 ring-offset-1 ring-offset-[#0a0a0d]"
-                                )}
-                                title={`${entry.date}\nTokens: ${formatNumber(entry.tokens)}\nCost: $${entry.cost.toFixed(2)}`}
-                              >
-                                <span className="text-[10px] font-medium text-amber-400 text-left">
-                                  {formatCost(entry.cost)}
-                                </span>
-                                <div className="flex items-center gap-1">
-                                  <span className="text-[10px] font-medium text-orange-400 text-right">
-                                    {formatNumber(entry.tokens)}
+                          return (
+                            <td
+                              key={`${year}-${month}-${day}`}
+                              className="px-1 py-0.5 border-r border-white/5"
+                            >
+                              {!isValidDay ? (
+                                <div className="h-6" />
+                              ) : isFuture ? (
+                                <div className="h-6 mx-0.5 rounded" />
+                              ) : entry && entry.tokens > 0 ? (
+                                <div
+                                  className={cn(
+                                    "h-6 mx-0.5 px-1.5 rounded flex items-center justify-between transition-transform hover:scale-[1.02] cursor-default",
+                                    isToday &&
+                                      "ring-2 ring-orange-400 ring-offset-1 ring-offset-[#0a0a0d]"
+                                  )}
+                                  title={`${entry.date}\nTokens: ${formatNumber(entry.tokens)}\nCost: $${entry.cost.toFixed(2)}`}
+                                >
+                                  <span className="text-[10px] font-medium text-amber-400 text-left">
+                                    {formatCost(entry.cost)}
                                   </span>
-                                  <span
-                                    className="w-1.5 h-1.5 rounded-full flex-shrink-0"
-                                    style={{
-                                      backgroundColor: `rgba(251, 146, 60, ${0.2 + intensity * 0.8})`,
-                                    }}
-                                  />
+                                  <div className="flex items-center gap-1">
+                                    <span className="text-[10px] font-medium text-orange-400 text-right">
+                                      {formatNumber(entry.tokens)}
+                                    </span>
+                                    <span
+                                      className="w-1.5 h-1.5 rounded-full flex-shrink-0"
+                                      style={{
+                                        backgroundColor: `rgba(251, 146, 60, ${0.2 + intensity * 0.8})`,
+                                      }}
+                                    />
+                                  </div>
                                 </div>
-                              </div>
-                            ) : (
-                              <div
-                                className={cn(
-                                  "h-6 mx-0.5 rounded flex items-center justify-center text-[10px] text-zinc-700",
-                                  isToday && "ring-1 ring-orange-400/50"
-                                )}
-                              >
-                                -
-                              </div>
-                            )}
-                          </td>
-                        );
-                      })}
-                    </tr>
-                  );
-                })}
-
-                {/* Monthly Summary Row */}
-                <tr className="bg-white/[0.03] border-t border-white/10">
-                  <td className="sticky left-0 z-10 bg-[#0f0f14] px-2 py-2 text-[10px] font-semibold text-zinc-500 text-center border-r border-white/10">
-                    Sum
-                  </td>
-                  {monthRange.map(({ year, month }) => {
-                    const monthKey = `${year}-${month}`;
-                    const monthTotal = monthTotals.get(monthKey);
-                    const isCurrentMonth =
-                      year === today.getFullYear() && month === today.getMonth();
-
-                    return (
-                      <td
-                        key={monthKey}
-                        className={cn(
-                          "px-1.5 py-2 border-r border-white/5",
-                          isCurrentMonth && "bg-orange-400/5"
-                        )}
-                      >
-                        {monthTotal && monthTotal.tokens > 0 ? (
-                          <div className="flex items-center justify-between">
-                            <span className="text-[10px] font-semibold text-amber-400 text-left">
-                              {formatCost(monthTotal.cost)}
-                            </span>
-                            <span className="text-[10px] font-semibold text-orange-400 text-right">
-                              {formatNumber(monthTotal.tokens)}
-                            </span>
-                          </div>
-                        ) : (
-                          <span className="text-[10px] text-zinc-700 block text-center">-</span>
-                        )}
-                      </td>
+                              ) : (
+                                <div
+                                  className={cn(
+                                    "h-6 mx-0.5 rounded flex items-center justify-center text-[10px] text-zinc-700",
+                                    isToday && "ring-1 ring-orange-400/50"
+                                  )}
+                                >
+                                  -
+                                </div>
+                              )}
+                            </td>
+                          );
+                        })}
+                      </tr>
                     );
                   })}
-                </tr>
-              </tbody>
-            </table>
+
+                  {/* Monthly Summary Row */}
+                  <tr className="bg-white/[0.03] border-t border-white/10">
+                    <td className="sticky left-0 z-10 bg-[#0f0f14] px-2 py-2 text-[10px] font-semibold text-zinc-500 text-center border-r border-white/10">
+                      Sum
+                    </td>
+                    {monthRange.map(({ year, month }) => {
+                      const monthKey = `${year}-${month}`;
+                      const monthTotal = monthTotals.get(monthKey);
+                      const isCurrentMonth =
+                        year === today.getFullYear() && month === today.getMonth();
+
+                      return (
+                        <td
+                          key={monthKey}
+                          className={cn(
+                            "px-1.5 py-2 border-r border-white/5",
+                            isCurrentMonth && "bg-orange-400/5"
+                          )}
+                        >
+                          {monthTotal && monthTotal.tokens > 0 ? (
+                            <div className="flex items-center justify-between">
+                              <span className="text-[10px] font-semibold text-amber-400 text-left">
+                                {formatCost(monthTotal.cost)}
+                              </span>
+                              <span className="text-[10px] font-semibold text-orange-400 text-right">
+                                {formatNumber(monthTotal.tokens)}
+                              </span>
+                            </div>
+                          ) : (
+                            <span className="text-[10px] text-zinc-700 block text-center">-</span>
+                          )}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                </tbody>
+              </table>
+            </div>
           </div>
 
           {/* Legend */}
-          <div className="flex items-center gap-3 text-[10px] text-zinc-600">
-            <span>Tokens:</span>
-            <span>Less</span>
-            <div className="flex gap-1">
-              {[0.2, 0.4, 0.6, 0.8, 1.0].map((opacity) => (
-                <div
-                  key={opacity}
-                  className="w-2 h-2 rounded-full"
-                  style={{ backgroundColor: `rgba(251, 146, 60, ${opacity})` }}
-                />
-              ))}
+          <div className="flex items-center justify-between sm:justify-start gap-2 sm:gap-3 text-[10px] text-zinc-600">
+            <div className="flex items-center gap-2 sm:gap-3">
+              <span className="hidden sm:inline">Tokens:</span>
+              <span>Less</span>
+              <div className="flex gap-0.5 sm:gap-1">
+                {[0.2, 0.4, 0.6, 0.8, 1.0].map((opacity) => (
+                  <div
+                    key={opacity}
+                    className="w-2 h-2 rounded-full"
+                    style={{ backgroundColor: `rgba(251, 146, 60, ${opacity})` }}
+                  />
+                ))}
+              </div>
+              <span>More</span>
             </div>
-            <span>More</span>
+            <span className="sm:hidden text-zinc-500">← swipe →</span>
           </div>
         </>
       )}
