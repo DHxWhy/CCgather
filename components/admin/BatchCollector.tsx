@@ -490,7 +490,7 @@ export default function BatchCollector({ onComplete }: { onComplete?: () => void
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [stats, setStats] = useState({ success: 0, failed: 0, skipped: 0 });
-  const [delaySeconds, setDelaySeconds] = useState(30);
+  const [delaySeconds, setDelaySeconds] = useState(60);
   const abortControllerRef = useRef<AbortController | null>(null);
   const logsEndRef = useRef<HTMLDivElement>(null);
 
@@ -589,7 +589,11 @@ export default function BatchCollector({ onComplete }: { onComplete?: () => void
   };
 
   const totalArticles = CLAUDE_BLOG_ARTICLES.length;
-  const estimatedTime = Math.ceil((totalArticles * delaySeconds) / 60);
+  const estimatedMinutes = Math.ceil((totalArticles * delaySeconds) / 60);
+  const estimatedTimeText =
+    estimatedMinutes >= 60
+      ? `${Math.floor(estimatedMinutes / 60)}시간 ${estimatedMinutes % 60}분`
+      : `${estimatedMinutes}분`;
 
   return (
     <div className="bg-[#161616] rounded-lg border border-white/[0.06] overflow-hidden">
@@ -600,25 +604,39 @@ export default function BatchCollector({ onComplete }: { onComplete?: () => void
           <span className="text-[11px] text-white/40">{totalArticles}개 기사</span>
         </div>
         <p className="text-[11px] text-white/50">
-          Claude 공식 블로그의 모든 기사를 순차적으로 수집합니다. 예상 소요 시간: ~{estimatedTime}분
+          Claude 공식 블로그의 모든 기사를 순차적으로 수집합니다. 예상 소요 시간: ~
+          {estimatedTimeText}
         </p>
       </div>
 
       {/* Controls */}
       <div className="p-4 border-b border-white/[0.06] space-y-3">
         {/* Delay Setting */}
-        <div className="flex items-center gap-3">
-          <label className="text-[11px] text-white/50 whitespace-nowrap">요청 간격:</label>
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <label className="text-[11px] text-white/50">요청 간격</label>
+            <span className="text-[12px] text-white/70 font-medium">
+              {delaySeconds >= 60
+                ? `${Math.floor(delaySeconds / 60)}분 ${delaySeconds % 60}초`
+                : `${delaySeconds}초`}
+            </span>
+          </div>
           <input
             type="range"
-            min={10}
-            max={60}
+            min={15}
+            max={180}
+            step={15}
             value={delaySeconds}
             onChange={(e) => setDelaySeconds(Number(e.target.value))}
             disabled={isRunning}
-            className="flex-1 h-1.5 bg-white/10 rounded-lg appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-[var(--color-claude-coral)]"
+            className="w-full h-1.5 bg-white/10 rounded-lg appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-[var(--color-claude-coral)]"
           />
-          <span className="text-[12px] text-white/70 w-12 text-right">{delaySeconds}초</span>
+          <div className="flex justify-between text-[9px] text-white/30">
+            <span>15초 (빠름)</span>
+            <span>1분</span>
+            <span>2분</span>
+            <span>3분 (안전)</span>
+          </div>
         </div>
 
         {/* Action Buttons */}
