@@ -7,8 +7,8 @@ interface NewsArticleJsonLdProps {
 
 export default function NewsArticleJsonLd({ article }: NewsArticleJsonLdProps) {
   const richContent = article.rich_content;
-  const title = richContent?.title.text || article.title;
-  const description = richContent?.summary.text || article.summary_md || article.summary || "";
+  const title = richContent?.title?.text || article.title;
+  const description = richContent?.summary?.text || article.summary_md || article.summary || "";
 
   const jsonLd = {
     "@context": "https://schema.org",
@@ -35,7 +35,7 @@ export default function NewsArticleJsonLd({ article }: NewsArticleJsonLdProps) {
       "@type": "WebPage",
       "@id": `https://ccgather.com/news/${article.slug}`,
     },
-    articleSection: richContent?.meta.category || article.category || "News",
+    articleSection: richContent?.meta?.category || article.category || "News",
     keywords: article.tags?.join(", ") || "Claude Code, AI, Anthropic",
     isAccessibleForFree: true,
     // Attribution to original source

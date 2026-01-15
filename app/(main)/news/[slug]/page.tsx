@@ -276,8 +276,8 @@ export async function generateMetadata({ params }: NewsDetailPageProps): Promise
   }
 
   const richContent = article.rich_content;
-  const title = richContent?.title.text || article.title;
-  const description = richContent?.summary.text || article.summary_md || article.summary || "";
+  const title = richContent?.title?.text || article.title;
+  const description = richContent?.summary?.text || article.summary_md || article.summary || "";
 
   return {
     title: `${title} | CCgather News`,
@@ -323,20 +323,20 @@ export default async function NewsDetailPage({ params }: NewsDetailPageProps) {
   const relatedNews = await getRelatedNews(article.id, article.content_type);
   const richContent = article.rich_content;
 
-  // Parse content
-  const title = richContent?.title.text || article.title;
-  const titleEmoji = richContent?.title.emoji;
+  // Parse content - use optional chaining for all nested properties
+  const title = richContent?.title?.text || article.title;
+  const titleEmoji = richContent?.title?.emoji;
   const oneLiner = article.one_liner;
-  const summary = richContent?.summary.text || article.summary_md || article.summary;
-  const analogy = richContent?.summary.analogy;
+  const summary = richContent?.summary?.text || article.summary_md || article.summary;
+  const analogy = richContent?.summary?.analogy;
   const keyPoints =
     richContent?.keyPoints || article.key_points?.map((text) => ({ icon: "✅", text }));
   const keyTakeaways = article.key_takeaways || keyPoints?.slice(0, 5);
   const insightHtml = article.insight_html;
   const bodyHtml = article.body_html;
-  const difficulty = richContent?.meta.difficulty || article.difficulty;
-  const readTime = richContent?.meta.readTime;
-  const category = richContent?.meta.category || article.category;
+  const difficulty = richContent?.meta?.difficulty || article.difficulty;
+  const readTime = richContent?.meta?.readTime;
+  const category = richContent?.meta?.category || article.category;
 
   const publishedDate = new Date(article.published_at || article.created_at).toLocaleDateString(
     "en-US",
@@ -487,13 +487,13 @@ export default async function NewsDetailPage({ params }: NewsDetailPageProps) {
           )}
 
           {/* Fallback Insight from rich_content */}
-          {!insightHtml && richContent?.summary.analogy && (
+          {!insightHtml && richContent?.summary?.analogy && (
             <div className="not-prose my-8 p-5 rounded-xl bg-emerald-500/10 border-l-4 border-emerald-500/50">
               <h3 className="text-lg font-semibold text-white mb-3 flex items-center gap-2">
                 🌱 In Simple Terms
               </h3>
               <p className="text-white/80 leading-relaxed text-[15px]">
-                {richContent.summary.analogy.text}
+                {richContent.summary?.analogy?.text}
               </p>
             </div>
           )}
