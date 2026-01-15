@@ -1013,18 +1013,35 @@ export async function getThumbnailWithFallback(
     aiResult.thumbnail_url &&
     aiResult.thumbnail_url !== DEFAULT_PLACEHOLDER
   ) {
-    await updateContentThumbnail(contentId, aiResult.thumbnail_url, thumbnailSource);
+    const updated = await updateContentThumbnail(
+      contentId,
+      aiResult.thumbnail_url,
+      thumbnailSource
+    );
+    if (!updated) {
+      console.warn(`[Thumbnail] Failed to update DB for AI thumbnail: ${contentId}`);
+    }
     return aiResult;
   }
+
+  // Log AI generation failure reason
+  console.warn(
+    `[Thumbnail] AI generation failed for ${contentId}: ${aiResult.error || "unknown reason"}`
+  );
 
   // Fallback to OG Image if AI generation fails
   const ogResult = await fetchOgImage(sourceUrl);
   if (ogResult.success && ogResult.thumbnail_url) {
-    await updateContentThumbnail(contentId, ogResult.thumbnail_url, "og_image");
+    const updated = await updateContentThumbnail(contentId, ogResult.thumbnail_url, "og_image");
+    if (!updated) {
+      console.warn(`[Thumbnail] Failed to update DB for OG thumbnail: ${contentId}`);
+    }
+    console.log(`[Thumbnail] Fallback to OG image for: ${contentId}`);
     return ogResult;
   }
 
-  // Return default placeholder
+  // Final fallback: set thumbnail_source to "default" even if URL exists from initial insert
+  console.warn(`[Thumbnail] All methods failed for ${contentId}, using default`);
   await updateContentThumbnail(contentId, DEFAULT_PLACEHOLDER, "default");
   return {
     success: true,
