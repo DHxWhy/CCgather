@@ -42,9 +42,9 @@ const CATEGORY_EMOJIS: Record<string, string> = {
 } as const;
 
 const DIFFICULTY_COLORS = {
-  easy: "bg-green-500/20 text-green-400",
-  medium: "bg-yellow-500/20 text-yellow-400",
-  hard: "bg-red-500/20 text-red-400",
+  easy: "bg-green-500/20 text-green-600 dark:text-green-400",
+  medium: "bg-amber-500/20 text-amber-700 dark:text-amber-400",
+  hard: "bg-red-500/20 text-red-600 dark:text-red-400",
 } as const;
 
 const DIFFICULTY_LABELS = {
@@ -378,7 +378,9 @@ function NewsCardComponent({ article, variant = "default", isLatest = false }: N
             <span className="text-sm font-bold text-[var(--color-text-primary)]">
               {month}/{dayNum}
             </span>
-            <span className="text-[10px] font-medium text-text-muted">{dayName}</span>
+            <span className="text-[10px] font-medium text-[var(--color-text-muted)]">
+              {dayName}
+            </span>
           </div>
 
           {/* Tablet/Desktop: Thumbnail (>= 640px) (OG 이미지 배제) */}
@@ -423,13 +425,13 @@ function NewsCardComponent({ article, variant = "default", isLatest = false }: N
                 {title}
               </h3>
               <ArrowUpRight
-                className="w-4 h-4 text-text-muted group-hover:text-orange-400 flex-shrink-0 mt-0.5 transition-colors"
+                className="w-4 h-4 text-[var(--color-text-muted)] group-hover:text-orange-400 flex-shrink-0 mt-0.5 transition-colors"
                 aria-hidden="true"
               />
             </div>
 
             {/* Middle: Source Info */}
-            <div className="flex items-center gap-2 text-[11px] text-text-muted mt-1">
+            <div className="flex items-center gap-2 text-[11px] text-[var(--color-text-muted)] mt-1">
               {favicon && (
                 <Image
                   src={favicon}
@@ -443,7 +445,7 @@ function NewsCardComponent({ article, variant = "default", isLatest = false }: N
               <span className="font-medium">{article.source_name || "News"}</span>
               {difficulty && (
                 <>
-                  <span className="text-text-muted/40">•</span>
+                  <span className="text-[var(--color-text-muted)]/40">•</span>
                   <DifficultyBadge difficulty={difficulty} size="small" />
                 </>
               )}
@@ -451,7 +453,7 @@ function NewsCardComponent({ article, variant = "default", isLatest = false }: N
 
             {/* Bottom: Summary */}
             {summary && (
-              <p className="text-xs text-text-muted/80 line-clamp-2 sm:line-clamp-1 mt-1.5">
+              <p className="text-xs text-[var(--color-text-muted)]/80 line-clamp-2 sm:line-clamp-1 mt-1.5">
                 {summary}
               </p>
             )}
@@ -459,11 +461,11 @@ function NewsCardComponent({ article, variant = "default", isLatest = false }: N
             {/* Mobile: Date + Tags at bottom */}
             <div className="flex items-center justify-between mt-2 sm:mt-1.5">
               {/* Mobile Date (< 640px) */}
-              <div className="flex sm:hidden items-center gap-1.5 text-xs text-text-muted">
+              <div className="flex sm:hidden items-center gap-1.5 text-xs text-[var(--color-text-muted)]">
                 <span className="font-medium">
                   {month}/{dayNum}
                 </span>
-                <span className="text-text-muted/40">•</span>
+                <span className="text-[var(--color-text-muted)]/40">•</span>
                 <span>{dayName}</span>
               </div>
 
@@ -473,18 +475,18 @@ function NewsCardComponent({ article, variant = "default", isLatest = false }: N
                   {newsTags.slice(0, 2).map((tag: string) => (
                     <span
                       key={tag}
-                      className="px-2 py-0.5 text-[10px] font-medium rounded-full bg-[var(--color-bg-tertiary)] text-text-muted border border-[var(--border-default)]"
+                      className="px-2 py-0.5 text-[10px] font-medium rounded-full bg-[var(--color-bg-tertiary)] text-[var(--color-text-muted)] border border-[var(--border-default)]"
                     >
                       {tag}
                     </span>
                   ))}
                   {newsTags.length > 2 && (
-                    <span className="hidden sm:inline px-2 py-0.5 text-[10px] font-medium rounded-full bg-[var(--color-bg-tertiary)] text-text-muted border border-[var(--border-default)]">
+                    <span className="hidden sm:inline px-2 py-0.5 text-[10px] font-medium rounded-full bg-[var(--color-bg-tertiary)] text-[var(--color-text-muted)] border border-[var(--border-default)]">
                       {newsTags[2]}
                     </span>
                   )}
                   {newsTags.length > 3 && (
-                    <span className="px-2 py-0.5 text-[10px] font-medium text-text-muted/60">
+                    <span className="px-2 py-0.5 text-[10px] font-medium text-[var(--color-text-muted)]/60">
                       +{newsTags.length - 3}
                     </span>
                   )}
@@ -539,7 +541,7 @@ function NewsCardComponent({ article, variant = "default", isLatest = false }: N
           {/* Content */}
           <div className="p-3">
             {/* Date */}
-            <div className="flex items-center gap-1 text-[9px] text-text-muted mb-1">
+            <div className="flex items-center gap-1 text-[9px] text-[var(--color-text-muted)] mb-1">
               <Clock className="w-2.5 h-2.5" aria-hidden="true" />
               <time dateTime={article.published_at || article.created_at}>{date}</time>
               {difficulty && (
@@ -600,7 +602,7 @@ function NewsCardComponent({ article, variant = "default", isLatest = false }: N
         {/* Content */}
         <div className="p-3">
           {/* Date & Category */}
-          <div className="flex items-center gap-2 text-[10px] text-text-muted mb-1.5">
+          <div className="flex items-center gap-2 text-[10px] text-[var(--color-text-muted)] mb-1.5">
             <time
               className="flex items-center gap-1"
               dateTime={article.published_at || article.created_at}
@@ -625,7 +627,7 @@ function NewsCardComponent({ article, variant = "default", isLatest = false }: N
 
           {/* Summary */}
           {summary && (
-            <p className="text-[11px] text-text-secondary leading-relaxed line-clamp-1 mt-1">
+            <p className="text-[11px] text-[var(--color-text-secondary)] leading-relaxed line-clamp-1 mt-1">
               {summary}
             </p>
           )}

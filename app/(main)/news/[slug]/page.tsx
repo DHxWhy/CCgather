@@ -21,9 +21,9 @@ const DATE_FORMAT_OPTIONS: Intl.DateTimeFormatOptions = {
 };
 
 const DIFFICULTY_STYLES = {
-  easy: "bg-green-500/20 text-green-400",
-  medium: "bg-yellow-500/20 text-yellow-400",
-  hard: "bg-red-500/20 text-red-400",
+  easy: "bg-green-500/20 text-green-600 dark:text-green-400",
+  medium: "bg-amber-500/20 text-amber-700 dark:text-amber-400",
+  hard: "bg-red-500/20 text-red-600 dark:text-red-400",
 } as const;
 
 const DIFFICULTY_LABELS = {
