@@ -199,7 +199,7 @@ function LevelProgressBar({
   useEffect(() => {
     setAnimatedProgress(0);
 
-    const duration = 1500;
+    const duration = 800;
     const startTime = performance.now();
 
     const animate = (currentTime: number) => {
@@ -408,15 +408,15 @@ function SocialLinksQuickAccess({ socialLinks }: { socialLinks: SocialLinks | nu
       key: "github",
       icon: Github,
       prefix: "https://github.com/",
-      color: "text-white", // GitHub brand
-      hoverColor: "hover:bg-white/20",
+      color: "text-[#a855f7]", // GitHub purple accent
+      hoverColor: "hover:bg-[#a855f7]/20",
     },
     {
       key: "twitter",
       icon: XIcon,
       prefix: "https://x.com/",
-      color: "text-white", // X brand
-      hoverColor: "hover:bg-white/20",
+      color: "text-[#1DA1F2]", // Twitter classic blue
+      hoverColor: "hover:bg-[#1DA1F2]/20",
     },
     {
       key: "linkedin",
@@ -1018,7 +1018,7 @@ export function ProfileSidePanel({
                 <div
                   className={`font-semibold text-[var(--color-text-primary)] ${isNarrow ? "text-base" : "text-lg"}`}
                 >
-                  #<RollingNumber value={currentUser.ccplan_rank} delay={0} duration={600} />
+                  #<RollingNumber value={currentUser.ccplan_rank} delay={0} duration={400} />
                 </div>
               </div>
             )}
@@ -1040,7 +1040,7 @@ export function ProfileSidePanel({
                 <RollingNumber
                   value={currentUser.global_rank || currentUser.rank}
                   delay={0}
-                  duration={600}
+                  duration={400}
                 />
               </div>
             </div>
@@ -1064,8 +1064,8 @@ export function ProfileSidePanel({
               >
                 <RollingNumber
                   value={periodCost}
-                  delay={100}
-                  duration={800}
+                  delay={300}
+                  duration={400}
                   formatFn={(v) => {
                     if (isNarrow && v >= 100_000) {
                       return `${(v / 1_000).toFixed(0)}K`;
@@ -1099,7 +1099,7 @@ export function ProfileSidePanel({
               <div
                 className={`font-semibold text-[var(--color-text-primary)] ${isNarrow ? "text-base" : "text-lg"}`}
               >
-                #<RollingNumber value={countryRank} delay={200} duration={600} />
+                #<RollingNumber value={countryRank} delay={600} duration={400} />
               </div>
             </div>
             {/* Tokens */}
@@ -1122,8 +1122,8 @@ export function ProfileSidePanel({
               >
                 <RollingNumber
                   value={periodTokens}
-                  delay={300}
-                  duration={1000}
+                  delay={900}
+                  duration={500}
                   formatFn={(v) => {
                     if (isNarrow && v >= 1_000_000_000) {
                       return `${(v / 1_000_000_000).toFixed(1)}B`;
