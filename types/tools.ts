@@ -158,13 +158,14 @@ export interface ToolWithVoters extends Tool {
     trust_tier: TrustTier;
     comment: string;
   } | null;
-  // Suggester info (who suggested this tool)
-  suggester?: {
+  // Submitter info (who submitted this tool)
+  submitter?: {
     id: string;
     username: string;
     avatar_url: string | null;
     trust_tier: TrustTier;
     current_level: number;
+    global_rank: number | null;
   } | null;
 }
 

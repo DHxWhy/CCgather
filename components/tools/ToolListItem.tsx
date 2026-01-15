@@ -216,12 +216,12 @@ function ToolListItemComponent({
         </div>
 
         {/* Suggester Info */}
-        {showSuggester && tool.suggester && !compact && (
+        {showSuggester && tool.submitter && !compact && (
           <button
             onClick={(e) => {
               e.preventDefault();
               e.stopPropagation();
-              onSuggesterClick?.(tool.suggester!.id);
+              onSuggesterClick?.(tool.submitter!.id);
             }}
             className={cn(
               "hidden md:flex items-center gap-1.5 px-2 py-1 rounded-md",
@@ -232,10 +232,10 @@ function ToolListItemComponent({
               "hover:text-[var(--color-claude-coral)]"
             )}
           >
-            {tool.suggester.avatar_url ? (
+            {tool.submitter.avatar_url ? (
               <Image
-                src={tool.suggester.avatar_url}
-                alt={tool.suggester.username}
+                src={tool.submitter.avatar_url}
+                alt={tool.submitter.username}
                 width={16}
                 height={16}
                 className="rounded-full"
@@ -243,10 +243,10 @@ function ToolListItemComponent({
               />
             ) : (
               <div className="w-4 h-4 rounded-full bg-[var(--color-bg-elevated)] flex items-center justify-center text-[8px]">
-                {tool.suggester.username.charAt(0).toUpperCase()}
+                {tool.submitter.username.charAt(0).toUpperCase()}
               </div>
             )}
-            <span className="truncate max-w-[80px]">@{tool.suggester.username}</span>
+            <span className="truncate max-w-[80px]">@{tool.submitter.username}</span>
           </button>
         )}
 
