@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/server";
 import { auth } from "@clerk/nextjs/server";
-import { calculateTrustTier, calculateVoteWeight } from "@/lib/tools/eligibility";
 
 // =====================================================
 // POST /api/tools/vote/[toolId] - Toggle vote on a tool
@@ -34,7 +33,7 @@ export async function POST(
     // Get the tool
     const { data: tool, error: toolError } = await supabase
       .from("tools")
-      .select("id, upvote_count, weighted_score")
+      .select("id, upvote_count")
       .eq("id", toolId)
       .single();
 
@@ -45,15 +44,12 @@ export async function POST(
     // Check if user already voted
     const { data: existingVote } = await supabase
       .from("tool_votes")
-      .select("tool_id, weight")
+      .select("tool_id")
       .eq("tool_id", toolId)
       .eq("user_id", dbUser.id)
       .single();
 
-    // Calculate user's vote weight based on trust tier
-    const trustTier = calculateTrustTier(dbUser.current_level, dbUser.global_rank);
-    const voteWeight = calculateVoteWeight(trustTier);
-
+    // Simple 1 person = 1 vote (no weighted scoring)
     if (existingVote) {
       // Remove vote
       const { error: deleteError } = await supabase
@@ -67,29 +63,20 @@ export async function POST(
         return NextResponse.json({ error: "Failed to remove vote" }, { status: 500 });
       }
 
-      // Update tool counts
+      // Update vote count
       const newUpvoteCount = Math.max(0, (tool.upvote_count || 0) - 1);
-      const newWeightedScore = Math.max(0, (tool.weighted_score || 0) - (existingVote.weight || 1));
 
-      await supabase
-        .from("tools")
-        .update({
-          upvote_count: newUpvoteCount,
-          weighted_score: newWeightedScore,
-        })
-        .eq("id", toolId);
+      await supabase.from("tools").update({ upvote_count: newUpvoteCount }).eq("id", toolId);
 
       return NextResponse.json({
         voted: false,
         new_count: newUpvoteCount,
-        new_weighted_score: newWeightedScore,
       });
     } else {
       // Add vote
       const { error: insertError } = await supabase.from("tool_votes").insert({
         tool_id: toolId,
         user_id: dbUser.id,
-        weight: voteWeight,
       });
 
       if (insertError) {
@@ -97,22 +84,14 @@ export async function POST(
         return NextResponse.json({ error: "Failed to add vote" }, { status: 500 });
       }
 
-      // Update tool counts
+      // Update vote count
       const newUpvoteCount = (tool.upvote_count || 0) + 1;
-      const newWeightedScore = (tool.weighted_score || 0) + voteWeight;
 
-      await supabase
-        .from("tools")
-        .update({
-          upvote_count: newUpvoteCount,
-          weighted_score: newWeightedScore,
-        })
-        .eq("id", toolId);
+      await supabase.from("tools").update({ upvote_count: newUpvoteCount }).eq("id", toolId);
 
       return NextResponse.json({
         voted: true,
         new_count: newUpvoteCount,
-        new_weighted_score: newWeightedScore,
       });
     }
   } catch (error) {
