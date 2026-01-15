@@ -112,6 +112,7 @@ export async function GET(
     // Check user's interaction status
     let isVoted = false;
     let isBookmarked = false;
+    let isSubmitter = false;
 
     if (userId) {
       const { data: dbUser } = await supabase
@@ -121,6 +122,9 @@ export async function GET(
         .single();
 
       if (dbUser) {
+        // Check if user is the submitter
+        isSubmitter = tool.submitted_by === dbUser.id;
+
         // Check vote
         const { data: vote } = await supabase
           .from("tool_votes")
@@ -143,7 +147,7 @@ export async function GET(
       }
     }
 
-    const response: ToolWithInteraction = {
+    const response: ToolWithInteraction & { is_submitter: boolean } = {
       ...tool,
       submitter: submitter
         ? {
@@ -155,6 +159,7 @@ export async function GET(
       top_comment: topComment,
       is_voted: isVoted,
       is_bookmarked: isBookmarked,
+      is_submitter: isSubmitter,
     };
 
     return NextResponse.json(response);

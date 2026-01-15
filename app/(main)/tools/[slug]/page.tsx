@@ -14,6 +14,7 @@ import {
   Loader2,
   ChevronUp,
   Tag,
+  ChevronRight,
 } from "lucide-react";
 import { useAuth } from "@clerk/nextjs";
 import { cn } from "@/lib/utils";
@@ -42,25 +43,26 @@ function ToolDetailSkeleton() {
       <div className="flex items-start gap-4">
         <div className="w-20 h-20 rounded-xl bg-[var(--color-bg-elevated)]" />
         <div className="flex-1 space-y-3">
-          <div className="h-8 w-48 bg-[var(--color-bg-elevated)] rounded" />
-          <div className="h-4 w-full max-w-md bg-[var(--color-bg-elevated)] rounded" />
+          <div className="h-10 w-64 bg-[var(--color-bg-elevated)] rounded" />
+          <div className="h-5 w-full max-w-md bg-[var(--color-bg-elevated)] rounded" />
           <div className="flex gap-2">
+            <div className="h-6 w-24 bg-[var(--color-bg-elevated)] rounded" />
             <div className="h-6 w-20 bg-[var(--color-bg-elevated)] rounded" />
-            <div className="h-6 w-16 bg-[var(--color-bg-elevated)] rounded" />
           </div>
         </div>
       </div>
 
       {/* Description skeleton */}
-      <div className="space-y-2">
+      <div className="p-5 rounded-xl bg-white/[0.02] border border-white/10 space-y-3">
+        <div className="h-6 w-32 bg-[var(--color-bg-elevated)] rounded" />
         <div className="h-4 w-full bg-[var(--color-bg-elevated)] rounded" />
         <div className="h-4 w-3/4 bg-[var(--color-bg-elevated)] rounded" />
       </div>
 
       {/* Links skeleton */}
-      <div className="flex gap-3">
-        <div className="h-16 flex-1 bg-[var(--color-bg-elevated)] rounded-lg" />
-        <div className="h-16 flex-1 bg-[var(--color-bg-elevated)] rounded-lg" />
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div className="h-20 bg-[var(--color-bg-elevated)] rounded-xl" />
+        <div className="h-20 bg-[var(--color-bg-elevated)] rounded-xl" />
       </div>
     </div>
   );
@@ -83,6 +85,7 @@ export default function ToolDetailPage() {
   const [voted, setVoted] = useState(false);
   const [voteCount, setVoteCount] = useState(0);
   const [isVoting, setIsVoting] = useState(false);
+  const [isSubmitter, setIsSubmitter] = useState(false);
 
   // Profile Panel State
   const [selectedUser, setSelectedUser] = useState<DisplayUser | null>(null);
@@ -116,6 +119,7 @@ export default function ToolDetailPage() {
         setTool(data);
         setVoted(data.is_voted || false);
         setVoteCount(data.upvote_count || 0);
+        setIsSubmitter(data.is_submitter || false);
       } catch (err) {
         console.error("Error fetching tool:", err);
         setError("Failed to load tool");
@@ -134,6 +138,11 @@ export default function ToolDetailPage() {
   const handleVote = async () => {
     if (!isSignedIn) {
       router.push(`/sign-in?redirect_url=/tools/${slug}`);
+      return;
+    }
+
+    // Prevent submitter from voting on their own tool
+    if (isSubmitter) {
       return;
     }
 
@@ -193,49 +202,43 @@ export default function ToolDetailPage() {
 
   if (loading) {
     return (
-      <main className="min-h-screen bg-[var(--color-bg-primary)]">
-        <div className="max-w-[900px] mx-auto px-4 py-8">
-          <Link
-            href="/tools"
-            className="inline-flex items-center gap-2 text-[var(--color-text-muted)] hover:text-white transition-colors mb-6 text-sm"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            Back to Tools
-          </Link>
-          <ToolDetailSkeleton />
-        </div>
-      </main>
+      <article className="mx-auto max-w-4xl px-4 lg:px-6 py-8 md:py-10">
+        <Link
+          href="/tools"
+          className="inline-flex items-center gap-2 text-[var(--color-text-muted)] hover:text-white transition-colors mb-6 text-sm"
+        >
+          <ArrowLeft className="w-4 h-4" />
+          Back to Tools
+        </Link>
+        <ToolDetailSkeleton />
+      </article>
     );
   }
 
   if (error || !tool) {
     return (
-      <main className="min-h-screen bg-[var(--color-bg-primary)]">
-        <div className="max-w-[900px] mx-auto px-4 py-8">
+      <article className="mx-auto max-w-4xl px-4 lg:px-6 py-8 md:py-10">
+        <Link
+          href="/tools"
+          className="inline-flex items-center gap-2 text-[var(--color-text-muted)] hover:text-white transition-colors mb-6 text-sm"
+        >
+          <ArrowLeft className="w-4 h-4" />
+          Back to Tools
+        </Link>
+        <div className="flex flex-col items-center justify-center py-20 text-center">
+          <span className="text-6xl mb-4">🔍</span>
+          <h1 className="text-2xl md:text-3xl font-bold text-white mb-2">Tool Not Found</h1>
+          <p className="text-[var(--color-text-secondary)] mb-6">
+            The tool you&apos;re looking for doesn&apos;t exist or has been removed.
+          </p>
           <Link
             href="/tools"
-            className="inline-flex items-center gap-2 text-[var(--color-text-muted)] hover:text-white transition-colors mb-6 text-sm"
+            className="px-4 py-2 rounded-lg bg-[var(--color-claude-coral)] text-white hover:bg-[var(--color-claude-rust)] transition-colors"
           >
-            <ArrowLeft className="w-4 h-4" />
-            Back to Tools
+            Browse Tools
           </Link>
-          <div className="flex flex-col items-center justify-center py-20 text-center">
-            <span className="text-6xl mb-4">🔍</span>
-            <h1 className="text-2xl font-bold text-[var(--color-text-primary)] mb-2">
-              Tool Not Found
-            </h1>
-            <p className="text-[var(--color-text-secondary)] mb-6">
-              The tool you&apos;re looking for doesn&apos;t exist or has been removed.
-            </p>
-            <Link
-              href="/tools"
-              className="px-4 py-2 rounded-lg bg-[var(--color-claude-coral)] text-white hover:bg-[var(--color-claude-rust)] transition-colors"
-            >
-              Browse Tools
-            </Link>
-          </div>
         </div>
-      </main>
+      </article>
     );
   }
 
@@ -246,12 +249,12 @@ export default function ToolDetailPage() {
   const isFeatured = tool.status === "featured";
 
   return (
-    <main className="min-h-screen bg-[var(--color-bg-primary)]">
-      <div className="max-w-[900px] mx-auto px-4 py-8">
+    <>
+      <article className="mx-auto max-w-4xl px-4 lg:px-6 py-8 md:py-10">
         {/* Back Navigation */}
         <Link
           href="/tools"
-          className="inline-flex items-center gap-2 text-[var(--color-text-muted)] hover:text-white transition-colors mb-6 text-sm"
+          className="inline-flex items-center gap-2 text-[var(--color-text-muted)] hover:text-white transition-colors mb-6 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-500 focus-visible:ring-offset-2 focus-visible:ring-offset-black rounded"
         >
           <ArrowLeft className="w-4 h-4" />
           Back to Tools
@@ -286,10 +289,12 @@ export default function ToolDetailPage() {
             <div className="flex-1 min-w-0">
               <div className="flex items-start justify-between gap-4 flex-wrap">
                 <div>
-                  <h1 className="text-2xl md:text-3xl font-bold text-[var(--color-text-primary)] mb-2">
+                  {/* Title - matches News page hierarchy */}
+                  <h1 className="text-2xl md:text-3xl lg:text-4xl font-bold text-white mb-3 leading-tight">
                     {tool.name}
                   </h1>
-                  <p className="text-base text-[var(--color-text-secondary)] mb-3">
+                  {/* Tagline */}
+                  <p className="text-base md:text-lg text-[var(--color-text-secondary)] mb-4">
                     {tool.tagline}
                   </p>
                 </div>
@@ -297,15 +302,18 @@ export default function ToolDetailPage() {
                 {/* Vote Button - Desktop */}
                 <motion.button
                   onClick={handleVote}
-                  disabled={isVoting}
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
+                  disabled={isVoting || isSubmitter}
+                  whileHover={!isSubmitter ? { scale: 1.02 } : {}}
+                  whileTap={!isSubmitter ? { scale: 0.98 } : {}}
                   className={cn(
-                    "hidden sm:flex flex-col items-center gap-1 px-4 py-2 rounded-lg border transition-all",
-                    voted
-                      ? "bg-[var(--color-claude-coral)]/20 border-[var(--color-claude-coral)]/50 text-[var(--color-claude-coral)]"
-                      : "bg-[var(--color-bg-card)] border-[var(--border-default)] text-[var(--color-text-secondary)] hover:border-[var(--color-claude-coral)]/30"
+                    "hidden sm:flex flex-col items-center gap-1 px-5 py-3 rounded-lg border transition-all",
+                    isSubmitter
+                      ? "bg-[var(--color-bg-card)] border-[var(--border-default)] text-[var(--color-text-muted)] cursor-not-allowed opacity-60"
+                      : voted
+                        ? "bg-[var(--color-claude-coral)]/20 border-[var(--color-claude-coral)]/50 text-[var(--color-claude-coral)]"
+                        : "bg-[var(--color-bg-card)] border-[var(--border-default)] text-[var(--color-text-secondary)] hover:border-[var(--color-claude-coral)]/30"
                   )}
+                  title={isSubmitter ? "You cannot vote on your own submission" : ""}
                 >
                   {isVoting ? (
                     <Loader2 className="w-5 h-5 animate-spin" />
@@ -314,19 +322,16 @@ export default function ToolDetailPage() {
                       className={cn("w-5 h-5", voted && "text-[var(--color-claude-coral)]")}
                     />
                   )}
-                  <span className="text-lg font-bold">{voteCount}</span>
+                  <span className="text-xl font-bold">{voteCount}</span>
                 </motion.button>
               </div>
 
               {/* Badges */}
-              <div className="flex items-center gap-2 flex-wrap">
+              <div className="flex flex-wrap items-center gap-2 text-sm">
                 <span
-                  className={cn(
-                    "px-2 py-1 rounded-md text-xs font-medium inline-flex items-center gap-1"
-                  )}
+                  className="flex items-center gap-1.5 px-2.5 py-1 rounded-md font-medium"
                   style={{
                     backgroundColor: `var(--color-cat-${tool.category}, rgba(139, 92, 246, 0.2))`,
-                    color: `var(--color-text-secondary)`,
                   }}
                 >
                   {categoryMeta.emoji} {categoryMeta.label}
@@ -334,7 +339,7 @@ export default function ToolDetailPage() {
 
                 <span
                   className={cn(
-                    "px-2 py-1 rounded-md text-xs font-medium",
+                    "px-2.5 py-1 rounded-md font-medium",
                     pricingMeta.color === "green" && "bg-green-500/20 text-green-400",
                     pricingMeta.color === "blue" && "bg-blue-500/20 text-blue-400",
                     pricingMeta.color === "purple" && "bg-purple-500/20 text-purple-400",
@@ -345,18 +350,18 @@ export default function ToolDetailPage() {
                 </span>
 
                 {isFeatured && (
-                  <span className="px-2 py-1 rounded-md text-xs font-medium bg-gradient-to-r from-[var(--color-claude-coral)]/20 to-purple-500/20 text-[var(--color-claude-coral)]">
+                  <span className="px-2.5 py-1 rounded-md font-medium bg-gradient-to-r from-[var(--color-claude-coral)]/20 to-purple-500/20 text-[var(--color-claude-coral)]">
                     ⭐ Featured
                   </span>
                 )}
                 {isHot && !isFeatured && (
-                  <span className="px-2 py-1 rounded-md text-xs font-medium bg-orange-500/20 text-orange-400">
+                  <span className="px-2.5 py-1 rounded-md font-medium bg-orange-500/20 text-orange-400">
                     🔥 Hot
                   </span>
                 )}
                 {isNew && !isHot && !isFeatured && (
-                  <span className="px-2 py-1 rounded-md text-xs font-medium bg-green-500/20 text-green-400">
-                    🆕 New
+                  <span className="px-2.5 py-1 rounded-md font-medium bg-green-500/20 text-green-400">
+                    NEW
                   </span>
                 )}
               </div>
@@ -366,13 +371,15 @@ export default function ToolDetailPage() {
           {/* Vote Button - Mobile */}
           <motion.button
             onClick={handleVote}
-            disabled={isVoting}
-            whileTap={{ scale: 0.98 }}
+            disabled={isVoting || isSubmitter}
+            whileTap={!isSubmitter ? { scale: 0.98 } : {}}
             className={cn(
               "sm:hidden w-full mt-4 flex items-center justify-center gap-2 px-4 py-3 rounded-lg border transition-all",
-              voted
-                ? "bg-[var(--color-claude-coral)]/20 border-[var(--color-claude-coral)]/50 text-[var(--color-claude-coral)]"
-                : "bg-[var(--color-bg-card)] border-[var(--border-default)] text-[var(--color-text-secondary)]"
+              isSubmitter
+                ? "bg-[var(--color-bg-card)] border-[var(--border-default)] text-[var(--color-text-muted)] cursor-not-allowed opacity-60"
+                : voted
+                  ? "bg-[var(--color-claude-coral)]/20 border-[var(--color-claude-coral)]/50 text-[var(--color-claude-coral)]"
+                  : "bg-[var(--color-bg-card)] border-[var(--border-default)] text-[var(--color-text-secondary)]"
             )}
           >
             {isVoting ? (
@@ -380,19 +387,19 @@ export default function ToolDetailPage() {
             ) : (
               <>
                 <ChevronUp className={cn("w-5 h-5", voted && "text-[var(--color-claude-coral)]")} />
-                <span className="font-bold">{voteCount} Upvotes</span>
+                <span className="font-bold">
+                  {isSubmitter ? "Your submission" : `${voteCount} Upvotes`}
+                </span>
               </>
             )}
           </motion.button>
         </header>
 
-        {/* Description */}
+        {/* About / Description */}
         {tool.description && (
-          <section className="mb-6 p-5 rounded-xl bg-white/[0.02] border border-white/10">
-            <h2 className="text-sm font-semibold text-[var(--color-text-muted)] uppercase tracking-wide mb-3 flex items-center gap-2">
-              📝 Description
-            </h2>
-            <p className="text-[var(--color-text-secondary)] leading-relaxed whitespace-pre-wrap">
+          <section className="mb-8 p-5 rounded-xl bg-white/[0.02] border border-white/10">
+            <h2 className="text-lg font-semibold text-white mb-4">📝 About</h2>
+            <p className="text-[15px] text-white/80 leading-relaxed whitespace-pre-wrap">
               {tool.description}
             </p>
           </section>
@@ -400,13 +407,13 @@ export default function ToolDetailPage() {
 
         {/* Tags */}
         {tool.tags && tool.tags.length > 0 && (
-          <section className="mb-6">
+          <section className="mb-8">
             <div className="flex items-center gap-2 flex-wrap">
               <Tag className="w-4 h-4 text-[var(--color-text-muted)]" />
               {tool.tags.map((tag, i) => (
                 <span
                   key={i}
-                  className="px-2 py-0.5 rounded text-xs bg-[var(--color-bg-elevated)] text-[var(--color-text-secondary)]"
+                  className="px-2.5 py-1 rounded-md text-sm bg-[var(--color-bg-elevated)] text-[var(--color-text-secondary)]"
                 >
                   {tag}
                 </span>
@@ -416,7 +423,7 @@ export default function ToolDetailPage() {
         )}
 
         {/* Quick Links */}
-        <section className="mb-6 grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <section className="mb-8 grid grid-cols-1 sm:grid-cols-2 gap-3">
           {/* Website Link */}
           <a
             href={tool.website_url}
@@ -429,7 +436,7 @@ export default function ToolDetailPage() {
                 <Globe className="w-5 h-5 text-[var(--color-text-muted)]" />
               </div>
               <div className="flex-1 min-w-0">
-                <div className="text-sm font-medium text-[var(--color-text-primary)] group-hover:text-[var(--color-claude-coral)] transition-colors">
+                <div className="text-sm font-medium text-white group-hover:text-[var(--color-claude-coral)] transition-colors">
                   Visit Website
                 </div>
                 <div className="text-xs text-[var(--color-text-muted)] truncate">
@@ -447,9 +454,7 @@ export default function ToolDetailPage() {
                 <Users className="w-5 h-5 text-[var(--color-text-muted)]" />
               </div>
               <div className="flex-1">
-                <div className="text-sm font-medium text-[var(--color-text-primary)]">
-                  Statistics
-                </div>
+                <div className="text-sm font-medium text-white">Statistics</div>
                 <div className="text-xs text-[var(--color-text-muted)]">
                   {voteCount} votes • Added{" "}
                   {new Date(tool.created_at).toLocaleDateString("en-US", {
@@ -463,12 +468,10 @@ export default function ToolDetailPage() {
           </div>
         </section>
 
-        {/* Suggester */}
+        {/* Suggested By */}
         {tool.submitter && (
-          <section className="mb-6">
-            <h2 className="text-sm font-semibold text-[var(--color-text-muted)] uppercase tracking-wide mb-3 flex items-center gap-2">
-              👤 Suggested by
-            </h2>
+          <section className="mb-8">
+            <h2 className="text-lg font-semibold text-white mb-4">👤 Suggested by</h2>
             <button
               onClick={() => handleUserClick(tool.submitter!.id)}
               className="w-full p-4 rounded-xl bg-[var(--color-bg-card)] border border-[var(--border-default)] hover:border-[var(--color-claude-coral)]/30 transition-all text-left group"
@@ -484,12 +487,12 @@ export default function ToolDetailPage() {
                     unoptimized
                   />
                 ) : (
-                  <div className="w-10 h-10 rounded-full bg-[var(--color-bg-elevated)] flex items-center justify-center text-sm font-medium">
+                  <div className="w-10 h-10 rounded-full bg-[var(--color-bg-elevated)] flex items-center justify-center text-sm font-medium text-white">
                     {tool.submitter.username.charAt(0).toUpperCase()}
                   </div>
                 )}
                 <div className="flex-1">
-                  <div className="text-sm font-medium text-[var(--color-text-primary)] group-hover:text-[var(--color-claude-coral)] transition-colors">
+                  <div className="text-sm font-medium text-white group-hover:text-[var(--color-claude-coral)] transition-colors">
                     @{tool.submitter.username}
                   </div>
                   <div className="text-xs text-[var(--color-text-muted)]">
@@ -497,7 +500,7 @@ export default function ToolDetailPage() {
                     {tool.submitter.global_rank && ` • Global #${tool.submitter.global_rank}`}
                   </div>
                 </div>
-                <ArrowLeft className="w-4 h-4 text-[var(--color-text-muted)] rotate-180 opacity-0 group-hover:opacity-100 transition-opacity" />
+                <ChevronRight className="w-4 h-4 text-[var(--color-text-muted)] opacity-0 group-hover:opacity-100 transition-opacity" />
               </div>
             </button>
           </section>
@@ -505,8 +508,8 @@ export default function ToolDetailPage() {
 
         {/* Voters */}
         {tool.voters && tool.voters.length > 0 && (
-          <section className="mb-6">
-            <h2 className="text-sm font-semibold text-[var(--color-text-muted)] uppercase tracking-wide mb-3 flex items-center gap-2">
+          <section className="mb-8">
+            <h2 className="text-lg font-semibold text-white mb-4">
               🗳️ Voters ({tool.voters.length})
             </h2>
             <div className="p-4 rounded-xl bg-[var(--color-bg-card)] border border-[var(--border-default)]">
@@ -528,7 +531,7 @@ export default function ToolDetailPage() {
                         unoptimized
                       />
                     ) : (
-                      <div className="w-6 h-6 rounded-full bg-[var(--color-bg-card)] flex items-center justify-center text-[10px] font-medium">
+                      <div className="w-6 h-6 rounded-full bg-[var(--color-bg-card)] flex items-center justify-center text-[10px] font-medium text-white">
                         {voter.username.charAt(0).toUpperCase()}
                       </div>
                     )}
@@ -538,7 +541,7 @@ export default function ToolDetailPage() {
                   </button>
                 ))}
               </div>
-              <p className="text-[10px] text-[var(--color-text-muted)] mt-3">
+              <p className="text-[11px] text-[var(--color-text-muted)] mt-3">
                 Click on a voter to view their profile
               </p>
             </div>
@@ -547,13 +550,13 @@ export default function ToolDetailPage() {
 
         {/* Top Comment */}
         {tool.top_comment && (
-          <section className="mb-6">
-            <h2 className="text-sm font-semibold text-[var(--color-text-muted)] uppercase tracking-wide mb-3 flex items-center gap-2">
-              <MessageSquare className="w-4 h-4" />
+          <section className="mb-8">
+            <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+              <MessageSquare className="w-5 h-5" />
               Top Comment
             </h2>
             <div className="p-4 rounded-xl bg-[var(--color-bg-card)] border border-[var(--border-default)]">
-              <p className="text-[var(--color-text-secondary)] italic mb-2">
+              <p className="text-[15px] text-white/80 italic mb-3">
                 &quot;{tool.top_comment.comment}&quot;
               </p>
               <div className="flex items-center gap-2">
@@ -567,7 +570,7 @@ export default function ToolDetailPage() {
                     unoptimized
                   />
                 ) : (
-                  <div className="w-5 h-5 rounded-full bg-[var(--color-bg-elevated)] flex items-center justify-center text-[9px]">
+                  <div className="w-5 h-5 rounded-full bg-[var(--color-bg-elevated)] flex items-center justify-center text-[9px] text-white">
                     {tool.top_comment.username.charAt(0).toUpperCase()}
                   </div>
                 )}
@@ -581,20 +584,20 @@ export default function ToolDetailPage() {
 
         {/* Footer */}
         <footer className="pt-6 border-t border-white/[0.06]">
-          <p className="text-[11px] text-white/30 text-center">
-            Tool information is provided by the community.
+          <p className="text-[11px] text-white/30 text-center leading-relaxed">
+            Tool information is provided by the community.{" "}
             <a
               href={tool.website_url}
               target="_blank"
               rel="noopener noreferrer"
-              className="text-white/40 hover:text-white/60 underline underline-offset-2 ml-1"
+              className="text-white/40 hover:text-white/60 underline underline-offset-2"
             >
               Visit official website
             </a>{" "}
             for accurate details.
           </p>
         </footer>
-      </div>
+      </article>
 
       {/* Profile Side Panel */}
       <ProfileSidePanel
@@ -614,6 +617,6 @@ export default function ToolDetailPage() {
           </div>
         </div>
       )}
-    </main>
+    </>
   );
 }
