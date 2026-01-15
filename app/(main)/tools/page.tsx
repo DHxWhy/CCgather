@@ -9,7 +9,7 @@ import ToolsContent from "./ToolsContent";
 export const metadata: Metadata = {
   title: "Developer Tools | CCgather",
   description:
-    "Discover and share tools loved by Claude Code developers. Vote for your favorites and help the community find the best developer tools.",
+    "Discover and share tools loved by Claude Code developers. Vote for your favorites and help CCgather users discover the best developer tools.",
   openGraph: {
     title: "Developer Tools | CCgather",
     description: "Discover and share tools loved by Claude Code developers.",
