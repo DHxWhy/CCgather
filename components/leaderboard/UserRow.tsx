@@ -17,6 +17,12 @@ function formatNumber(num: number): string {
   return num.toString();
 }
 
+function formatCost(cost: number): string {
+  if (cost >= 1_000_000) return `$${(cost / 1_000_000).toFixed(1)}M`;
+  if (cost >= 1_000) return `$${(cost / 1_000).toFixed(1)}K`;
+  return `$${cost.toFixed(2)}`;
+}
+
 function getRankDisplay(rank: number): { text: string; className: string } {
   if (rank === 1) return { text: "🥇", className: "text-2xl" };
   if (rank === 2) return { text: "🥈", className: "text-xl" };
@@ -88,7 +94,7 @@ export function UserRow({ user }: UserRowProps) {
 
       {/* Spent */}
       <div className="col-span-2 flex items-center justify-end">
-        <span className="text-sm text-accent-green">${user.totalSpent.toFixed(2)}</span>
+        <span className="text-sm text-accent-green">{formatCost(user.totalSpent)}</span>
       </div>
 
       {/* Tier */}

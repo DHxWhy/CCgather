@@ -15,7 +15,6 @@ import {
 import { LEVELS, getLevelByTokens } from "@/lib/constants/levels";
 import { BADGES, type Badge } from "@/lib/constants/badges";
 import { ActivityHeatmap } from "@/components/profile/ActivityHeatmap";
-import { RollingNumber } from "@/components/ui/RollingNumber";
 import { CCplanBadge } from "@/components/leaderboard/CCplanBadge";
 import type {
   LeaderboardUser,
@@ -1018,7 +1017,7 @@ export function ProfileSidePanel({
                 <div
                   className={`font-semibold text-[var(--color-text-primary)] ${isNarrow ? "text-base" : "text-lg"}`}
                 >
-                  #<RollingNumber value={currentUser.ccplan_rank} delay={0} duration={400} />
+                  #{currentUser.ccplan_rank?.toLocaleString()}
                 </div>
               </div>
             )}
@@ -1036,12 +1035,7 @@ export function ProfileSidePanel({
               <div
                 className={`font-semibold text-[var(--color-text-primary)] ${isNarrow ? "text-base" : "text-lg"}`}
               >
-                #
-                <RollingNumber
-                  value={currentUser.global_rank || currentUser.rank}
-                  delay={0}
-                  duration={400}
-                />
+                #{(currentUser.global_rank || currentUser.rank).toLocaleString()}
               </div>
             </div>
             {/* Cost */}
@@ -1062,20 +1056,12 @@ export function ProfileSidePanel({
                         : "text-lg"
                 }`}
               >
-                <RollingNumber
-                  value={periodCost}
-                  delay={300}
-                  duration={400}
-                  formatFn={(v) => {
-                    if (isNarrow && v >= 100_000) {
-                      return `${(v / 1_000).toFixed(0)}K`;
-                    }
-                    return v.toLocaleString(undefined, {
+                {isNarrow && periodCost >= 100_000
+                  ? `${(periodCost / 1_000).toFixed(0)}K`
+                  : periodCost.toLocaleString(undefined, {
                       minimumFractionDigits: 0,
                       maximumFractionDigits: 0,
-                    });
-                  }}
-                />
+                    })}
               </div>
             </div>
             {/* Country Rank */}
@@ -1099,7 +1085,7 @@ export function ProfileSidePanel({
               <div
                 className={`font-semibold text-[var(--color-text-primary)] ${isNarrow ? "text-base" : "text-lg"}`}
               >
-                #<RollingNumber value={countryRank} delay={600} duration={400} />
+                #{countryRank.toLocaleString()}
               </div>
             </div>
             {/* Tokens */}
@@ -1120,17 +1106,9 @@ export function ProfileSidePanel({
                         : "text-lg"
                 }`}
               >
-                <RollingNumber
-                  value={periodTokens}
-                  delay={900}
-                  duration={500}
-                  formatFn={(v) => {
-                    if (isNarrow && v >= 1_000_000_000) {
-                      return `${(v / 1_000_000_000).toFixed(1)}B`;
-                    }
-                    return v.toLocaleString();
-                  }}
-                />
+                {isNarrow && periodTokens >= 1_000_000_000
+                  ? `${(periodTokens / 1_000_000_000).toFixed(1)}B`
+                  : periodTokens.toLocaleString()}
               </div>
             </div>
           </div>

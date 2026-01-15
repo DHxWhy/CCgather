@@ -43,45 +43,49 @@ const ALL_CATEGORIES: Array<{
 // Color Classes for each category (type-safe)
 // =====================================================
 
+// Claude Coral 브랜드 컬러로 선택 상태 통일 (눈에 잘 띄도록)
+const SELECTED_STYLE =
+  "bg-[var(--color-claude-coral)]/20 text-[var(--color-claude-coral)] ring-1 ring-[var(--color-claude-coral)]/30";
+
 const categoryColorClasses: Record<ToolCategory | "all", { active: string; inactive: string }> = {
   all: {
-    active: "bg-white/15 text-white",
+    active: SELECTED_STYLE,
     inactive: "text-[var(--color-text-secondary)] hover:bg-white/5",
   },
   "ai-coding": {
-    active: "bg-purple-500/20 text-purple-400",
+    active: SELECTED_STYLE,
     inactive: "text-[var(--color-text-secondary)] hover:bg-purple-500/10 hover:text-purple-400",
   },
   devops: {
-    active: "bg-orange-500/20 text-orange-400",
+    active: SELECTED_STYLE,
     inactive: "text-[var(--color-text-secondary)] hover:bg-orange-500/10 hover:text-orange-400",
   },
   productivity: {
-    active: "bg-yellow-500/20 text-yellow-400",
+    active: SELECTED_STYLE,
     inactive: "text-[var(--color-text-secondary)] hover:bg-yellow-500/10 hover:text-yellow-400",
   },
   design: {
-    active: "bg-pink-500/20 text-pink-400",
+    active: SELECTED_STYLE,
     inactive: "text-[var(--color-text-secondary)] hover:bg-pink-500/10 hover:text-pink-400",
   },
   "api-data": {
-    active: "bg-cyan-500/20 text-cyan-400",
+    active: SELECTED_STYLE,
     inactive: "text-[var(--color-text-secondary)] hover:bg-cyan-500/10 hover:text-cyan-400",
   },
   "open-source": {
-    active: "bg-green-500/20 text-green-400",
+    active: SELECTED_STYLE,
     inactive: "text-[var(--color-text-secondary)] hover:bg-green-500/10 hover:text-green-400",
   },
   learning: {
-    active: "bg-blue-500/20 text-blue-400",
+    active: SELECTED_STYLE,
     inactive: "text-[var(--color-text-secondary)] hover:bg-blue-500/10 hover:text-blue-400",
   },
   social: {
-    active: "bg-indigo-500/20 text-indigo-400",
+    active: SELECTED_STYLE,
     inactive: "text-[var(--color-text-secondary)] hover:bg-indigo-500/10 hover:text-indigo-400",
   },
   marketing: {
-    active: "bg-red-500/20 text-red-400",
+    active: SELECTED_STYLE,
     inactive: "text-[var(--color-text-secondary)] hover:bg-red-500/10 hover:text-red-400",
   },
 };
