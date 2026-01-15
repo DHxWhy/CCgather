@@ -239,16 +239,16 @@ export default function ToolsContent() {
     setProfilePanelOpen(true);
 
     try {
-      // Fetch user profile data from leaderboard API
-      const res = await fetch(`/api/leaderboard?limit=1&user_id=${userId}`);
+      // Fetch user profile data
+      const res = await fetch(`/api/users/${userId}/profile`);
       if (!res.ok) throw new Error("Failed to fetch user profile");
 
       const data = await res.json();
-      if (data.users && data.users.length > 0) {
-        const userData = data.users[0];
+      if (data.user) {
+        const userData = data.user;
         setSelectedUser({
           ...userData,
-          rank: userData.global_rank || userData.rank || 0,
+          rank: userData.global_rank || 0,
         });
       }
     } catch (error) {
