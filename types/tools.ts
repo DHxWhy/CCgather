@@ -20,7 +20,7 @@ export const TOOL_CATEGORIES = [
 
 export const TOOL_STATUS = ["pending", "approved", "featured", "rejected"] as const;
 
-export const TOOL_PRICING_TYPES = ["free", "freemium", "paid", "open_source"] as const;
+export const TOOL_PRICING_TYPES = ["free", "paid", "freemium", "open_source"] as const;
 
 export const TOOL_SOURCES = ["user", "admin", "automation"] as const;
 
@@ -48,10 +48,10 @@ export const CATEGORY_META: Record<ToolCategory, { label: string; emoji: string;
   };
 
 export const PRICING_META: Record<ToolPricingType, { label: string; color: string }> = {
-  free: { label: "무료", color: "green" },
-  freemium: { label: "부분유료", color: "blue" },
-  paid: { label: "유료", color: "purple" },
-  open_source: { label: "오픈소스", color: "cyan" },
+  free: { label: "Free", color: "green" },
+  paid: { label: "Paid", color: "purple" },
+  freemium: { label: "Partially Paid", color: "blue" },
+  open_source: { label: "Open Source", color: "cyan" },
 };
 
 export const TRUST_TIER_META: Record<
