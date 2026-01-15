@@ -9,7 +9,6 @@ import { cn } from "@/lib/utils";
 import type { ToolWithVoters, ToolCardVariant } from "@/types/tools";
 import { CATEGORY_META, PRICING_META, isNewTool, isHotTool } from "@/types/tools";
 import VoteButton from "./VoteButton";
-import TrustBadge from "./TrustBadge";
 import VoterPreview from "./VoterPreview";
 
 // =====================================================
@@ -344,12 +343,9 @@ function ToolCardComponent({
                   <p className="text-[11px] text-[var(--color-text-secondary)] line-clamp-1 flex-1">
                     "{tool.top_comment.comment}"
                   </p>
-                  <div className="flex items-center gap-1 flex-shrink-0">
-                    <span className="text-[10px] text-[var(--color-text-muted)]">
-                      @{tool.top_comment.username}
-                    </span>
-                    <TrustBadge tier={tool.top_comment.trust_tier} size="xs" />
-                  </div>
+                  <span className="text-[10px] text-[var(--color-text-muted)] flex-shrink-0">
+                    @{tool.top_comment.username}
+                  </span>
                 </div>
               </div>
             )}

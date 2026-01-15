@@ -502,7 +502,7 @@ export default async function NewsDetailPage({ params }: NewsDetailPageProps) {
         {/* Key Takeaways */}
         {keyTakeaways && keyTakeaways.length > 0 && (
           <section className="mb-8 p-5 rounded-xl bg-white/[0.02] border border-white/10">
-            <h2 className="text-lg font-semibold text-white mb-4">📌 핵심 정리</h2>
+            <h2 className="text-lg font-semibold text-white mb-4">📌 Key Takeaways</h2>
             <ul className="space-y-2.5">
               {keyTakeaways.map((point, index) => (
                 <li key={index} className="flex items-start gap-2.5 text-white/80">

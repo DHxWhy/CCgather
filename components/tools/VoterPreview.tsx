@@ -3,7 +3,6 @@
 import { memo } from "react";
 import Image from "next/image";
 import { cn } from "@/lib/utils";
-import type { TrustTier } from "@/types/tools";
 
 // =====================================================
 // Types
@@ -13,8 +12,6 @@ interface Voter {
   user_id: string;
   username: string;
   avatar_url: string | null;
-  trust_tier: TrustTier;
-  weight: number;
   comment?: string | null;
 }
 
@@ -25,17 +22,6 @@ interface VoterPreviewProps {
   size?: "sm" | "md";
   className?: string;
 }
-
-// =====================================================
-// Trust Tier Border Colors
-// =====================================================
-
-const tierBorderColors: Record<TrustTier, string> = {
-  elite: "ring-2 ring-yellow-500/70",
-  power_user: "ring-2 ring-slate-400/50",
-  verified: "ring-1 ring-emerald-500/50",
-  member: "",
-};
 
 // =====================================================
 // Component
@@ -71,11 +57,10 @@ function VoterPreviewComponent({
               avatarClass,
               "rounded-full overflow-hidden",
               "border-2 border-[var(--color-bg-card)]",
-              tierBorderColors[voter.trust_tier],
               index > 0 && spacing
             )}
             style={{ zIndex: showCount - index }}
-            title={`@${voter.username} (${voter.trust_tier})`}
+            title={`@${voter.username}`}
           >
             {voter.avatar_url ? (
               <Image

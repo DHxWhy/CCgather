@@ -7,7 +7,9 @@ import { useAuth } from "@clerk/nextjs";
 import { cn } from "@/lib/utils";
 import { ToolCard, ToolListItem, CategoryTabs, PeriodFilter } from "@/components/tools";
 import { EligibilityModal } from "@/components/tools/EligibilityModal";
+import { ProfileSidePanel } from "@/components/leaderboard/ProfileSidePanel";
 import type { ToolWithVoters, ToolCategory, ToolPeriod, ToolSortOption } from "@/types/tools";
+import type { LeaderboardUser } from "@/lib/types";
 
 // =====================================================
 // Types
@@ -22,6 +24,12 @@ interface EligibilityData {
     data_days: { met: boolean; current: number; required: number };
   };
   allRequirements: Array<{ key: string; label: string; description: string }>;
+}
+
+// Extended user type for profile panel display
+interface DisplayUser extends LeaderboardUser {
+  rank: number;
+  isCurrentUser?: boolean;
 }
 
 // =====================================================
@@ -44,6 +52,11 @@ export default function ToolsContent() {
   const [showEligibilityModal, setShowEligibilityModal] = useState(false);
   const [eligibility, setEligibility] = useState<EligibilityData | null>(null);
   const [checkingEligibility, setCheckingEligibility] = useState(false);
+
+  // Profile Panel State
+  const [selectedUser, setSelectedUser] = useState<DisplayUser | null>(null);
+  const [profilePanelOpen, setProfilePanelOpen] = useState(false);
+  const [loadingProfile, setLoadingProfile] = useState(false);
 
   // Filter state from URL
   const category = (searchParams.get("category") as ToolCategory | "all") || "all";
@@ -216,6 +229,43 @@ export default function ToolsContent() {
   };
 
   // =====================================================
+  // Profile Panel Handler
+  // =====================================================
+
+  const handleSuggesterClick = async (userId: string) => {
+    if (loadingProfile) return;
+
+    setLoadingProfile(true);
+    setProfilePanelOpen(true);
+
+    try {
+      // Fetch user profile data from leaderboard API
+      const res = await fetch(`/api/leaderboard?limit=1&user_id=${userId}`);
+      if (!res.ok) throw new Error("Failed to fetch user profile");
+
+      const data = await res.json();
+      if (data.users && data.users.length > 0) {
+        const userData = data.users[0];
+        setSelectedUser({
+          ...userData,
+          rank: userData.global_rank || userData.rank || 0,
+        });
+      }
+    } catch (error) {
+      console.error("Error fetching user profile:", error);
+      setProfilePanelOpen(false);
+    } finally {
+      setLoadingProfile(false);
+    }
+  };
+
+  const handleCloseProfilePanel = () => {
+    setProfilePanelOpen(false);
+    // Delay clearing user data for smooth exit animation
+    setTimeout(() => setSelectedUser(null), 300);
+  };
+
+  // =====================================================
   // Render
   // =====================================================
 
@@ -307,6 +357,7 @@ export default function ToolsContent() {
                   isBookmarked={userBookmarks.has(tool.id)}
                   onVote={handleVote}
                   onBookmark={handleBookmark}
+                  onSuggesterClick={handleSuggesterClick}
                   showWeighted={sort === "weighted"}
                 />
               ))}
@@ -362,6 +413,25 @@ export default function ToolsContent() {
         eligibility={eligibility}
         isLoading={checkingEligibility}
       />
+
+      {/* Profile Side Panel */}
+      <ProfileSidePanel
+        user={selectedUser}
+        isOpen={profilePanelOpen}
+        onClose={handleCloseProfilePanel}
+        periodFilter="all"
+        scopeFilter="global"
+      />
+
+      {/* Loading Overlay for Profile */}
+      {loadingProfile && profilePanelOpen && !selectedUser && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/20">
+          <div className="bg-[var(--color-bg-card)] rounded-lg p-4 shadow-xl flex items-center gap-3">
+            <Loader2 className="w-5 h-5 animate-spin text-[var(--color-claude-coral)]" />
+            <span className="text-sm text-[var(--color-text-secondary)]">프로필 로딩 중...</span>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

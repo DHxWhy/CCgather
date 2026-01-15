@@ -6,8 +6,8 @@ import Link from "next/link";
 import { motion } from "framer-motion";
 import { ExternalLink, Bookmark, BookmarkCheck } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { ToolWithVoters, TrustTier } from "@/types/tools";
-import { CATEGORY_META, PRICING_META, TRUST_TIER_META, isNewTool, isHotTool } from "@/types/tools";
+import type { ToolWithVoters } from "@/types/tools";
+import { CATEGORY_META, PRICING_META, isNewTool, isHotTool } from "@/types/tools";
 import { AvatarGroup } from "@/components/ui/avatar-group";
 import VoteButton from "./VoteButton";
 
@@ -28,15 +28,6 @@ interface ToolListItemProps {
   showSuggester?: boolean;
   compact?: boolean;
   className?: string;
-}
-
-// =====================================================
-// Trust Tier Badge
-// =====================================================
-
-// Trust tier emoji helper
-function getTrustEmoji(tier: TrustTier): string {
-  return TRUST_TIER_META[tier].emoji;
 }
 
 // =====================================================
@@ -237,7 +228,8 @@ function ToolListItemComponent({
               "bg-[var(--color-bg-elevated)]/50",
               "hover:bg-[var(--color-bg-elevated)]",
               "transition-colors flex-shrink-0",
-              "text-[10px] text-[var(--color-text-secondary)]"
+              "text-[10px] text-[var(--color-text-secondary)]",
+              "hover:text-[var(--color-claude-coral)]"
             )}
           >
             {tool.suggester.avatar_url ? (
@@ -254,10 +246,7 @@ function ToolListItemComponent({
                 {tool.suggester.username.charAt(0).toUpperCase()}
               </div>
             )}
-            <span className="truncate max-w-[60px]">{tool.suggester.username}</span>
-            <span className="text-[var(--color-text-muted)]">
-              {getTrustEmoji(tool.suggester.trust_tier)} Lv.{tool.suggester.current_level}
-            </span>
+            <span className="truncate max-w-[80px]">@{tool.suggester.username}</span>
           </button>
         )}
 
@@ -268,7 +257,7 @@ function ToolListItemComponent({
               avatars={tool.voters.slice(0, 4).map((voter) => ({
                 src: voter.avatar_url || "",
                 alt: voter.username,
-                label: `${voter.username} (${TRUST_TIER_META[voter.trust_tier].emoji})`,
+                label: `@${voter.username}`,
                 fallback: voter.username.charAt(0).toUpperCase(),
               }))}
               maxVisible={4}
