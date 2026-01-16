@@ -205,6 +205,19 @@ export default function AdminContentsPage() {
   }, []);
 
   // Bulk regenerate thumbnails
+  // Handle single thumbnail update (from ContentCard)
+  const handleThumbnailUpdate = (id: string, thumbnailUrl: string, source: string) => {
+    setContents((prev) =>
+      prev.map((item) =>
+        item.id === id
+          ? { ...item, thumbnail_url: thumbnailUrl, thumbnail_source: source as ThumbnailSource }
+          : item
+      )
+    );
+    // Update bulk stats
+    fetchBulkStats();
+  };
+
   const handleBulkRegenerate = async () => {
     if (
       !confirm(
@@ -505,6 +518,8 @@ export default function AdminContentsPage() {
                     onEdit={() => setEditingItem(item)}
                     onStatusChange={updateContentStatus}
                     onDelete={() => deleteContent(item.id)}
+                    thumbnailModel={thumbnailModel}
+                    onThumbnailUpdate={handleThumbnailUpdate}
                   />
                 ))
               )}
@@ -586,12 +601,41 @@ function ContentCard({
   onEdit,
   onStatusChange,
   onDelete,
+  thumbnailModel,
+  onThumbnailUpdate,
 }: {
   item: ContentItem;
   onEdit: () => void;
   onStatusChange: (id: string, status: ContentStatus) => void;
   onDelete: () => void;
+  thumbnailModel: ThumbnailModel;
+  onThumbnailUpdate: (id: string, thumbnailUrl: string, source: string) => void;
 }) {
+  const [regenerating, setRegenerating] = useState(false);
+
+  // Regenerate thumbnail
+  const handleRegenerate = async () => {
+    setRegenerating(true);
+    try {
+      const res = await fetch(`/api/admin/thumbnail/regenerate/${item.id}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ thumbnailModel }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        onThumbnailUpdate(item.id, data.thumbnail_url, data.source);
+      }
+    } catch (error) {
+      console.error("Failed to regenerate thumbnail:", error);
+    } finally {
+      setRegenerating(false);
+    }
+  };
+
+  // Check if thumbnail is OG image (needs AI generation)
+  const isOgImage = !item.thumbnail_source || item.thumbnail_source === "og_image";
+
   // Check if original published_at is before created_at (collection date)
   const publishedDate = item.published_at ? new Date(item.published_at) : null;
   const createdDate = new Date(item.created_at);
@@ -618,12 +662,33 @@ function ContentCard({
       <div className="flex gap-3">
         {/* Thumbnail */}
         {item.thumbnail_url && (
-          <div className="relative w-28 h-16 rounded overflow-hidden flex-shrink-0 bg-black">
+          <div className="relative w-28 h-16 rounded overflow-hidden flex-shrink-0 bg-black group">
             <Image src={item.thumbnail_url} alt="" fill className="object-cover" unoptimized />
             {item.duration && (
               <div className="absolute bottom-0.5 right-0.5 px-1 py-0.5 bg-black/80 rounded text-[9px] text-white">
                 {item.duration}
               </div>
+            )}
+            {/* AI Generate Button - Show on hover or if OG image */}
+            {item.type === "news" && (
+              <button
+                onClick={handleRegenerate}
+                disabled={regenerating}
+                className={`absolute inset-0 flex items-center justify-center transition-opacity ${
+                  isOgImage
+                    ? "bg-black/60 opacity-100"
+                    : "bg-black/60 opacity-0 group-hover:opacity-100"
+                }`}
+                title={isOgImage ? "AI 썸네일 생성" : "AI 썸네일 재생성"}
+              >
+                {regenerating ? (
+                  <Loader2 className="w-5 h-5 text-white animate-spin" />
+                ) : (
+                  <span className="text-[10px] text-white font-medium px-2 py-1 bg-purple-500/80 rounded">
+                    {isOgImage ? "✨ AI" : "🔄 AI"}
+                  </span>
+                )}
+              </button>
             )}
           </div>
         )}
