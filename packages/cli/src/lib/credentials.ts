@@ -1,6 +1,7 @@
 import * as fs from "fs";
 import * as path from "path";
 import * as os from "os";
+import { execSync } from "child_process";
 
 export type CCPlan = "free" | "pro" | "max" | "team" | "enterprise" | string;
 
@@ -17,10 +18,48 @@ interface ClaudeCredentials {
 }
 
 /**
- * Get the path to .credentials.json
+ * Get the path to .credentials.json (Linux/Windows)
  */
 function getCredentialsPath(): string {
   return path.join(os.homedir(), ".claude", ".credentials.json");
+}
+
+/**
+ * Read credentials from macOS Keychain
+ * macOS stores Claude Code credentials in Keychain, not in a file
+ */
+function readFromMacKeychain(): ClaudeCredentials | null {
+  try {
+    // Use security command to read from Keychain
+    const result = execSync('security find-generic-password -s "Claude Code-credentials" -w', {
+      encoding: "utf-8",
+      stdio: ["pipe", "pipe", "pipe"], // Suppress stderr
+    });
+
+    const credentials: ClaudeCredentials = JSON.parse(result.trim());
+    return credentials;
+  } catch {
+    // Keychain access failed or credentials not found
+    return null;
+  }
+}
+
+/**
+ * Read credentials from file (Linux/Windows)
+ */
+function readFromFile(): ClaudeCredentials | null {
+  const credentialsPath = getCredentialsPath();
+
+  if (!fs.existsSync(credentialsPath)) {
+    return null;
+  }
+
+  try {
+    const content = fs.readFileSync(credentialsPath, "utf-8");
+    return JSON.parse(content);
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -87,47 +126,50 @@ function inferPlanFromRateLimitTier(rateLimitTier: string | undefined): CCPlan |
 }
 
 /**
- * Read credentials from ~/.claude/.credentials.json
- * Returns account information or null values if file not found or parse error
+ * Read credentials from platform-specific storage
+ * - macOS: Keychain
+ * - Linux/Windows: ~/.claude/.credentials.json
+ *
+ * Returns account information or null values if not found
  */
 export function readCredentials(): CredentialsData {
-  const credentialsPath = getCredentialsPath();
-
   // Default return value for errors
   const defaultData: CredentialsData = {
     ccplan: null,
     rateLimitTier: null,
   };
 
-  // Check if file exists
-  if (!fs.existsSync(credentialsPath)) {
+  let credentials: ClaudeCredentials | null = null;
+
+  // Try macOS Keychain first (if on macOS)
+  if (process.platform === "darwin") {
+    credentials = readFromMacKeychain();
+  }
+
+  // Fallback to file-based credentials (Linux/Windows, or if Keychain failed)
+  if (!credentials) {
+    credentials = readFromFile();
+  }
+
+  if (!credentials) {
     return defaultData;
   }
 
-  try {
-    // Read and parse the file
-    const content = fs.readFileSync(credentialsPath, "utf-8");
-    const credentials: ClaudeCredentials = JSON.parse(content);
+  // Extract OAuth data
+  const oauthData = credentials.claudeAiOauth;
 
-    // Extract OAuth data
-    const oauthData = credentials.claudeAiOauth;
-
-    if (!oauthData) {
-      return defaultData;
-    }
-
-    // Map subscription type to CCPlan, fallback to rateLimitTier inference
-    const rateLimitTier = oauthData.rateLimitTier || null;
-    const ccplan =
-      mapSubscriptionToCCPlan(oauthData.subscriptionType) ||
-      inferPlanFromRateLimitTier(rateLimitTier);
-
-    return {
-      ccplan,
-      rateLimitTier,
-    };
-  } catch (error) {
-    // Handle file read or JSON parse errors gracefully
+  if (!oauthData) {
     return defaultData;
   }
+
+  // Map subscription type to CCPlan, fallback to rateLimitTier inference
+  const rateLimitTier = oauthData.rateLimitTier || null;
+  const ccplan =
+    mapSubscriptionToCCPlan(oauthData.subscriptionType) ||
+    inferPlanFromRateLimitTier(rateLimitTier);
+
+  return {
+    ccplan,
+    rateLimitTier,
+  };
 }
