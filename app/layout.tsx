@@ -85,6 +85,63 @@ export const metadata: Metadata = {
   },
 };
 
+// ===========================================
+// Organization & WebSite JSON-LD (Global)
+// ===========================================
+
+function GlobalJsonLd() {
+  const organizationLd = {
+    "@context": "https://schema.org",
+    "@type": "Organization",
+    name: "CCgather",
+    url: "https://ccgather.com",
+    logo: "https://ccgather.com/logo.png",
+    description:
+      "Where Claude Code developers gather. Real-time leaderboards, curated AI news, and developer tools.",
+    sameAs: ["https://twitter.com/ccgather", "https://github.com/ccgather"],
+    contactPoint: {
+      "@type": "ContactPoint",
+      contactType: "customer service",
+      url: "https://ccgather.com",
+    },
+  };
+
+  const websiteLd = {
+    "@context": "https://schema.org",
+    "@type": "WebSite",
+    name: "CCgather",
+    url: "https://ccgather.com",
+    description:
+      "Real-time global leaderboard for Claude Code usage. Track your tokens, compete with developers worldwide, and discover AI tools.",
+    potentialAction: {
+      "@type": "SearchAction",
+      target: {
+        "@type": "EntryPoint",
+        urlTemplate: "https://ccgather.com/tools?search={search_term_string}",
+      },
+      "query-input": "required name=search_term_string",
+    },
+    publisher: {
+      "@type": "Organization",
+      name: "CCgather",
+      url: "https://ccgather.com",
+    },
+  };
+
+  return (
+    <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationLd) }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(websiteLd) }}
+      />
+    </>
+  );
+}
+
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <ClerkProvider
@@ -100,6 +157,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         className={`${inter.variable} ${jetbrainsMono.variable}`}
         suppressHydrationWarning
       >
+        <head>
+          <GlobalJsonLd />
+        </head>
         <body className="min-h-screen bg-bg-primary font-sans antialiased">
           <Providers>{children}</Providers>
         </body>

@@ -7,13 +7,35 @@ import ToolsContent from "./ToolsContent";
 // =====================================================
 
 export const metadata: Metadata = {
-  title: "Developer Tools | CCgather",
+  title: "Developer Tools | CCgather - Claude Code Tools & Extensions",
   description:
-    "Discover and share tools loved by Claude Code developers. Vote for your favorites and help CCgather users discover the best developer tools.",
+    "Discover and share tools loved by Claude Code developers. MCP servers, IDE extensions, AI coding tools, and productivity apps. Vote for your favorites and help the community discover the best developer tools.",
+  keywords: [
+    "Claude Code tools",
+    "MCP servers",
+    "AI coding tools",
+    "developer tools",
+    "Claude Code extensions",
+    "IDE integrations",
+    "AI productivity tools",
+    "Claude Code MCP",
+    "best developer tools",
+    "AI developer tools",
+  ],
   openGraph: {
     title: "Developer Tools | CCgather",
-    description: "Discover and share tools loved by Claude Code developers.",
+    description:
+      "Discover and share tools loved by Claude Code developers. MCP servers, extensions, and AI coding tools.",
     type: "website",
+    url: "https://ccgather.com/tools",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Developer Tools | CCgather",
+    description: "Discover MCP servers, extensions, and AI tools for Claude Code developers.",
+  },
+  alternates: {
+    canonical: "https://ccgather.com/tools",
   },
 };
 

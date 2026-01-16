@@ -3,6 +3,8 @@
 import { useEffect, useRef, useState, useMemo, useCallback } from "react";
 import { X as CloseIcon, Github, Linkedin, Globe } from "lucide-react";
 import ReactCountryFlag from "react-country-flag";
+import { useUser } from "@clerk/nextjs";
+import { LoginPromptModal } from "./LoginPromptModal";
 import {
   LineChart,
   Line,
@@ -399,7 +401,15 @@ function XIcon({ className }: { className?: string }) {
 }
 
 // Social Links Quick Access (Header Icons) - Brand Colors Applied
-function SocialLinksQuickAccess({ socialLinks }: { socialLinks: SocialLinks | null | undefined }) {
+function SocialLinksQuickAccess({
+  socialLinks,
+  isSignedIn,
+  onLoginRequired,
+}: {
+  socialLinks: SocialLinks | null | undefined;
+  isSignedIn: boolean;
+  onLoginRequired: (url: string) => void;
+}) {
   if (!socialLinks) return null;
 
   const links = [
@@ -448,6 +458,13 @@ function SocialLinksQuickAccess({ socialLinks }: { socialLinks: SocialLinks | nu
     return `${link.prefix}${value.replace(/^@/, "")}`;
   };
 
+  const handleClick = (e: React.MouseEvent, url: string) => {
+    if (!isSignedIn) {
+      e.preventDefault();
+      onLoginRequired(url);
+    }
+  };
+
   return (
     <div className="flex items-center gap-0.5">
       {activeLinks.map((link) => {
@@ -463,6 +480,7 @@ function SocialLinksQuickAccess({ socialLinks }: { socialLinks: SocialLinks | nu
             rel="noopener noreferrer"
             className={`p-1.5 rounded-md transition-all ${link.color} ${link.hoverColor}`}
             title={link.key === "website" ? new URL(url).hostname : value}
+            onClick={(e) => handleClick(e, url)}
           >
             <Icon className="w-3.5 h-3.5" />
           </a>
@@ -542,6 +560,39 @@ interface ProfileSidePanelProps {
   ccplanFilter?: CCPlanFilter;
 }
 
+// Profile view tracking for non-logged-in users
+const PROFILE_VIEW_LIMIT = 3;
+const STORAGE_KEY = "ccgather_profile_views";
+
+function getProfileViewCount(): number {
+  if (typeof window === "undefined") return 0;
+  try {
+    const data = localStorage.getItem(STORAGE_KEY);
+    if (!data) return 0;
+    const parsed = JSON.parse(data);
+    // Reset if it's been more than 24 hours
+    if (Date.now() - parsed.timestamp > 24 * 60 * 60 * 1000) {
+      localStorage.removeItem(STORAGE_KEY);
+      return 0;
+    }
+    return parsed.count || 0;
+  } catch {
+    return 0;
+  }
+}
+
+function incrementProfileViewCount(): number {
+  if (typeof window === "undefined") return 0;
+  try {
+    const current = getProfileViewCount();
+    const newCount = current + 1;
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ count: newCount, timestamp: Date.now() }));
+    return newCount;
+  } catch {
+    return 0;
+  }
+}
+
 export function ProfileSidePanel({
   user,
   isOpen,
@@ -550,6 +601,7 @@ export function ProfileSidePanel({
   scopeFilter,
   ccplanFilter = "all",
 }: ProfileSidePanelProps) {
+  const { isSignedIn } = useUser();
   const panelRef = useRef<HTMLDivElement>(null);
   const statsRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -560,11 +612,50 @@ export function ProfileSidePanel({
   const [isNarrow, setIsNarrow] = useState(false);
   const [showCompactStats, setShowCompactStats] = useState(false);
 
+  // Login prompt modal state
+  const [showLoginModal, setShowLoginModal] = useState(false);
+  const [loginModalType, setLoginModalType] = useState<"social_link" | "profile_limit">(
+    "social_link"
+  );
+  const [pendingSocialUrl, setPendingSocialUrl] = useState<string | null>(null);
+
   // API data state
   const [usageHistory, setUsageHistory] = useState<UsageHistoryPoint[]>([]);
   const [userBadges, setUserBadges] = useState<string[]>([]);
   const [freshSocialLinks, setFreshSocialLinks] = useState<SocialLinks | null>(null);
   const [historyLoading, setHistoryLoading] = useState(false);
+
+  // Handle social link click for non-logged-in users
+  const handleSocialLinkLoginRequired = useCallback((url: string) => {
+    setPendingSocialUrl(url);
+    setLoginModalType("social_link");
+    setShowLoginModal(true);
+  }, []);
+
+  // Handle "continue as guest" - open the social link
+  const handleContinueAsGuest = useCallback(() => {
+    if (pendingSocialUrl) {
+      window.open(pendingSocialUrl, "_blank", "noopener,noreferrer");
+    }
+    setShowLoginModal(false);
+    setPendingSocialUrl(null);
+  }, [pendingSocialUrl]);
+
+  // Check profile view limit for non-logged-in users
+  useEffect(() => {
+    if (!isOpen || !user || isSignedIn) return;
+
+    // Check if this is a new profile view
+    const viewCount = getProfileViewCount();
+    if (viewCount >= PROFILE_VIEW_LIMIT) {
+      // Show login prompt after limit reached
+      setLoginModalType("profile_limit");
+      setShowLoginModal(true);
+    } else {
+      // Increment view count
+      incrementProfileViewCount();
+    }
+  }, [isOpen, user?.id, isSignedIn]);
 
   // Only mobile uses overlay mode, tablet uses push mode
   const isOverlayPanel = isMobile;
@@ -918,6 +1009,8 @@ export function ProfileSidePanel({
                     <div className="flex-shrink-0">
                       <SocialLinksQuickAccess
                         socialLinks={freshSocialLinks || currentUser.social_links}
+                        isSignedIn={!!isSignedIn}
+                        onLoginRequired={handleSocialLinkLoginRequired}
                       />
                     </div>
                   )}
@@ -940,6 +1033,8 @@ export function ProfileSidePanel({
               <div className="mt-3 pt-3 border-t border-[var(--border-default)]">
                 <SocialLinksQuickAccess
                   socialLinks={freshSocialLinks || currentUser.social_links}
+                  isSignedIn={!!isSignedIn}
+                  onLoginRequired={handleSocialLinkLoginRequired}
                 />
               </div>
             )}
@@ -1184,6 +1279,21 @@ export function ProfileSidePanel({
           </div>
         </div>
       </div>
+
+      {/* Login Prompt Modal */}
+      <LoginPromptModal
+        isOpen={showLoginModal}
+        onClose={() => {
+          setShowLoginModal(false);
+          setPendingSocialUrl(null);
+          // If it was profile limit modal, close the panel too
+          if (loginModalType === "profile_limit") {
+            onClose();
+          }
+        }}
+        type={loginModalType}
+        onContinueAsGuest={loginModalType === "social_link" ? handleContinueAsGuest : undefined}
+      />
     </>
   );
 }
