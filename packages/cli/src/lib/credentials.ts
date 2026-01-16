@@ -28,9 +28,9 @@ function getCredentialsPath(): string {
  * - Known values (free, pro, max) are normalized
  * - Unknown values (team, enterprise, etc.) are passed through for server logging
  */
-function mapSubscriptionToCCPlan(subscriptionType: string | undefined): CCPlan {
+function mapSubscriptionToCCPlan(subscriptionType: string | undefined): CCPlan | null {
   if (!subscriptionType) {
-    return "free";
+    return null;
   }
 
   const type = subscriptionType.toLowerCase();
@@ -51,6 +51,39 @@ function mapSubscriptionToCCPlan(subscriptionType: string | undefined): CCPlan {
   // Unknown types (team, enterprise, etc.) - pass through for server logging
   // This helps us discover actual values from Team/Enterprise users
   return type;
+}
+
+/**
+ * Infer CCPlan from rateLimitTier
+ * Examples:
+ * - "default_claude_max_20x" → "max"
+ * - "default_claude_pro" → "pro"
+ * - "free" → "free"
+ */
+function inferPlanFromRateLimitTier(rateLimitTier: string | undefined): CCPlan | null {
+  if (!rateLimitTier) {
+    return null;
+  }
+
+  const tier = rateLimitTier.toLowerCase();
+
+  if (tier.includes("max")) {
+    return "max";
+  }
+
+  if (tier.includes("pro")) {
+    return "pro";
+  }
+
+  if (tier.includes("team") || tier.includes("enterprise")) {
+    return "team";
+  }
+
+  if (tier.includes("free")) {
+    return "free";
+  }
+
+  return null;
 }
 
 /**
@@ -83,9 +116,11 @@ export function readCredentials(): CredentialsData {
       return defaultData;
     }
 
-    // Map subscription type to CCPlan
-    const ccplan = mapSubscriptionToCCPlan(oauthData.subscriptionType);
+    // Map subscription type to CCPlan, fallback to rateLimitTier inference
     const rateLimitTier = oauthData.rateLimitTier || null;
+    const ccplan =
+      mapSubscriptionToCCPlan(oauthData.subscriptionType) ||
+      inferPlanFromRateLimitTier(rateLimitTier);
 
     return {
       ccplan,
