@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { FlagIcon } from "@/components/ui/FlagIcon";
 import { Coins, Sparkles, ChevronDown } from "lucide-react";
 import { CountryStatsModal } from "@/components/globe";
+import { formatNumber, formatCost } from "@/lib/utils/format";
 
 interface CountryStat {
   code: string;
@@ -36,20 +37,6 @@ const MOCK_COUNTRY_STATS: CountryStat[] = [
   { code: "TW", name: "Taiwan", tokens: 480000000, cost: 1740 },
   { code: "HK", name: "Hong Kong", tokens: 420000000, cost: 1520 },
 ];
-
-function formatNumber(num: number): string {
-  if (num >= 1e12) return `${(num / 1e12).toFixed(1)}T`;
-  if (num >= 1e9) return `${(num / 1e9).toFixed(1)}B`;
-  if (num >= 1e6) return `${(num / 1e6).toFixed(1)}M`;
-  if (num >= 1e3) return `${(num / 1e3).toFixed(1)}K`;
-  return num.toString();
-}
-
-function formatCost(cost: number): string {
-  if (cost >= 1e6) return `$${(cost / 1e6).toFixed(1)}M`;
-  if (cost >= 1e3) return `$${(cost / 1e3).toFixed(1)}K`;
-  return `$${cost}`;
-}
 
 interface LiveStatsTickerProps {
   variant?: "compact" | "full";

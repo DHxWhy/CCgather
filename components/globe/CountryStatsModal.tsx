@@ -6,6 +6,7 @@ import { X, DollarSign, Coins } from "lucide-react";
 import { Globe } from "./Globe";
 import { FlagIcon } from "@/components/ui/FlagIcon";
 import { GlobeParticles } from "@/components/ui/globe-particles";
+import { formatNumber, formatCost } from "@/lib/utils/format";
 
 // Animated number component with rolling count effect
 function AnimatedNumber({
@@ -70,20 +71,6 @@ interface CountryStatsModalProps {
   totalTokens: number;
   totalCost: number;
   userCountryCode?: string; // 로그인한 사용자의 국가 코드
-}
-
-function formatNumber(num: number): string {
-  if (num >= 1e12) return `${(num / 1e12).toFixed(1)}T`;
-  if (num >= 1e9) return `${(num / 1e9).toFixed(1)}B`;
-  if (num >= 1e6) return `${(num / 1e6).toFixed(1)}M`;
-  if (num >= 1e3) return `${(num / 1e3).toFixed(1)}K`;
-  return num.toString();
-}
-
-function formatCost(cost: number): string {
-  if (cost >= 1e6) return `$${(cost / 1e6).toFixed(1)}M`;
-  if (cost >= 1e3) return `$${(cost / 1e3).toFixed(1)}K`;
-  return `$${cost.toFixed(0)}`;
 }
 
 export function CountryStatsModal({

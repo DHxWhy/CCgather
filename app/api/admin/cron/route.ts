@@ -1,19 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@clerk/nextjs/server";
 import { createServiceClient } from "@/lib/supabase/server";
+import { checkAdminAccess } from "@/lib/admin";
 import type { CronConfig } from "@/types/automation";
-
-async function isAdmin() {
-  const { userId } = await auth();
-  if (!userId) return false;
-  if (process.env.NODE_ENV === "development") return true;
-  return true;
-}
 
 // GET - Get cron job status and history
 export async function GET(request: NextRequest) {
   try {
-    if (!(await isAdmin())) {
+    if (!(await checkAdminAccess())) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
@@ -61,7 +54,7 @@ export async function GET(request: NextRequest) {
 // PATCH - Update cron job settings
 export async function PATCH(request: NextRequest) {
   try {
-    if (!(await isAdmin())) {
+    if (!(await checkAdminAccess())) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
@@ -129,7 +122,7 @@ export async function PATCH(request: NextRequest) {
 // POST - Trigger manual run
 export async function POST(request: NextRequest) {
   try {
-    if (!(await isAdmin())) {
+    if (!(await checkAdminAccess())) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
@@ -205,7 +198,7 @@ export async function POST(request: NextRequest) {
 // DELETE - Cancel a running cron job
 export async function DELETE(request: NextRequest) {
   try {
-    if (!(await isAdmin())) {
+    if (!(await checkAdminAccess())) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 

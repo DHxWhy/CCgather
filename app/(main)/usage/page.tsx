@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo, useRef } from "react";
 import { Globe, Trophy, Coins, Zap, Calendar, ChevronDown } from "lucide-react";
 import { FlagIcon } from "@/components/ui/FlagIcon";
 import { cn } from "@/lib/utils";
+import { formatNumber } from "@/lib/utils/format";
 import Image from "next/image";
 import Link from "next/link";
 
@@ -61,14 +62,6 @@ function getDaysInMonth(year: number, month: number): number {
 function getHeatmapIntensity(tokens: number, maxTokens: number): number {
   if (tokens === 0 || maxTokens === 0) return 0;
   return Math.min(tokens / (maxTokens * 0.5), 1);
-}
-
-// Format number
-function formatNumber(num: number): string {
-  if (num >= 1_000_000_000) return `${(num / 1_000_000_000).toFixed(1)}B`;
-  if (num >= 1_000_000) return `${(num / 1_000_000).toFixed(1)}M`;
-  if (num >= 1_000) return `${(num / 1_000).toFixed(1)}K`;
-  return num.toFixed(0);
 }
 
 // Format cost (compact)

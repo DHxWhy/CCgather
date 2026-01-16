@@ -1,16 +1,9 @@
 import { NextRequest } from "next/server";
-import { auth } from "@clerk/nextjs/server";
 import { createServiceClient } from "@/lib/supabase/server";
+import { checkAdminAccess } from "@/lib/admin";
 import { GeminiPipeline } from "@/lib/ai";
 import { getThumbnailWithFallback } from "@/lib/gemini/thumbnail-generator";
 import type { TargetCategory } from "@/types/automation";
-
-async function isAdmin() {
-  const { userId } = await auth();
-  if (!userId) return false;
-  if (process.env.NODE_ENV === "development") return true;
-  return true;
-}
 
 // Helper to send SSE event
 function sendEvent(
@@ -27,7 +20,7 @@ export async function POST(request: NextRequest) {
   const startTime = Date.now();
 
   // Auth check first
-  if (!(await isAdmin())) {
+  if (!(await checkAdminAccess())) {
     return new Response(JSON.stringify({ error: "Unauthorized" }), {
       status: 401,
       headers: { "Content-Type": "application/json" },

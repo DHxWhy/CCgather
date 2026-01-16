@@ -1,19 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@clerk/nextjs/server";
 import { createServiceClient } from "@/lib/supabase/server";
+import { checkAdminAccess } from "@/lib/admin";
 import type { CreateTargetInput } from "@/types/automation";
-
-async function isAdmin() {
-  const { userId } = await auth();
-  if (!userId) return false;
-  if (process.env.NODE_ENV === "development") return true;
-  return true;
-}
 
 // GET - List all targets
 export async function GET(request: NextRequest) {
   try {
-    if (!(await isAdmin())) {
+    if (!(await checkAdminAccess())) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
@@ -60,7 +53,7 @@ export async function GET(request: NextRequest) {
 // POST - Create new target
 export async function POST(request: NextRequest) {
   try {
-    if (!(await isAdmin())) {
+    if (!(await checkAdminAccess())) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
@@ -117,7 +110,7 @@ export async function POST(request: NextRequest) {
 // PATCH - Bulk update (reorder)
 export async function PATCH(request: NextRequest) {
   try {
-    if (!(await isAdmin())) {
+    if (!(await checkAdminAccess())) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 

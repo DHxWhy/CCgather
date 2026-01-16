@@ -5,22 +5,10 @@ import Image from "next/image";
 import { Github, Twitter, Linkedin, Globe } from "lucide-react";
 import { LeaderboardUser, SocialLinks } from "./LeaderboardTable";
 import { FlagIcon } from "@/components/ui/FlagIcon";
+import { formatNumber, formatCost } from "@/lib/utils/format";
 
 interface UserRowProps {
   user: LeaderboardUser;
-}
-
-function formatNumber(num: number): string {
-  if (num >= 1_000_000_000) return `${(num / 1_000_000_000).toFixed(1)}B`;
-  if (num >= 1_000_000) return `${(num / 1_000_000).toFixed(1)}M`;
-  if (num >= 1_000) return `${(num / 1_000).toFixed(1)}K`;
-  return num.toString();
-}
-
-function formatCost(cost: number): string {
-  if (cost >= 1_000_000) return `$${(cost / 1_000_000).toFixed(1)}M`;
-  if (cost >= 1_000) return `$${(cost / 1_000).toFixed(1)}K`;
-  return `$${cost.toFixed(2)}`;
 }
 
 function getRankDisplay(rank: number): { text: string; className: string } {

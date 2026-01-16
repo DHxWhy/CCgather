@@ -9,58 +9,19 @@ import CopyButton from "@/components/ui/CopyButton";
 import NewsArticleJsonLd from "@/components/seo/NewsArticleJsonLd";
 import CTASection from "@/components/news/CTASection";
 import { sanitizeHtml, isNewArticle } from "@/lib/utils/sanitize";
+import { DIFFICULTY_COLORS, DIFFICULTY_LABELS, type Difficulty } from "@/lib/constants/news";
+import { getThumbnailSrc, getCategoryGradient, getCategoryEmoji } from "@/lib/utils/news";
 
 // ===========================================
-// Constants
+// Constants (page-specific)
 // ===========================================
 
+// This page uses "long" month format for detail view
 const DATE_FORMAT_OPTIONS: Intl.DateTimeFormatOptions = {
   year: "numeric",
   month: "long",
   day: "numeric",
 };
-
-const DIFFICULTY_STYLES = {
-  easy: "bg-green-500/20 text-green-600 dark:text-green-400",
-  medium: "bg-amber-500/20 text-amber-700 dark:text-amber-400",
-  hard: "bg-red-500/20 text-red-600 dark:text-red-400",
-} as const;
-
-const DIFFICULTY_LABELS = {
-  easy: "Easy",
-  medium: "Medium",
-  hard: "Advanced",
-} as const;
-
-// 카테고리별 기본 썸네일 (OG 이미지 대신 사용)
-const CATEGORY_THUMBNAILS: Record<string, string> = {
-  claude: "/thumbnails/claude-news.svg",
-  "dev-tools": "/thumbnails/dev-tools-news.svg",
-  industry: "/thumbnails/industry-news.svg",
-  openai: "/thumbnails/openai-news.svg",
-  cursor: "/thumbnails/cursor-news.svg",
-  general: "/thumbnails/general-news.svg",
-} as const;
-
-// 카테고리별 그라데이션 색상 (폴백용)
-const CATEGORY_GRADIENTS: Record<string, { from: string; to: string }> = {
-  claude: { from: "#F97316", to: "#9333EA" },
-  "dev-tools": { from: "#3B82F6", to: "#06B6D4" },
-  industry: { from: "#10B981", to: "#059669" },
-  openai: { from: "#22C55E", to: "#16A34A" },
-  cursor: { from: "#8B5CF6", to: "#6366F1" },
-  general: { from: "#6B7280", to: "#374151" },
-} as const;
-
-// 카테고리별 기본 이모지
-const CATEGORY_EMOJIS: Record<string, string> = {
-  claude: "🤖",
-  "dev-tools": "🛠️",
-  industry: "📊",
-  openai: "🧠",
-  cursor: "✨",
-  general: "📰",
-} as const;
 
 // 아이콘 텍스트 → 이모지 변환 맵
 const ICON_TO_EMOJI: Record<string, string> = {
@@ -157,49 +118,6 @@ function iconToEmoji(icon: string): string {
   // 텍스트를 이모지로 변환
   const lowerIcon = icon.toLowerCase().trim();
   return ICON_TO_EMOJI[lowerIcon] || "•";
-}
-
-type Difficulty = keyof typeof DIFFICULTY_STYLES;
-
-/**
- * 3단계 썸네일 폴백 로직 (OG 이미지 완전 배제)
- */
-function getThumbnailSrc(article: ContentItem): string | null {
-  // Step 1: AI 생성 썸네일 우선
-  if (article.ai_thumbnail) {
-    return article.ai_thumbnail;
-  }
-
-  // Step 2: 관리자 생성/수동 썸네일 (OG 이미지만 배제)
-  if (article.thumbnail_url && article.thumbnail_source !== "og_image") {
-    return article.thumbnail_url;
-  }
-
-  // Step 3: 카테고리별 기본 이미지
-  const category = article.content_type || article.category || "general";
-  const categoryKey = category.toLowerCase().replace(/\s+/g, "-");
-  if (CATEGORY_THUMBNAILS[categoryKey]) {
-    return CATEGORY_THUMBNAILS[categoryKey];
-  }
-
-  // Step 4: null → 이모지 + 그라데이션 폴백
-  return null;
-}
-
-function getCategoryGradient(article: ContentItem): { from: string; to: string } {
-  const category = article.content_type || article.category || "general";
-  const categoryKey = category.toLowerCase().replace(/\s+/g, "-");
-  return (
-    CATEGORY_GRADIENTS[categoryKey] ??
-    CATEGORY_GRADIENTS.general ?? { from: "#F97316", to: "#9333EA" }
-  );
-}
-
-function getCategoryEmoji(article: ContentItem, titleEmoji?: string): string {
-  if (titleEmoji) return titleEmoji;
-  const category = article.content_type || article.category || "general";
-  const categoryKey = category.toLowerCase().replace(/\s+/g, "-");
-  return CATEGORY_EMOJIS[categoryKey] ?? CATEGORY_EMOJIS.general ?? "📰";
 }
 
 // ===========================================
@@ -407,7 +325,7 @@ export default async function NewsDetailPage({ params }: NewsDetailPageProps) {
 
             {difficulty && (
               <span
-                className={`px-2 py-0.5 rounded text-xs font-medium ${DIFFICULTY_STYLES[difficulty as Difficulty]}`}
+                className={`px-2 py-0.5 rounded text-xs font-medium ${DIFFICULTY_COLORS[difficulty as Difficulty]}`}
                 aria-label={`Difficulty: ${DIFFICULTY_LABELS[difficulty as Difficulty]}`}
               >
                 {DIFFICULTY_LABELS[difficulty as Difficulty]}

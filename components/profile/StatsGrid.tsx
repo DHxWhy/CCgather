@@ -1,6 +1,7 @@
-'use client';
+"use client";
 
-import { TrendingUp, DollarSign, Trophy, Zap } from 'lucide-react';
+import { TrendingUp, DollarSign, Trophy, Zap } from "lucide-react";
+import { formatNumber } from "@/lib/utils/format";
 
 interface StatsGridProps {
   rank: number;
@@ -10,28 +11,21 @@ interface StatsGridProps {
   percentile?: number;
 }
 
-function formatNumber(num: number): string {
-  if (num >= 1_000_000_000) return `${(num / 1_000_000_000).toFixed(2)}B`;
-  if (num >= 1_000_000) return `${(num / 1_000_000).toFixed(2)}M`;
-  if (num >= 1_000) return `${(num / 1_000).toFixed(2)}K`;
-  return num.toString();
-}
-
 function getMainModel(breakdown: Record<string, number>): string {
   const entries = Object.entries(breakdown);
-  if (entries.length === 0) return 'N/A';
+  if (entries.length === 0) return "N/A";
 
   const sorted = entries.sort((a, b) => b[1] - a[1]);
   const firstEntry = sorted[0];
-  if (!firstEntry) return 'N/A';
+  if (!firstEntry) return "N/A";
   const model = firstEntry[0];
 
   // Shorten model name
   return model
-    .replace('claude-', '')
-    .replace(/-\d{8}$/, '')
-    .replace('3-5-', '3.5-')
-    .replace('3-', '');
+    .replace("claude-", "")
+    .replace(/-\d{8}$/, "")
+    .replace("3-5-", "3.5-")
+    .replace("3-", "");
 }
 
 export function StatsGrid({
@@ -43,32 +37,32 @@ export function StatsGrid({
 }: StatsGridProps) {
   const stats = [
     {
-      label: 'Global Rank',
+      label: "Global Rank",
       value: `#${rank}`,
       subtext: percentile ? `Top ${percentile.toFixed(1)}%` : undefined,
       icon: Trophy,
-      color: 'text-accent-yellow',
+      color: "text-accent-yellow",
     },
     {
-      label: 'Total Tokens',
+      label: "Total Tokens",
       value: formatNumber(totalTokens),
-      subtext: 'All time usage',
+      subtext: "All time usage",
       icon: Zap,
-      color: 'text-accent-blue',
+      color: "text-accent-blue",
     },
     {
-      label: 'Total Spent',
+      label: "Total Spent",
       value: `$${totalSpent.toFixed(2)}`,
-      subtext: 'API costs',
+      subtext: "API costs",
       icon: DollarSign,
-      color: 'text-accent-green',
+      color: "text-accent-green",
     },
     {
-      label: 'Favorite Model',
+      label: "Favorite Model",
       value: getMainModel(modelBreakdown),
-      subtext: 'Most used',
+      subtext: "Most used",
       icon: TrendingUp,
-      color: 'text-accent-purple',
+      color: "text-accent-purple",
     },
   ];
 
@@ -83,12 +77,8 @@ export function StatsGrid({
             <stat.icon className={`w-4 h-4 ${stat.color}`} />
             <span className="text-xs text-text-muted">{stat.label}</span>
           </div>
-          <div className="text-xl font-semibold text-text-primary">
-            {stat.value}
-          </div>
-          {stat.subtext && (
-            <div className="text-[10px] text-text-muted mt-1">{stat.subtext}</div>
-          )}
+          <div className="text-xl font-semibold text-text-primary">{stat.value}</div>
+          {stat.subtext && <div className="text-[10px] text-text-muted mt-1">{stat.subtext}</div>}
         </div>
       ))}
     </div>

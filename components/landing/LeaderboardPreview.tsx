@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { FlagIcon } from "@/components/ui/FlagIcon";
+import { formatNumber, formatCost } from "@/lib/utils/format";
 
 // Mock leaderboard data - realistic values based on actual level system (Lv.1-10)
 // Level system: Novice(1) → Apprentice(2) → Journeyman(3) → Expert(4) → Master(5)
@@ -80,20 +81,6 @@ const MOCK_LEADERBOARD = [
     avgDaily: 8_500_000,
   },
 ];
-
-function formatNumber(num: number): string {
-  if (num >= 1e12) return `${(num / 1e12).toFixed(1)}T`;
-  if (num >= 1e9) return `${(num / 1e9).toFixed(1)}B`;
-  if (num >= 1e6) return `${(num / 1e6).toFixed(1)}M`;
-  if (num >= 1e3) return `${(num / 1e3).toFixed(1)}K`;
-  return num.toString();
-}
-
-function formatCost(cost: number): string {
-  if (cost >= 1e6) return `$${(cost / 1e6).toFixed(1)}M`;
-  if (cost >= 1e3) return `$${(cost / 1e3).toFixed(1)}K`;
-  return `$${cost.toFixed(0)}`;
-}
 
 const RANK_STYLES = {
   1: { emoji: "🥇", bg: "bg-amber-500/10", border: "border-amber-500/30" },

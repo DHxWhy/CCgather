@@ -6,116 +6,13 @@ import Link from "next/link";
 import { Clock, Sparkles, ArrowRight, ArrowUpRight } from "lucide-react";
 import type { ContentItem } from "@/types/automation";
 import { isNewArticle } from "@/lib/utils/sanitize";
-
-// ===========================================
-// Constants (outside component to avoid recreation)
-// ===========================================
-
-// 카테고리별 기본 썸네일 (OG 이미지 대신 사용)
-const CATEGORY_THUMBNAILS: Record<string, string> = {
-  claude: "/thumbnails/claude-news.svg",
-  "dev-tools": "/thumbnails/dev-tools-news.svg",
-  industry: "/thumbnails/industry-news.svg",
-  openai: "/thumbnails/openai-news.svg",
-  cursor: "/thumbnails/cursor-news.svg",
-  general: "/thumbnails/general-news.svg",
-} as const;
-
-// 카테고리별 그라데이션 색상 (폴백용)
-const CATEGORY_GRADIENTS: Record<string, { from: string; to: string }> = {
-  claude: { from: "#F97316", to: "#9333EA" },
-  "dev-tools": { from: "#3B82F6", to: "#06B6D4" },
-  industry: { from: "#10B981", to: "#059669" },
-  openai: { from: "#22C55E", to: "#16A34A" },
-  cursor: { from: "#8B5CF6", to: "#6366F1" },
-  general: { from: "#6B7280", to: "#374151" },
-} as const;
-
-// 카테고리별 기본 이모지
-const CATEGORY_EMOJIS: Record<string, string> = {
-  claude: "🤖",
-  "dev-tools": "🛠️",
-  industry: "📊",
-  openai: "🧠",
-  cursor: "✨",
-  general: "📰",
-} as const;
-
-const DIFFICULTY_COLORS = {
-  easy: "bg-green-500/20 text-green-600 dark:text-green-400",
-  medium: "bg-amber-500/20 text-amber-700 dark:text-amber-400",
-  hard: "bg-red-500/20 text-red-600 dark:text-red-400",
-} as const;
-
-const DIFFICULTY_LABELS = {
-  easy: "Easy",
-  medium: "Medium",
-  hard: "Advanced",
-} as const;
-
-const DATE_FORMAT_OPTIONS: Intl.DateTimeFormatOptions = {
-  year: "numeric",
-  month: "short",
-  day: "numeric",
-};
-
-// ===========================================
-// Thumbnail Selection Helper (OG 이미지만 배제)
-// ===========================================
-
-/**
- * 4단계 썸네일 폴백 로직
- * 1. AI 생성 썸네일 (ai_thumbnail)
- * 2. 관리자 생성 썸네일 (thumbnail_source: 'gemini', 'manual', 'default')
- * 3. 카테고리별 기본 썸네일
- * 4. null (이모지 + 그라데이션 폴백)
- *
- * OG 이미지(thumbnail_source === 'og_image')만 배제
- */
-function getThumbnailSrc(article: ContentItem): string | null {
-  // Step 1: AI 생성 썸네일 우선
-  if (article.ai_thumbnail) {
-    return article.ai_thumbnail;
-  }
-
-  // Step 2: 관리자 생성/수동 썸네일 (OG 이미지만 배제)
-  // thumbnail_source가 'gemini', 'manual', 'default', 또는 미설정(null)인 경우 사용
-  if (article.thumbnail_url && article.thumbnail_source !== "og_image") {
-    return article.thumbnail_url;
-  }
-
-  // Step 3: 카테고리별 기본 이미지
-  const category = article.content_type || article.category || "general";
-  const categoryKey = category.toLowerCase().replace(/\s+/g, "-");
-  if (CATEGORY_THUMBNAILS[categoryKey]) {
-    return CATEGORY_THUMBNAILS[categoryKey];
-  }
-
-  // Step 4: null 반환 → 이모지 + 그라데이션 폴백 사용
-  return null;
-}
-
-/**
- * 카테고리별 그라데이션 색상 반환
- */
-function getCategoryGradient(article: ContentItem): { from: string; to: string } {
-  const category = article.content_type || article.category || "general";
-  const categoryKey = category.toLowerCase().replace(/\s+/g, "-");
-  return (
-    CATEGORY_GRADIENTS[categoryKey] ??
-    CATEGORY_GRADIENTS.general ?? { from: "#F97316", to: "#9333EA" }
-  );
-}
-
-/**
- * 카테고리별 이모지 반환
- */
-function getCategoryEmoji(article: ContentItem, titleEmoji?: string): string {
-  if (titleEmoji) return titleEmoji;
-  const category = article.content_type || article.category || "general";
-  const categoryKey = category.toLowerCase().replace(/\s+/g, "-");
-  return CATEGORY_EMOJIS[categoryKey] ?? CATEGORY_EMOJIS.general ?? "📰";
-}
+import {
+  DIFFICULTY_COLORS,
+  DIFFICULTY_LABELS,
+  DATE_FORMAT_OPTIONS,
+  type Difficulty,
+} from "@/lib/constants/news";
+import { getThumbnailSrc, getCategoryGradient, getCategoryEmoji } from "@/lib/utils/news";
 
 // ===========================================
 // Types
@@ -126,8 +23,6 @@ interface NewsCardProps {
   variant?: "default" | "featured" | "compact" | "list";
   isLatest?: boolean;
 }
-
-type Difficulty = keyof typeof DIFFICULTY_COLORS;
 
 // ===========================================
 // Helper Components

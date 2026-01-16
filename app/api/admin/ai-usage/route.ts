@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@clerk/nextjs/server";
 import { createServiceClient } from "@/lib/supabase/server";
+import { checkAdminAccess } from "@/lib/admin";
 
 // AI usage log entry type
 interface AIUsageLog {
@@ -25,16 +25,9 @@ function calculateCostFromTokens(model: string, inputTokens: number, outputToken
   return (inputTokens / 1_000_000) * costs.input + (outputTokens / 1_000_000) * costs.output;
 }
 
-async function isAdmin() {
-  const { userId } = await auth();
-  if (!userId) return false;
-  if (process.env.NODE_ENV === "development") return true;
-  return true;
-}
-
 export async function GET(request: NextRequest) {
   try {
-    if (!(await isAdmin())) {
+    if (!(await checkAdminAccess())) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 

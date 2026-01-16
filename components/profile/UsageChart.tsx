@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
+import { formatNumber } from "@/lib/utils/format";
 
 interface UsageDataPoint {
   date: string;
@@ -10,12 +11,6 @@ interface UsageDataPoint {
 interface UsageChartProps {
   data: UsageDataPoint[];
   height?: number;
-}
-
-function formatNumber(num: number): string {
-  if (num >= 1_000_000) return `${(num / 1_000_000).toFixed(1)}M`;
-  if (num >= 1_000) return `${(num / 1_000).toFixed(1)}K`;
-  return num.toString();
 }
 
 function formatDate(dateStr: string): string {

@@ -1,23 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@clerk/nextjs/server";
 import { createServiceClient } from "@/lib/supabase/server";
+import { checkAdminAccess } from "@/lib/admin";
 import { GeminiPipeline } from "@/lib/ai";
 import { getThumbnailWithFallback } from "@/lib/gemini/thumbnail-generator";
 import type { TargetCategory } from "@/types/automation";
-
-async function isAdmin() {
-  const { userId } = await auth();
-  if (!userId) return false;
-  if (process.env.NODE_ENV === "development") return true;
-  return true;
-}
 
 // POST - Collect single URL through AI pipeline
 export async function POST(request: NextRequest) {
   const startTime = Date.now();
 
   try {
-    if (!(await isAdmin())) {
+    if (!(await checkAdminAccess())) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 

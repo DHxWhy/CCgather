@@ -1,27 +1,15 @@
 import { NextResponse } from "next/server";
-import { auth } from "@clerk/nextjs/server";
 import { createServiceClient } from "@/lib/supabase/server";
+import { checkAdminAccess } from "@/lib/admin";
 
 interface UserRow {
   last_submission_at: string | null;
   total_tokens: number | null;
 }
 
-// Admin check middleware
-async function isAdmin() {
-  const { userId } = await auth();
-  if (!userId) return false;
-
-  // In development, allow all authenticated users
-  if (process.env.NODE_ENV === "development") return true;
-
-  // TODO: Check against admin list in production
-  return true;
-}
-
 export async function GET() {
   try {
-    if (!(await isAdmin())) {
+    if (!(await checkAdminAccess())) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 

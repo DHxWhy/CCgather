@@ -1,8 +1,12 @@
 /**
- * Format large numbers with K, M, B suffixes
- * @example formatNumber(1234567) // "1.23M"
+ * Format large numbers with K, M, B, T suffixes
+ * @example formatNumber(1234567) // "1.2M"
+ * @example formatNumber(1234567890000) // "1.2T"
  */
 export function formatNumber(num: number): string {
+  if (num >= 1_000_000_000_000) {
+    return `${(num / 1_000_000_000_000).toFixed(1)}T`;
+  }
   if (num >= 1_000_000_000) {
     return `${(num / 1_000_000_000).toFixed(1)}B`;
   }
@@ -13,6 +17,21 @@ export function formatNumber(num: number): string {
     return `${(num / 1_000).toFixed(1)}K`;
   }
   return num.toString();
+}
+
+/**
+ * Format cost/currency with K, M suffixes (compact display)
+ * @example formatCost(1234) // "$1K"
+ * @example formatCost(1234567) // "$1.2M"
+ */
+export function formatCost(cost: number): string {
+  if (cost >= 1_000_000) {
+    return `$${(cost / 1_000_000).toFixed(1)}M`;
+  }
+  if (cost >= 1_000) {
+    return `$${(cost / 1_000).toFixed(0)}K`;
+  }
+  return `$${cost.toFixed(0)}`;
 }
 
 /**
@@ -28,9 +47,9 @@ export function formatTokens(tokens: number): string {
  * @example formatCurrency(1234.56) // "$1,234.56"
  */
 export function formatCurrency(amount: number): string {
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   }).format(amount);
@@ -64,7 +83,7 @@ export function formatPercentage(value: number, decimals: number = 1): string {
  */
 export function formatRelativeTime(date: Date | string): string {
   const now = new Date();
-  const target = typeof date === 'string' ? new Date(date) : date;
+  const target = typeof date === "string" ? new Date(date) : date;
   const diffMs = now.getTime() - target.getTime();
   const diffSec = Math.floor(diffMs / 1000);
   const diffMin = Math.floor(diffSec / 60);
@@ -72,9 +91,9 @@ export function formatRelativeTime(date: Date | string): string {
   const diffDay = Math.floor(diffHour / 24);
 
   if (diffDay > 30) {
-    return target.toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
+    return target.toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
     });
   }
   if (diffDay > 0) {
@@ -86,5 +105,5 @@ export function formatRelativeTime(date: Date | string): string {
   if (diffMin > 0) {
     return `${diffMin}m ago`;
   }
-  return 'Just now';
+  return "Just now";
 }
