@@ -1,43 +1,81 @@
 import { Suspense } from "react";
 import { Metadata } from "next";
 import ToolsContent from "./ToolsContent";
+import { CATEGORY_META, TOOL_CATEGORIES, type ToolCategory } from "@/types/tools";
 
 // =====================================================
-// Metadata
+// Dynamic Metadata for SEO
 // =====================================================
 
-export const metadata: Metadata = {
-  title: "Developer Tools | CCgather - Claude Code Tools & Extensions",
-  description:
-    "Discover and share tools loved by Claude Code developers. MCP servers, IDE extensions, AI coding tools, and productivity apps. Vote for your favorites and help the community discover the best developer tools.",
-  keywords: [
-    "Claude Code tools",
-    "MCP servers",
-    "AI coding tools",
-    "developer tools",
-    "Claude Code extensions",
-    "IDE integrations",
-    "AI productivity tools",
-    "Claude Code MCP",
-    "best developer tools",
-    "AI developer tools",
-  ],
-  openGraph: {
-    title: "Developer Tools | CCgather",
-    description:
-      "Discover and share tools loved by Claude Code developers. MCP servers, extensions, and AI coding tools.",
-    type: "website",
-    url: "https://ccgather.com/tools",
-  },
-  twitter: {
-    card: "summary_large_image",
-    title: "Developer Tools | CCgather",
-    description: "Discover MCP servers, extensions, and AI tools for Claude Code developers.",
-  },
-  alternates: {
-    canonical: "https://ccgather.com/tools",
-  },
+interface PageProps {
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
+}
+
+const PERIOD_LABELS: Record<string, string> = {
+  day: "Today's",
+  week: "This Week's",
+  month: "This Month's",
+  all: "All Time",
 };
+
+export async function generateMetadata({ searchParams }: PageProps): Promise<Metadata> {
+  const params = await searchParams;
+  const category = params.category as ToolCategory | "all" | undefined;
+  const period = (params.period as string) || "week";
+
+  // Build dynamic title and description
+  const isValidCategory =
+    category && category !== "all" && TOOL_CATEGORIES.includes(category as ToolCategory);
+  const categoryMeta = isValidCategory ? CATEGORY_META[category as ToolCategory] : null;
+
+  const periodLabel = PERIOD_LABELS[period] || "This Week's";
+  const categoryLabel = categoryMeta ? categoryMeta.label : "Developer";
+  const categoryEmoji = categoryMeta ? categoryMeta.emoji : "🛠️";
+
+  const title = isValidCategory
+    ? `${categoryEmoji} ${categoryLabel} Tools | CCgather - Claude Code Tools`
+    : "Developer Tools | CCgather - Claude Code Tools & Extensions";
+
+  const description = isValidCategory
+    ? `Discover ${periodLabel.toLowerCase()} best ${categoryLabel.toLowerCase()} tools for Claude Code developers. Browse, vote, and share ${categoryLabel.toLowerCase()} tools with the community.`
+    : "Discover and share tools loved by Claude Code developers. MCP servers, IDE extensions, AI coding tools, and productivity apps. Vote for your favorites and help the community discover the best developer tools.";
+
+  const ogDescription = isValidCategory
+    ? `${periodLabel} top ${categoryLabel.toLowerCase()} tools for Claude Code developers.`
+    : "Discover and share tools loved by Claude Code developers. MCP servers, extensions, and AI coding tools.";
+
+  return {
+    title,
+    description,
+    keywords: [
+      "Claude Code tools",
+      "MCP servers",
+      "AI coding tools",
+      "developer tools",
+      "Claude Code extensions",
+      "IDE integrations",
+      "AI productivity tools",
+      "Claude Code MCP",
+      "best developer tools",
+      "AI developer tools",
+      ...(categoryMeta ? [`${categoryMeta.label} tools`, `Claude Code ${categoryMeta.label}`] : []),
+    ],
+    openGraph: {
+      title: isValidCategory ? `${categoryLabel} Tools | CCgather` : "Developer Tools | CCgather",
+      description: ogDescription,
+      type: "website",
+      url: "https://ccgather.com/tools",
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: isValidCategory ? `${categoryLabel} Tools | CCgather` : "Developer Tools | CCgather",
+      description: ogDescription,
+    },
+    alternates: {
+      canonical: "https://ccgather.com/tools",
+    },
+  };
+}
 
 // =====================================================
 // Loading Skeleton

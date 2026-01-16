@@ -1,27 +1,19 @@
-import { MetadataRoute } from 'next';
+import { MetadataRoute } from "next";
 
-const BASE_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'https://ccgather.com';
+const BASE_URL = process.env.NEXT_PUBLIC_APP_URL ?? "https://ccgather.com";
 
 export default function robots(): MetadataRoute.Robots {
   return {
     rules: [
       {
-        userAgent: '*',
-        allow: '/',
-        disallow: [
-          '/api/',
-          '/admin/',
-          '/onboarding',
-          '/settings',
-          '/cli/',
-          '/_next/',
-          '/internal/',
-        ],
+        userAgent: "*",
+        allow: "/",
+        disallow: ["/api/", "/admin/", "/onboarding", "/settings", "/cli/", "/internal/"],
       },
       {
-        userAgent: 'Googlebot',
-        allow: '/',
-        disallow: ['/api/', '/admin/', '/_next/', '/internal/'],
+        userAgent: "Googlebot",
+        allow: ["/", "/_next/static/"],
+        disallow: ["/api/", "/admin/", "/internal/"],
       },
     ],
     sitemap: `${BASE_URL}/sitemap.xml`,

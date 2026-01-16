@@ -6,6 +6,7 @@ import Link from "next/link";
 import { SignedIn, SignedOut } from "@clerk/nextjs";
 import { GetStartedButton } from "@/components/auth/GetStartedButton";
 import { GlobeParticles } from "@/components/ui/globe-particles";
+import type { GlobalStats } from "@/lib/data/global-stats";
 
 // Lazy load Globe for performance - no skeleton, just fade in
 const Globe = dynamic(
@@ -115,13 +116,8 @@ function formatCost(cost: number): string {
   return `$${cost.toFixed(0)}`;
 }
 
-// Global stats type
-interface GlobalStats {
-  totalUsers: number;
-  totalCountries: number;
-  totalTokens: number;
-  totalCost: number;
-  showStats: boolean;
+interface LandingHeroProps {
+  initialStats?: GlobalStats | null;
 }
 
 // Hook to get current breakpoint
@@ -147,9 +143,9 @@ function useBreakpoint() {
   return breakpoint;
 }
 
-export function LandingHero() {
+export function LandingHero({ initialStats }: LandingHeroProps) {
   const [mounted, setMounted] = useState(false);
-  const [stats, setStats] = useState<GlobalStats | null>(null);
+  const [stats, setStats] = useState<GlobalStats | null>(initialStats ?? null);
   const breakpoint = useBreakpoint();
 
   // Get globe size based on breakpoint
@@ -158,12 +154,14 @@ export function LandingHero() {
   useEffect(() => {
     setMounted(true);
 
-    // Fetch global stats
-    fetch("/api/stats/global")
-      .then((res) => res.json())
-      .then((data) => setStats(data))
-      .catch(() => setStats(null));
-  }, []);
+    // Only fetch if no initial stats provided (fallback for client-side navigation)
+    if (!initialStats) {
+      fetch("/api/stats/global")
+        .then((res) => res.json())
+        .then((data) => setStats(data))
+        .catch(() => setStats(null));
+    }
+  }, [initialStats]);
 
   return (
     <section className="relative min-h-[90vh] flex items-center justify-center overflow-hidden py-16 md:py-0">

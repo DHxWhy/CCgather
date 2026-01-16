@@ -2,6 +2,10 @@ import type { Metadata } from "next";
 import { Header } from "@/components/layout/header";
 import { Footer } from "@/components/layout/footer";
 import { LandingHero, LeaderboardPreview, HowItWorks } from "@/components/landing";
+import { getGlobalStats } from "@/lib/data/global-stats";
+
+// ISR: Revalidate every 5 minutes for fresh stats
+export const revalidate = 300;
 
 // Page-specific SEO metadata
 export const metadata: Metadata = {
@@ -15,7 +19,9 @@ export const metadata: Metadata = {
   },
 };
 
-export default function HomePage() {
+export default async function HomePage() {
+  // Fetch stats on server for immediate display (zero-latency)
+  const stats = await getGlobalStats();
   return (
     <div className="min-h-screen flex flex-col bg-[var(--color-bg-primary)]">
       {/* Header */}
@@ -24,7 +30,7 @@ export default function HomePage() {
       {/* Main content */}
       <main className="flex-1">
         {/* Hero with fullscreen globe background */}
-        <LandingHero />
+        <LandingHero initialStats={stats} />
 
         {/* Section divider */}
         <div className="section-divider" />
