@@ -5,6 +5,7 @@ import dynamic from "next/dynamic";
 import Link from "next/link";
 import { GetStartedButton } from "@/components/auth/GetStartedButton";
 import { GlobeParticles } from "@/components/ui/globe-particles";
+import { formatNumber, formatCost } from "@/lib/utils/format";
 import type { GlobalStats } from "@/lib/data/global-stats";
 
 // Lazy load Globe for performance - no skeleton, just fade in
@@ -101,20 +102,6 @@ const GLOBE_STATS = [
   { code: "AM", name: "Armenia", tokens: 30000000, cost: 108 },
 ];
 
-function formatNumber(num: number): string {
-  if (num >= 1e12) return `${(num / 1e12).toFixed(1)}T`;
-  if (num >= 1e9) return `${(num / 1e9).toFixed(1)}B`;
-  if (num >= 1e6) return `${(num / 1e6).toFixed(1)}M`;
-  if (num >= 1e3) return `${(num / 1e3).toFixed(1)}K`;
-  return num.toString();
-}
-
-function formatCost(cost: number): string {
-  if (cost >= 1e6) return `$${(cost / 1e6).toFixed(1)}M`;
-  if (cost >= 1e3) return `$${(cost / 1e3).toFixed(0)}K`;
-  return `$${cost.toFixed(0)}`;
-}
-
 interface LandingHeroProps {
   initialStats?: GlobalStats | null;
 }
@@ -166,10 +153,10 @@ export function LandingHero({ initialStats }: LandingHeroProps) {
     <section className="relative min-h-[90vh] flex items-center justify-center overflow-hidden py-16 md:py-0">
       {/* Main layout container */}
       <div className="relative z-10 w-full px-6 md:px-8 lg:px-12">
-        <div className="flex flex-col md:flex-row items-center justify-center gap-8 lg:gap-16 mx-auto md:w-fit">
+        <div className="flex flex-col md:flex-row items-center justify-center gap-8 lg:gap-16 mx-auto max-w-7xl w-full">
           {/* Globe - Top on mobile, Left on tablet/PC */}
           {/* Fixed dimensions to prevent CLS */}
-          <div className="flex-shrink-0 flex items-center justify-center w-[260px] h-[260px] md:w-[280px] md:h-[280px] lg:w-[400px] lg:h-[400px]">
+          <div className="flex-shrink-0 flex items-center justify-center w-full max-w-[260px] aspect-square md:max-w-[280px] lg:max-w-[400px]">
             <div className="relative" style={{ width: globeSize, height: globeSize }}>
               {mounted && (
                 <>
