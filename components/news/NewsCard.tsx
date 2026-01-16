@@ -176,7 +176,7 @@ const SourceBadge = memo(function SourceBadge({
           width={iconSize}
           height={iconSize}
           className="rounded-sm"
-          unoptimized
+          sizes="12px"
         />
       )}
       <span className={`text-white ${textSize} font-medium`}>{sourceName}</span>
@@ -260,8 +260,8 @@ function NewsCardComponent({ article, variant = "default", isLatest = false }: N
                 src={thumbnailSrc}
                 alt=""
                 fill
+                sizes="(max-width: 768px) 320px, 400px"
                 className="object-cover opacity-30 group-hover:opacity-40 transition-opacity duration-300"
-                unoptimized
               />
             ) : (
               <div
@@ -351,8 +351,8 @@ function NewsCardComponent({ article, variant = "default", isLatest = false }: N
                 src={thumbnailSrc}
                 alt=""
                 fill
+                sizes="100vw"
                 className="object-cover group-hover:scale-105 transition-transform duration-300"
-                unoptimized
               />
             ) : (
               <div
@@ -390,8 +390,8 @@ function NewsCardComponent({ article, variant = "default", isLatest = false }: N
                 src={thumbnailSrc}
                 alt=""
                 fill
+                sizes="100px"
                 className="object-cover group-hover:scale-105 transition-transform duration-300"
-                unoptimized
               />
             ) : (
               <div
@@ -439,7 +439,7 @@ function NewsCardComponent({ article, variant = "default", isLatest = false }: N
                   width={12}
                   height={12}
                   className="rounded-sm"
-                  unoptimized
+                  sizes="12px"
                 />
               )}
               <span className="font-medium">{article.source_name || "News"}</span>
@@ -515,8 +515,8 @@ function NewsCardComponent({ article, variant = "default", isLatest = false }: N
                 src={thumbnailSrc}
                 alt=""
                 fill
+                sizes="260px"
                 className="object-cover group-hover:scale-105 transition-transform duration-300"
-                unoptimized
               />
             ) : (
               <div
@@ -576,8 +576,8 @@ function NewsCardComponent({ article, variant = "default", isLatest = false }: N
               src={thumbnailSrc}
               alt=""
               fill
+              sizes="(max-width: 768px) 280px, 300px"
               className="object-cover group-hover:scale-105 transition-transform duration-300"
-              unoptimized
             />
           ) : (
             <div

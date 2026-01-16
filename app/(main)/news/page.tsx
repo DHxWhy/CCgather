@@ -1,8 +1,8 @@
-import { Newspaper, ExternalLink, Sparkles } from "lucide-react";
+import { ExternalLink, Sparkles } from "lucide-react";
 import Image from "next/image";
 import { createClient } from "@/lib/supabase/server";
-import NewsCard from "@/components/news/NewsCard";
 import NewsTagFilter from "@/components/news/NewsTagFilter";
+import NewsInfiniteGrid from "@/components/news/NewsInfiniteGrid";
 import { NEWS_FILTER_TAGS, type NewsFilterTag } from "@/components/news/news-tags";
 import type { ContentItem } from "@/types/automation";
 import { Suspense } from "react";
@@ -89,6 +89,9 @@ const QUICK_LINKS = [
 // Data Fetching
 // ===========================================
 
+// Initial load: 10 items for fast render, infinite scroll loads more
+const INITIAL_LOAD_COUNT = 10;
+
 async function getNewsByTag(tag: NewsFilterTag) {
   try {
     const supabase = await createClient();
@@ -101,7 +104,7 @@ async function getNewsByTag(tag: NewsFilterTag) {
       .eq("type", "news")
       .eq("status", "published")
       .order("published_at", { ascending: false, nullsFirst: false })
-      .limit(30);
+      .limit(INITIAL_LOAD_COUNT);
 
     // Apply tag filter
     if (tag !== "all") {
@@ -185,26 +188,6 @@ function QuickLinkCard({ link }: { link: (typeof QUICK_LINKS)[number] }) {
 }
 
 // ===========================================
-// Empty State Component
-// ===========================================
-
-function EmptyState() {
-  return (
-    <div
-      className="text-center py-16 bg-[var(--color-bg-secondary)]/50 rounded-2xl border border-[var(--border-default)]"
-      role="status"
-      aria-live="polite"
-    >
-      <Newspaper className="w-12 h-12 mx-auto mb-4 text-text-muted" aria-hidden="true" />
-      <p className="text-sm text-[var(--color-text-primary)] font-medium">
-        No news in this category
-      </p>
-      <p className="text-xs text-text-muted mt-1">Check back soon for updates</p>
-    </div>
-  );
-}
-
-// ===========================================
 // Loading Skeleton
 // ===========================================
 
@@ -222,40 +205,14 @@ function NewsGridSkeleton() {
 }
 
 // ===========================================
-// News Grid Component
+// News Grid Component (SSR + Infinite Scroll)
 // ===========================================
 
 async function NewsGrid({ tag }: { tag: NewsFilterTag }) {
   const { articles, total } = await getNewsByTag(tag);
 
-  if (articles.length === 0) {
-    return <EmptyState />;
-  }
-
-  const selectedFilter = NEWS_FILTER_TAGS.find((t) => t.id === tag);
-
-  return (
-    <>
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-2">
-          {selectedFilter && (
-            <div className={`p-1.5 rounded-md ${selectedFilter.bgColor}`}>
-              <selectedFilter.icon className={`w-4 h-4 ${selectedFilter.color}`} />
-            </div>
-          )}
-          <span className="text-sm font-medium text-[var(--color-text-primary)]">
-            {selectedFilter?.label || "All"} News
-          </span>
-          <span className="text-xs text-text-muted">({total})</span>
-        </div>
-      </div>
-      <div className="flex flex-col gap-4">
-        {articles.map((article) => (
-          <NewsCard key={article.id} article={article} variant="list" />
-        ))}
-      </div>
-    </>
-  );
+  // Pass initial SSR data to client component for infinite scroll
+  return <NewsInfiniteGrid initialArticles={articles} initialTotal={total} tag={tag} />;
 }
 
 // ===========================================
