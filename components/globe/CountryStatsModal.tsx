@@ -208,7 +208,7 @@ export function CountryStatsModal({
                         onClick={() => setSortBy("cost")}
                         className={`p-1.5 sm:p-2 rounded-md transition-all ${
                           sortBy === "cost"
-                            ? "bg-[#10b981]/20 text-[#10b981]"
+                            ? "bg-amber-400/20 text-amber-400"
                             : "text-white/40 hover:text-white/60"
                         }`}
                         title="Sort by Cost"
@@ -293,7 +293,7 @@ export function CountryStatsModal({
                         <p className="text-[9px] md:text-[10px] text-white/50 uppercase tracking-wider mb-0.5">
                           Spent
                         </p>
-                        <p className="text-base md:text-lg font-bold text-[#10b981]">
+                        <p className="text-base md:text-lg font-bold text-amber-400">
                           <AnimatedNumber
                             value={totalCost}
                             formatter={formatCost}
@@ -375,7 +375,7 @@ export function CountryStatsModal({
                                   style={{ background: barColor }}
                                 />
                               </div>
-                              <span className="text-xs font-mono text-[#10b981] w-14 text-right">
+                              <span className="text-xs font-mono text-amber-400 w-14 text-right">
                                 <AnimatedNumber
                                   value={stat.cost}
                                   formatter={formatCost}
@@ -428,7 +428,7 @@ export function CountryStatsModal({
                                     style={{ background: barColor }}
                                   />
                                 </div>
-                                <span className="shrink-0 text-[10px] font-mono text-[#10b981]">
+                                <span className="shrink-0 text-[10px] font-mono text-amber-400">
                                   {formatCost(stat.cost)}
                                 </span>
                                 <span className="shrink-0 text-[10px] font-mono text-[#e57359]">

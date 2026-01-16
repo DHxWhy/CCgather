@@ -285,6 +285,7 @@ export async function POST(request: NextRequest) {
         if (hasRichContent && pipelineResult.aiUsage.costUsd > 0) {
           await supabase.from("ai_usage_log").insert({
             request_type: "single_collect",
+            operation: "gemini_pipeline",
             model: pipelineResult.aiUsage.model,
             input_tokens: pipelineResult.aiUsage.inputTokens,
             output_tokens: pipelineResult.aiUsage.outputTokens,
@@ -320,9 +321,15 @@ export async function POST(request: NextRequest) {
           );
 
           if (thumbnailResult.cost_usd && thumbnailResult.cost_usd > 0) {
+            const thumbnailModelName =
+              thumbnailResult.source === "imagen"
+                ? "imagen-4.0-generate-001"
+                : "gemini-2.5-flash-image";
             await supabase.from("ai_usage_log").insert({
               request_type: "thumbnail_generate",
-              model: "imagen-4.0-generate-001",
+              operation:
+                thumbnailResult.source === "imagen" ? "thumbnail_imagen" : "thumbnail_gemini",
+              model: thumbnailModelName,
               input_tokens: 0,
               output_tokens: 0,
               total_tokens: 0,

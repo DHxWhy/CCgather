@@ -232,6 +232,8 @@ export async function POST(request: NextRequest) {
                 : "gemini-2.5-flash-image";
             await supabase.from("ai_usage_log").insert({
               request_type: "thumbnail_generate",
+              operation:
+                thumbnailResult.source === "imagen" ? "thumbnail_imagen" : "thumbnail_gemini",
               model: thumbnailModelName,
               input_tokens: 0,
               output_tokens: 0,
@@ -249,6 +251,7 @@ export async function POST(request: NextRequest) {
           if (aiUsage.costUsd > 0) {
             await supabase.from("ai_usage_log").insert({
               request_type: "batch_collect",
+              operation: "gemini_pipeline",
               model: aiUsage.model,
               input_tokens: aiUsage.inputTokens,
               output_tokens: aiUsage.outputTokens,

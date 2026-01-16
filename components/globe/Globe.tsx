@@ -1,7 +1,31 @@
 "use client";
 
-import { useEffect, useRef, useCallback } from "react";
+import { useEffect, useRef, useCallback, useState } from "react";
 import createGlobe, { COBEOptions } from "cobe";
+
+// Hook to detect light/dark theme
+function useTheme() {
+  const [isDark, setIsDark] = useState(true);
+
+  useEffect(() => {
+    const checkTheme = () => {
+      setIsDark(!document.documentElement.classList.contains("light"));
+    };
+
+    checkTheme();
+
+    // Watch for theme changes
+    const observer = new MutationObserver(checkTheme);
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ["class"],
+    });
+
+    return () => observer.disconnect();
+  }, []);
+
+  return isDark;
+}
 
 // Country coordinates (lat, lng) - 223 countries
 export const COUNTRY_COORDINATES: Record<string, [number, number]> = {
@@ -289,6 +313,7 @@ export function Globe({ markers = [], size = 400, className = "", userCountryCod
   const pointerInteracting = useRef<number | null>(null);
   const pointerInteractionMovement = useRef(0);
   const rotationRef = useRef(0);
+  const isDark = useTheme();
 
   const maxTokens = Math.max(...markers.map((m) => m.tokens), 1);
   const userCoords = userCountryCode ? COUNTRY_COORDINATES[userCountryCode.toUpperCase()] : null;
@@ -343,19 +368,35 @@ export function Globe({ markers = [], size = 400, className = "", userCountryCod
         };
       });
 
+    // Theme-aware globe settings
+    const globeConfig = isDark
+      ? {
+          // Dark mode: dark blue globe
+          dark: 1,
+          diffuse: 1.5,
+          mapBrightness: 4,
+          baseColor: [0.12, 0.18, 0.28] as [number, number, number],
+          markerColor: [1, 0.5, 0.2] as [number, number, number],
+          glowColor: [0.5, 0.5, 0.5] as [number, number, number],
+        }
+      : {
+          // Light mode: warm beige/cream globe
+          dark: 0,
+          diffuse: 2,
+          mapBrightness: 6,
+          baseColor: [0.85, 0.8, 0.75] as [number, number, number],
+          markerColor: [0.85, 0.45, 0.3] as [number, number, number],
+          glowColor: [0.9, 0.85, 0.8] as [number, number, number],
+        };
+
     const globe = createGlobe(canvasRef.current!, {
       devicePixelRatio: 2,
       width: size * 2,
       height: size * 2,
       phi: 0,
       theta: theta,
-      dark: 1,
-      diffuse: 1.5,
+      ...globeConfig,
       mapSamples: 10000,
-      mapBrightness: 4,
-      baseColor: [0.12, 0.18, 0.28],
-      markerColor: [1, 0.5, 0.2],
-      glowColor: [0.5, 0.5, 0.5],
       markers: globeMarkers,
       onRender: (state) => {
         if (!pointerInteracting.current) {
@@ -379,7 +420,7 @@ export function Globe({ markers = [], size = 400, className = "", userCountryCod
     return () => {
       globe.destroy();
     };
-  }, [markers, maxTokens, size, userCountryCode, updateUserDot]);
+  }, [markers, maxTokens, size, userCountryCode, updateUserDot, isDark]);
 
   return (
     <div className={`relative ${className}`} style={{ width: size, height: size }}>

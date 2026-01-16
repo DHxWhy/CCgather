@@ -70,6 +70,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         thumbnailResult.source === "imagen" ? "imagen-4.0-generate-001" : "gemini-2.5-flash-image";
       await supabase.from("ai_usage_log").insert({
         request_type: "thumbnail_regenerate",
+        operation: thumbnailResult.source === "imagen" ? "thumbnail_imagen" : "thumbnail_gemini",
         model: modelName,
         input_tokens: 0,
         output_tokens: 0,

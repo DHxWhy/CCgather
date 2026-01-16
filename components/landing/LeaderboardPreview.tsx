@@ -1,85 +1,39 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { FlagIcon } from "@/components/ui/FlagIcon";
+import { getLevelByNumber } from "@/lib/constants/levels";
 
-// Mock leaderboard data - realistic values based on actual level system (Lv.1-10)
-// Level system: Novice(1) → Apprentice(2) → Journeyman(3) → Expert(4) → Master(5)
-//               → Grandmaster(6) → Legend(7) → Mythic(8) → Immortal(9) → Transcendent(10)
-const MOCK_LEADERBOARD = [
-  {
-    rank: 1,
-    username: "user_1",
-    displayName: "User1",
-    tokens: 15_000_000_000, // 15B → Level 7 (Legend)
-    cost: 54230,
-    country: "KR",
-    level: 7,
-    levelName: "Legend",
-    levelIcon: "🌟",
-    globalRank: 1,
-    countryRank: 1,
-    avgDaily: 85_000_000,
-  },
-  {
-    rank: 2,
-    username: "user_2",
-    displayName: "User2",
-    tokens: 8_500_000_000, // 8.5B → Level 6 (Grandmaster)
-    cost: 30720,
-    country: "US",
-    level: 6,
-    levelName: "Grandmaster",
-    levelIcon: "👑",
-    globalRank: 2,
-    countryRank: 1,
-    avgDaily: 48_000_000,
-  },
-  {
-    rank: 3,
-    username: "user_3",
-    displayName: "User3",
-    tokens: 4_200_000_000, // 4.2B → Level 6 (Grandmaster)
-    cost: 15180,
-    country: "JP",
-    level: 6,
-    levelName: "Grandmaster",
-    levelIcon: "👑",
-    globalRank: 3,
-    countryRank: 1,
-    avgDaily: 24_000_000,
-  },
-  {
-    rank: 4,
-    username: "user_4",
-    displayName: "User4",
-    tokens: 2_100_000_000, // 2.1B → Level 5 (Master)
-    cost: 7590,
-    country: "DE",
-    level: 5,
-    levelName: "Master",
-    levelIcon: "🔥",
-    globalRank: 4,
-    countryRank: 1,
-    avgDaily: 12_000_000,
-  },
-  {
-    rank: 5,
-    username: "user_5",
-    displayName: "User5",
-    tokens: 1_500_000_000, // 1.5B → Level 5 (Master)
-    cost: 5420,
-    country: "GB",
-    level: 5,
-    levelName: "Master",
-    levelIcon: "🔥",
-    globalRank: 5,
-    countryRank: 1,
-    avgDaily: 8_500_000,
-  },
-];
+interface LeaderboardUser {
+  rank: number;
+  username: string;
+  displayName: string;
+  avatarUrl: string | null;
+  tokens: number;
+  cost: number;
+  country: string;
+  level: number;
+  levelName: string;
+  levelIcon: string;
+  globalRank: number;
+  countryRank: number;
+}
+
+interface ApiUser {
+  id: string;
+  username: string;
+  display_name: string | null;
+  avatar_url: string | null;
+  country_code: string | null;
+  current_level: number;
+  global_rank: number;
+  country_rank: number;
+  total_tokens: number;
+  total_cost: number;
+  ccplan: string | null;
+}
 
 function formatNumber(num: number): string {
   if (num >= 1e12) return `${(num / 1e12).toFixed(1)}T`;
@@ -99,19 +53,17 @@ const RANK_STYLES = {
   1: { emoji: "🥇", bg: "bg-amber-500/10", border: "border-amber-500/30" },
   2: { emoji: "🥈", bg: "bg-slate-400/10", border: "border-slate-400/30" },
   3: { emoji: "🥉", bg: "bg-orange-600/10", border: "border-orange-600/30" },
-  4: { emoji: "#4", bg: "bg-white/5", border: "border-white/10" },
-  5: { emoji: "#5", bg: "bg-white/5", border: "border-white/10" },
+  4: { emoji: "#4", bg: "bg-white/5", border: "border-[var(--border-default)]" },
+  5: { emoji: "#5", bg: "bg-white/5", border: "border-[var(--border-default)]" },
 } as const;
 
 // Get anime-style avatar URL using DiceBear (adventurer style - more anime-like)
-function getAvatarUrl(username: string): string {
+function getAvatarUrl(username: string, avatarUrl: string | null): string {
+  if (avatarUrl) return avatarUrl;
   return `https://api.dicebear.com/7.x/adventurer/svg?seed=${username}&backgroundColor=transparent`;
 }
 
-// Mock activity data for line chart
-const MOCK_ACTIVITY = [30, 45, 25, 60, 80, 55, 70, 90, 65, 85, 75, 95];
-
-// Line chart component (mimics actual recharts style)
+// Mini line chart component
 function MiniLineChart({ data }: { data: number[] }) {
   const max = Math.max(...data);
   const min = Math.min(...data);
@@ -120,7 +72,6 @@ function MiniLineChart({ data }: { data: number[] }) {
   const height = 32;
   const padding = 2;
 
-  // Generate SVG path for smooth line
   const points = data.map((value, i) => ({
     x: padding + (i / (data.length - 1)) * (width - padding * 2),
     y: padding + (1 - (value - min) / range) * (height - padding * 2),
@@ -131,12 +82,10 @@ function MiniLineChart({ data }: { data: number[] }) {
     return `${acc} L ${point.x} ${point.y}`;
   }, "");
 
-  // Area fill path
   const areaD = `${pathD} L ${points[points.length - 1]?.x ?? 0} ${height - padding} L ${padding} ${height - padding} Z`;
 
   return (
     <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-8">
-      {/* Grid lines */}
       <line
         x1={padding}
         y1={height / 2}
@@ -146,9 +95,7 @@ function MiniLineChart({ data }: { data: number[] }) {
         strokeWidth="0.5"
         strokeDasharray="2,2"
       />
-      {/* Area fill */}
       <path d={areaD} fill="var(--color-claude-coral)" fillOpacity="0.1" />
-      {/* Line */}
       <path
         d={pathD}
         fill="none"
@@ -161,8 +108,8 @@ function MiniLineChart({ data }: { data: number[] }) {
   );
 }
 
-// Side Panel Component - matching real ProfileSidePanel layout
-function ProfilePanel({ user }: { user: (typeof MOCK_LEADERBOARD)[0] | null }) {
+// Side Panel Component
+function ProfilePanel({ user }: { user: LeaderboardUser | null }) {
   if (!user) {
     return (
       <div className="h-full flex items-center justify-center text-[var(--color-text-muted)] text-sm">
@@ -173,6 +120,12 @@ function ProfilePanel({ user }: { user: (typeof MOCK_LEADERBOARD)[0] | null }) {
       </div>
     );
   }
+
+  const levelInfo = getLevelByNumber(user.level);
+  const nextLevelInfo = user.level < 10 ? getLevelByNumber(user.level + 1) : null;
+
+  // Calculate progress percentage (simplified)
+  const progressPercent = 65 + (5 - user.rank) * 7;
 
   return (
     <motion.div
@@ -185,7 +138,7 @@ function ProfilePanel({ user }: { user: (typeof MOCK_LEADERBOARD)[0] | null }) {
       {/* 1. Profile Header */}
       <div className="flex items-center gap-3">
         <img
-          src={getAvatarUrl(user.username)}
+          src={getAvatarUrl(user.username, user.avatarUrl)}
           alt={user.displayName}
           className="w-12 h-12 rounded-full bg-[var(--color-bg-secondary)]"
         />
@@ -198,7 +151,7 @@ function ProfilePanel({ user }: { user: (typeof MOCK_LEADERBOARD)[0] | null }) {
               className="px-1.5 py-0.5 rounded text-[9px] font-medium"
               style={{ backgroundColor: "rgba(218, 119, 86, 0.2)", color: "#DA7756" }}
             >
-              {user.levelIcon} Lv.{user.level}
+              {levelInfo.icon} Lv.{user.level}
             </span>
           </div>
           <p className="text-xs text-[var(--color-text-muted)] flex items-center gap-1.5 mt-0.5">
@@ -208,47 +161,35 @@ function ProfilePanel({ user }: { user: (typeof MOCK_LEADERBOARD)[0] | null }) {
         </div>
       </div>
 
-      {/* 2. Level Progress (moved up to match real panel) */}
+      {/* 2. Level Progress */}
       <div className="p-3 bg-[var(--color-bg-secondary)] rounded-lg border border-[var(--border-default)]">
         <div className="flex items-center justify-between text-[10px] mb-1.5">
           <span className="text-[var(--color-text-secondary)] flex items-center gap-1">
-            <span>{user.levelIcon}</span> {user.levelName} (Lv.{user.level})
+            <span>{levelInfo.icon}</span> {levelInfo.name} (Lv.{user.level})
           </span>
-          {user.level < 10 && (
+          {nextLevelInfo && (
             <span className="text-[var(--color-text-muted)]">
-              →{" "}
-              {user.level === 7
-                ? "🏆 Mythic"
-                : user.level === 6
-                  ? "🌟 Legend"
-                  : user.level === 5
-                    ? "👑 Grandmaster"
-                    : "🔥 Master"}
+              → {nextLevelInfo.icon} {nextLevelInfo.name}
             </span>
           )}
         </div>
         <div className="h-2.5 bg-white/10 rounded-full overflow-hidden border border-[var(--border-default)]">
           <div
             className="h-full bg-[var(--color-claude-coral)] rounded-full transition-all duration-500"
-            style={{ width: `${65 + user.rank * 5}%` }}
+            style={{ width: `${progressPercent}%` }}
           />
         </div>
         <div className="text-[9px] text-[var(--color-text-muted)] mt-1.5">
           Current Range:{" "}
           <span className="text-[var(--color-text-secondary)]">
-            {user.level === 7
-              ? "10B ~ 30B"
-              : user.level === 6
-                ? "3B ~ 10B"
-                : user.level === 5
-                  ? "1B ~ 3B"
-                  : "500M ~ 1B"}
+            {formatNumber(levelInfo.minTokens)} ~{" "}
+            {levelInfo.maxTokens === Infinity ? "∞" : formatNumber(levelInfo.maxTokens)}
           </span>{" "}
-          ({user.levelName})
+          ({levelInfo.name})
         </div>
       </div>
 
-      {/* 3. Stats Grid (Global Rank / Cost, Country Rank / Tokens) - with progressive opacity */}
+      {/* 3. Stats Grid */}
       <div className="grid grid-cols-2 gap-2">
         <div className="p-3 bg-[var(--color-bg-secondary)] rounded-lg border border-[var(--border-default)]">
           <div className="text-[10px] text-[var(--color-text-muted)] mb-1 flex items-center gap-1">
@@ -260,7 +201,7 @@ function ProfilePanel({ user }: { user: (typeof MOCK_LEADERBOARD)[0] | null }) {
         </div>
         <div className="p-3 bg-[var(--color-bg-secondary)] rounded-lg border border-[var(--border-default)]">
           <div className="text-[10px] text-[var(--color-text-muted)] mb-1">All Time Cost $</div>
-          <div className="text-xl font-semibold text-emerald-400">{user.cost.toLocaleString()}</div>
+          <div className="text-xl font-semibold text-amber-500">{user.cost.toLocaleString()}</div>
         </div>
         <div className="p-3 bg-[var(--color-bg-secondary)] rounded-lg border border-[var(--border-default)] opacity-70">
           <div className="text-[10px] text-[var(--color-text-muted)] mb-1 flex items-center gap-1">
@@ -279,7 +220,7 @@ function ProfilePanel({ user }: { user: (typeof MOCK_LEADERBOARD)[0] | null }) {
         </div>
       </div>
 
-      {/* 4. Usage History - Line Chart Style - faded */}
+      {/* 4. Usage History placeholder */}
       <div className="p-3 bg-[var(--color-bg-secondary)] rounded-lg border border-[var(--border-default)] opacity-40">
         <div className="flex items-center justify-between mb-2">
           <span className="text-[10px] text-[var(--color-text-muted)] uppercase tracking-wide flex items-center gap-1">
@@ -287,11 +228,11 @@ function ProfilePanel({ user }: { user: (typeof MOCK_LEADERBOARD)[0] | null }) {
           </span>
           <span className="text-[9px] text-[var(--color-text-muted)]">All Time</span>
         </div>
-        <MiniLineChart data={MOCK_ACTIVITY} />
+        <MiniLineChart data={[30, 45, 25, 60, 80, 55, 70, 90, 65, 85, 75, 95]} />
         <div className="text-[10px] text-[var(--color-text-secondary)] mt-2 pt-2 border-t border-[var(--border-default)] text-center">
           Avg Daily:{" "}
           <span className="font-medium text-[var(--color-claude-coral)]">
-            {formatNumber(user.avgDaily)}
+            {formatNumber(Math.round(user.tokens / 30))}
           </span>{" "}
           tokens
         </div>
@@ -300,10 +241,121 @@ function ProfilePanel({ user }: { user: (typeof MOCK_LEADERBOARD)[0] | null }) {
   );
 }
 
-export function LeaderboardPreview() {
-  const [selectedUser, setSelectedUser] = useState<(typeof MOCK_LEADERBOARD)[0] | null>(
-    MOCK_LEADERBOARD[0] ?? null
+// Pioneer placeholder component when no users yet
+function PioneerPlaceholder() {
+  return (
+    <section className="py-20 px-4">
+      <div className="max-w-[1000px] mx-auto">
+        <div className="text-center mb-10">
+          <h2 className="text-2xl md:text-3xl font-bold text-[var(--color-text-primary)] mb-2">
+            Claude Code Rankings
+          </h2>
+          <p className="text-sm text-[var(--color-claude-coral)] font-medium mb-3">
+            Global or by country
+          </p>
+          <p className="text-sm text-[var(--color-text-muted)]">
+            See who&apos;s going all in on Claude Code.
+          </p>
+        </div>
+
+        <div className="glass rounded-lg border border-[var(--border-default)] p-8 text-center">
+          <div className="text-6xl mb-4">🚀</div>
+          <h3 className="text-xl font-semibold text-[var(--color-text-primary)] mb-2">
+            Be the First Pioneer!
+          </h3>
+          <p className="text-[var(--color-text-muted)] mb-6 max-w-md mx-auto">
+            The leaderboard is waiting for its first champions. Submit your Claude Code usage and
+            claim the #1 spot!
+          </p>
+          <Link
+            href="/leaderboard"
+            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[var(--color-claude-coral)] text-white text-sm font-semibold hover:opacity-90 transition-all"
+          >
+            Join the Leaderboard
+            <span>→</span>
+          </Link>
+        </div>
+      </div>
+    </section>
   );
+}
+
+export function LeaderboardPreview() {
+  const [users, setUsers] = useState<LeaderboardUser[]>([]);
+  const [selectedUser, setSelectedUser] = useState<LeaderboardUser | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function fetchLeaderboard() {
+      try {
+        const response = await fetch("/api/leaderboard?limit=5");
+        if (!response.ok) throw new Error("Failed to fetch");
+        const data = await response.json();
+
+        // Transform API response to component format
+        const transformedUsers: LeaderboardUser[] = (data.users || []).map(
+          (u: ApiUser, idx: number) => {
+            const levelInfo = getLevelByNumber(u.current_level || 1);
+            return {
+              rank: idx + 1,
+              username: u.username,
+              displayName: u.display_name || u.username,
+              avatarUrl: u.avatar_url,
+              tokens: u.total_tokens || 0,
+              cost: u.total_cost || 0,
+              country: u.country_code || "UN",
+              level: u.current_level || 1,
+              levelName: levelInfo.name,
+              levelIcon: levelInfo.icon,
+              globalRank: u.global_rank || idx + 1,
+              countryRank: u.country_rank || 1,
+            };
+          }
+        );
+
+        setUsers(transformedUsers);
+        if (transformedUsers.length > 0) {
+          setSelectedUser(transformedUsers[0] ?? null);
+        }
+      } catch (error) {
+        console.error("Failed to fetch leaderboard:", error);
+        setUsers([]);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    fetchLeaderboard();
+  }, []);
+
+  // Loading state
+  if (loading) {
+    return (
+      <section className="py-20 px-4">
+        <div className="max-w-[1000px] mx-auto">
+          <div className="text-center mb-10">
+            <div className="h-8 w-64 bg-white/10 rounded mx-auto mb-2 animate-pulse" />
+            <div className="h-5 w-40 bg-white/10 rounded mx-auto animate-pulse" />
+          </div>
+          <div className="flex gap-4">
+            <div className="flex-1 glass rounded-lg border border-[var(--border-default)] p-4">
+              {[1, 2, 3, 4, 5].map((i) => (
+                <div key={i} className="h-14 bg-white/5 rounded mb-2 animate-pulse" />
+              ))}
+            </div>
+            <div className="hidden md:block w-72 lg:w-80 glass rounded-lg border border-[var(--border-default)] p-4">
+              <div className="h-full bg-white/5 rounded animate-pulse" />
+            </div>
+          </div>
+        </div>
+      </section>
+    );
+  }
+
+  // Pioneer mode - no users yet
+  if (users.length === 0) {
+    return <PioneerPlaceholder />;
+  }
 
   return (
     <section className="py-20 px-4">
@@ -329,7 +381,7 @@ export function LeaderboardPreview() {
             <div className="px-2 sm:px-4 py-2 sm:py-3 border-b border-[var(--border-default)] bg-white/[0.02] space-y-2">
               {/* Row 1: League Tabs - scrollable on mobile */}
               <div className="flex items-center gap-1 overflow-x-auto scrollbar-hide">
-                <button className="flex-shrink-0 flex items-center gap-1 px-2 sm:px-3 py-1 sm:py-1.5 rounded-md text-[10px] sm:text-xs font-medium bg-white/10 border border-white/20 text-[var(--color-text-primary)]">
+                <button className="flex-shrink-0 flex items-center gap-1 px-2 sm:px-3 py-1 sm:py-1.5 rounded-md text-[10px] sm:text-xs font-medium bg-white/10 border border-[var(--border-hover)] text-[var(--color-text-primary)]">
                   <span>🏆</span> All<span className="hidden sm:inline"> League</span>
                 </button>
                 <button className="flex-shrink-0 flex items-center gap-1 px-2 sm:px-3 py-1 sm:py-1.5 rounded-md text-[10px] sm:text-xs text-[var(--color-text-muted)]">
@@ -343,11 +395,10 @@ export function LeaderboardPreview() {
                 </button>
               </div>
 
-              {/* Row 2: Scope + Period - all elements h-7 (28px) */}
+              {/* Row 2: Scope + Period */}
               <div className="flex items-center justify-between gap-2">
                 <div className="flex items-center gap-1.5 sm:gap-2">
-                  {/* Scope icons */}
-                  <div className="flex items-center h-7 rounded overflow-hidden border border-white/10">
+                  <div className="flex items-center h-7 rounded overflow-hidden border border-[var(--border-default)]">
                     <button className="h-full px-2 sm:px-2.5 bg-[var(--color-claude-coral)] text-white flex items-center justify-center">
                       <span className="text-sm sm:text-base">🌐</span>
                     </button>
@@ -356,8 +407,7 @@ export function LeaderboardPreview() {
                     </button>
                   </div>
 
-                  {/* Period tabs */}
-                  <div className="flex items-center h-7 rounded overflow-hidden border border-white/10 bg-[var(--color-bg-secondary)]">
+                  <div className="flex items-center h-7 rounded overflow-hidden border border-[var(--border-default)] bg-[var(--color-bg-secondary)]">
                     <button className="h-full px-3 sm:px-4 text-[11px] sm:text-xs font-medium bg-white/10 text-[var(--color-text-primary)]">
                       All
                     </button>
@@ -370,15 +420,14 @@ export function LeaderboardPreview() {
                   </div>
                 </div>
 
-                {/* My Rank */}
-                <button className="hidden min-[360px]:flex items-center gap-1.5 h-7 px-3 sm:px-4 rounded text-[11px] sm:text-xs font-medium bg-[var(--color-bg-secondary)] border border-white/10 text-[var(--color-text-secondary)]">
+                <button className="hidden min-[360px]:flex items-center gap-1.5 h-7 px-3 sm:px-4 rounded text-[11px] sm:text-xs font-medium bg-[var(--color-bg-secondary)] border border-[var(--border-default)] text-[var(--color-text-secondary)]">
                   <span>🏅</span> <span className="hidden sm:inline">My Rank</span>{" "}
-                  <span className="text-[var(--color-claude-coral)]">#1</span>
+                  <span className="text-[var(--color-claude-coral)]">#?</span>
                 </button>
               </div>
             </div>
 
-            {/* Header row - Mobile optimized */}
+            {/* Header row */}
             <div className="grid grid-cols-12 gap-1 sm:gap-2 px-2 sm:px-4 py-2 sm:py-3 border-b border-[var(--border-default)] text-[9px] sm:text-xs text-[var(--color-text-muted)]">
               <div className="col-span-1 text-center">#</div>
               <div className="col-span-1 text-center"></div>
@@ -390,14 +439,13 @@ export function LeaderboardPreview() {
 
             {/* Rows with progressive opacity fade */}
             <div className="divide-y divide-[var(--border-default)]">
-              {MOCK_LEADERBOARD.map((user, index) => {
-                const style = RANK_STYLES[user.rank as keyof typeof RANK_STYLES];
+              {users.map((user, index) => {
+                const style = RANK_STYLES[user.rank as keyof typeof RANK_STYLES] || RANK_STYLES[5];
                 const isSelected = selectedUser?.username === user.username;
-                // Progressive opacity: 100% -> 100% -> 70% -> 50% -> 35%
                 const rowOpacity = index <= 1 ? 1 : index === 2 ? 0.7 : index === 3 ? 0.5 : 0.35;
                 return (
                   <motion.div
-                    key={user.rank}
+                    key={user.username}
                     initial={{ opacity: 0, x: -20 }}
                     whileInView={{ opacity: rowOpacity, x: 0 }}
                     viewport={{ once: true }}
@@ -428,7 +476,7 @@ export function LeaderboardPreview() {
                     {/* User */}
                     <div className="col-span-4 sm:col-span-3 flex items-center gap-1 sm:gap-2">
                       <img
-                        src={getAvatarUrl(user.username)}
+                        src={getAvatarUrl(user.username, user.avatarUrl)}
                         alt={user.displayName}
                         className="w-5 h-5 sm:w-7 sm:h-7 rounded-full bg-[var(--color-bg-secondary)]"
                       />
@@ -437,7 +485,7 @@ export function LeaderboardPreview() {
                       </span>
                     </div>
 
-                    {/* Level - Orange badge style matching actual design - hidden on mobile */}
+                    {/* Level */}
                     <div className="col-span-2 hidden sm:flex justify-center">
                       <span
                         className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium"
@@ -450,7 +498,7 @@ export function LeaderboardPreview() {
 
                     {/* Cost */}
                     <div className="col-span-3 sm:col-span-2 text-right">
-                      <span className="text-[11px] sm:text-sm font-mono text-emerald-400">
+                      <span className="text-[11px] sm:text-sm font-mono text-amber-500">
                         {formatCost(user.cost)}
                       </span>
                     </div>
@@ -473,7 +521,7 @@ export function LeaderboardPreview() {
           </div>
         </div>
 
-        {/* View full leaderboard button - below entire layout */}
+        {/* View full leaderboard button */}
         <div className="mt-5 text-center">
           <Link
             href="/leaderboard"

@@ -370,14 +370,23 @@ function getModelInfo(modelId: string): { name: string; role: string; config?: M
 // Operation Name Helper
 function getOperationDisplayName(operation: string): string {
   const names: Record<string, string> = {
-    validate: "Validation",
-    summarize: "Summarize",
+    // News Processing Pipeline
+    gemini_pipeline: "News Pipeline",
+
+    // Thumbnail Generation
     thumbnail_imagen: "Thumbnail (Imagen)",
     thumbnail_gemini: "Thumbnail (Gemini Flash)",
+    thumbnail_style_transfer: "Thumbnail (Style Transfer)",
     thumbnail_og_fusion: "Thumbnail (OG+AI Fusion)",
     thumbnail_generate: "Thumbnail (AI)",
-    image_generation: "Image Generation",
+
+    // Tool Analysis
     tool_analysis: "Tool Analysis",
+
+    // Legacy/Other
+    validate: "Validation",
+    summarize: "Summarize",
+    image_generation: "Image Generation",
     unknown: "Other",
   };
   return names[operation] || operation;
@@ -588,10 +597,14 @@ export default function AdminAIUsagePage() {
                         </div>
                         <div className="flex items-center justify-between text-[10px] text-white/40">
                           <span>{model.count} requests</span>
-                          <span>
-                            In: {formatNumber(model.inputTokens)} / Out:{" "}
-                            {formatNumber(model.outputTokens)}
-                          </span>
+                          {modelInfo.config?.perImage ? (
+                            <span className="text-white/20">per-image pricing</span>
+                          ) : (
+                            <span>
+                              In: {formatNumber(model.inputTokens)} / Out:{" "}
+                              {formatNumber(model.outputTokens)}
+                            </span>
+                          )}
                         </div>
                       </div>
                     );
@@ -627,10 +640,15 @@ export default function AdminAIUsagePage() {
                         </div>
                         <div className="flex items-center justify-between text-[10px] text-white/40">
                           <span>{op.count} calls</span>
-                          <span>
-                            In: {formatNumber(op.inputTokens)} / Out:{" "}
-                            {formatNumber(op.outputTokens)}
-                          </span>
+                          {op.operation.startsWith("thumbnail_") ||
+                          op.operation === "image_generation" ? (
+                            <span className="text-white/20">per-image pricing</span>
+                          ) : (
+                            <span>
+                              In: {formatNumber(op.inputTokens)} / Out:{" "}
+                              {formatNumber(op.outputTokens)}
+                            </span>
+                          )}
                         </div>
                       </div>
                     );
@@ -684,10 +702,18 @@ export default function AdminAIUsagePage() {
                             {item.count}
                           </td>
                           <td className="px-2 py-2 text-right text-blue-400 font-mono">
-                            {formatNumber(item.inputTokens)}
+                            {modelInfo.config?.perImage ? (
+                              <span className="text-white/30">-</span>
+                            ) : (
+                              formatNumber(item.inputTokens)
+                            )}
                           </td>
                           <td className="px-2 py-2 text-right text-[var(--color-claude-coral)] font-mono">
-                            {formatNumber(item.outputTokens)}
+                            {modelInfo.config?.perImage ? (
+                              <span className="text-white/30">-</span>
+                            ) : (
+                              formatNumber(item.outputTokens)
+                            )}
                           </td>
                           <td className="px-2 py-2 text-right text-emerald-400 font-mono">
                             {formatCost(item.cost)}
