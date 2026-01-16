@@ -251,10 +251,8 @@ export default function SettingsUsagePage() {
   return (
     <div className="p-4 sm:p-6 space-y-4">
       {/* Header */}
-      <div className="flex items-center justify-between gap-2">
-        <h2 className="text-xs font-semibold text-text-muted uppercase tracking-wide">
-          Usage Heatmap
-        </h2>
+      <div className="flex items-center justify-between gap-2 mb-3">
+        <h2 className="text-sm font-medium text-[var(--color-text-secondary)]">Heatmap</h2>
         {userStats && (
           <div className="flex items-center gap-2 min-w-0">
             {userStats.avatar_url ? (

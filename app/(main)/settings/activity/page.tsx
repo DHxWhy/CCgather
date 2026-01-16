@@ -55,10 +55,8 @@ export default function SettingsActivityPage() {
 
   return (
     <div className="max-w-2xl mx-auto p-4 sm:p-6 space-y-4 sm:space-y-6">
-      <div className="flex items-center justify-between">
-        <h2 className="text-sm font-medium text-[var(--color-text-secondary)]">
-          Submission History
-        </h2>
+      <div className="flex items-center justify-between mb-3">
+        <h2 className="text-sm font-medium text-[var(--color-text-secondary)]">Activity</h2>
         <Link
           href="/settings/usage"
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] hover:bg-white/5 transition-colors"

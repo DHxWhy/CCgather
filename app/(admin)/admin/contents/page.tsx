@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import Image from "next/image";
-import { Sparkles, Check } from "lucide-react";
+import { Sparkles, Check, RefreshCw, Loader2 } from "lucide-react";
 import ThumbnailManager from "@/components/admin/ThumbnailManager";
 import TargetManager from "@/components/admin/TargetManager";
 import CronScheduler from "@/components/admin/CronScheduler";
@@ -149,6 +149,12 @@ export default function AdminContentsPage() {
   const [thumbnailModel, setThumbnailModel] = useState<ThumbnailModel>("gemini_flash");
   const [showModelSettings, setShowModelSettings] = useState(false);
 
+  // Bulk thumbnail regeneration state
+  const [bulkRegenerating, setBulkRegenerating] = useState(false);
+  const [bulkStats, setBulkStats] = useState<{ ogImages: number; aiGenerated: number } | null>(
+    null
+  );
+
   // Load thumbnail model preference from localStorage
   useEffect(() => {
     const saved = localStorage.getItem(THUMBNAIL_MODEL_STORAGE_KEY);
@@ -185,11 +191,72 @@ export default function AdminContentsPage() {
     }
   }, []);
 
+  // Fetch bulk thumbnail stats
+  const fetchBulkStats = useCallback(async () => {
+    try {
+      const response = await fetch("/api/admin/thumbnail/bulk-regenerate");
+      if (response.ok) {
+        const data = await response.json();
+        setBulkStats({ ogImages: data.ogImages, aiGenerated: data.aiGenerated });
+      }
+    } catch (error) {
+      console.error("Failed to fetch bulk stats:", error);
+    }
+  }, []);
+
+  // Bulk regenerate thumbnails
+  const handleBulkRegenerate = async () => {
+    if (
+      !confirm(
+        `OG 이미지를 사용하는 ${bulkStats?.ogImages || 0}개 콘텐츠의 썸네일을 AI로 재생성합니다.\n\n이 작업은 시간이 걸리고 API 비용이 발생합니다. 계속하시겠습니까?`
+      )
+    ) {
+      return;
+    }
+
+    setBulkRegenerating(true);
+    try {
+      const response = await fetch("/api/admin/thumbnail/bulk-regenerate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ thumbnailModel, onlyOgImages: true }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        showToast({
+          type: "success",
+          title: "썸네일 재생성 완료",
+          message: `${data.successCount}개 성공, ${data.failedCount}개 실패`,
+          duration: 5000,
+        });
+        fetchContents();
+        fetchBulkStats();
+      } else {
+        const error = await response.json();
+        showToast({
+          type: "error",
+          title: "재생성 실패",
+          message: error.error || "알 수 없는 오류",
+        });
+      }
+    } catch (error) {
+      showToast({
+        type: "error",
+        title: "재생성 실패",
+        message: error instanceof Error ? error.message : "네트워크 오류",
+      });
+    } finally {
+      setBulkRegenerating(false);
+    }
+  };
+
   useEffect(() => {
     if (activeTab === "news" || activeTab === "youtube") {
       fetchContents();
+      fetchBulkStats();
     }
-  }, [activeTab, fetchContents]);
+  }, [activeTab, fetchContents, fetchBulkStats]);
 
   // Handler for when collection completes - shows toast notification
   const handleCollectionComplete = useCallback(
@@ -316,10 +383,10 @@ export default function AdminContentsPage() {
         {/* News/YouTube Content List */}
         {(activeTab === "news" || activeTab === "youtube") && (
           <>
-            {/* Status Filter + Model Settings */}
+            {/* Status Filter + Model Settings + Bulk Regenerate */}
             <div className="flex items-center justify-between gap-4">
               {/* Status Filter */}
-              <div className="flex gap-1.5">
+              <div className="flex gap-1.5 flex-wrap">
                 {(["all", "pending", "ready", "published", "rejected"] as const).map((s) => (
                   <button
                     key={s}
@@ -400,6 +467,24 @@ export default function AdminContentsPage() {
                   </>
                 )}
               </div>
+
+              {/* Bulk Thumbnail Regenerate Button */}
+              {activeTab === "news" && bulkStats && bulkStats.ogImages > 0 && (
+                <button
+                  onClick={handleBulkRegenerate}
+                  disabled={bulkRegenerating}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded text-[11px] font-medium transition-colors bg-amber-500/20 text-amber-400 hover:bg-amber-500/30 disabled:opacity-50"
+                  title={`OG 이미지 ${bulkStats.ogImages}개를 AI 썸네일로 재생성`}
+                >
+                  {bulkRegenerating ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <RefreshCw className="w-3.5 h-3.5" />
+                  )}
+                  <span>OG→AI</span>
+                  <span className="text-amber-300">{bulkStats.ogImages}</span>
+                </button>
+              )}
             </div>
 
             {/* Content List */}

@@ -24,7 +24,7 @@ export async function GET(request: NextRequest) {
     const type = searchParams.get("type") || "all"; // 'news', 'youtube', 'all'
     const status = searchParams.get("status") || "all"; // 'pending', 'ready', 'published', 'rejected', 'all'
     const page = parseInt(searchParams.get("page") || "1");
-    const limit = parseInt(searchParams.get("limit") || "20");
+    const limit = parseInt(searchParams.get("limit") || "500"); // Show all by default for admin
 
     const supabase = createServiceClient();
 

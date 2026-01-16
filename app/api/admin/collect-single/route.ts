@@ -263,25 +263,22 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // Generate thumbnail if none exists
+    // Always generate AI thumbnail (regardless of OG image existence)
     let thumbnailResult = null;
-    if (
-      !savedContent.thumbnail_url ||
-      savedContent.thumbnail_url === "/images/news-placeholder.svg"
-    ) {
-      console.log(
-        `[Collect Single] Generating thumbnail for: ${savedContent.id} (model: ${thumbnailModel})`
-      );
-      thumbnailResult = await getThumbnailWithFallback(
-        savedContent.id,
-        url,
-        savedContent.title,
-        savedContent.summary_md,
-        false, // skipAiGeneration
-        savedContent.ai_article_type, // AI-classified article type for accurate theme selection
-        thumbnailModel // User-selected model (imagen or gemini_flash)
-      );
+    console.log(
+      `[Collect Single] Generating AI thumbnail for: ${savedContent.id} (model: ${thumbnailModel})`
+    );
+    thumbnailResult = await getThumbnailWithFallback(
+      savedContent.id,
+      url,
+      savedContent.title,
+      savedContent.summary_md,
+      false, // skipAiGeneration
+      savedContent.ai_article_type, // AI-classified article type for accurate theme selection
+      thumbnailModel // User-selected model (imagen or gemini_flash)
+    );
 
+    if (thumbnailResult.success) {
       // Log thumbnail generation cost
       if (thumbnailResult.cost_usd && thumbnailResult.cost_usd > 0) {
         const thumbnailModelName =
