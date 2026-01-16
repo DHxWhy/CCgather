@@ -26,10 +26,10 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
     const supabase = createServiceClient();
 
-    // Get content
+    // Get content with rich data for better thumbnail generation
     const { data: content, error } = await supabase
       .from("contents")
-      .select("id, source_url, title, summary_md, ai_article_type")
+      .select("id, source_url, title, summary_md, ai_article_type, key_takeaways, one_liner")
       .eq("id", id)
       .single();
 
@@ -49,7 +49,12 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       false, // skipAiGeneration
       content.ai_article_type,
       thumbnailModel,
-      useStyleTransfer // Use OG image colors/mood for generation
+      useStyleTransfer, // Use OG image colors/mood for generation
+      {
+        // Rich content for better image planning
+        key_takeaways: content.key_takeaways,
+        one_liner: content.one_liner,
+      }
     );
 
     if (!thumbnailResult.success) {

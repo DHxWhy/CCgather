@@ -32,10 +32,12 @@ export async function POST(request: NextRequest) {
 
     const supabase = createServiceClient();
 
-    // Get contents to regenerate
+    // Get contents to regenerate with rich data for better thumbnail generation
     let query = supabase
       .from("contents")
-      .select("id, source_url, title, summary_md, ai_article_type, thumbnail_source")
+      .select(
+        "id, source_url, title, summary_md, ai_article_type, thumbnail_source, key_takeaways, one_liner"
+      )
       .eq("type", "news");
 
     if (contentIds && contentIds.length > 0) {
@@ -93,7 +95,12 @@ export async function POST(request: NextRequest) {
           false, // skipAiGeneration
           content.ai_article_type,
           thumbnailModel,
-          useStyleTransfer // Use OG image colors/mood for generation
+          useStyleTransfer, // Use OG image colors/mood for generation
+          {
+            // Rich content for better image planning
+            key_takeaways: content.key_takeaways,
+            one_liner: content.one_liner,
+          }
         );
 
         if (thumbnailResult.success) {

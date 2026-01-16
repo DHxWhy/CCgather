@@ -214,7 +214,14 @@ export async function POST(request: NextRequest) {
             false, // Don't skip AI generation
             extractedFacts?.classification?.primary, // articleType for theme selection
             thumbnailModel, // User-selected model (imagen or gemini_flash)
-            useStyleTransfer // Use OG image colors/mood for generation
+            useStyleTransfer, // Use OG image colors/mood for generation
+            {
+              // Rich content for better image planning (extract text from keyTakeaways objects)
+              key_takeaways: rewrittenArticle?.keyTakeaways?.map((k) =>
+                typeof k === "string" ? k : k.text
+              ),
+              one_liner: rewrittenArticle?.oneLiner,
+            }
           );
 
           // Log AI usage for thumbnail if generated

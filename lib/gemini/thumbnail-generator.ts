@@ -582,8 +582,9 @@ async function fetchOgImageAsBase64(
 
 /**
  * Extract key concepts from article title for image generation
+ * Kept for potential future use, currently replaced by rich content analysis in style transfer
  */
-function extractArticleConcepts(title: string): string[] {
+export function extractArticleConcepts(title: string): string[] {
   const concepts: string[] = [];
 
   // AI/Tech company keywords → visual concepts
@@ -982,15 +983,24 @@ export async function updateContentThumbnail(
 }
 
 /**
+ * Rich content options for better thumbnail generation
+ */
+export interface ThumbnailRichContent {
+  key_takeaways?: string[];
+  one_liner?: string;
+}
+
+/**
  * Get thumbnail with fallback strategy
  * Priority:
- *   1. OG Style Transfer (if OG image available) - uses OG colors/mood for new abstract image
+ *   1. OG Style Transfer (if OG image available) - uses OG colors/mood + article content analysis
  *   2. Standard AI Generation (if no OG image)
  *   3. OG Image (fallback if AI fails)
  *   4. Default placeholder
  *
  * @param model - "imagen" for Imagen 4, "gemini_flash" for Gemini Flash Image (default)
  * @param useStyleTransfer - if true, attempts OG style transfer first (default: true)
+ * @param richContent - additional content for better image planning (key_takeaways, one_liner)
  *
  * Note: AI-generated thumbnails are preferred because OG images are excluded
  * from display in NewsCard for visual consistency.
@@ -1003,7 +1013,8 @@ export async function getThumbnailWithFallback(
   skipAiGeneration = false,
   articleType?: ArticleType,
   model: "imagen" | "gemini_flash" = "gemini_flash",
-  useStyleTransfer = true
+  useStyleTransfer = true,
+  richContent?: ThumbnailRichContent
 ): Promise<ThumbnailResult> {
   // Skip AI generation if requested (for cost savings)
   if (skipAiGeneration) {
@@ -1026,6 +1037,8 @@ export async function getThumbnailWithFallback(
     title,
     summary,
     article_type: articleType,
+    key_takeaways: richContent?.key_takeaways,
+    one_liner: richContent?.one_liner,
   };
 
   let aiResult: ThumbnailResult;

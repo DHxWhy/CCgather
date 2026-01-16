@@ -278,7 +278,14 @@ export async function POST(request: NextRequest) {
       false, // skipAiGeneration
       savedContent.ai_article_type, // AI-classified article type for accurate theme selection
       thumbnailModel, // User-selected model (imagen or gemini_flash)
-      useStyleTransfer // Use OG image colors/mood for generation
+      useStyleTransfer, // Use OG image colors/mood for generation
+      {
+        // Rich content for better image planning (extract text from keyTakeaways objects)
+        key_takeaways: pipelineResult.rewrittenArticle?.keyTakeaways?.map((k) =>
+          typeof k === "string" ? k : k.text
+        ),
+        one_liner: pipelineResult.rewrittenArticle?.oneLiner,
+      }
     );
 
     if (thumbnailResult.success) {
