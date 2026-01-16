@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Header } from "@/components/layout/header";
+import { LandingHeader } from "@/components/layout/LandingHeader";
 import { Footer } from "@/components/layout/footer";
 import { LandingHero, LeaderboardPreview, HowItWorks } from "@/components/landing";
 import { getGlobalStats } from "@/lib/data/global-stats";
@@ -24,8 +24,8 @@ export default async function HomePage() {
   const stats = await getGlobalStats();
   return (
     <div className="min-h-screen flex flex-col bg-[var(--color-bg-primary)]">
-      {/* Header */}
-      <Header />
+      {/* Header - Clerk-free for performance */}
+      <LandingHeader />
 
       {/* Main content */}
       <main className="flex-1">

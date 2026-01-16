@@ -1,7 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { AuthModal } from "./AuthModal";
+import dynamic from "next/dynamic";
+
+// Lazy load AuthModal to defer Clerk JS loading until user clicks the button
+const AuthModal = dynamic(() => import("./AuthModal").then((mod) => mod.AuthModal), {
+  ssr: false,
+});
 
 interface GetStartedButtonProps {
   className?: string;
@@ -16,7 +21,7 @@ export function GetStartedButton({ className, children }: GetStartedButtonProps)
       <button onClick={() => setIsOpen(true)} className={className}>
         {children || "Get Started"}
       </button>
-      <AuthModal isOpen={isOpen} onClose={() => setIsOpen(false)} />
+      {isOpen && <AuthModal isOpen={isOpen} onClose={() => setIsOpen(false)} />}
     </>
   );
 }

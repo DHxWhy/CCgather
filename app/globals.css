@@ -435,6 +435,7 @@ body {
 
 .animate-shimmer {
   animation: shimmer 3s ease-in-out infinite;
+  will-change: background-position;
 }
 
 /* AI Thinking Shimmer Text - Zero Latency CSS Only */
@@ -452,6 +453,7 @@ body {
   background-clip: text;
   -webkit-text-fill-color: transparent;
   animation: shimmer 3s ease-in-out infinite;
+  will-change: background-position;
 }
 
 /* Slide In Right (for mobile menu) */
@@ -496,6 +498,7 @@ body {
 
 .animate-pulse-ring {
   animation: pulse-ring 2s ease-out infinite;
+  will-change: transform, opacity;
 }
 
 /* Globe User Country Glow Pulse */
@@ -516,6 +519,7 @@ body {
 
 .animate-pulse-glow {
   animation: pulse-glow 2s ease-in-out infinite;
+  will-change: box-shadow;
 }
 
 /* Globe Particle Emanation Effect */
