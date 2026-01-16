@@ -58,8 +58,8 @@ async function promptForUpdate(latestVersion: string): Promise<boolean> {
     console.log();
 
     const { spawn } = await import("child_process");
-    // Use npm exec with exact version to bypass npx cache
-    const child = spawn("npm", ["exec", "--yes", "--", `ccgather@${latestVersion}`], {
+    // Use npx with exact version to bypass cache
+    const child = spawn("npx", [`ccgather@${latestVersion}`], {
       stdio: "inherit",
       shell: true,
     });
