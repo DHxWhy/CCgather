@@ -841,7 +841,10 @@ export default function LeaderboardPage() {
                             <td className={`${rowPadding} px-0.5 md:px-2 text-center`}>
                               <span className={`text-[var(--color-cost)] font-mono ${valueSize}`}>
                                 <span className="md:hidden">
-                                  ${(periodCost / 1000).toFixed(0)}k
+                                  $
+                                  {periodCost >= 1000
+                                    ? `${(periodCost / 1000).toFixed(1)}k`
+                                    : periodCost.toFixed(0)}
                                 </span>
                                 <span className="hidden md:inline">
                                   $
