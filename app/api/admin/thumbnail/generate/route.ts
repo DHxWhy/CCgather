@@ -31,10 +31,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "content_id and title are required" }, { status: 400 });
     }
 
-    // Check if content exists and get AI classification
+    // Check if content exists and get AI classification + rich content for better generation
     const { data: content } = await supabase
       .from("contents")
-      .select("id, thumbnail_url, thumbnail_source, ai_article_type")
+      .select("id, thumbnail_url, thumbnail_source, ai_article_type, key_takeaways, one_liner")
       .eq("id", content_id)
       .single();
 
@@ -52,12 +52,20 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    // Extract text from key_takeaways if they are objects
+    const keyTakeawaysText = content.key_takeaways?.map((k: string | { text: string }) =>
+      typeof k === "string" ? k : k.text
+    );
+
     const requestParams = {
       content_id,
       title,
       summary,
       article_type: content.ai_article_type as ArticleType | undefined,
       force_regenerate,
+      // Rich content for better image planning
+      key_takeaways: keyTakeawaysText,
+      one_liner: content.one_liner,
     };
 
     // Handle dual model generation
