@@ -8,7 +8,9 @@ DROP TRIGGER IF EXISTS trigger_update_country_stats ON public.users;
 
 -- Create trigger function that calls update_country_stats
 -- Uses AFTER trigger to ensure user data is committed first
-CREATE OR REPLACE FUNCTION trigger_country_stats_update()
+-- IMPORTANT: Must use fully qualified name (public.update_country_stats)
+-- because SET search_path = '' removes default schema lookup
+CREATE OR REPLACE FUNCTION public.trigger_country_stats_update()
 RETURNS TRIGGER AS $$
 BEGIN
   -- Only update if relevant columns changed
@@ -18,14 +20,14 @@ BEGIN
 
   IF TG_OP = 'DELETE' THEN
     IF OLD.country_code IS NOT NULL THEN
-      PERFORM update_country_stats();
+      PERFORM public.update_country_stats();
     END IF;
     RETURN OLD;
   END IF;
 
   IF TG_OP = 'INSERT' THEN
     IF NEW.country_code IS NOT NULL THEN
-      PERFORM update_country_stats();
+      PERFORM public.update_country_stats();
     END IF;
     RETURN NEW;
   END IF;
@@ -35,7 +37,7 @@ BEGIN
     IF (OLD.country_code IS DISTINCT FROM NEW.country_code) OR
        (OLD.total_tokens IS DISTINCT FROM NEW.total_tokens) OR
        (OLD.total_cost IS DISTINCT FROM NEW.total_cost) THEN
-      PERFORM update_country_stats();
+      PERFORM public.update_country_stats();
     END IF;
     RETURN NEW;
   END IF;
@@ -43,6 +45,7 @@ BEGIN
   RETURN NULL;
 END;
 $$ LANGUAGE plpgsql
+SECURITY DEFINER
 SET search_path = '';
 
 -- Create the trigger
