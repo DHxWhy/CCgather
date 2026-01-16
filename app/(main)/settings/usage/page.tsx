@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo, useRef } from "react";
-import { Globe, Trophy, Coins, Zap, Calendar, ChevronDown } from "lucide-react";
+import { Globe, Trophy, Coins, Zap, ChevronDown } from "lucide-react";
 import { FlagIcon } from "@/components/ui/FlagIcon";
 import { cn } from "@/lib/utils";
 
@@ -176,12 +176,10 @@ export default function SettingsUsagePage() {
     };
   }, [isPeriodDropdownOpen]);
 
-  const { dataMap, monthTotals, maxDailyTokens, periodTotal } = useMemo(() => {
+  const { dataMap, monthTotals, maxDailyTokens } = useMemo(() => {
     const dataMap: Map<string, HistoryEntry> = new Map();
     const monthTotals: Map<string, { tokens: number; cost: number }> = new Map();
     let maxDailyTokens = 0;
-    let totalTokens = 0;
-    let totalCost = 0;
 
     monthRange.forEach(({ year, month }) => {
       const key = `${year}-${month}`;
@@ -205,18 +203,10 @@ export default function SettingsUsagePage() {
         monthTotal.cost += entry.cost;
       }
 
-      totalTokens += entry.tokens;
-      totalCost += entry.cost;
-
       if (entry.tokens > maxDailyTokens) maxDailyTokens = entry.tokens;
     });
 
-    return {
-      dataMap,
-      monthTotals,
-      maxDailyTokens,
-      periodTotal: { tokens: totalTokens, cost: totalCost },
-    };
+    return { dataMap, monthTotals, maxDailyTokens };
   }, [history, monthRange]);
 
   const yearGroups = useMemo(() => {
@@ -319,18 +309,9 @@ export default function SettingsUsagePage() {
         </div>
       ) : (
         <>
-          {/* Title with Period Filter */}
-          <div className="flex items-center justify-between gap-2">
-            <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
-              <Calendar className="w-3.5 sm:w-4 h-3.5 sm:h-4 text-zinc-500 flex-shrink-0" />
-              <span className="text-[11px] sm:text-xs text-zinc-600 truncate">
-                <span className="text-orange-400">{formatNumber(periodTotal.tokens)}</span>
-                <span className="hidden sm:inline"> tokens</span>,{" "}
-                <span className="text-amber-400">{formatCost(periodTotal.cost)}</span>
-              </span>
-            </div>
-
-            <div className="relative flex-shrink-0" ref={dropdownRef}>
+          {/* Period Filter */}
+          <div className="flex items-center justify-end">
+            <div className="relative" ref={dropdownRef}>
               <button
                 onClick={() => setIsPeriodDropdownOpen(!isPeriodDropdownOpen)}
                 className="flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg bg-white/5 border border-white/10 text-[11px] sm:text-xs text-zinc-300 hover:bg-white/10 transition-colors"

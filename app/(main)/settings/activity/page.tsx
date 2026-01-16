@@ -1,13 +1,20 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { Activity, Calendar, BarChart3 } from "lucide-react";
+import { useState, useEffect, useMemo } from "react";
+import { Activity, BarChart3 } from "lucide-react";
 import Link from "next/link";
 
 interface HistoryEntry {
   date: string;
   tokens: number;
   cost: number;
+}
+
+interface MonthGroup {
+  month: string; // "2026-01"
+  entries: HistoryEntry[];
+  totalTokens: number;
+  totalCost: number;
 }
 
 export default function SettingsActivityPage() {
@@ -43,10 +50,29 @@ export default function SettingsActivityPage() {
     return num.toString();
   };
 
-  const formatDate = (dateStr: string) => {
-    const date = new Date(dateStr);
-    return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
-  };
+  // Group history by month
+  const monthGroups = useMemo(() => {
+    const groups: Map<string, MonthGroup> = new Map();
+
+    history.forEach((entry) => {
+      const month = entry.date.substring(0, 7); // "2026-01"
+      if (!groups.has(month)) {
+        groups.set(month, { month, entries: [], totalTokens: 0, totalCost: 0 });
+      }
+      const group = groups.get(month)!;
+      group.entries.push(entry);
+      group.totalTokens += entry.tokens;
+      group.totalCost += entry.cost;
+    });
+
+    // Sort entries within each group by date descending
+    groups.forEach((group) => {
+      group.entries.sort((a, b) => b.date.localeCompare(a.date));
+    });
+
+    // Return groups sorted by month descending
+    return Array.from(groups.values()).sort((a, b) => b.month.localeCompare(a.month));
+  }, [history]);
 
   // Calculate totals
   const totalTokens = history.reduce((acc, entry) => acc + entry.tokens, 0);
@@ -115,42 +141,56 @@ export default function SettingsActivityPage() {
           </p>
         </div>
       ) : (
-        <div className="space-y-2">
-          {history
-            .slice()
-            .reverse()
-            .map((entry) => (
-              <div
-                key={entry.date}
-                className="flex items-center justify-between px-4 py-3 rounded-xl bg-[var(--color-bg-tertiary)] border border-[var(--border-default)] hover:border-[var(--border-hover)] transition-colors"
-              >
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-lg bg-[var(--color-claude-coral)]/10 flex items-center justify-center">
-                    <Calendar className="w-5 h-5 text-[var(--color-claude-coral)]" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium text-[var(--color-text-primary)]">
-                      {formatDate(entry.date)}
-                    </p>
-                    <p className="text-xs text-[var(--color-text-muted)]">{entry.date}</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-6 text-right">
-                  <div className="min-w-[60px]">
-                    <p className="text-sm font-medium text-[var(--color-cost)]">
-                      ${entry.cost.toFixed(2)}
-                    </p>
-                    <p className="text-xs text-[var(--color-text-muted)]">cost</p>
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium text-[var(--color-text-primary)]">
-                      {formatNumber(entry.tokens)}
-                    </p>
-                    <p className="text-xs text-[var(--color-text-muted)]">tokens</p>
-                  </div>
+        <div className="space-y-4">
+          {monthGroups.map((group) => (
+            <div key={group.month}>
+              {/* Month Header */}
+              <div className="flex items-center justify-between mb-2 px-1">
+                <span className="text-xs font-semibold text-[var(--color-text-secondary)]">
+                  {group.month}
+                </span>
+                <div className="flex items-center gap-3 text-[10px] text-[var(--color-text-muted)]">
+                  <span>
+                    <span className="text-[var(--color-cost)]">${group.totalCost.toFixed(2)}</span>
+                  </span>
+                  <span>
+                    <span className="text-[var(--color-claude-coral)]">
+                      {formatNumber(group.totalTokens)}
+                    </span>
+                  </span>
                 </div>
               </div>
-            ))}
+
+              {/* Day Entries */}
+              <div className="rounded-lg bg-[var(--color-bg-tertiary)] border border-[var(--border-default)] overflow-hidden">
+                {group.entries.map((entry, idx) => {
+                  const day = entry.date.substring(8); // "15"
+                  return (
+                    <div
+                      key={entry.date}
+                      className={`flex items-center justify-between px-3 py-2 hover:bg-white/[0.02] transition-colors ${
+                        idx !== group.entries.length - 1
+                          ? "border-b border-[var(--border-default)]"
+                          : ""
+                      }`}
+                    >
+                      <span className="text-xs font-medium text-[var(--color-text-primary)] w-6">
+                        {day}
+                      </span>
+                      <div className="flex items-center gap-4 text-right">
+                        <span className="text-xs font-medium text-[var(--color-cost)] min-w-[70px]">
+                          ${entry.cost.toFixed(2)}
+                        </span>
+                        <span className="text-xs font-medium text-[var(--color-text-primary)] min-w-[50px]">
+                          {formatNumber(entry.tokens)}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
         </div>
       )}
     </div>

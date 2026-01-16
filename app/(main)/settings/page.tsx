@@ -45,6 +45,7 @@ export default function SettingsProfilePage() {
   const [isSaving, setIsSaving] = useState(false);
   const [errors, setErrors] = useState<Partial<SocialLinks>>({});
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [isDataLoaded, setIsDataLoaded] = useState(false); // Track if data is loaded from API
 
   // Fetch user data from DB
   useEffect(() => {
@@ -56,6 +57,7 @@ export default function SettingsProfilePage() {
           setDbCountryCode(data.user?.country_code || "");
           setSocialLinks(data.user?.social_links || {});
           setEditedLinks(data.user?.social_links || {});
+          setIsDataLoaded(true); // Mark data as loaded
         }
       } catch (error) {
         console.error("Failed to fetch user data:", error);
@@ -109,9 +111,12 @@ export default function SettingsProfilePage() {
     setErrors((prev) => ({ ...prev, [key]: error || undefined }));
   };
 
-  // Auto-save GitHub from OAuth
+  // Auto-save GitHub from OAuth - ONLY after data is loaded from API to prevent race condition
   useEffect(() => {
     const autoSaveGithub = async () => {
+      // Wait until data is loaded from API to avoid overwriting existing social links
+      if (!isDataLoaded) return;
+
       if (githubAccount?.username && !socialLinks.github) {
         const newLinks = { ...socialLinks, github: githubAccount.username };
         setEditedLinks(newLinks);
@@ -131,7 +136,7 @@ export default function SettingsProfilePage() {
       }
     };
     autoSaveGithub();
-  }, [githubAccount?.username, socialLinks.github]);
+  }, [githubAccount?.username, socialLinks.github, isDataLoaded, socialLinks]);
 
   const handleSaveSocialLinks = async () => {
     setIsSaving(true);
