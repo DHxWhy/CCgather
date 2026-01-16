@@ -68,20 +68,22 @@ export default function SettingsActivityPage() {
 
       {/* Summary Stats */}
       {!isLoading && !error && history.length > 0 && (
-        <div className="grid grid-cols-3 gap-3">
-          <div className="p-4 rounded-xl bg-[var(--color-bg-tertiary)] border border-[var(--border-default)]">
-            <p className="text-2xl font-bold text-[var(--color-text-primary)]">{activeDays}</p>
-            <p className="text-xs text-[var(--color-text-muted)] mt-1">Active Days</p>
+        <div className="grid grid-cols-3 gap-2">
+          <div className="p-3 rounded-lg bg-[var(--color-bg-tertiary)] border border-[var(--border-default)]">
+            <p className="text-lg font-semibold text-[var(--color-text-primary)]">{activeDays}</p>
+            <p className="text-[10px] text-[var(--color-text-muted)] mt-0.5">Active Days</p>
           </div>
-          <div className="p-4 rounded-xl bg-[var(--color-bg-tertiary)] border border-[var(--border-default)]">
-            <p className="text-2xl font-bold text-[var(--color-cost)]">${totalCost.toFixed(2)}</p>
-            <p className="text-xs text-[var(--color-text-muted)] mt-1">Total Cost</p>
+          <div className="p-3 rounded-lg bg-[var(--color-bg-tertiary)] border border-[var(--border-default)]">
+            <p className="text-lg font-semibold text-[var(--color-cost)]">
+              ${totalCost.toFixed(2)}
+            </p>
+            <p className="text-[10px] text-[var(--color-text-muted)] mt-0.5">Total Cost</p>
           </div>
-          <div className="p-4 rounded-xl bg-[var(--color-bg-tertiary)] border border-[var(--border-default)]">
-            <p className="text-2xl font-bold text-[var(--color-claude-coral)]">
+          <div className="p-3 rounded-lg bg-[var(--color-bg-tertiary)] border border-[var(--border-default)]">
+            <p className="text-lg font-semibold text-[var(--color-claude-coral)]">
               {formatNumber(totalTokens)}
             </p>
-            <p className="text-xs text-[var(--color-text-muted)] mt-1">Total Tokens</p>
+            <p className="text-[10px] text-[var(--color-text-muted)] mt-0.5">Total Tokens</p>
           </div>
         </div>
       )}
