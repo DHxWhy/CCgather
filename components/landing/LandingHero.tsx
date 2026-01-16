@@ -272,30 +272,30 @@ export function LandingHero({ initialStats }: LandingHeroProps) {
             </div>
           </div>
         </div>
-      </div>
 
-      {/* Quick Start Steps - Bottom center (hidden on mobile) */}
-      <div className="hidden md:block absolute bottom-24 left-1/2 -translate-x-1/2">
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2">
-            <span className="w-7 h-7 rounded-full bg-amber-500/20 flex items-center justify-center text-sm">
-              🔐
-            </span>
-            <span className="text-xs text-[var(--color-text-muted)]">Sign in</span>
-          </div>
-          <div className="w-6 h-px bg-white/20" />
-          <div className="flex items-center gap-2">
-            <span className="w-7 h-7 rounded-full bg-yellow-500/20 flex items-center justify-center text-sm">
-              ⚡
-            </span>
-            <span className="text-xs text-[var(--color-text-muted)]">npx ccgather</span>
-          </div>
-          <div className="w-6 h-px bg-white/20" />
-          <div className="flex items-center gap-2">
-            <span className="w-7 h-7 rounded-full bg-emerald-500/20 flex items-center justify-center text-sm">
-              📊
-            </span>
-            <span className="text-xs text-[var(--color-text-muted)]">Auto sync</span>
+        {/* Quick Start Steps - Below main content (hidden on mobile) */}
+        <div className="hidden md:flex justify-center mt-12 lg:mt-16">
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2">
+              <span className="w-7 h-7 rounded-full bg-amber-500/20 flex items-center justify-center text-sm">
+                🔐
+              </span>
+              <span className="text-xs text-[var(--color-text-muted)]">Sign in</span>
+            </div>
+            <div className="w-6 h-px bg-white/20" />
+            <div className="flex items-center gap-2">
+              <span className="w-7 h-7 rounded-full bg-yellow-500/20 flex items-center justify-center text-sm">
+                ⚡
+              </span>
+              <span className="text-xs text-[var(--color-text-muted)]">npx ccgather</span>
+            </div>
+            <div className="w-6 h-px bg-white/20" />
+            <div className="flex items-center gap-2">
+              <span className="w-7 h-7 rounded-full bg-emerald-500/20 flex items-center justify-center text-sm">
+                📊
+              </span>
+              <span className="text-xs text-[var(--color-text-muted)]">Auto sync</span>
+            </div>
           </div>
         </div>
       </div>
