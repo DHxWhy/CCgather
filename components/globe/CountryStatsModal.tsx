@@ -236,6 +236,7 @@ export function CountryStatsModal({
                         size={350}
                         className="mx-auto"
                         userCountryCode={userCountryCode}
+                        forceDark={true}
                       />
                     </div>
                     {/* Tablet Globe with particles - md to lg */}
@@ -249,6 +250,7 @@ export function CountryStatsModal({
                         size={280}
                         className="mx-auto"
                         userCountryCode={userCountryCode}
+                        forceDark={true}
                       />
                     </div>
                     {/* Mobile Globe with particles - below md */}
@@ -259,6 +261,7 @@ export function CountryStatsModal({
                         size={180}
                         className="mx-auto"
                         userCountryCode={userCountryCode}
+                        forceDark={true}
                       />
                     </div>
                     {/* Stats summary below globe - Always dark theme */}

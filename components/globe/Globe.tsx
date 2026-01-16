@@ -268,6 +268,7 @@ interface GlobeProps {
   size?: number;
   className?: string;
   userCountryCode?: string;
+  forceDark?: boolean;
 }
 
 // Project lat/lng to screen coordinates matching cobe's rendering
@@ -306,14 +307,21 @@ function latLngToScreen(
   return { x: screenX, y: screenY, visible: z2 > 0 };
 }
 
-export function Globe({ markers = [], size = 400, className = "", userCountryCode }: GlobeProps) {
+export function Globe({
+  markers = [],
+  size = 400,
+  className = "",
+  userCountryCode,
+  forceDark,
+}: GlobeProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const userDotRef = useRef<HTMLDivElement>(null);
   const pulseRingRef = useRef<HTMLDivElement>(null);
   const pointerInteracting = useRef<number | null>(null);
   const pointerInteractionMovement = useRef(0);
   const rotationRef = useRef(0);
-  const isDark = useTheme();
+  const themeIsDark = useTheme();
+  const isDark = forceDark ?? themeIsDark;
 
   const maxTokens = Math.max(...markers.map((m) => m.tokens), 1);
   const userCoords = userCountryCode ? COUNTRY_COORDINATES[userCountryCode.toUpperCase()] : null;
