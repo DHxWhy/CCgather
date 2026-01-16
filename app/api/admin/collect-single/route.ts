@@ -28,12 +28,14 @@ export async function POST(request: NextRequest) {
       force = false,
       autoPublish = false,
       thumbnailModel = "gemini_flash",
+      useStyleTransfer = true, // Use OG image style for AI generation
     } = body as {
       url: string;
       category?: TargetCategory;
       force?: boolean; // Force re-collection even if URL exists
       autoPublish?: boolean; // Auto-publish if fact check passes
       thumbnailModel?: "imagen" | "gemini_flash"; // Thumbnail generation model
+      useStyleTransfer?: boolean; // Use OG image colors/mood for generation
     };
 
     if (!url) {
@@ -266,7 +268,7 @@ export async function POST(request: NextRequest) {
     // Always generate AI thumbnail (regardless of OG image existence)
     let thumbnailResult = null;
     console.log(
-      `[Collect Single] Generating AI thumbnail for: ${savedContent.id} (model: ${thumbnailModel})`
+      `[Collect Single] Generating AI thumbnail for: ${savedContent.id} (model: ${thumbnailModel}, styleTransfer: ${useStyleTransfer})`
     );
     thumbnailResult = await getThumbnailWithFallback(
       savedContent.id,
@@ -275,7 +277,8 @@ export async function POST(request: NextRequest) {
       savedContent.summary_md,
       false, // skipAiGeneration
       savedContent.ai_article_type, // AI-classified article type for accurate theme selection
-      thumbnailModel // User-selected model (imagen or gemini_flash)
+      thumbnailModel, // User-selected model (imagen or gemini_flash)
+      useStyleTransfer // Use OG image colors/mood for generation
     );
 
     if (thumbnailResult.success) {

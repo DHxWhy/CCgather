@@ -20,7 +20,6 @@ import type { ArticleType } from "@/lib/ai/gemini-client";
 // Configuration
 const IMAGEN_MODEL = "imagen-4.0-generate-001";
 const GEMINI_FLASH_IMAGE_MODEL = "gemini-2.5-flash-image";
-const VISION_MODEL = "gemini-2.0-flash"; // For OG image analysis
 const DEFAULT_PLACEHOLDER = "/images/news-placeholder.svg";
 const SUPABASE_BUCKET = "thumbnails";
 
@@ -29,8 +28,7 @@ const SUPABASE_BUCKET = "thumbnails";
 // ===========================================
 const IMAGE_GENERATION_COSTS = {
   [IMAGEN_MODEL]: 0.04, // $0.04/image
-  [GEMINI_FLASH_IMAGE_MODEL]: 0.039, // $0.039/image
-  [VISION_MODEL]: 0.0001, // Vision API is token-based, approximate per request
+  [GEMINI_FLASH_IMAGE_MODEL]: 0.039, // $0.039/image (includes style transfer)
 } as const;
 
 /**
@@ -550,21 +548,21 @@ export async function generateThumbnail(request: ThumbnailRequest): Promise<Thum
 }
 
 // ===========================================
-// OG+AI Fusion Thumbnail Generation
+// OG+AI Fusion Thumbnail Generation (Single Model Approach)
 // ===========================================
 
 /**
- * Analyze OG image using Gemini Vision to extract ONLY color palette and mood
- * We deliberately exclude specific objects to prevent them from dominating the output
+ * Fetch OG image and convert to base64 for Gemini Flash Image input
  */
-async function analyzeOgImage(ogImageUrl: string, apiKey: string): Promise<string | null> {
+async function fetchOgImageAsBase64(
+  ogImageUrl: string
+): Promise<{ data: string; mimeType: string } | null> {
   try {
-    const ai = new GoogleGenAI({ apiKey });
-
-    // Fetch image and convert to base64
-    const imageResponse = await fetch(ogImageUrl);
+    const imageResponse = await fetch(ogImageUrl, {
+      headers: { "User-Agent": "Mozilla/5.0 (compatible; CCgather/1.0)" },
+    });
     if (!imageResponse.ok) {
-      console.error("[Thumbnail] Failed to fetch OG image for analysis");
+      console.error("[Thumbnail] Failed to fetch OG image:", imageResponse.status);
       return null;
     }
 
@@ -572,44 +570,9 @@ async function analyzeOgImage(ogImageUrl: string, apiKey: string): Promise<strin
     const base64Image = Buffer.from(imageBuffer).toString("base64");
     const mimeType = imageResponse.headers.get("content-type") || "image/jpeg";
 
-    // Analyze image with Gemini Vision - ONLY extract color and mood
-    const response = await ai.models.generateContent({
-      model: VISION_MODEL,
-      contents: [
-        {
-          role: "user",
-          parts: [
-            {
-              inlineData: {
-                mimeType,
-                data: base64Image,
-              },
-            },
-            {
-              text: `Extract ONLY the following from this image in a single line:
-
-1. COLOR PALETTE: List 2-3 dominant colors (e.g., "deep navy blue, coral orange, soft purple")
-2. MOOD/ATMOSPHERE: One word (e.g., "futuristic", "professional", "energetic", "minimal")
-3. LIGHTING: One phrase (e.g., "soft gradient glow", "dramatic contrast", "ambient lighting")
-
-Format your response as: "Colors: [colors]. Mood: [mood]. Lighting: [lighting]."
-
-IMPORTANT: Do NOT describe any objects, devices, people, logos, or text in the image. Only describe colors, mood, and lighting.`,
-            },
-          ],
-        },
-      ],
-    });
-
-    const analysis = response.candidates?.[0]?.content?.parts?.[0]?.text;
-    if (analysis) {
-      console.log(`[Thumbnail] OG style analysis: ${analysis.slice(0, 150)}...`);
-      return analysis;
-    }
-
-    return null;
+    return { data: base64Image, mimeType };
   } catch (error) {
-    console.error("[Thumbnail] OG image analysis error:", error);
+    console.error("[Thumbnail] OG image fetch error:", error);
     return null;
   }
 }
@@ -688,12 +651,11 @@ function extractArticleConcepts(title: string): string[] {
 }
 
 /**
- * Generate fusion prompt combining OG image analysis with article context
- * PRIORITY: Article context (70%) > OG style (30%)
+ * Generate style-transfer prompt for Gemini Flash Image
+ * Single model approach: Image input + style extraction + new image generation
  */
-function generateFusionPrompt(
+function generateStyleTransferPrompt(
   title: string,
-  ogAnalysis: string,
   summary?: string,
   articleType?: ArticleType
 ): string {
@@ -716,39 +678,54 @@ function generateFusionPrompt(
       ? articleConcepts.join(", ")
       : "abstract 3D geometric composition with glowing nodes and interconnected shapes";
 
-  // Build fusion prompt - ARTICLE CONTEXT IS PRIMARY
-  const prompt = `Create a professional tech news thumbnail for this article:
+  // Single-model style transfer prompt
+  const prompt = `Analyze the reference image above and extract ONLY:
+- Color palette (2-3 dominant colors)
+- Overall mood/atmosphere (one word)
+- Lighting style (soft, dramatic, ambient, etc.)
 
-ARTICLE TITLE: "${title}"
+DO NOT extract or replicate:
+- Any objects, devices, people, or specific elements
+- The layout or composition
+- Any text, logos, or brand elements
 
-PRIMARY SUBJECT (MUST include): ${conceptsDescription}
+Now CREATE A COMPLETELY NEW AND DIFFERENT IMAGE for this tech news article:
 
-VISUAL STYLE FROM REFERENCE:
-${ogAnalysis}
+ARTICLE: "${title}"
 
-COMPOSITION:
-- Main focus: ${conceptsDescription}
-- Background: Dark gradient (navy to black)
-- Style: ${theme.style}
-- Lighting: Use the lighting style from the reference
-- Apply the color palette from the reference to the primary subject
+NEW IMAGE REQUIREMENTS:
+1. SUBJECT: ${conceptsDescription}
+2. COLOR MOOD: Apply ONLY the color palette from the reference
+3. VISUAL STYLE: ${theme.style}
+4. BACKGROUND: Dark gradient (navy to black)
 
-STRICT RULES:
-- The image MUST represent the article topic through ABSTRACT VISUALS ONLY
-- NO phones, laptops, generic devices, or unrelated objects
-- NO abstract waves, flowing particles, or sine wave patterns
-- Use geometric shapes, glowing nodes, colorful blocks, 3D elements
-- Professional editorial magazine quality, 16:9 landscape
+⚠️ CRITICAL - COPYRIGHT SAFE GENERATION:
+- Create 100% ORIGINAL abstract/geometric artwork
+- DO NOT copy, trace, or transform any objects from the reference
+- The reference is ONLY for color inspiration - IGNORE its content entirely
+- Generate completely different visual elements and composition
+- Use abstract shapes, glowing nodes, geometric patterns, 3D forms
+- NO realistic objects (phones, laptops, people, buildings)
+- NO text, letters, numbers, labels, watermarks, logos, or code
 
-CRITICAL - ABSOLUTELY NO TEXT: The image must contain ZERO text, letters, words, numbers, symbols, labels, captions, watermarks, logos, brand names, code, syntax, or any readable characters. This is the most important rule.`;
+The output image must be legally distinct from the reference - sharing only color mood, not any visual elements.
 
-  console.log(`[Thumbnail] Fusion prompt (concepts: ${articleConcepts.join(", ")})`);
+OUTPUT: A single new 16:9 thumbnail that applies the reference's color palette to entirely original abstract tech visuals.`;
+
+  console.log(
+    `[Thumbnail] Style transfer prompt for: "${title.slice(0, 50)}..." (theme: ${themeKey})`
+  );
   return prompt;
 }
 
 /**
- * Generate thumbnail using OG image as visual reference (OG+AI Fusion)
- * Uses Gemini Vision to analyze OG image, then generates new unique image
+ * Generate thumbnail using OG image as style reference (Single Model Approach)
+ * Uses Gemini Flash Image to analyze OG style AND generate new image in one call
+ *
+ * Benefits:
+ * - Single API call (cost efficient)
+ * - Consistent style interpretation (same model analyzes and generates)
+ * - No separate Vision API dependency
  */
 export async function generateThumbnailWithOgReference(
   request: ThumbnailRequest & { og_image_url: string }
@@ -765,53 +742,77 @@ export async function generateThumbnailWithOgReference(
     };
   }
 
-  console.log(`[Thumbnail] Generating OG+AI fusion for: "${request.title.slice(0, 50)}..."`);
+  console.log(`[Thumbnail] Generating OG style-transfer for: "${request.title.slice(0, 50)}..."`);
 
-  // Step 1: Analyze OG image
-  const ogAnalysis = await analyzeOgImage(request.og_image_url, apiKey);
-  if (!ogAnalysis) {
-    console.log("[Thumbnail] OG analysis failed, falling back to standard generation");
-    return generateThumbnail(request);
+  // Step 1: Fetch OG image as base64
+  const ogImageData = await fetchOgImageAsBase64(request.og_image_url);
+  if (!ogImageData) {
+    console.log("[Thumbnail] OG image fetch failed, falling back to standard generation");
+    return generateThumbnailWithGeminiFlash(request);
   }
 
-  // Step 2: Generate fusion prompt
-  const fusionPrompt = generateFusionPrompt(
+  // Step 2: Generate style transfer prompt
+  const stylePrompt = generateStyleTransferPrompt(
     request.title,
-    ogAnalysis,
     request.summary,
     request.article_type
   );
 
   try {
-    // Step 3: Generate image with Imagen 4
+    // Step 3: Single call to Gemini Flash Image with OG image input
     const ai = new GoogleGenAI({ apiKey });
 
-    const response = await ai.models.generateImages({
-      model: IMAGEN_MODEL,
-      prompt: fusionPrompt,
+    console.log(`[Thumbnail] Using model: ${GEMINI_FLASH_IMAGE_MODEL} (with OG reference)`);
+
+    const response = await ai.models.generateContent({
+      model: GEMINI_FLASH_IMAGE_MODEL,
+      contents: [
+        {
+          role: "user",
+          parts: [
+            {
+              inlineData: {
+                mimeType: ogImageData.mimeType,
+                data: ogImageData.data,
+              },
+            },
+            {
+              text: stylePrompt,
+            },
+          ],
+        },
+      ],
       config: {
-        numberOfImages: 1,
-        aspectRatio: "16:9",
+        responseModalities: ["IMAGE", "TEXT"],
       },
     });
 
-    const generatedImages = response.generatedImages;
-    if (!generatedImages || generatedImages.length === 0) {
-      console.error("[Thumbnail] No images generated from fusion prompt");
-      return generateThumbnail(request); // Fallback to standard generation
+    // Extract generated image from response
+    const candidate = response.candidates?.[0];
+    if (!candidate?.content?.parts) {
+      console.error("[Thumbnail] No content in style-transfer response");
+      return generateThumbnailWithGeminiFlash(request);
     }
 
-    const imageBytes = generatedImages[0]?.image?.imageBytes;
-    if (!imageBytes) {
-      console.error("[Thumbnail] No image bytes in fusion response");
-      return generateThumbnail(request);
+    // Find image part in response
+    const imagePart = candidate.content.parts.find(
+      (part: { inlineData?: { mimeType?: string; data?: string } }) =>
+        part.inlineData?.mimeType?.startsWith("image/")
+    );
+
+    if (!imagePart?.inlineData?.data) {
+      console.error("[Thumbnail] No image generated from style-transfer");
+      return generateThumbnailWithGeminiFlash(request);
     }
 
     // Upload to Supabase Storage
-    const { url, error: uploadError } = await uploadToStorage(imageBytes, request.content_id);
+    const { url, error: uploadError } = await uploadToStorage(
+      imagePart.inlineData.data,
+      `style-${request.content_id}`
+    );
 
     if (uploadError || !url) {
-      console.error("[Thumbnail] Failed to upload fusion image:", uploadError);
+      console.error("[Thumbnail] Failed to upload style-transfer image:", uploadError);
       return {
         success: false,
         thumbnail_url: DEFAULT_PLACEHOLDER,
@@ -820,32 +821,32 @@ export async function generateThumbnailWithOgReference(
       };
     }
 
-    console.log(`[Thumbnail] OG+AI fusion generated successfully: ${url}`);
+    console.log(`[Thumbnail] OG style-transfer generated successfully: ${url}`);
 
-    // Log AI usage: Vision API for OG analysis + Imagen for generation
-    const totalCost = IMAGE_GENERATION_COSTS[VISION_MODEL] + IMAGE_GENERATION_COSTS[IMAGEN_MODEL];
+    // Log AI usage - single model call
     await logAIUsage({
-      model: IMAGEN_MODEL,
-      operation: "thumbnail_og_fusion",
-      costUsd: totalCost,
+      model: GEMINI_FLASH_IMAGE_MODEL,
+      operation: "thumbnail_style_transfer",
+      costUsd: IMAGE_GENERATION_COSTS[GEMINI_FLASH_IMAGE_MODEL],
       metadata: {
         content_id: request.content_id,
         title: request.title.slice(0, 100),
         og_image_url: request.og_image_url,
-        vision_model: VISION_MODEL,
+        method: "single_model_style_transfer",
       },
     });
 
     return {
       success: true,
       thumbnail_url: url,
-      source: "imagen",
-      cost_usd: totalCost,
+      source: "gemini_flash",
+      model: GEMINI_FLASH_IMAGE_MODEL,
+      cost_usd: IMAGE_GENERATION_COSTS[GEMINI_FLASH_IMAGE_MODEL],
     };
   } catch (error) {
-    console.error("[Thumbnail] Fusion generation error:", error);
+    console.error("[Thumbnail] Style-transfer generation error:", error);
     // Fallback to standard generation on error
-    return generateThumbnail(request);
+    return generateThumbnailWithGeminiFlash(request);
   }
 }
 
@@ -954,9 +955,14 @@ export async function updateContentThumbnail(
 
 /**
  * Get thumbnail with fallback strategy
- * Priority: 1. AI Generation -> 2. OG Image (fallback) -> 3. Default placeholder
+ * Priority:
+ *   1. OG Style Transfer (if OG image available) - uses OG colors/mood for new abstract image
+ *   2. Standard AI Generation (if no OG image)
+ *   3. OG Image (fallback if AI fails)
+ *   4. Default placeholder
  *
  * @param model - "imagen" for Imagen 4, "gemini_flash" for Gemini Flash Image (default)
+ * @param useStyleTransfer - if true, attempts OG style transfer first (default: true)
  *
  * Note: AI-generated thumbnails are preferred because OG images are excluded
  * from display in NewsCard for visual consistency.
@@ -968,7 +974,8 @@ export async function getThumbnailWithFallback(
   summary?: string,
   skipAiGeneration = false,
   articleType?: ArticleType,
-  model: "imagen" | "gemini_flash" = "gemini_flash"
+  model: "imagen" | "gemini_flash" = "gemini_flash",
+  useStyleTransfer = true
 ): Promise<ThumbnailResult> {
   // Skip AI generation if requested (for cost savings)
   if (skipAiGeneration) {
@@ -996,6 +1003,40 @@ export async function getThumbnailWithFallback(
   let aiResult: ThumbnailResult;
   let thumbnailSource: ThumbnailResult["source"];
 
+  // Try OG Style Transfer first (if enabled and using gemini_flash)
+  if (useStyleTransfer && model === "gemini_flash") {
+    // First, check if OG image is available
+    const ogResult = await fetchOgImage(sourceUrl);
+    if (ogResult.success && ogResult.thumbnail_url) {
+      console.log(`[Thumbnail] Attempting OG style transfer for: "${title.slice(0, 50)}..."`);
+      aiResult = await generateThumbnailWithOgReference({
+        ...request,
+        og_image_url: ogResult.thumbnail_url,
+      });
+      thumbnailSource = "gemini_flash";
+
+      if (
+        aiResult.success &&
+        aiResult.thumbnail_url &&
+        aiResult.thumbnail_url !== DEFAULT_PLACEHOLDER
+      ) {
+        const updated = await updateContentThumbnail(
+          contentId,
+          aiResult.thumbnail_url,
+          thumbnailSource
+        );
+        if (!updated) {
+          console.warn(
+            `[Thumbnail] Failed to update DB for style-transfer thumbnail: ${contentId}`
+          );
+        }
+        return aiResult;
+      }
+      console.log(`[Thumbnail] Style transfer failed, falling back to standard generation`);
+    }
+  }
+
+  // Standard AI generation (no OG reference)
   if (model === "imagen") {
     // Use Imagen 4 model
     console.log(`[Thumbnail] Using Imagen 4 for: "${title.slice(0, 50)}..."`);

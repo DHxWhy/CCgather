@@ -51,15 +51,18 @@ export async function POST(request: NextRequest) {
     delayMs = 30000,
     autoPublish: shouldAutoPublish = true,
     thumbnailModel: requestedModel = "gemini_flash",
+    useStyleTransfer: shouldUseStyleTransfer = true,
   } = body as {
     urls: Array<{ url: string; category: TargetCategory }>;
     delayMs?: number;
     autoPublish?: boolean;
     thumbnailModel?: "imagen" | "gemini_flash";
+    useStyleTransfer?: boolean; // Use OG image colors/mood for generation
   };
   // Capture in local const for closure
   const autoPublish = shouldAutoPublish;
   const thumbnailModel = requestedModel;
+  const useStyleTransfer = shouldUseStyleTransfer;
 
   if (!urls || !Array.isArray(urls) || urls.length === 0) {
     return new Response(JSON.stringify({ error: "URLs array is required" }), {
@@ -210,7 +213,8 @@ export async function POST(request: NextRequest) {
             insertedContent.summary_md,
             false, // Don't skip AI generation
             extractedFacts?.classification?.primary, // articleType for theme selection
-            thumbnailModel // User-selected model (imagen or gemini_flash)
+            thumbnailModel, // User-selected model (imagen or gemini_flash)
+            useStyleTransfer // Use OG image colors/mood for generation
           );
 
           // Log AI usage for thumbnail if generated

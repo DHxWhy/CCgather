@@ -17,7 +17,15 @@ export async function POST(request: NextRequest) {
     const supabase = createServiceClient();
 
     const body = await request.json();
-    const { content_id, title, summary, force_regenerate, og_image_url, model = "imagen" } = body;
+    const {
+      content_id,
+      title,
+      summary,
+      force_regenerate,
+      og_image_url,
+      model = "imagen",
+      useStyleTransfer = true,
+    } = body;
 
     if (!content_id || !title) {
       return NextResponse.json({ error: "content_id and title are required" }, { status: 400 });
@@ -85,7 +93,12 @@ export async function POST(request: NextRequest) {
     // Single model generation
     let result;
     if ((model as ModelType) === "gemini_flash") {
-      result = await generateThumbnailWithGeminiFlash(requestParams);
+      // For gemini_flash, use style transfer if OG image available and enabled
+      if (og_image_url && useStyleTransfer) {
+        result = await generateThumbnailWithOgReference({ ...requestParams, og_image_url });
+      } else {
+        result = await generateThumbnailWithGeminiFlash(requestParams);
+      }
     } else if (og_image_url) {
       result = await generateThumbnailWithOgReference({ ...requestParams, og_image_url });
     } else {

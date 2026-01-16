@@ -241,26 +241,65 @@ export default function SettingsUsagePage() {
   return (
     <div className="p-4 sm:p-6 space-y-4">
       {/* Header */}
-      <div className="flex items-center justify-between gap-2 mb-3">
-        <h2 className="text-sm font-medium text-[var(--color-text-secondary)]">Heatmap</h2>
-        {userStats && (
-          <div className="flex items-center gap-2 min-w-0">
-            {userStats.avatar_url ? (
-              <img
-                src={userStats.avatar_url}
-                alt={userStats.username}
-                className="w-6 h-6 rounded-full object-cover flex-shrink-0"
+      <div className="flex items-start justify-between gap-2">
+        <h2 className="text-sm font-medium text-[var(--color-text-secondary)] pt-1">Heatmap</h2>
+        <div className="flex flex-col items-end gap-1.5">
+          {userStats && (
+            <div className="flex items-center gap-2 min-w-0">
+              {userStats.avatar_url ? (
+                <img
+                  src={userStats.avatar_url}
+                  alt={userStats.username}
+                  className="w-6 h-6 rounded-full object-cover flex-shrink-0"
+                />
+              ) : (
+                <div className="w-6 h-6 rounded-full bg-gradient-to-br from-orange-500 to-amber-500 flex items-center justify-center text-xs font-semibold text-white flex-shrink-0">
+                  {userStats.username.charAt(0).toUpperCase()}
+                </div>
+              )}
+              <span className="text-sm font-medium text-text-primary truncate">
+                {userStats.display_name || userStats.username}
+              </span>
+            </div>
+          )}
+          {/* Period Filter - moved here */}
+          <div className="relative" ref={dropdownRef}>
+            <button
+              onClick={() => setIsPeriodDropdownOpen(!isPeriodDropdownOpen)}
+              className="flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg bg-white/5 border border-white/10 text-[11px] sm:text-xs text-zinc-300 hover:bg-white/10 transition-colors"
+            >
+              <span>{PERIOD_OPTIONS.find((o) => o.value === periodFilter)?.label}</span>
+              <ChevronDown
+                className={cn(
+                  "w-3 sm:w-3.5 h-3 sm:h-3.5 transition-transform",
+                  isPeriodDropdownOpen && "rotate-180"
+                )}
               />
-            ) : (
-              <div className="w-6 h-6 rounded-full bg-gradient-to-br from-orange-500 to-amber-500 flex items-center justify-center text-xs font-semibold text-white flex-shrink-0">
-                {userStats.username.charAt(0).toUpperCase()}
+            </button>
+
+            {isPeriodDropdownOpen && (
+              <div className="absolute right-0 top-full mt-1 z-30 bg-[#18181b] border border-white/10 rounded-lg shadow-xl overflow-hidden">
+                {PERIOD_OPTIONS.map((option) => (
+                  <button
+                    key={option.value}
+                    onClick={() => {
+                      setPeriodFilter(option.value);
+                      setIsPeriodDropdownOpen(false);
+                    }}
+                    className={cn(
+                      "w-full px-3 sm:px-4 py-1.5 sm:py-2 text-[11px] sm:text-xs text-left hover:bg-white/10 transition-colors",
+                      periodFilter === option.value
+                        ? "text-orange-400 bg-orange-400/10"
+                        : "text-zinc-300"
+                    )}
+                  >
+                    {option.label}
+                  </button>
+                ))}
               </div>
             )}
-            <span className="text-sm font-medium text-text-primary truncate">
-              {userStats.display_name || userStats.username}
-            </span>
           </div>
-        )}
+        </div>
       </div>
 
       {/* Stats Pills */}
@@ -309,46 +348,6 @@ export default function SettingsUsagePage() {
         </div>
       ) : (
         <>
-          {/* Period Filter */}
-          <div className="flex items-center justify-end">
-            <div className="relative" ref={dropdownRef}>
-              <button
-                onClick={() => setIsPeriodDropdownOpen(!isPeriodDropdownOpen)}
-                className="flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg bg-white/5 border border-white/10 text-[11px] sm:text-xs text-zinc-300 hover:bg-white/10 transition-colors"
-              >
-                <span>{PERIOD_OPTIONS.find((o) => o.value === periodFilter)?.label}</span>
-                <ChevronDown
-                  className={cn(
-                    "w-3 sm:w-3.5 h-3 sm:h-3.5 transition-transform",
-                    isPeriodDropdownOpen && "rotate-180"
-                  )}
-                />
-              </button>
-
-              {isPeriodDropdownOpen && (
-                <div className="absolute right-0 top-full mt-1 z-30 bg-[#18181b] border border-white/10 rounded-lg shadow-xl overflow-hidden">
-                  {PERIOD_OPTIONS.map((option) => (
-                    <button
-                      key={option.value}
-                      onClick={() => {
-                        setPeriodFilter(option.value);
-                        setIsPeriodDropdownOpen(false);
-                      }}
-                      className={cn(
-                        "w-full px-3 sm:px-4 py-1.5 sm:py-2 text-[11px] sm:text-xs text-left hover:bg-white/10 transition-colors",
-                        periodFilter === option.value
-                          ? "text-orange-400 bg-orange-400/10"
-                          : "text-zinc-300"
-                      )}
-                    >
-                      {option.label}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-
           {/* Heatmap Table */}
           <div className="relative">
             {/* Mobile scroll hint */}

@@ -22,10 +22,12 @@ export async function POST(request: NextRequest) {
       contentIds,
       thumbnailModel = "gemini_flash",
       onlyOgImages = true, // Only regenerate contents with OG images
+      useStyleTransfer = true, // Use OG image colors/mood for generation
     } = body as {
       contentIds?: string[];
       thumbnailModel?: "imagen" | "gemini_flash";
       onlyOgImages?: boolean;
+      useStyleTransfer?: boolean; // Use OG image colors/mood for generation
     };
 
     const supabase = createServiceClient();
@@ -90,7 +92,8 @@ export async function POST(request: NextRequest) {
           content.summary_md,
           false, // skipAiGeneration
           content.ai_article_type,
-          thumbnailModel
+          thumbnailModel,
+          useStyleTransfer // Use OG image colors/mood for generation
         );
 
         if (thumbnailResult.success) {

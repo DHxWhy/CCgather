@@ -545,8 +545,8 @@ export default function SettingsProfilePage() {
         </section>
       )}
 
-      {/* Danger Zone */}
-      <section className="pt-6 border-t border-[var(--border-default)]">
+      {/* Danger Zone - intentionally pushed down to require scrolling */}
+      <section className="mt-16 pt-6 border-t border-[var(--border-default)]">
         <h2 className="text-sm font-medium text-red-400/80 mb-3">Danger Zone</h2>
         <div className="p-4 rounded-xl bg-red-500/5 border border-red-500/20">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">

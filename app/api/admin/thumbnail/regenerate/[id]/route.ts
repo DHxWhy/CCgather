@@ -19,8 +19,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
     const { id } = await params;
     const body = await request.json();
-    const { thumbnailModel = "gemini_flash" } = body as {
+    const { thumbnailModel = "gemini_flash", useStyleTransfer = true } = body as {
       thumbnailModel?: "imagen" | "gemini_flash";
+      useStyleTransfer?: boolean; // Use OG image colors/mood for generation
     };
 
     const supabase = createServiceClient();
@@ -36,7 +37,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       return NextResponse.json({ error: "Content not found" }, { status: 404 });
     }
 
-    console.log(`[Thumbnail Regenerate] Processing: ${content.id} (model: ${thumbnailModel})`);
+    console.log(
+      `[Thumbnail Regenerate] Processing: ${content.id} (model: ${thumbnailModel}, styleTransfer: ${useStyleTransfer})`
+    );
 
     const thumbnailResult = await getThumbnailWithFallback(
       content.id,
@@ -45,7 +48,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       content.summary_md,
       false, // skipAiGeneration
       content.ai_article_type,
-      thumbnailModel
+      thumbnailModel,
+      useStyleTransfer // Use OG image colors/mood for generation
     );
 
     if (!thumbnailResult.success) {

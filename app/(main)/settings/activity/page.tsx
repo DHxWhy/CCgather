@@ -10,11 +10,16 @@ interface HistoryEntry {
   cost: number;
 }
 
-interface MonthGroup {
-  month: string; // "2026-01"
+interface YearGroup {
+  year: string; // "2026"
   entries: HistoryEntry[];
   totalTokens: number;
   totalCost: number;
+}
+
+function getDayOfWeek(dateStr: string): number {
+  // Returns 0 (Sunday) to 6 (Saturday)
+  return new Date(dateStr).getDay();
 }
 
 export default function SettingsActivityPage() {
@@ -50,16 +55,16 @@ export default function SettingsActivityPage() {
     return num.toString();
   };
 
-  // Group history by month
-  const monthGroups = useMemo(() => {
-    const groups: Map<string, MonthGroup> = new Map();
+  // Group history by year
+  const yearGroups = useMemo(() => {
+    const groups: Map<string, YearGroup> = new Map();
 
     history.forEach((entry) => {
-      const month = entry.date.substring(0, 7); // "2026-01"
-      if (!groups.has(month)) {
-        groups.set(month, { month, entries: [], totalTokens: 0, totalCost: 0 });
+      const year = entry.date.substring(0, 4); // "2026"
+      if (!groups.has(year)) {
+        groups.set(year, { year, entries: [], totalTokens: 0, totalCost: 0 });
       }
-      const group = groups.get(month)!;
+      const group = groups.get(year)!;
       group.entries.push(entry);
       group.totalTokens += entry.tokens;
       group.totalCost += entry.cost;
@@ -70,8 +75,8 @@ export default function SettingsActivityPage() {
       group.entries.sort((a, b) => b.date.localeCompare(a.date));
     });
 
-    // Return groups sorted by month descending
-    return Array.from(groups.values()).sort((a, b) => b.month.localeCompare(a.month));
+    // Return groups sorted by year descending
+    return Array.from(groups.values()).sort((a, b) => b.year.localeCompare(a.year));
   }, [history]);
 
   // Calculate totals
@@ -142,12 +147,12 @@ export default function SettingsActivityPage() {
         </div>
       ) : (
         <div className="space-y-4">
-          {monthGroups.map((group) => (
-            <div key={group.month}>
-              {/* Month Header */}
+          {yearGroups.map((group) => (
+            <div key={group.year}>
+              {/* Year Header */}
               <div className="flex items-center justify-between mb-2 px-1">
                 <span className="text-xs font-semibold text-[var(--color-text-secondary)]">
-                  {group.month}
+                  {group.year}
                 </span>
                 <div className="flex items-center gap-3 text-[10px] text-[var(--color-text-muted)]">
                   <span>
@@ -164,7 +169,11 @@ export default function SettingsActivityPage() {
               {/* Day Entries */}
               <div className="rounded-lg bg-[var(--color-bg-tertiary)] border border-[var(--border-default)] overflow-hidden">
                 {group.entries.map((entry, idx) => {
-                  const day = entry.date.substring(8); // "15"
+                  const monthDay = entry.date.substring(5); // "01-15"
+                  const dayOfWeek = getDayOfWeek(entry.date);
+                  const isSaturday = dayOfWeek === 6;
+                  const isSunday = dayOfWeek === 0;
+
                   return (
                     <div
                       key={entry.date}
@@ -174,10 +183,18 @@ export default function SettingsActivityPage() {
                           : ""
                       }`}
                     >
-                      <span className="text-xs font-medium text-[var(--color-text-primary)] w-6">
-                        {day}
+                      <span
+                        className={`text-xs font-light w-12 tabular-nums ${
+                          isSunday
+                            ? "text-red-400/70"
+                            : isSaturday
+                              ? "text-blue-400/70"
+                              : "text-[var(--color-text-muted)]"
+                        }`}
+                      >
+                        {monthDay}
                       </span>
-                      <div className="flex items-center gap-4 text-right">
+                      <div className="flex items-center gap-4 text-right tabular-nums">
                         <span className="text-xs font-medium text-[var(--color-cost)] min-w-[70px]">
                           ${entry.cost.toFixed(2)}
                         </span>
