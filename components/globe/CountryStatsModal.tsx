@@ -8,6 +8,31 @@ import { FlagIcon } from "@/components/ui/FlagIcon";
 import { GlobeParticles } from "@/components/ui/globe-particles";
 import { formatNumber, formatCost } from "@/lib/utils/format";
 
+// Hook for responsive globe size
+function useResponsiveGlobeSize() {
+  const [globeSize, setGlobeSize] = useState(350);
+
+  useEffect(() => {
+    const calculateSize = () => {
+      const width = window.innerWidth;
+      if (width >= 1024) return 350; // lg+
+      if (width >= 768) return 280; // md to lg
+      return 180; // mobile
+    };
+
+    setGlobeSize(calculateSize());
+
+    const handleResize = () => {
+      setGlobeSize(calculateSize());
+    };
+
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
+
+  return globeSize;
+}
+
 // Animated number component with rolling count effect
 function AnimatedNumber({
   value,
@@ -82,6 +107,7 @@ export function CountryStatsModal({
   userCountryCode,
 }: CountryStatsModalProps) {
   const [sortBy, setSortBy] = useState<"tokens" | "cost">("tokens");
+  const globeSize = useResponsiveGlobeSize();
 
   // ESC key handler
   const handleKeyDown = useCallback(
@@ -228,37 +254,12 @@ export function CountryStatsModal({
                 <div className="flex flex-col lg:flex-row gap-4 lg:gap-6 items-center lg:items-end">
                   {/* Left: Globe + Stats below */}
                   <div className="flex-shrink-0 flex flex-col items-center lg:pl-[22px]">
-                    {/* PC Globe with particles - lg+ */}
-                    <div className="relative hidden lg:block" style={{ width: 350, height: 350 }}>
-                      <GlobeParticles size={350} />
+                    {/* Single responsive Globe with particles */}
+                    <div className="relative" style={{ width: globeSize, height: globeSize }}>
+                      <GlobeParticles size={globeSize} />
                       <Globe
                         markers={stats}
-                        size={350}
-                        className="mx-auto"
-                        userCountryCode={userCountryCode}
-                        forceDark={true}
-                      />
-                    </div>
-                    {/* Tablet Globe with particles - md to lg */}
-                    <div
-                      className="relative hidden md:block lg:hidden"
-                      style={{ width: 280, height: 280 }}
-                    >
-                      <GlobeParticles size={280} />
-                      <Globe
-                        markers={stats}
-                        size={280}
-                        className="mx-auto"
-                        userCountryCode={userCountryCode}
-                        forceDark={true}
-                      />
-                    </div>
-                    {/* Mobile Globe with particles - below md */}
-                    <div className="relative md:hidden" style={{ width: 180, height: 180 }}>
-                      <GlobeParticles size={180} />
-                      <Globe
-                        markers={stats}
-                        size={180}
+                        size={globeSize}
                         className="mx-auto"
                         userCountryCode={userCountryCode}
                         forceDark={true}

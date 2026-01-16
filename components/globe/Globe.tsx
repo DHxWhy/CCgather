@@ -397,22 +397,26 @@ export function Globe({
           glowColor: [0.9, 0.85, 0.8] as [number, number, number],
         };
 
+    // Optimize rendering based on device capability
+    const dpr = Math.min(window.devicePixelRatio || 1, 1.5); // Cap at 1.5 for performance
+    const mapSamples = size >= 300 ? 8000 : 6000; // Reduce samples for smaller globes
+
     const globe = createGlobe(canvasRef.current!, {
-      devicePixelRatio: 2,
-      width: size * 2,
-      height: size * 2,
+      devicePixelRatio: dpr,
+      width: size * dpr,
+      height: size * dpr,
       phi: 0,
       theta: theta,
       ...globeConfig,
-      mapSamples: 10000,
+      mapSamples,
       markers: globeMarkers,
       onRender: (state) => {
         if (!pointerInteracting.current) {
           phi += 0.00128; // 20% slower than 0.0016
         }
         state.phi = phi + rotationRef.current;
-        state.width = size * 2;
-        state.height = size * 2;
+        state.width = size * dpr;
+        state.height = size * dpr;
 
         // Update user's country dot position
         updateUserDot(state.phi, theta);
