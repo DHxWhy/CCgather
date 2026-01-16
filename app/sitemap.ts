@@ -1,5 +1,6 @@
 import { MetadataRoute } from "next";
 import { createServiceClient } from "@/lib/supabase/server";
+import { ALL_COUNTRIES } from "@/lib/constants/countries";
 
 const BASE_URL = process.env.NEXT_PUBLIC_APP_URL ?? "https://ccgather.com";
 
@@ -41,28 +42,10 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   ];
 
   // ===========================================
-  // Dynamic Country League Pages
+  // Dynamic Country League Pages (All Countries)
   // ===========================================
-  const countries = [
-    "US",
-    "KR",
-    "JP",
-    "DE",
-    "GB",
-    "FR",
-    "CA",
-    "AU",
-    "IN",
-    "BR",
-    "CN",
-    "NL",
-    "SE",
-    "SG",
-    "ES",
-  ];
-
-  const countryPages: MetadataRoute.Sitemap = countries.map((country) => ({
-    url: `${BASE_URL}/league/${country}`,
+  const countryPages: MetadataRoute.Sitemap = ALL_COUNTRIES.map((country) => ({
+    url: `${BASE_URL}/league/${country.code}`,
     lastModified: new Date(),
     changeFrequency: "daily" as const,
     priority: 0.7,
