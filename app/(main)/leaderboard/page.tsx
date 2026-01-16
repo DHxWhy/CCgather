@@ -842,9 +842,11 @@ export default function LeaderboardPage() {
                               <span className={`text-[var(--color-cost)] font-mono ${valueSize}`}>
                                 <span className="md:hidden">
                                   $
-                                  {periodCost >= 1000
-                                    ? `${(periodCost / 1000).toFixed(1)}k`
-                                    : periodCost.toFixed(0)}
+                                  {periodCost >= 1_000_000
+                                    ? `${(periodCost / 1_000_000).toFixed(1)}M`
+                                    : periodCost >= 1000
+                                      ? `${(periodCost / 1000).toFixed(1)}k`
+                                      : periodCost.toFixed(0)}
                                 </span>
                                 <span className="hidden md:inline">
                                   $
