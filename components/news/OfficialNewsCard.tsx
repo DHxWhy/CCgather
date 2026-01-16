@@ -11,7 +11,6 @@ interface OfficialNewsCardProps {
 
 export default function OfficialNewsCard({ article }: OfficialNewsCardProps) {
   const [imageError, setImageError] = useState(false);
-  const [faviconError, setFaviconError] = useState(false);
 
   const richContent = article.rich_content;
   const hasRichContent = !!richContent;
@@ -78,7 +77,7 @@ export default function OfficialNewsCard({ article }: OfficialNewsCardProps) {
           {/* Source & Date & Meta */}
           <div className="flex items-center gap-2 mb-1.5 text-[10px] text-text-muted flex-wrap">
             <span className="flex items-center gap-1 text-orange-400">
-              {favicon && !faviconError && (
+              {favicon && (
                 <Image
                   src={favicon}
                   alt=""
@@ -86,7 +85,6 @@ export default function OfficialNewsCard({ article }: OfficialNewsCardProps) {
                   height={12}
                   className="rounded-sm"
                   sizes="12px"
-                  onError={() => setFaviconError(true)}
                 />
               )}
               {article.source_name || "Anthropic"}
