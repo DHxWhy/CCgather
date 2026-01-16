@@ -114,10 +114,19 @@ function UsageChart({
         tokens: day.tokens,
       }));
 
+  // Don't render chart if no data to prevent dimension calculation errors
+  if (chartData.length === 0) {
+    return (
+      <div className="h-32 flex items-center justify-center text-[var(--color-text-muted)] text-xs">
+        No data for this period
+      </div>
+    );
+  }
+
   return (
     <div>
       <div className="h-32">
-        <ResponsiveContainer width="100%" height="100%">
+        <ResponsiveContainer width="100%" height="100%" minHeight={128}>
           <LineChart data={chartData} margin={{ top: 5, right: 20, left: 0, bottom: 0 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="var(--border-default)" vertical={false} />
             <XAxis

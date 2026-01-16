@@ -164,6 +164,7 @@ export default function LeaderboardPage() {
   const [error, setError] = useState<string | null>(null);
   const [total, setTotal] = useState(0);
   const [currentUserCountry, setCurrentUserCountry] = useState<string>("KR");
+  const [currentUsername, setCurrentUsername] = useState<string | null>(null);
   const [userInfoLoaded, setUserInfoLoaded] = useState(false);
 
   // Fetch leaderboard data
@@ -213,7 +214,7 @@ export default function LeaderboardPage() {
             rank,
             periodTokens: user.period_tokens ?? user.total_tokens,
             periodCost: user.period_cost ?? user.total_cost,
-            isCurrentUser: clerkUser?.id === user.id,
+            isCurrentUser: currentUsername?.toLowerCase() === user.username?.toLowerCase(),
           };
         }
       );
@@ -240,11 +241,11 @@ export default function LeaderboardPage() {
     sortBy,
     ccplanFilter,
     currentUserCountry,
+    currentUsername,
     clerkUser?.id,
   ]);
 
   // Fetch current user's country and username
-  const [currentUsername, setCurrentUsername] = useState<string | null>(null);
   useEffect(() => {
     async function fetchUserInfo() {
       if (!clerkUser?.id) return;

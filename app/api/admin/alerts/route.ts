@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { auth } from "@clerk/nextjs/server";
 import { createClient } from "@supabase/supabase-js";
+import { checkAdminAccess } from "@/lib/admin";
 
 function getSupabaseAdmin() {
   return createClient(
@@ -9,22 +9,10 @@ function getSupabaseAdmin() {
   );
 }
 
-async function isAdmin(userId: string): Promise<boolean> {
-  const supabase = getSupabaseAdmin();
-  const { data } = await supabase.from("users").select("is_admin").eq("clerk_id", userId).single();
-  return data?.is_admin === true;
-}
-
 export async function GET() {
   try {
-    const { userId } = await auth();
-    if (!userId) {
+    if (!(await checkAdminAccess())) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    const admin = await isAdmin(userId);
-    if (!admin) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
     const supabase = getSupabaseAdmin();
