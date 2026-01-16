@@ -3,6 +3,9 @@ import { auth } from "@clerk/nextjs/server";
 import { createServiceClient } from "@/lib/supabase/server";
 import { getThumbnailWithFallback } from "@/lib/gemini/thumbnail-generator";
 
+// 배치 크기 제한 - Vercel 타임아웃 방지 (10개 × 4초 = 40초)
+const BATCH_SIZE = 10;
+
 async function isAdmin() {
   const { userId } = await auth();
   if (!userId) return false;
@@ -10,7 +13,7 @@ async function isAdmin() {
   return true;
 }
 
-// POST - Regenerate thumbnails for contents with OG images
+// POST - Regenerate thumbnails for contents with OG images (배치 처리)
 export async function POST(request: NextRequest) {
   try {
     if (!(await isAdmin())) {
@@ -21,13 +24,15 @@ export async function POST(request: NextRequest) {
     const {
       contentIds,
       thumbnailModel = "gemini_flash",
-      onlyOgImages = true, // Only regenerate contents with OG images
-      useStyleTransfer = true, // Use OG image colors/mood for generation
+      onlyOgImages = true,
+      useStyleTransfer = true,
+      batchIndex = 0, // 배치 인덱스 (0부터 시작)
     } = body as {
       contentIds?: string[];
       thumbnailModel?: "imagen" | "gemini_flash";
       onlyOgImages?: boolean;
-      useStyleTransfer?: boolean; // Use OG image colors/mood for generation
+      useStyleTransfer?: boolean;
+      batchIndex?: number;
     };
 
     const supabase = createServiceClient();
@@ -38,35 +43,56 @@ export async function POST(request: NextRequest) {
       .select(
         "id, source_url, title, summary_md, ai_article_type, thumbnail_source, key_takeaways, one_liner"
       )
-      .eq("type", "news");
+      .eq("type", "news")
+      .order("created_at", { ascending: false }); // 일관된 순서 보장
 
     if (contentIds && contentIds.length > 0) {
       query = query.in("id", contentIds);
     }
 
     if (onlyOgImages) {
-      // Only get contents where thumbnail_source is 'og_image' or null
       query = query.or("thumbnail_source.eq.og_image,thumbnail_source.is.null");
     }
 
-    const { data: contents, error } = await query;
+    const { data: allContents, error } = await query;
 
     if (error) {
       console.error("[Bulk Thumbnail] Query error:", error);
       return NextResponse.json({ error: "Failed to fetch contents" }, { status: 500 });
     }
 
-    if (!contents || contents.length === 0) {
+    if (!allContents || allContents.length === 0) {
       return NextResponse.json({
         success: true,
         message: "No contents to regenerate",
         processed: 0,
+        totalRemaining: 0,
+        batchIndex: 0,
+        hasMore: false,
+        results: [],
+      });
+    }
+
+    // 배치 슬라이싱
+    const totalCount = allContents.length;
+    const startIndex = batchIndex * BATCH_SIZE;
+    const contents = allContents.slice(startIndex, startIndex + BATCH_SIZE);
+    const hasMore = startIndex + BATCH_SIZE < totalCount;
+
+    if (contents.length === 0) {
+      return NextResponse.json({
+        success: true,
+        message: "All batches completed",
+        processed: 0,
+        totalRemaining: 0,
+        batchIndex,
+        hasMore: false,
         results: [],
       });
     }
 
     console.log(
-      `[Bulk Thumbnail] Starting regeneration for ${contents.length} contents (model: ${thumbnailModel})`
+      `[Bulk Thumbnail] Batch ${batchIndex + 1}: Processing ${contents.length}/${totalCount} (model: ${thumbnailModel})`
     );
 
     const results: Array<{
@@ -80,7 +106,7 @@ export async function POST(request: NextRequest) {
     let successCount = 0;
     let failedCount = 0;
 
-    // Process contents one by one to avoid rate limits
+    // Process batch contents
     for (const content of contents) {
       try {
         console.log(
@@ -92,12 +118,11 @@ export async function POST(request: NextRequest) {
           content.source_url,
           content.title,
           content.summary_md,
-          false, // skipAiGeneration
+          false,
           content.ai_article_type,
           thumbnailModel,
-          useStyleTransfer, // Use OG image colors/mood for generation
+          useStyleTransfer,
           {
-            // Rich content for better image planning
             key_takeaways: content.key_takeaways,
             one_liner: content.one_liner,
           }
@@ -112,7 +137,6 @@ export async function POST(request: NextRequest) {
             source: thumbnailResult.source,
           });
 
-          // Log AI usage if cost > 0
           if (thumbnailResult.cost_usd && thumbnailResult.cost_usd > 0) {
             const modelName =
               thumbnailResult.source === "imagen"
@@ -128,6 +152,7 @@ export async function POST(request: NextRequest) {
               metadata: {
                 content_id: content.id,
                 source: thumbnailResult.source,
+                batch_index: batchIndex,
               },
             });
           }
@@ -142,7 +167,7 @@ export async function POST(request: NextRequest) {
         }
 
         // Small delay to avoid rate limits
-        await new Promise((resolve) => setTimeout(resolve, 500));
+        await new Promise((resolve) => setTimeout(resolve, 300));
       } catch (err) {
         failedCount++;
         results.push({
@@ -154,12 +179,21 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    console.log(`[Bulk Thumbnail] Completed. Success: ${successCount}, Failed: ${failedCount}`);
+    const totalRemaining = totalCount - (startIndex + contents.length);
+
+    console.log(
+      `[Bulk Thumbnail] Batch ${batchIndex + 1} completed. Success: ${successCount}, Failed: ${failedCount}, Remaining: ${totalRemaining}`
+    );
 
     return NextResponse.json({
       success: true,
-      message: `Regenerated ${successCount} thumbnails, ${failedCount} failed`,
+      message: `Batch ${batchIndex + 1}: ${successCount} success, ${failedCount} failed`,
       processed: contents.length,
+      totalCount,
+      totalRemaining,
+      batchIndex,
+      nextBatchIndex: hasMore ? batchIndex + 1 : null,
+      hasMore,
       successCount,
       failedCount,
       results,

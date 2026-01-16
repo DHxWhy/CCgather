@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import Image from "next/image";
 import { Sparkles, Check, RefreshCw, Loader2 } from "lucide-react";
 import ThumbnailManager from "@/components/admin/ThumbnailManager";
@@ -154,6 +154,12 @@ export default function AdminContentsPage() {
   const [bulkStats, setBulkStats] = useState<{ ogImages: number; aiGenerated: number } | null>(
     null
   );
+  const [bulkProgress, setBulkProgress] = useState<{
+    current: number;
+    total: number;
+    batchIndex: number;
+  } | null>(null);
+  const bulkAbortedRef = useRef(false);
 
   // Load thumbnail model preference from localStorage
   useEffect(() => {
@@ -219,40 +225,97 @@ export default function AdminContentsPage() {
   };
 
   const handleBulkRegenerate = async () => {
+    const count = bulkStats?.ogImages || 0;
+    const estimatedCost = (count * 0.039).toFixed(2);
+    const estimatedTime = Math.ceil((count * 4) / 60);
+    const batchCount = Math.ceil(count / 10);
+
     if (
       !confirm(
-        `OG 이미지를 사용하는 ${bulkStats?.ogImages || 0}개 콘텐츠의 썸네일을 AI로 재생성합니다.\n\n이 작업은 시간이 걸리고 API 비용이 발생합니다. 계속하시겠습니까?`
+        `OG 이미지를 사용하는 ${count}개 콘텐츠의 썸네일을 AI로 재생성합니다.\n\n` +
+          `📊 예상 비용: $${estimatedCost}\n` +
+          `⏱️ 예상 시간: 약 ${estimatedTime}분\n` +
+          `📦 배치 처리: ${batchCount}개 배치 (10개씩)\n\n` +
+          `계속하시겠습니까?`
       )
     ) {
       return;
     }
 
     setBulkRegenerating(true);
-    try {
-      const response = await fetch("/api/admin/thumbnail/bulk-regenerate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ thumbnailModel, onlyOgImages: true }),
-      });
+    bulkAbortedRef.current = false;
+    setBulkProgress({ current: 0, total: count, batchIndex: 0 });
 
-      if (response.ok) {
+    let totalSuccess = 0;
+    let totalFailed = 0;
+    let batchIndex = 0;
+    let hasMore = true;
+
+    try {
+      while (hasMore && !bulkAbortedRef.current) {
+        const response = await fetch("/api/admin/thumbnail/bulk-regenerate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ thumbnailModel, onlyOgImages: true, batchIndex }),
+        });
+
+        if (!response.ok) {
+          const error = await response.json();
+          showToast({
+            type: "error",
+            title: `배치 ${batchIndex + 1} 실패`,
+            message: error.error || "알 수 없는 오류",
+          });
+          break;
+        }
+
         const data = await response.json();
+        totalSuccess += data.successCount;
+        totalFailed += data.failedCount;
+        hasMore = data.hasMore;
+        batchIndex = data.nextBatchIndex ?? batchIndex + 1;
+
+        // 진행 상태 업데이트
+        const processed = batchIndex * 10;
+        setBulkProgress({
+          current: Math.min(processed, count),
+          total: count,
+          batchIndex: batchIndex,
+        });
+
+        // 중간 토스트 (매 3배치마다)
+        if (batchIndex % 3 === 0 && hasMore) {
+          showToast({
+            type: "info",
+            title: "진행 중...",
+            message: `${Math.min(processed, count)}/${count} 완료`,
+            duration: 2000,
+          });
+        }
+
+        // UI 업데이트를 위한 잠시 대기
+        await new Promise((r) => setTimeout(r, 100));
+      }
+
+      // 완료 토스트
+      if (!bulkAbortedRef.current) {
         showToast({
           type: "success",
           title: "썸네일 재생성 완료",
-          message: `${data.successCount}개 성공, ${data.failedCount}개 실패`,
+          message: `${totalSuccess}개 성공, ${totalFailed}개 실패`,
           duration: 5000,
         });
-        fetchContents();
-        fetchBulkStats();
       } else {
-        const error = await response.json();
         showToast({
-          type: "error",
-          title: "재생성 실패",
-          message: error.error || "알 수 없는 오류",
+          type: "info",
+          title: "재생성 중단됨",
+          message: `${totalSuccess}개 완료 후 중단됨`,
+          duration: 5000,
         });
       }
+
+      fetchContents();
+      fetchBulkStats();
     } catch (error) {
       showToast({
         type: "error",
@@ -261,7 +324,18 @@ export default function AdminContentsPage() {
       });
     } finally {
       setBulkRegenerating(false);
+      setBulkProgress(null);
     }
+  };
+
+  const handleAbortBulkRegenerate = () => {
+    bulkAbortedRef.current = true;
+    showToast({
+      type: "info",
+      title: "중단 요청됨",
+      message: "현재 배치 완료 후 중단됩니다",
+      duration: 3000,
+    });
   };
 
   useEffect(() => {
@@ -483,20 +557,46 @@ export default function AdminContentsPage() {
 
               {/* Bulk Thumbnail Regenerate Button */}
               {activeTab === "news" && bulkStats && bulkStats.ogImages > 0 && (
-                <button
-                  onClick={handleBulkRegenerate}
-                  disabled={bulkRegenerating}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded text-[11px] font-medium transition-colors bg-amber-500/20 text-amber-400 hover:bg-amber-500/30 disabled:opacity-50"
-                  title={`OG 이미지 ${bulkStats.ogImages}개를 AI 썸네일로 재생성`}
-                >
-                  {bulkRegenerating ? (
-                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                <div className="flex items-center gap-2">
+                  {bulkRegenerating && bulkProgress ? (
+                    <>
+                      {/* Progress indicator */}
+                      <div className="flex items-center gap-2 px-3 py-1.5 rounded text-[11px] font-medium bg-amber-500/20 text-amber-400">
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        <span>
+                          {bulkProgress.current}/{bulkProgress.total}
+                        </span>
+                        <div className="w-16 h-1.5 bg-amber-900/50 rounded-full overflow-hidden">
+                          <div
+                            className="h-full bg-amber-400 transition-all duration-300"
+                            style={{
+                              width: `${(bulkProgress.current / bulkProgress.total) * 100}%`,
+                            }}
+                          />
+                        </div>
+                      </div>
+                      {/* Abort button */}
+                      <button
+                        onClick={handleAbortBulkRegenerate}
+                        className="px-2 py-1.5 rounded text-[11px] font-medium bg-red-500/20 text-red-400 hover:bg-red-500/30 transition-colors"
+                        title="현재 배치 완료 후 중단"
+                      >
+                        중단
+                      </button>
+                    </>
                   ) : (
-                    <RefreshCw className="w-3.5 h-3.5" />
+                    <button
+                      onClick={handleBulkRegenerate}
+                      disabled={bulkRegenerating}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded text-[11px] font-medium transition-colors bg-amber-500/20 text-amber-400 hover:bg-amber-500/30 disabled:opacity-50"
+                      title={`OG 이미지 ${bulkStats.ogImages}개를 AI 썸네일로 재생성 (예상: $${(bulkStats.ogImages * 0.039).toFixed(2)})`}
+                    >
+                      <RefreshCw className="w-3.5 h-3.5" />
+                      <span>OG→AI</span>
+                      <span className="text-amber-300">{bulkStats.ogImages}</span>
+                    </button>
                   )}
-                  <span>OG→AI</span>
-                  <span className="text-amber-300">{bulkStats.ogImages}</span>
-                </button>
+                </div>
               )}
             </div>
 
