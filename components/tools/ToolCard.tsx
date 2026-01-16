@@ -96,7 +96,7 @@ function ToolCardComponent({
                 width={48}
                 height={48}
                 className="rounded-lg object-cover"
-                unoptimized
+                sizes="48px"
               />
             ) : (
               <div className="w-12 h-12 rounded-lg bg-[var(--color-bg-elevated)] flex items-center justify-center text-2xl">
@@ -153,7 +153,7 @@ function ToolCardComponent({
                 width={28}
                 height={28}
                 className="rounded-md object-cover flex-shrink-0"
-                unoptimized
+                sizes="28px"
               />
             ) : (
               <div className="w-7 h-7 rounded-md bg-[var(--color-bg-elevated)] flex items-center justify-center text-base flex-shrink-0">
@@ -203,7 +203,7 @@ function ToolCardComponent({
                 width={36}
                 height={36}
                 className="rounded-lg object-cover flex-shrink-0"
-                unoptimized
+                sizes="36px"
               />
             ) : (
               <div className="w-9 h-9 rounded-lg bg-[var(--color-bg-elevated)] flex items-center justify-center text-lg flex-shrink-0">
@@ -270,7 +270,7 @@ function ToolCardComponent({
                 width={40}
                 height={40}
                 className="rounded-lg object-cover flex-shrink-0"
-                unoptimized
+                sizes="40px"
               />
             ) : (
               <div className="w-10 h-10 rounded-lg bg-[var(--color-bg-elevated)] flex items-center justify-center text-xl flex-shrink-0">

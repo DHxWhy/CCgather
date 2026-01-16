@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import Image from "next/image";
 import { ExternalLink, Clock } from "lucide-react";
 import type { ContentItem } from "@/types/automation";
@@ -9,6 +10,9 @@ interface PressNewsCardProps {
 }
 
 export default function PressNewsCard({ article }: PressNewsCardProps) {
+  const [imageError, setImageError] = useState(false);
+  const [faviconError, setFaviconError] = useState(false);
+
   const richContent = article.rich_content;
   const hasRichContent = !!richContent;
 
@@ -46,13 +50,14 @@ export default function PressNewsCard({ article }: PressNewsCardProps) {
       <article className="h-full rounded-lg border border-white/10 bg-white/[0.02] hover:bg-white/[0.05] hover:border-white/20 transition-all overflow-hidden">
         {/* Thumbnail */}
         <div className="relative w-full aspect-video bg-black/20">
-          {article.thumbnail_url ? (
+          {article.thumbnail_url && !imageError ? (
             <Image
               src={article.thumbnail_url}
               alt={title}
               fill
               className="object-cover group-hover:scale-105 transition-transform duration-300"
-              unoptimized
+              sizes="(max-width: 768px) 100vw, 300px"
+              onError={() => setImageError(true)}
             />
           ) : (
             <div
@@ -66,14 +71,15 @@ export default function PressNewsCard({ article }: PressNewsCardProps) {
           )}
           {/* Source Badge with Favicon */}
           <div className="absolute bottom-2 left-2 flex items-center gap-1.5 px-2 py-0.5 rounded bg-black/70 backdrop-blur-sm">
-            {favicon && (
+            {favicon && !faviconError && (
               <Image
                 src={favicon}
                 alt=""
                 width={12}
                 height={12}
                 className="rounded-sm"
-                unoptimized
+                sizes="12px"
+                onError={() => setFaviconError(true)}
               />
             )}
             <span className="text-white text-[10px] font-medium">{article.source_name}</span>

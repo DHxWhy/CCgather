@@ -393,163 +393,165 @@ export default function UsagePage() {
               ref={tableRef}
               className="overflow-x-auto rounded-xl border border-white/10 bg-white/[0.02]"
             >
-              <table className="w-full border-collapse" style={{ minWidth: "1100px" }}>
-                {/* Year Header Row */}
-                <thead>
-                  <tr>
-                    <th className="sticky left-0 z-20 bg-[#0a0a0d] w-10" />
-                    {yearGroups.map((group) => {
-                      const isCurrentYear = group.year === currentYear;
-                      return (
-                        <th
-                          key={group.year}
-                          colSpan={group.count}
-                          className={cn(
-                            "px-2 py-1.5 text-[11px] font-bold text-center border-b border-white/5",
-                            isCurrentYear
-                              ? "text-white bg-orange-400/20"
-                              : "text-zinc-500 bg-white/[0.03]"
-                          )}
-                        >
-                          {group.year}
-                        </th>
-                      );
-                    })}
-                  </tr>
-                  {/* Month Header Row */}
-                  <tr>
-                    <th className="sticky left-0 z-20 bg-[#0a0a0d] px-2 py-2 text-[10px] font-semibold text-zinc-500 text-center border-b border-r border-white/10 w-10">
-                      Day
-                    </th>
-                    {monthRange.map(({ year, month }) => {
-                      const isCurrentMonth =
-                        year === today.getFullYear() && month === today.getMonth();
-                      return (
-                        <th
-                          key={`${year}-${month}`}
-                          className={cn(
-                            "px-1 py-2 text-[10px] font-semibold text-center border-b border-white/10",
-                            isCurrentMonth ? "text-white bg-orange-400/10" : "text-zinc-500"
-                          )}
-                          style={{ minWidth: "90px" }}
-                        >
-                          {MONTHS_SHORT[month]}
-                        </th>
-                      );
-                    })}
-                  </tr>
-                </thead>
-                <tbody>
-                  {/* Days 1-31 */}
-                  {Array.from({ length: 31 }, (_, dayIndex) => {
-                    const day = dayIndex + 1;
-
-                    return (
-                      <tr key={day} className="hover:bg-white/[0.015]">
-                        <td className="sticky left-0 z-10 bg-[#0a0a0d] px-2 py-0.5 text-[10px] font-medium text-zinc-600 text-center border-r border-white/10">
-                          {day}
-                        </td>
-                        {monthRange.map(({ year, month }) => {
-                          const daysInMonth = getDaysInMonth(year, month);
-                          const dateKey = `${year}-${month}-${day}`;
-                          const entry = dataMap.get(dateKey);
-                          const isValidDay = day <= daysInMonth;
-                          const isToday =
-                            year === today.getFullYear() &&
-                            month === today.getMonth() &&
-                            day === today.getDate();
-                          const isFuture = new Date(year, month, day) > today;
-
-                          // Calculate heatmap intensity based on tokens
-                          const intensity = entry
-                            ? getHeatmapIntensity(entry.tokens, maxDailyTokens)
-                            : 0;
-
-                          return (
-                            <td key={`${year}-${month}-${day}`} className="px-1 py-0.5">
-                              {!isValidDay ? (
-                                <div className="h-6" />
-                              ) : isFuture ? (
-                                <div className="h-6 mx-0.5 rounded" />
-                              ) : entry && entry.tokens > 0 ? (
-                                <div
-                                  className={cn(
-                                    "h-6 mx-0.5 rounded flex items-center justify-center gap-1 transition-transform hover:scale-[1.02] cursor-default",
-                                    isToday &&
-                                      "ring-2 ring-orange-400 ring-offset-1 ring-offset-[#0a0a0d]"
-                                  )}
-                                  title={`${entry.date}\nTokens: ${formatNumber(entry.tokens)}\nCost: $${entry.cost.toFixed(2)}`}
-                                >
-                                  {/* Cost (yellow) */}
-                                  <span className="text-[9px] font-medium text-amber-400">
-                                    {formatCost(entry.cost)}
-                                  </span>
-                                  {/* Token (orange) */}
-                                  <span className="text-[9px] font-medium text-orange-400">
-                                    {formatNumber(entry.tokens)}
-                                  </span>
-                                  {/* Heatmap dot based on tokens */}
-                                  <span
-                                    className="w-2 h-2 rounded-full flex-shrink-0"
-                                    style={{
-                                      backgroundColor: `rgba(251, 146, 60, ${0.2 + intensity * 0.8})`,
-                                    }}
-                                  />
-                                </div>
-                              ) : (
-                                <div
-                                  className={cn(
-                                    "h-6 mx-0.5 rounded flex items-center justify-center text-[9px] text-zinc-700",
-                                    isToday && "ring-1 ring-orange-400/50"
-                                  )}
-                                >
-                                  -
-                                </div>
-                              )}
-                            </td>
-                          );
-                        })}
-                      </tr>
-                    );
-                  })}
-
-                  {/* Monthly Summary Row */}
-                  <tr className="bg-white/[0.03] border-t border-white/10">
-                    <td className="sticky left-0 z-10 bg-[#0f0f14] px-2 py-2 text-[10px] font-semibold text-zinc-500 text-center border-r border-white/10">
-                      Sum
-                    </td>
-                    {monthRange.map(({ year, month }) => {
-                      const monthKey = `${year}-${month}`;
-                      const monthTotal = monthTotals.get(monthKey);
-                      const isCurrentMonth =
-                        year === today.getFullYear() && month === today.getMonth();
+              <div className="pr-2">
+                <table className="w-full border-collapse" style={{ minWidth: "1100px" }}>
+                  {/* Year Header Row */}
+                  <thead>
+                    <tr>
+                      <th className="sticky left-0 z-20 bg-[#0a0a0d] w-10" />
+                      {yearGroups.map((group) => {
+                        const isCurrentYear = group.year === currentYear;
+                        return (
+                          <th
+                            key={group.year}
+                            colSpan={group.count}
+                            className={cn(
+                              "px-2 py-1.5 text-[11px] font-bold text-center border-b border-white/5",
+                              isCurrentYear
+                                ? "text-white bg-orange-400/20"
+                                : "text-zinc-500 bg-white/[0.03]"
+                            )}
+                          >
+                            {group.year}
+                          </th>
+                        );
+                      })}
+                    </tr>
+                    {/* Month Header Row */}
+                    <tr>
+                      <th className="sticky left-0 z-20 bg-[#0a0a0d] px-2 py-2 text-[10px] font-semibold text-zinc-500 text-center border-b border-r border-white/10 w-10">
+                        Day
+                      </th>
+                      {monthRange.map(({ year, month }) => {
+                        const isCurrentMonth =
+                          year === today.getFullYear() && month === today.getMonth();
+                        return (
+                          <th
+                            key={`${year}-${month}`}
+                            className={cn(
+                              "px-1 py-2 text-[10px] font-semibold text-center border-b border-white/10",
+                              isCurrentMonth ? "text-white bg-orange-400/10" : "text-zinc-500"
+                            )}
+                            style={{ minWidth: "90px" }}
+                          >
+                            {MONTHS_SHORT[month]}
+                          </th>
+                        );
+                      })}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {/* Days 1-31 */}
+                    {Array.from({ length: 31 }, (_, dayIndex) => {
+                      const day = dayIndex + 1;
 
                       return (
-                        <td
-                          key={monthKey}
-                          className={cn(
-                            "px-1 py-2 text-center",
-                            isCurrentMonth && "bg-orange-400/5"
-                          )}
-                        >
-                          {monthTotal && monthTotal.tokens > 0 ? (
-                            <div className="flex items-center justify-center gap-1">
-                              <span className="text-[9px] font-semibold text-amber-400">
-                                {formatCost(monthTotal.cost)}
-                              </span>
-                              <span className="text-[9px] font-semibold text-orange-400">
-                                {formatNumber(monthTotal.tokens)}
-                              </span>
-                            </div>
-                          ) : (
-                            <span className="text-[9px] text-zinc-700">-</span>
-                          )}
-                        </td>
+                        <tr key={day} className="hover:bg-white/[0.015]">
+                          <td className="sticky left-0 z-10 bg-[#0a0a0d] px-2 py-0.5 text-[10px] font-medium text-zinc-600 text-center border-r border-white/10">
+                            {day}
+                          </td>
+                          {monthRange.map(({ year, month }) => {
+                            const daysInMonth = getDaysInMonth(year, month);
+                            const dateKey = `${year}-${month}-${day}`;
+                            const entry = dataMap.get(dateKey);
+                            const isValidDay = day <= daysInMonth;
+                            const isToday =
+                              year === today.getFullYear() &&
+                              month === today.getMonth() &&
+                              day === today.getDate();
+                            const isFuture = new Date(year, month, day) > today;
+
+                            // Calculate heatmap intensity based on tokens
+                            const intensity = entry
+                              ? getHeatmapIntensity(entry.tokens, maxDailyTokens)
+                              : 0;
+
+                            return (
+                              <td key={`${year}-${month}-${day}`} className="px-1 py-0.5">
+                                {!isValidDay ? (
+                                  <div className="h-6" />
+                                ) : isFuture ? (
+                                  <div className="h-6 mx-0.5 rounded" />
+                                ) : entry && entry.tokens > 0 ? (
+                                  <div
+                                    className={cn(
+                                      "h-6 mx-0.5 rounded flex items-center justify-center gap-1 transition-transform hover:scale-[1.02] cursor-default",
+                                      isToday &&
+                                        "ring-2 ring-orange-400 ring-offset-1 ring-offset-[#0a0a0d]"
+                                    )}
+                                    title={`${entry.date}\nTokens: ${formatNumber(entry.tokens)}\nCost: $${entry.cost.toFixed(2)}`}
+                                  >
+                                    {/* Cost (yellow) */}
+                                    <span className="text-[9px] font-medium text-amber-400">
+                                      {formatCost(entry.cost)}
+                                    </span>
+                                    {/* Token (orange) */}
+                                    <span className="text-[9px] font-medium text-orange-400">
+                                      {formatNumber(entry.tokens)}
+                                    </span>
+                                    {/* Heatmap dot based on tokens */}
+                                    <span
+                                      className="w-2 h-2 rounded-full flex-shrink-0"
+                                      style={{
+                                        backgroundColor: `rgba(251, 146, 60, ${0.2 + intensity * 0.8})`,
+                                      }}
+                                    />
+                                  </div>
+                                ) : (
+                                  <div
+                                    className={cn(
+                                      "h-6 mx-0.5 rounded flex items-center justify-center text-[9px] text-zinc-700",
+                                      isToday && "ring-1 ring-orange-400/50"
+                                    )}
+                                  >
+                                    -
+                                  </div>
+                                )}
+                              </td>
+                            );
+                          })}
+                        </tr>
                       );
                     })}
-                  </tr>
-                </tbody>
-              </table>
+
+                    {/* Monthly Summary Row */}
+                    <tr className="bg-white/[0.03] border-t border-white/10">
+                      <td className="sticky left-0 z-10 bg-[#0f0f14] px-2 py-2 text-[10px] font-semibold text-zinc-500 text-center border-r border-white/10">
+                        Sum
+                      </td>
+                      {monthRange.map(({ year, month }) => {
+                        const monthKey = `${year}-${month}`;
+                        const monthTotal = monthTotals.get(monthKey);
+                        const isCurrentMonth =
+                          year === today.getFullYear() && month === today.getMonth();
+
+                        return (
+                          <td
+                            key={monthKey}
+                            className={cn(
+                              "px-1 py-2 text-center",
+                              isCurrentMonth && "bg-orange-400/5"
+                            )}
+                          >
+                            {monthTotal && monthTotal.tokens > 0 ? (
+                              <div className="flex items-center justify-center gap-1">
+                                <span className="text-[9px] font-semibold text-amber-400">
+                                  {formatCost(monthTotal.cost)}
+                                </span>
+                                <span className="text-[9px] font-semibold text-orange-400">
+                                  {formatNumber(monthTotal.tokens)}
+                                </span>
+                              </div>
+                            ) : (
+                              <span className="text-[9px] text-zinc-700">-</span>
+                            )}
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
             </div>
 
             {/* Footer - Heatmap Legend */}

@@ -4,12 +4,14 @@ import type { Metadata } from "next";
 // SEO Metadata for Leaderboard
 // ===========================================
 export const metadata: Metadata = {
-  title: "Leaderboard | CCgather - Claude Code Developer Rankings",
+  title: "Claude Code Leaderboard - Global Developer Rankings | CCgather",
   description:
-    "Global leaderboard ranking Claude Code developers by token usage and spending. Track top AI coding enthusiasts, compare country rankings, and see who leads the Claude Code community.",
+    "Real-time Claude Code leaderboard and ranking. Track top Claude Code developers by token usage worldwide. Compare Claude Code rankings by country and see who leads the global AI coding community.",
   keywords: [
     "Claude Code leaderboard",
+    "Claude Code ranking",
     "Claude Code rankings",
+    "Claude Code rank",
     "AI developer rankings",
     "Claude Code usage stats",
     "top Claude Code users",
@@ -17,18 +19,19 @@ export const metadata: Metadata = {
     "developer leaderboard",
     "token usage rankings",
     "Claude Code global rankings",
+    "Anthropic Claude leaderboard",
   ],
   openGraph: {
-    title: "Leaderboard | CCgather - Claude Code Developer Rankings",
+    title: "Claude Code Leaderboard - Global Developer Rankings",
     description:
-      "Global leaderboard ranking Claude Code developers by token usage. See who leads the AI coding community.",
+      "Real-time Claude Code ranking and leaderboard. Track top developers by token usage worldwide.",
     type: "website",
     url: "https://ccgather.com/leaderboard",
   },
   twitter: {
     card: "summary_large_image",
-    title: "Leaderboard | CCgather",
-    description: "Global Claude Code developer rankings by token usage and spending.",
+    title: "Claude Code Leaderboard - Developer Rankings",
+    description: "Real-time Claude Code ranking. Track top developers by token usage worldwide.",
   },
   alternates: {
     canonical: "https://ccgather.com/leaderboard",
@@ -42,13 +45,14 @@ function LeaderboardJsonLd() {
   const jsonLd = {
     "@context": "https://schema.org",
     "@type": "WebPage",
-    name: "Claude Code Developer Leaderboard",
-    description: "Global leaderboard ranking Claude Code developers by token usage and spending.",
+    name: "Claude Code Leaderboard - Global Developer Rankings",
+    description:
+      "Real-time Claude Code leaderboard and ranking. Track top Claude Code developers by token usage worldwide.",
     url: "https://ccgather.com/leaderboard",
     mainEntity: {
       "@type": "ItemList",
-      name: "Top Claude Code Developers",
-      description: "Rankings of Claude Code developers by token usage",
+      name: "Claude Code Developer Rankings",
+      description: "Global rankings of Claude Code developers by token usage",
       itemListOrder: "https://schema.org/ItemListOrderDescending",
       numberOfItems: 100,
     },

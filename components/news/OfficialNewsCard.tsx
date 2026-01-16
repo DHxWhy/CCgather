@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import Image from "next/image";
 import { ExternalLink, Clock, Sparkles } from "lucide-react";
 import type { ContentItem } from "@/types/automation";
@@ -9,6 +10,9 @@ interface OfficialNewsCardProps {
 }
 
 export default function OfficialNewsCard({ article }: OfficialNewsCardProps) {
+  const [imageError, setImageError] = useState(false);
+  const [faviconError, setFaviconError] = useState(false);
+
   const richContent = article.rich_content;
   const hasRichContent = !!richContent;
 
@@ -47,13 +51,20 @@ export default function OfficialNewsCard({ article }: OfficialNewsCardProps) {
         {/* Thumbnail */}
         {article.thumbnail_url && (
           <div className="relative w-40 h-24 rounded-md overflow-hidden flex-shrink-0 bg-black/20">
-            <Image
-              src={article.thumbnail_url}
-              alt={title}
-              fill
-              className="object-cover group-hover:scale-105 transition-transform duration-300"
-              unoptimized
-            />
+            {!imageError ? (
+              <Image
+                src={article.thumbnail_url}
+                alt={title}
+                fill
+                className="object-cover group-hover:scale-105 transition-transform duration-300"
+                sizes="160px"
+                onError={() => setImageError(true)}
+              />
+            ) : (
+              <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-orange-500/20 to-orange-500/5">
+                <span className="text-3xl opacity-50">{titleEmoji || "📰"}</span>
+              </div>
+            )}
             {/* Anthropic Badge */}
             <div className="absolute top-1.5 left-1.5 px-1.5 py-0.5 rounded bg-orange-500/90 text-white text-[9px] font-bold flex items-center gap-0.5">
               <Sparkles className="w-2.5 h-2.5" />
@@ -74,7 +85,7 @@ export default function OfficialNewsCard({ article }: OfficialNewsCardProps) {
                   width={12}
                   height={12}
                   className="rounded-sm"
-                  unoptimized
+                  sizes="12px"
                 />
               )}
               {article.source_name || "Anthropic"}

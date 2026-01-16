@@ -437,7 +437,7 @@ export default async function NewsDetailPage({ params }: NewsDetailPageProps) {
                   fill
                   className="object-cover"
                   priority
-                  unoptimized
+                  sizes="(max-width: 768px) 100vw, 800px"
                 />
               ) : (
                 <div
@@ -549,7 +549,7 @@ export default async function NewsDetailPage({ params }: NewsDetailPageProps) {
                           alt={related.title}
                           fill
                           className="object-cover group-hover:scale-105 transition-transform duration-300"
-                          unoptimized
+                          sizes="200px"
                         />
                       ) : (
                         <div

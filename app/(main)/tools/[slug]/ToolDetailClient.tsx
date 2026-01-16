@@ -296,7 +296,7 @@ export default function ToolDetailClient({ initialTool, slug }: ToolDetailClient
                   width={80}
                   height={80}
                   className="rounded-xl object-cover"
-                  unoptimized
+                  sizes="80px"
                 />
               ) : (
                 <div className="w-20 h-20 rounded-xl bg-[var(--color-bg-elevated)] flex items-center justify-center text-4xl">
@@ -503,7 +503,7 @@ export default function ToolDetailClient({ initialTool, slug }: ToolDetailClient
                     width={40}
                     height={40}
                     className="rounded-full"
-                    unoptimized
+                    sizes="40px"
                   />
                 ) : (
                   <div className="w-10 h-10 rounded-full bg-[var(--color-bg-elevated)] flex items-center justify-center text-sm font-medium text-[var(--color-text-primary)]">
@@ -547,7 +547,7 @@ export default function ToolDetailClient({ initialTool, slug }: ToolDetailClient
                         width={24}
                         height={24}
                         className="rounded-full"
-                        unoptimized
+                        sizes="24px"
                       />
                     ) : (
                       <div className="w-6 h-6 rounded-full bg-[var(--color-bg-card)] flex items-center justify-center text-[10px] font-medium text-[var(--color-text-primary)]">
@@ -586,7 +586,7 @@ export default function ToolDetailClient({ initialTool, slug }: ToolDetailClient
                     width={20}
                     height={20}
                     className="rounded-full"
-                    unoptimized
+                    sizes="20px"
                   />
                 ) : (
                   <div className="w-5 h-5 rounded-full bg-[var(--color-bg-elevated)] flex items-center justify-center text-[9px] text-[var(--color-text-primary)]">

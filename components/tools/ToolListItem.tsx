@@ -175,7 +175,7 @@ function ToolListItemComponent({
                   width={24}
                   height={24}
                   className="object-cover"
-                  unoptimized
+                  sizes="24px"
                 />
               ) : (
                 <div className="w-full h-full flex items-center justify-center bg-[var(--color-bg-elevated)] text-[9px] font-medium text-[var(--color-text-muted)]">
@@ -279,7 +279,7 @@ function ToolListItemComponent({
                     width={40}
                     height={40}
                     className="rounded-lg object-cover"
-                    unoptimized
+                    sizes="40px"
                   />
                 ) : (
                   <div className="w-10 h-10 rounded-lg bg-[var(--color-bg-elevated)] flex items-center justify-center text-xl">
@@ -368,7 +368,7 @@ function ToolListItemComponent({
                 width={40}
                 height={40}
                 className="rounded-lg object-cover"
-                unoptimized
+                sizes="40px"
               />
             ) : (
               <div className="w-10 h-10 rounded-lg bg-[var(--color-bg-elevated)] flex items-center justify-center text-xl">

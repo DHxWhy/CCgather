@@ -520,7 +520,7 @@ export default function ToolSuggestPage() {
                     width={24}
                     height={24}
                     className="rounded-full"
-                    unoptimized
+                    sizes="24px"
                   />
                 ) : (
                   <div className="w-6 h-6 rounded-full bg-[var(--color-bg-elevated)] flex items-center justify-center text-xs">
@@ -596,7 +596,7 @@ export default function ToolSuggestPage() {
                   width={20}
                   height={20}
                   className="rounded-full"
-                  unoptimized
+                  sizes="20px"
                 />
               ) : (
                 <div className="w-5 h-5 rounded-full bg-[var(--color-bg-elevated)] flex items-center justify-center text-[10px]">
@@ -732,7 +732,7 @@ export default function ToolSuggestPage() {
                         alt="Logo preview"
                         fill
                         className="object-contain p-1"
-                        unoptimized
+                        sizes="64px"
                         onError={(e) => {
                           (e.target as HTMLImageElement).style.display = "none";
                         }}

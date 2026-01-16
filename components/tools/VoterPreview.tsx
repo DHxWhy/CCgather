@@ -69,7 +69,7 @@ function VoterPreviewComponent({
                 width={avatarSize}
                 height={avatarSize}
                 className="object-cover"
-                unoptimized
+                sizes="20px"
               />
             ) : (
               <div

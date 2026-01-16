@@ -1,6 +1,6 @@
 "use client";
 
-import { memo, useMemo } from "react";
+import { memo, useMemo, useState, useCallback } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { Clock, Sparkles, ArrowRight, ArrowUpRight } from "lucide-react";
@@ -157,6 +157,8 @@ const SourceBadge = memo(function SourceBadge({
   sourceName?: string;
   size?: "small" | "default";
 }) {
+  const [iconError, setIconError] = useState(false);
+
   if (!sourceName) return null;
 
   const iconSize = size === "small" ? 10 : 12;
@@ -169,7 +171,7 @@ const SourceBadge = memo(function SourceBadge({
     <div
       className={`absolute ${position} flex items-center ${gap} ${padding} rounded bg-black/70 backdrop-blur-sm`}
     >
-      {favicon && (
+      {favicon && !iconError && (
         <Image
           src={favicon}
           alt=""
@@ -177,6 +179,7 @@ const SourceBadge = memo(function SourceBadge({
           height={iconSize}
           className="rounded-sm"
           sizes="12px"
+          onError={() => setIconError(true)}
         />
       )}
       <span className={`text-white ${textSize} font-medium`}>{sourceName}</span>
@@ -194,6 +197,14 @@ const NewBadge = memo(function NewBadge({ size = "default" }: { size?: "small" |
 // ===========================================
 
 function NewsCardComponent({ article, variant = "default", isLatest = false }: NewsCardProps) {
+  // Track image loading errors to show fallback UI
+  const [imageError, setImageError] = useState(false);
+  const [faviconError, setFaviconError] = useState(false);
+
+  // Memoized error handlers to prevent unnecessary re-renders
+  const handleImageError = useCallback(() => setImageError(true), []);
+  const handleFaviconError = useCallback(() => setFaviconError(true), []);
+
   // Memoize derived data to prevent recalculation on re-render
   const cardData = useMemo(() => {
     const richContent = article.rich_content;
@@ -255,13 +266,14 @@ function NewsCardComponent({ article, variant = "default", isLatest = false }: N
         <article className="relative w-[320px] md:w-[400px] h-[280px] rounded-xl overflow-hidden border-2 border-orange-500/30 bg-gradient-to-br from-orange-500/10 to-purple-500/5 hover:border-orange-500/50 transition-all">
           {/* Background Image (OG 이미지 배제, 3단계 폴백) */}
           <div className="absolute inset-0">
-            {thumbnailSrc ? (
+            {thumbnailSrc && !imageError ? (
               <Image
                 src={thumbnailSrc}
                 alt=""
                 fill
                 sizes="(max-width: 768px) 320px, 400px"
                 className="object-cover opacity-30 group-hover:opacity-40 transition-opacity duration-300"
+                onError={handleImageError}
               />
             ) : (
               <div
@@ -346,13 +358,14 @@ function NewsCardComponent({ article, variant = "default", isLatest = false }: N
         <article className="flex flex-col sm:flex-row gap-3 sm:gap-4 p-3 sm:p-4 rounded-2xl border border-[var(--border-default)] bg-[var(--color-bg-secondary)]/50 hover:bg-[var(--color-bg-secondary)] hover:border-[var(--border-hover)] hover:shadow-lg transition-all duration-200">
           {/* Mobile: Image on top (large) - < 640px (OG 이미지 배제) */}
           <div className="relative w-full h-[160px] sm:hidden rounded-xl overflow-hidden bg-black/10 dark:bg-white/5">
-            {thumbnailSrc ? (
+            {thumbnailSrc && !imageError ? (
               <Image
                 src={thumbnailSrc}
                 alt=""
                 fill
                 sizes="100vw"
                 className="object-cover group-hover:scale-105 transition-transform duration-300"
+                onError={handleImageError}
               />
             ) : (
               <div
@@ -385,13 +398,14 @@ function NewsCardComponent({ article, variant = "default", isLatest = false }: N
 
           {/* Tablet/Desktop: Thumbnail (>= 640px) (OG 이미지 배제) */}
           <div className="hidden sm:block relative w-[100px] h-[80px] flex-shrink-0 rounded-xl overflow-hidden bg-black/10 dark:bg-white/5">
-            {thumbnailSrc ? (
+            {thumbnailSrc && !imageError ? (
               <Image
                 src={thumbnailSrc}
                 alt=""
                 fill
                 sizes="100px"
                 className="object-cover group-hover:scale-105 transition-transform duration-300"
+                onError={handleImageError}
               />
             ) : (
               <div
@@ -432,7 +446,7 @@ function NewsCardComponent({ article, variant = "default", isLatest = false }: N
 
             {/* Middle: Source Info */}
             <div className="flex items-center gap-2 text-[11px] text-[var(--color-text-muted)] mt-1">
-              {favicon && (
+              {favicon && !faviconError && (
                 <Image
                   src={favicon}
                   alt=""
@@ -440,6 +454,7 @@ function NewsCardComponent({ article, variant = "default", isLatest = false }: N
                   height={12}
                   className="rounded-sm"
                   sizes="12px"
+                  onError={handleFaviconError}
                 />
               )}
               <span className="font-medium">{article.source_name || "News"}</span>
@@ -510,13 +525,14 @@ function NewsCardComponent({ article, variant = "default", isLatest = false }: N
         <article className="w-[260px] h-[200px] rounded-lg border border-[var(--border-default)] bg-white/[0.02] dark:bg-white/[0.02] hover:bg-black/[0.03] dark:hover:bg-white/[0.05] hover:border-[var(--border-hover)] transition-all overflow-hidden">
           {/* Thumbnail (OG 이미지 배제) */}
           <div className="relative w-full h-[100px] bg-black/20">
-            {thumbnailSrc ? (
+            {thumbnailSrc && !imageError ? (
               <Image
                 src={thumbnailSrc}
                 alt=""
                 fill
                 sizes="260px"
                 className="object-cover group-hover:scale-105 transition-transform duration-300"
+                onError={handleImageError}
               />
             ) : (
               <div
@@ -571,13 +587,14 @@ function NewsCardComponent({ article, variant = "default", isLatest = false }: N
       <article className="w-[280px] md:w-[300px] h-[240px] rounded-lg border border-[var(--border-default)] bg-white/[0.02] dark:bg-white/[0.02] hover:bg-black/[0.03] dark:hover:bg-white/[0.05] hover:border-[var(--border-hover)] transition-all overflow-hidden">
         {/* Thumbnail (OG 이미지 배제) */}
         <div className="relative w-full h-[130px] bg-black/20">
-          {thumbnailSrc ? (
+          {thumbnailSrc && !imageError ? (
             <Image
               src={thumbnailSrc}
               alt=""
               fill
               sizes="(max-width: 768px) 280px, 300px"
               className="object-cover group-hover:scale-105 transition-transform duration-300"
+              onError={handleImageError}
             />
           ) : (
             <div
