@@ -14,7 +14,14 @@ interface CountryStat {
   cost: number;
 }
 
-// Mock data - replace with real API data
+interface ApiCountryStat {
+  country_code: string;
+  country_name: string;
+  total_tokens: number;
+  total_cost: number;
+}
+
+// Mock data for landing page display
 const MOCK_COUNTRY_STATS: CountryStat[] = [
   { code: "KR", name: "South Korea", tokens: 12500000000, cost: 45230 },
   { code: "US", name: "United States", tokens: 9800000000, cost: 35420 },
@@ -42,28 +49,54 @@ interface LiveStatsTickerProps {
   variant?: "compact" | "full";
   className?: string;
   userCountryCode?: string;
+  useRealData?: boolean; // true: fetch from API, false: use mock data
 }
 
 export function LiveStatsTicker({
   variant = "compact",
   className = "",
   userCountryCode,
+  useRealData = false,
 }: LiveStatsTickerProps) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [realStats, setRealStats] = useState<CountryStat[] | null>(null);
+
+  // Fetch real data from API if useRealData is true
+  useEffect(() => {
+    if (!useRealData) return;
+
+    fetch("/api/countries?stats=true")
+      .then((res) => res.json())
+      .then((data) => {
+        const stats: CountryStat[] = (data.countries || []).map((c: ApiCountryStat) => ({
+          code: c.country_code,
+          name: c.country_name,
+          tokens: c.total_tokens || 0,
+          cost: c.total_cost || 0,
+        }));
+        setRealStats(stats.length > 0 ? stats : null);
+      })
+      .catch(() => setRealStats(null));
+  }, [useRealData]);
+
+  // Use real data if available and requested, otherwise mock
+  const countryStats = useRealData && realStats ? realStats : MOCK_COUNTRY_STATS;
 
   useEffect(() => {
+    if (countryStats.length === 0) return;
     const interval = setInterval(() => {
-      setCurrentIndex((prev) => (prev + 1) % MOCK_COUNTRY_STATS.length);
+      setCurrentIndex((prev) => (prev + 1) % countryStats.length);
     }, 3000);
     return () => clearInterval(interval);
-  }, []);
+  }, [countryStats.length]);
 
-  const currentStat = MOCK_COUNTRY_STATS[currentIndex]!;
+  const currentStat = countryStats[currentIndex];
+  if (!currentStat) return null;
 
   // Calculate totals
-  const totalTokens = MOCK_COUNTRY_STATS.reduce((sum, s) => sum + s.tokens, 0);
-  const totalCost = MOCK_COUNTRY_STATS.reduce((sum, s) => sum + s.cost, 0);
+  const totalTokens = countryStats.reduce((sum, s) => sum + s.tokens, 0);
+  const totalCost = countryStats.reduce((sum, s) => sum + s.cost, 0);
 
   const handleClick = () => {
     setIsModalOpen(true);
@@ -131,7 +164,7 @@ export function LiveStatsTicker({
         <CountryStatsModal
           isOpen={isModalOpen}
           onClose={() => setIsModalOpen(false)}
-          stats={MOCK_COUNTRY_STATS}
+          stats={countryStats}
           totalTokens={totalTokens}
           totalCost={totalCost}
           userCountryCode={userCountryCode}
@@ -193,7 +226,7 @@ export function LiveStatsTicker({
 
       {/* Progress dots */}
       <div className="flex justify-center gap-1 mt-3">
-        {MOCK_COUNTRY_STATS.slice(0, 8).map((_, idx) => (
+        {countryStats.slice(0, 8).map((_, idx) => (
           <div
             key={idx}
             className={`w-1.5 h-1.5 rounded-full transition-colors ${

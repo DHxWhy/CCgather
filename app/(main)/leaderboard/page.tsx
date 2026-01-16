@@ -504,6 +504,7 @@ export default function LeaderboardPage() {
                 variant="compact"
                 className="px-3 py-2 rounded-lg bg-[var(--color-filter-bg)] border border-[var(--border-default)] min-w-[120px]"
                 userCountryCode={currentUserCountry}
+                useRealData={true}
               />
             </div>
             {/* Title and description */}
