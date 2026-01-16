@@ -5,7 +5,6 @@ import Link from "next/link";
 import Image from "next/image";
 import { createClient } from "@/lib/supabase/server";
 import type { ContentItem } from "@/types/automation";
-import CopyButton from "@/components/ui/CopyButton";
 import NewsArticleJsonLd from "@/components/seo/NewsArticleJsonLd";
 import CTASection from "@/components/news/CTASection";
 import { sanitizeHtml, isNewArticle } from "@/lib/utils/sanitize";
@@ -279,16 +278,6 @@ export default async function NewsDetailPage({ params }: NewsDetailPageProps) {
           Back to News
         </Link>
 
-        {/* One-Liner Summary with Copy Button */}
-        {oneLiner && (
-          <div className="flex items-center justify-between gap-3 p-4 rounded-xl bg-orange-500/10 border border-orange-500/20 mb-6">
-            <p className="text-base font-semibold text-[var(--color-text-primary)] flex-1">
-              {oneLiner}
-            </p>
-            <CopyButton text={oneLiner} />
-          </div>
-        )}
-
         {/* Article Header */}
         <header className="mb-8">
           {/* Title */}
@@ -373,9 +362,54 @@ export default async function NewsDetailPage({ params }: NewsDetailPageProps) {
           );
         })()}
 
-        {/* Article Body */}
+        {/* In Simple Terms - 썸네일 바로 아래 배치 */}
+        {insightHtml && (
+          <div className="mb-6 p-5 rounded-xl bg-emerald-500/10 border-l-4 border-emerald-500/50">
+            <h3 className="text-lg font-semibold text-[var(--color-text-primary)] mb-3 flex items-center gap-2">
+              🌱 In Simple Terms
+            </h3>
+            <div
+              className="text-[var(--color-text-secondary)] leading-relaxed text-[15px]"
+              dangerouslySetInnerHTML={{ __html: sanitizeHtml(insightHtml) }}
+            />
+          </div>
+        )}
+
+        {/* Fallback Insight from rich_content */}
+        {!insightHtml && richContent?.summary?.analogy && (
+          <div className="mb-6 p-5 rounded-xl bg-emerald-500/10 border-l-4 border-emerald-500/50">
+            <h3 className="text-lg font-semibold text-[var(--color-text-primary)] mb-3 flex items-center gap-2">
+              🌱 In Simple Terms
+            </h3>
+            <p className="text-[var(--color-text-secondary)] leading-relaxed text-[15px]">
+              {richContent.summary?.analogy?.text}
+            </p>
+          </div>
+        )}
+
+        {/* Key Takeaways (요약테이블) */}
+        {keyTakeaways && keyTakeaways.length > 0 && (
+          <section className="mb-8 p-5 rounded-xl bg-[var(--color-section-bg)] border border-[var(--border-default)]">
+            <h2 className="text-lg font-semibold text-[var(--color-text-primary)] mb-4">
+              📌 Key Takeaways
+            </h2>
+            <ul className="space-y-2.5">
+              {keyTakeaways.map((point, index) => (
+                <li
+                  key={index}
+                  className="flex items-start gap-2.5 text-[var(--color-text-secondary)]"
+                >
+                  <span className="text-base flex-shrink-0">{iconToEmoji(point.icon)}</span>
+                  <span className="text-[15px] leading-relaxed">{point.text}</span>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
+
+        {/* Article Body (본문) */}
         <div className="prose prose-lg max-w-none mb-8">
-          {/* Summary/Intro */}
+          {/* Summary/Intro - bodyHtml 없을 때만 */}
           {summary && !bodyHtml && (
             <p className="text-lg text-[var(--color-text-secondary)] leading-relaxed">{summary}</p>
           )}
@@ -395,52 +429,7 @@ export default async function NewsDetailPage({ params }: NewsDetailPageProps) {
               dangerouslySetInnerHTML={{ __html: sanitizeHtml(bodyHtml) }}
             />
           )}
-
-          {/* 쉽게 풀어보기 Box */}
-          {insightHtml && (
-            <div className="not-prose my-8 p-5 rounded-xl bg-emerald-500/10 border-l-4 border-emerald-500/50">
-              <h3 className="text-lg font-semibold text-[var(--color-text-primary)] mb-3 flex items-center gap-2">
-                🌱 In Simple Terms
-              </h3>
-              <div
-                className="text-[var(--color-text-secondary)] leading-relaxed text-[15px]"
-                dangerouslySetInnerHTML={{ __html: sanitizeHtml(insightHtml) }}
-              />
-            </div>
-          )}
-
-          {/* Fallback Insight from rich_content */}
-          {!insightHtml && richContent?.summary?.analogy && (
-            <div className="not-prose my-8 p-5 rounded-xl bg-emerald-500/10 border-l-4 border-emerald-500/50">
-              <h3 className="text-lg font-semibold text-[var(--color-text-primary)] mb-3 flex items-center gap-2">
-                🌱 In Simple Terms
-              </h3>
-              <p className="text-[var(--color-text-secondary)] leading-relaxed text-[15px]">
-                {richContent.summary?.analogy?.text}
-              </p>
-            </div>
-          )}
         </div>
-
-        {/* Key Takeaways */}
-        {keyTakeaways && keyTakeaways.length > 0 && (
-          <section className="mb-8 p-5 rounded-xl bg-[var(--color-section-bg)] border border-[var(--border-default)]">
-            <h2 className="text-lg font-semibold text-[var(--color-text-primary)] mb-4">
-              📌 Key Takeaways
-            </h2>
-            <ul className="space-y-2.5">
-              {keyTakeaways.map((point, index) => (
-                <li
-                  key={index}
-                  className="flex items-start gap-2.5 text-[var(--color-text-secondary)]"
-                >
-                  <span className="text-base flex-shrink-0">{iconToEmoji(point.icon)}</span>
-                  <span className="text-[15px] leading-relaxed">{point.text}</span>
-                </li>
-              ))}
-            </ul>
-          </section>
-        )}
 
         {/* Related Articles (OG 이미지 배제) */}
         {relatedNews.length > 0 && (
