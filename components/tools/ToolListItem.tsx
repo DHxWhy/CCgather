@@ -63,7 +63,7 @@ function ToolListItemComponent({
 
   // 표시할 최대 아바타 수 (모바일에서는 더 적게)
   const MAX_VISIBLE_AVATARS_DESKTOP = 12;
-  const MAX_VISIBLE_AVATARS_MOBILE = 6;
+  const MAX_VISIBLE_AVATARS_MOBILE = 4;
 
   const handleVote = async (e: React.MouseEvent) => {
     e.preventDefault();

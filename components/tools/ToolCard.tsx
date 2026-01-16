@@ -192,34 +192,32 @@ function ToolCardComponent({
         {/* Left accent bar on hover */}
         <div className="absolute left-0 top-0 bottom-0 w-0.5 bg-gradient-to-b from-[var(--color-claude-coral)] to-[var(--color-claude-rust)] opacity-0 group-hover:opacity-100 transition-opacity rounded-l-lg" />
 
-        {/* Main content row */}
-        <div className="flex items-start gap-3">
-          {/* Logo */}
-          {tool.logo_url ? (
-            <Image
-              src={tool.logo_url}
-              alt={tool.name}
-              width={40}
-              height={40}
-              className="rounded-lg object-cover flex-shrink-0"
-              unoptimized
-            />
-          ) : (
-            <div className="w-10 h-10 rounded-lg bg-[var(--color-bg-elevated)] flex items-center justify-center text-xl flex-shrink-0">
-              {categoryMeta.emoji}
-            </div>
-          )}
+        {/* ==================== MOBILE LAYOUT ==================== */}
+        <div className="sm:hidden">
+          <div className="flex items-start gap-2.5">
+            {/* Logo */}
+            {tool.logo_url ? (
+              <Image
+                src={tool.logo_url}
+                alt={tool.name}
+                width={36}
+                height={36}
+                className="rounded-lg object-cover flex-shrink-0"
+                unoptimized
+              />
+            ) : (
+              <div className="w-9 h-9 rounded-lg bg-[var(--color-bg-elevated)] flex items-center justify-center text-lg flex-shrink-0">
+                {categoryMeta.emoji}
+              </div>
+            )}
 
-          {/* Content */}
-          <div className="flex-1 min-w-0">
-            {/* Title row with actions */}
-            <div className="flex items-center justify-between gap-2">
-              <h3 className="text-sm font-semibold text-[var(--color-text-primary)] truncate group-hover:text-[var(--color-claude-coral)] transition-colors">
-                {tool.name}
-              </h3>
-
-              {/* Actions */}
-              <div className="flex items-center gap-1.5 flex-shrink-0">
+            {/* Content */}
+            <div className="flex-1 min-w-0">
+              {/* Title + Vote */}
+              <div className="flex items-center justify-between gap-2">
+                <h3 className="text-sm font-semibold text-[var(--color-text-primary)] truncate group-hover:text-[var(--color-claude-coral)] transition-colors">
+                  {tool.name}
+                </h3>
                 <VoteButton
                   count={voteCount}
                   voted={voted}
@@ -228,88 +226,159 @@ function ToolCardComponent({
                   size="sm"
                 />
               </div>
-            </div>
 
-            {/* Tagline */}
-            <p className="text-xs text-[var(--color-text-secondary)] line-clamp-1 mt-0.5">
-              {tool.tagline}
-            </p>
+              {/* Tagline */}
+              <p className="text-[11px] text-[var(--color-text-muted)] line-clamp-1 mt-0.5">
+                {tool.tagline}
+              </p>
 
-            {/* Meta row */}
-            <div className="flex items-center gap-2 mt-1.5 flex-wrap">
-              {/* Category */}
-              <span
-                className={cn(
-                  "px-1.5 py-0.5 rounded text-[10px] font-medium",
-                  `bg-${categoryMeta.color}-500/20 text-${categoryMeta.color}-400`
+              {/* Meta row - simplified */}
+              <div className="flex items-center gap-1.5 mt-1.5">
+                <span className="text-[10px] text-[var(--color-text-muted)]">
+                  {categoryMeta.emoji}
+                </span>
+                <span className="text-[10px] text-[var(--color-text-muted)]">
+                  {pricingMeta.label}
+                </span>
+                {isFeatured && <span className="text-[10px]">⭐</span>}
+                {isHot && !isFeatured && <span className="text-[10px]">🔥</span>}
+                {isNew && !isHot && !isFeatured && (
+                  <span className="text-[9px] text-green-400 font-medium">NEW</span>
                 )}
-                style={{
-                  backgroundColor: `var(--color-cat-${tool.category.replace("-", "-")}, rgba(139, 92, 246, 0.2))`,
-                }}
-              >
-                {categoryMeta.emoji} {categoryMeta.label}
-              </span>
-
-              {/* Pricing */}
-              <span
-                className={cn(
-                  "px-1.5 py-0.5 rounded text-[10px]",
-                  `bg-${pricingMeta.color}-500/15 text-${pricingMeta.color}-400`
-                )}
-              >
-                {pricingMeta.label}
-              </span>
-
-              {/* Badges */}
-              {isFeatured && (
-                <span className="px-1.5 py-0.5 rounded text-[10px] bg-gradient-to-r from-[var(--color-claude-coral)]/20 to-purple-500/20 text-[var(--color-claude-coral)]">
-                  ⭐ Featured
-                </span>
-              )}
-              {isHot && !isFeatured && (
-                <span className="px-1.5 py-0.5 rounded text-[10px] bg-orange-500/20 text-orange-400">
-                  🔥 Hot
-                </span>
-              )}
-              {isNew && !isHot && (
-                <span className="px-1.5 py-0.5 rounded text-[10px] bg-green-500/20 text-green-400">
-                  🆕 New
-                </span>
-              )}
-
-              {/* External link */}
-              <a
-                href={tool.website_url}
-                target="_blank"
-                rel="noopener noreferrer"
-                onClick={(e) => e.stopPropagation()}
-                className="ml-auto text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] transition-colors"
-              >
-                <ExternalLink className="w-3.5 h-3.5" />
-              </a>
+                <a
+                  href={tool.website_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={(e) => e.stopPropagation()}
+                  className="ml-auto p-1 -m-1 text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] transition-colors"
+                >
+                  <ExternalLink className="w-3.5 h-3.5" />
+                </a>
+              </div>
             </div>
+          </div>
+        </div>
 
-            {/* Voters preview */}
-            {showVoters && tool.voters.length > 0 && (
-              <div className="mt-2 pt-2 border-t border-[var(--border-default)]">
-                <VoterPreview voters={tool.voters} totalVotes={tool.upvote_count} showCount={4} />
+        {/* ==================== DESKTOP LAYOUT ==================== */}
+        <div className="hidden sm:block">
+          <div className="flex items-start gap-3">
+            {/* Logo */}
+            {tool.logo_url ? (
+              <Image
+                src={tool.logo_url}
+                alt={tool.name}
+                width={40}
+                height={40}
+                className="rounded-lg object-cover flex-shrink-0"
+                unoptimized
+              />
+            ) : (
+              <div className="w-10 h-10 rounded-lg bg-[var(--color-bg-elevated)] flex items-center justify-center text-xl flex-shrink-0">
+                {categoryMeta.emoji}
               </div>
             )}
 
-            {/* Top comment */}
-            {showComment && tool.top_comment && (
-              <div className="mt-2 pt-2 border-t border-[var(--border-default)]">
-                <div className="flex items-start gap-2">
-                  <span className="text-[10px] text-[var(--color-text-muted)]">💬</span>
-                  <p className="text-[11px] text-[var(--color-text-secondary)] line-clamp-1 flex-1">
-                    "{tool.top_comment.comment}"
-                  </p>
-                  <span className="text-[10px] text-[var(--color-text-muted)] flex-shrink-0">
-                    @{tool.top_comment.username}
-                  </span>
+            {/* Content */}
+            <div className="flex-1 min-w-0">
+              {/* Title row with actions */}
+              <div className="flex items-center justify-between gap-2">
+                <h3 className="text-sm font-semibold text-[var(--color-text-primary)] truncate group-hover:text-[var(--color-claude-coral)] transition-colors">
+                  {tool.name}
+                </h3>
+
+                {/* Actions */}
+                <div className="flex items-center gap-1.5 flex-shrink-0">
+                  <VoteButton
+                    count={voteCount}
+                    voted={voted}
+                    loading={isVoting}
+                    onClick={handleVote}
+                    size="sm"
+                  />
                 </div>
               </div>
-            )}
+
+              {/* Tagline */}
+              <p className="text-xs text-[var(--color-text-secondary)] line-clamp-1 mt-0.5">
+                {tool.tagline}
+              </p>
+
+              {/* Meta row */}
+              <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+                {/* Category */}
+                <span
+                  className={cn(
+                    "px-1.5 py-0.5 rounded text-[10px] font-medium",
+                    `bg-${categoryMeta.color}-500/20 text-${categoryMeta.color}-400`
+                  )}
+                  style={{
+                    backgroundColor: `var(--color-cat-${tool.category.replace("-", "-")}, rgba(139, 92, 246, 0.2))`,
+                  }}
+                >
+                  {categoryMeta.emoji} {categoryMeta.label}
+                </span>
+
+                {/* Pricing */}
+                <span
+                  className={cn(
+                    "px-1.5 py-0.5 rounded text-[10px]",
+                    `bg-${pricingMeta.color}-500/15 text-${pricingMeta.color}-400`
+                  )}
+                >
+                  {pricingMeta.label}
+                </span>
+
+                {/* Badges */}
+                {isFeatured && (
+                  <span className="px-1.5 py-0.5 rounded text-[10px] bg-gradient-to-r from-[var(--color-claude-coral)]/20 to-purple-500/20 text-[var(--color-claude-coral)]">
+                    ⭐ Featured
+                  </span>
+                )}
+                {isHot && !isFeatured && (
+                  <span className="px-1.5 py-0.5 rounded text-[10px] bg-orange-500/20 text-orange-400">
+                    🔥 Hot
+                  </span>
+                )}
+                {isNew && !isHot && (
+                  <span className="px-1.5 py-0.5 rounded text-[10px] bg-green-500/20 text-green-400">
+                    🆕 New
+                  </span>
+                )}
+
+                {/* External link */}
+                <a
+                  href={tool.website_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={(e) => e.stopPropagation()}
+                  className="ml-auto text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] transition-colors"
+                >
+                  <ExternalLink className="w-3.5 h-3.5" />
+                </a>
+              </div>
+
+              {/* Voters preview - desktop only */}
+              {showVoters && tool.voters.length > 0 && (
+                <div className="mt-2 pt-2 border-t border-[var(--border-default)]">
+                  <VoterPreview voters={tool.voters} totalVotes={tool.upvote_count} showCount={4} />
+                </div>
+              )}
+
+              {/* Top comment - desktop only */}
+              {showComment && tool.top_comment && (
+                <div className="mt-2 pt-2 border-t border-[var(--border-default)]">
+                  <div className="flex items-start gap-2">
+                    <span className="text-[10px] text-[var(--color-text-muted)]">💬</span>
+                    <p className="text-[11px] text-[var(--color-text-secondary)] line-clamp-1 flex-1">
+                      "{tool.top_comment.comment}"
+                    </p>
+                    <span className="text-[10px] text-[var(--color-text-muted)] flex-shrink-0">
+                      @{tool.top_comment.username}
+                    </span>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </motion.article>

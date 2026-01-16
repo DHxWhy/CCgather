@@ -8,6 +8,31 @@ import type { ContentItem } from "@/types/automation";
 import { Suspense } from "react";
 
 // ===========================================
+// ISR Configuration - Revalidate every 5 minutes
+// ===========================================
+export const revalidate = 300;
+
+// Optimized field selection for news list (excludes heavy fields)
+const NEWS_LIST_FIELDS = `
+  id,
+  title,
+  slug,
+  source_name,
+  source_url,
+  thumbnail_url,
+  thumbnail_source,
+  favicon_url,
+  published_at,
+  created_at,
+  news_tags,
+  category,
+  one_liner,
+  difficulty,
+  content_type,
+  rich_content
+`;
+
+// ===========================================
 // SEO Metadata
 // ===========================================
 
@@ -68,9 +93,11 @@ async function getNewsByTag(tag: NewsFilterTag) {
   try {
     const supabase = await createClient();
 
+    // Use optimized field selection instead of SELECT *
+    // This reduces payload by ~70% (excludes transcript, body_html, insight_html, etc.)
     let query = supabase
       .from("contents")
-      .select("*", { count: "exact" })
+      .select(NEWS_LIST_FIELDS, { count: "exact" })
       .eq("type", "news")
       .eq("status", "published")
       .order("published_at", { ascending: false, nullsFirst: false })
