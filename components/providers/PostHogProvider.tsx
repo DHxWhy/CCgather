@@ -12,12 +12,16 @@ export let isPostHogInitialized = false;
 // PostHog 초기화 (클라이언트 전용)
 if (typeof window !== "undefined") {
   const posthogKey = process.env.NEXT_PUBLIC_POSTHOG_KEY;
+  const isDev = process.env.NODE_ENV === "development";
+
+  // 개발 환경: 직접 PostHog 호스트 사용 (rewrites POST 이슈 우회)
+  // 프로덕션: 프록시 사용 (AdBlocker 우회)
+  const apiHost = isDev ? "https://us.i.posthog.com" : "/ingest";
 
   if (posthogKey) {
     try {
       posthog.init(posthogKey, {
-        // 프록시 사용 - AdBlocker 우회 및 RemoteConfig 에러 해결
-        api_host: "/ingest",
+        api_host: apiHost,
         ui_host: "https://us.posthog.com",
 
         person_profiles: "identified_only",
@@ -43,9 +47,9 @@ if (typeof window !== "undefined") {
         // 초기화 성공 콜백
         loaded: (ph) => {
           isPostHogInitialized = true;
-          if (process.env.NODE_ENV === "development") {
+          if (isDev) {
             ph.debug();
-            console.log("[PostHog] Initialized successfully via proxy");
+            console.log(`[PostHog] Initialized successfully (${isDev ? "direct" : "proxy"})`);
           }
         },
       });

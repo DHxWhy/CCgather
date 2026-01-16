@@ -19,6 +19,7 @@ const isPublicRoute = createRouteMatcher([
   "/api/og/(.*)",
   "/api/leaderboard(.*)",
   "/api/user/(.*)",
+  "/api/users/(.*)",
   "/api/countries(.*)",
   "/api/news(.*)",
   "/api/tools",
