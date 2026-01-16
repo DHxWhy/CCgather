@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useUser, useClerk } from "@clerk/nextjs";
 import {
@@ -46,6 +46,7 @@ export default function SettingsProfilePage() {
   const [errors, setErrors] = useState<Partial<SocialLinks>>({});
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [isDataLoaded, setIsDataLoaded] = useState(false); // Track if data is loaded from API
+  const socialLinksRef = useRef<SocialLinks>({}); // Ref to access current socialLinks without stale closure
 
   // Fetch user data from DB
   useEffect(() => {
@@ -55,12 +56,15 @@ export default function SettingsProfilePage() {
         if (res.ok) {
           const data = await res.json();
           setDbCountryCode(data.user?.country_code || "");
+          // Backend already handles GitHub auto-populate, so we get complete data here
           setSocialLinks(data.user?.social_links || {});
           setEditedLinks(data.user?.social_links || {});
-          setIsDataLoaded(true); // Mark data as loaded
         }
       } catch (error) {
         console.error("Failed to fetch user data:", error);
+      } finally {
+        // Always mark as loaded (even on failure) to prevent stale state issues
+        setIsDataLoaded(true);
       }
     }
     if (isLoaded && user) {
@@ -111,14 +115,25 @@ export default function SettingsProfilePage() {
     setErrors((prev) => ({ ...prev, [key]: error || undefined }));
   };
 
-  // Auto-save GitHub from OAuth - ONLY after data is loaded from API to prevent race condition
+  // Keep ref in sync with state to avoid stale closures
+  useEffect(() => {
+    socialLinksRef.current = socialLinks;
+  }, [socialLinks]);
+
+  // Auto-save GitHub from OAuth - Fallback for edge cases where backend couldn't auto-populate
+  // Backend /api/me GET already handles this, but client-side Clerk data might have more info
   useEffect(() => {
     const autoSaveGithub = async () => {
       // Wait until data is loaded from API to avoid overwriting existing social links
       if (!isDataLoaded) return;
 
-      if (githubAccount?.username && !socialLinks.github) {
-        const newLinks = { ...socialLinks, github: githubAccount.username };
+      // Use ref to get current socialLinks value (avoids stale closure)
+      const currentLinks = socialLinksRef.current;
+      const githubUsername = githubAccount?.username;
+
+      // Only proceed if we have GitHub OAuth but no github in social links
+      if (githubUsername && !currentLinks.github) {
+        const newLinks = { ...currentLinks, github: githubUsername };
         setEditedLinks(newLinks);
 
         try {
@@ -136,7 +151,7 @@ export default function SettingsProfilePage() {
       }
     };
     autoSaveGithub();
-  }, [githubAccount?.username, socialLinks.github, isDataLoaded, socialLinks]);
+  }, [githubAccount?.username, isDataLoaded]);
 
   const handleSaveSocialLinks = async () => {
     setIsSaving(true);
