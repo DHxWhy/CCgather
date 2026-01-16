@@ -6,6 +6,7 @@ import { FlagIcon } from "@/components/ui/FlagIcon";
 import { Coins, Sparkles, ChevronDown } from "lucide-react";
 import { CountryStatsModal } from "@/components/globe";
 import { formatNumber, formatCost } from "@/lib/utils/format";
+import { getCountryName } from "@/lib/constants/countries";
 
 interface CountryStat {
   code: string;
@@ -69,12 +70,19 @@ export function LiveStatsTicker({
     fetch("/api/countries?stats=true")
       .then((res) => res.json())
       .then((data) => {
-        const stats: CountryStat[] = (data.countries || []).map((c: ApiCountryStat) => ({
-          code: c.country_code,
-          name: c.country_name,
-          tokens: c.total_tokens || 0,
-          cost: c.total_cost || 0,
-        }));
+        const stats: CountryStat[] = (data.countries || []).map((c: ApiCountryStat) => {
+          // Fallback: if country_name is just the code (e.g., "KR"), resolve to full name
+          const resolvedName =
+            c.country_name && c.country_name.length > 2
+              ? c.country_name
+              : getCountryName(c.country_code);
+          return {
+            code: c.country_code,
+            name: resolvedName,
+            tokens: c.total_tokens || 0,
+            cost: c.total_cost || 0,
+          };
+        });
         setRealStats(stats.length > 0 ? stats : null);
       })
       .catch(() => setRealStats(null));
