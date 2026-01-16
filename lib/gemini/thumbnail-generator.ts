@@ -299,6 +299,9 @@ export interface ThumbnailRequest {
   source_name?: string;
   article_type?: ArticleType; // AI-classified article type from DB (primary source)
   force_regenerate?: boolean;
+  // Rich content for better image planning (from pipeline step 3)
+  key_takeaways?: string[];
+  one_liner?: string;
 }
 
 export interface ThumbnailResult {
@@ -651,69 +654,92 @@ function extractArticleConcepts(title: string): string[] {
 }
 
 /**
- * Generate style-transfer prompt for Gemini Flash Image
- * Single model approach: Image input + style extraction + new image generation
+ * Image concept data for thumbnail generation
  */
-function generateStyleTransferPrompt(
-  title: string,
-  summary?: string,
-  articleType?: ArticleType
-): string {
-  // Get base theme from article type
-  let themeKey: VisualThemeKey = "default";
-  if (articleType && ARTICLE_TYPE_TO_VISUAL_THEME[articleType]) {
-    themeKey = ARTICLE_TYPE_TO_VISUAL_THEME[articleType];
-  } else {
-    const combinedText = summary ? `${title} ${summary}` : title;
-    const keywords = extractKeywords(combinedText);
-    themeKey = detectVisualTheme(keywords);
-  }
+interface ImageConceptData {
+  title: string;
+  summary?: string;
+  keyTakeaways?: string[];
+  oneLiner?: string;
+  articleType?: ArticleType;
+}
 
-  const theme = NEWS_VISUAL_THEMES[themeKey];
+/**
+ * Generate style-transfer prompt for Gemini Flash Image
+ * Two-phase approach within single call:
+ * 1. Analyze content → Plan image concept
+ * 2. Analyze OG style → Generate matching image
+ */
+function generateStyleTransferPrompt(conceptData: ImageConceptData): string {
+  const { title, summary, keyTakeaways, oneLiner, articleType } = conceptData;
 
-  // Extract visual concepts from article title
-  const articleConcepts = extractArticleConcepts(title);
-  const conceptsDescription =
-    articleConcepts.length > 0
-      ? articleConcepts.join(", ")
-      : "abstract 3D geometric composition with glowing nodes and interconnected shapes";
+  // Build rich content context for image planning
+  const contentContext = [
+    `TITLE: ${title}`,
+    oneLiner ? `ONE-LINER: ${oneLiner}` : null,
+    summary ? `SUMMARY: ${summary.slice(0, 500)}` : null,
+    keyTakeaways?.length ? `KEY POINTS:\n${keyTakeaways.map((k) => `- ${k}`).join("\n")}` : null,
+  ]
+    .filter(Boolean)
+    .join("\n\n");
 
-  // Single-model style transfer prompt
-  const prompt = `Analyze the reference image above and extract ONLY:
-- Color palette (2-3 dominant colors)
-- Overall mood/atmosphere (one word)
-- Lighting style (soft, dramatic, ambient, etc.)
+  // Chain-of-thought style prompt for better image planning
+  const prompt = `You are a professional editorial thumbnail designer. Your task is to create a compelling news thumbnail.
 
-DO NOT extract or replicate:
-- Any objects, devices, people, or specific elements
-- The layout or composition
-- Any text, logos, or brand elements
+═══════════════════════════════════════════════════
+PHASE 1: UNDERSTAND THE ARTICLE CONTENT
+═══════════════════════════════════════════════════
 
-Now CREATE A COMPLETELY NEW AND DIFFERENT IMAGE for this tech news article:
+${contentContext}
 
-ARTICLE: "${title}"
+Based on this content, think about:
+- What is the CORE MESSAGE of this article?
+- What VISUAL METAPHOR would best represent this story?
+- What SCENE or IMAGERY would readers immediately associate with this topic?
 
-NEW IMAGE REQUIREMENTS:
-1. SUBJECT: ${conceptsDescription}
-2. COLOR MOOD: Apply ONLY the color palette from the reference
-3. VISUAL STYLE: ${theme.style}
-4. BACKGROUND: Dark gradient (navy to black)
+═══════════════════════════════════════════════════
+PHASE 2: ANALYZE THE REFERENCE IMAGE STYLE
+═══════════════════════════════════════════════════
 
-⚠️ CRITICAL - COPYRIGHT SAFE GENERATION:
-- Create 100% ORIGINAL abstract/geometric artwork
-- DO NOT copy, trace, or transform any objects from the reference
-- The reference is ONLY for color inspiration - IGNORE its content entirely
-- Generate completely different visual elements and composition
-- Use abstract shapes, glowing nodes, geometric patterns, 3D forms
-- NO realistic objects (phones, laptops, people, buildings)
-- NO text, letters, numbers, labels, watermarks, logos, or code
+Look at the reference image above and identify:
+- Visual style (photographic, illustration, 3D render, graphic design, etc.)
+- Color palette and color temperature
+- Lighting characteristics
+- Composition and framing style
+- Overall mood and atmosphere
 
-The output image must be legally distinct from the reference - sharing only color mood, not any visual elements.
+═══════════════════════════════════════════════════
+PHASE 3: CREATE THE THUMBNAIL
+═══════════════════════════════════════════════════
 
-OUTPUT: A single new 16:9 thumbnail that applies the reference's color palette to entirely original abstract tech visuals.`;
+Now generate a NEW thumbnail that:
+
+1. REPRESENTS THE ARTICLE: The image should visually communicate the article's core message
+   - If it's about a company expansion → show relevant architectural/business imagery
+   - If it's about a product launch → show the product category or its impact
+   - If it's about AI technology → show appropriate tech visualization
+   - If it's about an event → show the event atmosphere or outcome
+
+2. MATCHES THE REFERENCE STYLE: Apply the same visual style from the reference
+   - Same type of imagery (photo-realistic if reference is photo, illustrated if reference is illustration)
+   - Same color mood and palette
+   - Same lighting approach
+   - Same level of detail and polish
+
+3. EDITORIAL QUALITY: Professional news thumbnail standards
+   - 16:9 aspect ratio
+   - Clear focal point
+   - Visually striking but informative
+
+⚠️ RULES:
+- NO text, logos, watermarks, or brand names in the image
+- Create ORIGINAL imagery (don't copy specific objects from reference)
+- Match the STYLE, not the exact content of the reference
+
+OUTPUT: Generate a single professional thumbnail image.`;
 
   console.log(
-    `[Thumbnail] Style transfer prompt for: "${title.slice(0, 50)}..." (theme: ${themeKey})`
+    `[Thumbnail] Style transfer with content analysis for: "${title.slice(0, 50)}..." (type: ${articleType || "auto"})`
   );
   return prompt;
 }
@@ -751,12 +777,14 @@ export async function generateThumbnailWithOgReference(
     return generateThumbnailWithGeminiFlash(request);
   }
 
-  // Step 2: Generate style transfer prompt
-  const stylePrompt = generateStyleTransferPrompt(
-    request.title,
-    request.summary,
-    request.article_type
-  );
+  // Step 2: Generate style transfer prompt with rich content
+  const stylePrompt = generateStyleTransferPrompt({
+    title: request.title,
+    summary: request.summary,
+    keyTakeaways: request.key_takeaways,
+    oneLiner: request.one_liner,
+    articleType: request.article_type,
+  });
 
   try {
     // Step 3: Single call to Gemini Flash Image with OG image input
