@@ -14,7 +14,7 @@ export const colors = {
   error: chalk.hex("#EF4444"), // Red
   muted: chalk.hex("#71717A"), // Gray
   dim: chalk.hex("#52525B"), // Dark gray
-  white: chalk.reset, // Use reset instead of white for terminal compatibility
+  white: chalk.visible, // No color styling - works on both light/dark terminals, supports .bold chaining
   cyan: chalk.cyan,
 
   // CCplan colors

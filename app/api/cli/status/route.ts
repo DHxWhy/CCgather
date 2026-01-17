@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createServiceClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/supabase/server";
 
 export async function GET(request: NextRequest) {
   try {
@@ -17,7 +17,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Invalid API token" }, { status: 401 });
     }
 
-    const supabase = createServiceClient();
+    const supabase = await createClient();
 
     // Find user by API key
     const { data: user, error: userError } = await supabase
