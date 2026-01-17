@@ -3,6 +3,7 @@ import ora from "ora";
 import inquirer from "inquirer";
 import open from "open";
 import { getConfig, getApiUrl } from "../lib/config.js";
+import { colors } from "../lib/ui.js";
 
 interface AuthOptions {
   token?: string;
@@ -112,7 +113,7 @@ export async function auth(options: AuthOptions): Promise<void> {
           config.set("userId", pollData.userId);
           config.set("username", pollData.username);
 
-          console.log(chalk.gray(`\nWelcome, ${chalk.white(pollData.username)}!`));
+          console.log(chalk.gray(`\nWelcome, ${colors.white(pollData.username)}!`));
           console.log(chalk.dim("You can now submit your usage data.\n"));
           return;
         }
@@ -173,7 +174,7 @@ async function authenticateWithToken(token: string): Promise<void> {
     config.set("username", data.username);
 
     spinner.succeed(chalk.green("Authentication successful!"));
-    console.log(chalk.gray(`\nWelcome, ${chalk.white(data.username)}!`));
+    console.log(chalk.gray(`\nWelcome, ${colors.white(data.username)}!`));
     console.log(chalk.dim("You can now submit your usage data.\n"));
   } catch (error) {
     spinner.fail(chalk.red("Authentication failed"));

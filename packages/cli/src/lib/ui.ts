@@ -5,6 +5,7 @@ declare const __VERSION__: string;
 export const VERSION: string = typeof __VERSION__ !== "undefined" ? __VERSION__ : "0.0.0";
 
 // Brand colors
+// Note: Using colors that work on both light and dark terminal backgrounds
 export const colors = {
   primary: chalk.hex("#DA7756"), // Claude coral
   secondary: chalk.hex("#F7931E"), // Orange accent
@@ -13,7 +14,7 @@ export const colors = {
   error: chalk.hex("#EF4444"), // Red
   muted: chalk.hex("#71717A"), // Gray
   dim: chalk.hex("#52525B"), // Dark gray
-  white: chalk.white,
+  white: chalk.reset, // Use reset instead of white for terminal compatibility
   cyan: chalk.cyan,
 
   // CCplan colors

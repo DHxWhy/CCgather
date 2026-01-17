@@ -162,9 +162,9 @@ async function showMenuOnly(): Promise<void> {
       name: "action",
       message: "What would you like to do?",
       choices: [
-        { name: `📤  ${chalk.white("Submit usage data")}`, value: "submit" },
-        { name: `📊  ${chalk.white("View my rank")}`, value: "rank" },
-        { name: `⚙️   ${chalk.white("Settings")}`, value: "settings" },
+        { name: `📤  ${colors.white("Submit usage data")}`, value: "submit" },
+        { name: `📊  ${colors.white("View my rank")}`, value: "rank" },
+        { name: `⚙️   ${colors.white("Settings")}`, value: "settings" },
       ],
       loop: false,
     },
@@ -195,8 +195,8 @@ async function showSettingsMenu(): Promise<void> {
       name: "settingsAction",
       message: "Settings:",
       choices: [
-        { name: `🔐  ${chalk.white("Re-authenticate")}`, value: "auth" },
-        { name: `🗑️   ${chalk.white("Disconnect from CCgather")}`, value: "disconnect" },
+        { name: `🔐  ${colors.white("Re-authenticate")}`, value: "auth" },
+        { name: `🗑️   ${colors.white("Disconnect from CCgather")}`, value: "disconnect" },
         { name: `⬅️   ${chalk.gray("Back")}`, value: "back" },
       ],
       loop: false,
