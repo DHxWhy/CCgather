@@ -209,7 +209,7 @@ function LevelProgressBar({
   useEffect(() => {
     setAnimatedProgress(0);
 
-    const duration = 800;
+    const duration = 500; // Reduced from 800ms
     const startTime = performance.now();
 
     const animate = (currentTime: number) => {
@@ -223,11 +223,8 @@ function LevelProgressBar({
       }
     };
 
-    const timer = setTimeout(() => {
-      requestAnimationFrame(animate);
-    }, 100);
-
-    return () => clearTimeout(timer);
+    // Start immediately without delay
+    requestAnimationFrame(animate);
   }, [userId, progressToNext]);
 
   return (
@@ -560,6 +557,74 @@ function BadgeGrid({ badgeIds, userCountry }: { badgeIds: string[]; userCountry:
   );
 }
 
+// Skeleton components for loading states
+function ChartSkeleton() {
+  return (
+    <div className="h-32 flex flex-col gap-2">
+      {/* Y-axis and chart area */}
+      <div className="flex gap-2 h-full">
+        {/* Y-axis labels */}
+        <div className="flex flex-col justify-between py-1 w-8">
+          {[1, 2, 3, 4].map((i) => (
+            <div
+              key={i}
+              className="h-2 w-6 bg-white/10 rounded animate-pulse"
+              style={{ animationDelay: `${i * 100}ms` }}
+            />
+          ))}
+        </div>
+        {/* Chart bars/area */}
+        <div className="flex-1 flex items-end gap-1 pb-4">
+          {[...Array(12)].map((_, i) => (
+            <div
+              key={i}
+              className="flex-1 bg-white/10 rounded-t animate-pulse"
+              style={{
+                height: `${30 + Math.random() * 60}%`,
+                animationDelay: `${i * 50}ms`,
+              }}
+            />
+          ))}
+        </div>
+      </div>
+      {/* X-axis labels */}
+      <div className="flex gap-1 pl-10">
+        {[1, 2, 3, 4, 5].map((i) => (
+          <div
+            key={i}
+            className="flex-1 h-2 bg-white/10 rounded animate-pulse"
+            style={{ animationDelay: `${i * 100}ms` }}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function HeatmapSkeleton() {
+  return (
+    <div className="h-20 flex flex-col gap-1">
+      {/* Heatmap grid */}
+      <div className="flex gap-0.5 flex-wrap">
+        {[...Array(52)].map((_, weekIndex) => (
+          <div key={weekIndex} className="flex flex-col gap-0.5">
+            {[...Array(7)].map((_, dayIndex) => (
+              <div
+                key={dayIndex}
+                className="w-2 h-2 bg-white/10 rounded-sm animate-pulse"
+                style={{
+                  animationDelay: `${(weekIndex * 7 + dayIndex) * 5}ms`,
+                  opacity: Math.random() > 0.3 ? 1 : 0.5,
+                }}
+              />
+            ))}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 interface ProfileSidePanelProps {
   user: DisplayUser | null;
   isOpen: boolean;
@@ -615,7 +680,6 @@ export function ProfileSidePanel({
   const statsRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [displayedUser, setDisplayedUser] = useState<DisplayUser | null>(null);
-  const [isTransitioning, setIsTransitioning] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const [isTabletPortrait, setIsTabletPortrait] = useState(false);
   const [isNarrow, setIsNarrow] = useState(false);
@@ -807,17 +871,9 @@ export function ProfileSidePanel({
       scrollContainerRef.current.scrollTop = 0;
     }
 
-    if (displayedUser) {
-      setIsTransitioning(true);
-      const timer = setTimeout(() => {
-        setDisplayedUser(user);
-        setIsTransitioning(false);
-      }, 100);
-      return () => clearTimeout(timer);
-    } else {
-      setDisplayedUser(user);
-      return undefined;
-    }
+    // Immediately switch user without transition delay for snappier feel
+    setDisplayedUser(user);
+    return undefined;
   }, [user, isOpen, displayedUser?.id]);
 
   // Clear when panel closes
@@ -969,11 +1025,7 @@ export function ProfileSidePanel({
           </div>
 
           {/* Profile Header */}
-          <div
-            className={`p-4 pb-3 border-b border-[var(--border-default)] bg-[var(--color-bg-primary)] transition-opacity duration-150 ${
-              isTransitioning ? "opacity-30" : "opacity-100"
-            }`}
-          >
+          <div className="p-4 pb-3 border-b border-[var(--border-default)] bg-[var(--color-bg-primary)]">
             <div className="flex items-start gap-3">
               {currentUser.avatar_url ? (
                 <img
@@ -1093,12 +1145,7 @@ export function ProfileSidePanel({
         </div>
 
         {/* Scrollable Content */}
-        <div
-          ref={scrollContainerRef}
-          className={`p-4 overflow-y-auto overflow-x-clip flex-1 transition-opacity duration-150 ${
-            isTransitioning ? "opacity-30" : "opacity-100"
-          }`}
-        >
+        <div ref={scrollContainerRef} className="p-4 overflow-y-auto overflow-x-clip flex-1">
           {/* Level Progress */}
           <LevelProgressBar
             currentTokens={currentUser.total_tokens}
@@ -1244,9 +1291,7 @@ export function ProfileSidePanel({
               </div>
             </div>
             {historyLoading ? (
-              <div className="h-32 flex items-center justify-center">
-                <div className="w-6 h-6 border-2 border-[var(--color-claude-coral)] border-t-transparent rounded-full animate-spin" />
-              </div>
+              <ChartSkeleton />
             ) : usageHistory.length > 0 ? (
               <UsageChart history={usageHistory} periodFilter={periodFilter} />
             ) : (
@@ -1269,9 +1314,7 @@ export function ProfileSidePanel({
               📅 Activity (Last Year)
             </div>
             {historyLoading ? (
-              <div className="h-20 flex items-center justify-center">
-                <div className="w-6 h-6 border-2 border-[var(--color-claude-coral)] border-t-transparent rounded-full animate-spin" />
-              </div>
+              <HeatmapSkeleton />
             ) : (
               <ActivityHeatmap data={usageHistory} periodDays={365} />
             )}
