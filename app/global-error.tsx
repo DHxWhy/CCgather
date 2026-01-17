@@ -15,13 +15,47 @@ export default function GlobalError({ error, reset }: GlobalErrorProps) {
 
   return (
     <html lang="en">
-      <body className="min-h-screen flex items-center justify-center bg-gray-900 px-4">
-        <div className="max-w-md w-full text-center">
+      <head>
+        <style
+          dangerouslySetInnerHTML={{
+            __html: `
+              :root {
+                --color-bg-primary: #0d0d0f;
+                --color-text-primary: #f9f9f8;
+                --color-text-secondary: #a1a1aa;
+                --color-claude-coral: #da7756;
+              }
+            `,
+          }}
+        />
+      </head>
+      <body
+        style={{
+          minHeight: "100vh",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          backgroundColor: "var(--color-bg-primary)",
+          padding: "1rem",
+          margin: 0,
+        }}
+      >
+        <div style={{ maxWidth: "28rem", width: "100%", textAlign: "center" }}>
           {/* Error Icon */}
-          <div className="mb-6 flex justify-center">
-            <div className="w-20 h-20 rounded-full bg-red-500/10 flex items-center justify-center">
+          <div style={{ marginBottom: "1.5rem", display: "flex", justifyContent: "center" }}>
+            <div
+              style={{
+                width: "5rem",
+                height: "5rem",
+                borderRadius: "9999px",
+                backgroundColor: "rgba(218, 119, 86, 0.1)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
               <svg
-                className="w-10 h-10 text-red-500"
+                style={{ width: "2.5rem", height: "2.5rem", color: "var(--color-claude-coral)" }}
                 fill="none"
                 viewBox="0 0 24 24"
                 stroke="currentColor"
@@ -37,28 +71,92 @@ export default function GlobalError({ error, reset }: GlobalErrorProps) {
           </div>
 
           {/* Error Message */}
-          <h1 className="text-2xl font-bold text-white mb-2">Something went wrong</h1>
-          <p className="text-gray-400 mb-6">
-            A critical error occurred. Please try again or return to the home page.
+          <h1
+            style={{
+              fontSize: "1.5rem",
+              fontWeight: 700,
+              color: "var(--color-text-primary)",
+              marginBottom: "0.5rem",
+            }}
+          >
+            문제가 발생했습니다
+          </h1>
+          <p style={{ color: "var(--color-text-secondary)", marginBottom: "1.5rem" }}>
+            심각한 오류가 발생했습니다. 다시 시도하거나 홈으로 이동해 주세요.
           </p>
 
           {/* Error Details (Development) */}
           {process.env.NODE_ENV === "development" && (
-            <div className="mb-6 p-4 bg-gray-800 border border-gray-700 rounded-lg text-left">
-              <p className="text-xs font-mono text-gray-300 break-all">{error.message}</p>
+            <div
+              style={{
+                marginBottom: "1.5rem",
+                padding: "1rem",
+                backgroundColor: "rgba(255, 255, 255, 0.05)",
+                border: "1px solid rgba(255, 255, 255, 0.1)",
+                borderRadius: "0.5rem",
+                textAlign: "left",
+              }}
+            >
+              <p
+                style={{
+                  fontSize: "0.75rem",
+                  fontFamily: "monospace",
+                  color: "var(--color-text-secondary)",
+                  wordBreak: "break-all",
+                  margin: 0,
+                }}
+              >
+                {error.message}
+              </p>
               {error.digest && (
-                <p className="text-xs font-mono text-gray-500 mt-2">Digest: {error.digest}</p>
+                <p
+                  style={{
+                    fontSize: "0.75rem",
+                    fontFamily: "monospace",
+                    color: "rgba(255, 255, 255, 0.4)",
+                    marginTop: "0.5rem",
+                    marginBottom: 0,
+                  }}
+                >
+                  Digest: {error.digest}
+                </p>
               )}
             </div>
           )}
 
           {/* Action Buttons */}
-          <div className="flex flex-col sm:flex-row gap-3 justify-center">
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              gap: "0.75rem",
+              justifyContent: "center",
+            }}
+          >
             <button
               onClick={reset}
-              className="inline-flex items-center justify-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors"
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                padding: "0.5rem 1rem",
+                backgroundColor: "var(--color-claude-coral)",
+                color: "white",
+                fontWeight: 500,
+                borderRadius: "0.5rem",
+                border: "none",
+                cursor: "pointer",
+                transition: "opacity 0.2s",
+              }}
+              onMouseOver={(e) => (e.currentTarget.style.opacity = "0.9")}
+              onMouseOut={(e) => (e.currentTarget.style.opacity = "1")}
             >
-              <svg className="w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <svg
+                style={{ width: "1rem", height: "1rem", marginRight: "0.5rem" }}
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
                 <path
                   strokeLinecap="round"
                   strokeLinejoin="round"
@@ -66,13 +164,32 @@ export default function GlobalError({ error, reset }: GlobalErrorProps) {
                   d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
                 />
               </svg>
-              Try Again
+              다시 시도
             </button>
             <button
               onClick={() => (window.location.href = "/")}
-              className="inline-flex items-center justify-center px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white font-medium rounded-lg transition-colors"
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                padding: "0.5rem 1rem",
+                backgroundColor: "rgba(255, 255, 255, 0.1)",
+                color: "var(--color-text-primary)",
+                fontWeight: 500,
+                borderRadius: "0.5rem",
+                border: "none",
+                cursor: "pointer",
+                transition: "opacity 0.2s",
+              }}
+              onMouseOver={(e) => (e.currentTarget.style.opacity = "0.8")}
+              onMouseOut={(e) => (e.currentTarget.style.opacity = "1")}
             >
-              <svg className="w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <svg
+                style={{ width: "1rem", height: "1rem", marginRight: "0.5rem" }}
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
                 <path
                   strokeLinecap="round"
                   strokeLinejoin="round"
@@ -80,7 +197,7 @@ export default function GlobalError({ error, reset }: GlobalErrorProps) {
                   d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"
                 />
               </svg>
-              Go Home
+              홈으로 이동
             </button>
           </div>
         </div>
