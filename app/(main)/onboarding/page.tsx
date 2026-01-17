@@ -93,7 +93,10 @@ export default function OnboardingPage() {
           setShowCLIModal(true);
         }
       } else {
-        const data = await response.json().catch(() => ({}));
+        const data = await response.json().catch((e) => {
+          console.warn("[Onboarding] JSON parse failed:", e instanceof Error ? e.message : e);
+          return {};
+        });
         console.error("Failed to update profile:", response.status, data);
         alert(`Failed to join league (${response.status}): ${data.error || "Unknown error"}`);
       }
@@ -123,7 +126,10 @@ export default function OnboardingPage() {
           router.replace("/leaderboard");
         }, 2000);
       } else {
-        const data = await response.json().catch(() => ({}));
+        const data = await response.json().catch((e) => {
+          console.warn("[CLI Auth] JSON parse failed:", e instanceof Error ? e.message : e);
+          return {};
+        });
         console.error("Failed to authorize CLI:", data);
         setCliAuthStatus("error");
         // Still show the CLI modal as fallback

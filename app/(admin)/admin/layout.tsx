@@ -4,6 +4,7 @@ import { useUser } from "@clerk/nextjs";
 import { useRouter, usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 
 // Mac 스타일 사이드바 메뉴 구조
 const ADMIN_MENU = [
@@ -186,7 +187,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           {!sidebarCollapsed ? (
             <div className="flex items-center gap-2.5">
               {user?.imageUrl ? (
-                <img src={user.imageUrl} alt="" className="w-7 h-7 rounded-full" />
+                <Image src={user.imageUrl} alt="" width={28} height={28} className="rounded-full" />
               ) : (
                 <div className="w-7 h-7 rounded-full bg-white/10" />
               )}
@@ -202,7 +203,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           ) : (
             <div className="flex justify-center">
               {user?.imageUrl ? (
-                <img src={user.imageUrl} alt="" className="w-7 h-7 rounded-full" />
+                <Image src={user.imageUrl} alt="" width={28} height={28} className="rounded-full" />
               ) : (
                 <div className="w-7 h-7 rounded-full bg-white/10" />
               )}

@@ -559,41 +559,53 @@ function BadgeGrid({ badgeIds, userCountry }: { badgeIds: string[]; userCountry:
 
 // Skeleton components for loading states
 function ChartSkeleton() {
+  // Simulated line chart path points for skeleton
+  const pathPoints = [40, 55, 45, 70, 60, 80, 50, 65, 75, 55, 60, 70];
+
   return (
-    <div className="h-32 flex flex-col gap-2">
-      {/* Y-axis and chart area */}
-      <div className="flex gap-2 h-full">
-        {/* Y-axis labels */}
-        <div className="flex flex-col justify-between py-1 w-8">
-          {[1, 2, 3, 4].map((i) => (
-            <div
-              key={i}
-              className="h-2 w-6 bg-white/10 rounded animate-pulse"
-              style={{ animationDelay: `${i * 100}ms` }}
-            />
-          ))}
-        </div>
-        {/* Chart bars/area */}
-        <div className="flex-1 flex items-end gap-1 pb-4">
-          {[...Array(12)].map((_, i) => (
-            <div
-              key={i}
-              className="flex-1 bg-white/10 rounded-t animate-pulse"
-              style={{
-                height: `${30 + Math.random() * 60}%`,
-                animationDelay: `${i * 50}ms`,
-              }}
-            />
-          ))}
-        </div>
+    <div className="h-32 relative">
+      {/* Y-axis labels */}
+      <div className="absolute left-0 top-0 bottom-4 w-9 flex flex-col justify-between py-1">
+        {[1, 2, 3, 4].map((i) => (
+          <div
+            key={i}
+            className="h-2 w-7 bg-white/10 rounded animate-pulse"
+            style={{ animationDelay: `${i * 100}ms` }}
+          />
+        ))}
       </div>
+
+      {/* Chart area with grid lines */}
+      <div className="ml-9 mr-4 h-full relative">
+        {/* Horizontal grid lines */}
+        {[0, 1, 2, 3].map((i) => (
+          <div
+            key={i}
+            className="absolute left-0 right-0 border-t border-dashed border-white/10"
+            style={{ top: `${i * 25 + 12}%` }}
+          />
+        ))}
+
+        {/* Simulated line chart skeleton */}
+        <svg className="absolute inset-0 w-full h-full" preserveAspectRatio="none">
+          <path
+            d={`M 0 ${100 - (pathPoints[0] ?? 40)} ${pathPoints.map((p, i) => `L ${(i / (pathPoints.length - 1)) * 100}% ${100 - p}%`).join(" ")}`}
+            fill="none"
+            stroke="var(--color-claude-coral)"
+            strokeWidth="2"
+            strokeOpacity="0.3"
+            className="animate-pulse"
+          />
+        </svg>
+      </div>
+
       {/* X-axis labels */}
-      <div className="flex gap-1 pl-10">
+      <div className="absolute bottom-0 left-9 right-4 flex justify-between">
         {[1, 2, 3, 4, 5].map((i) => (
           <div
             key={i}
-            className="flex-1 h-2 bg-white/10 rounded animate-pulse"
-            style={{ animationDelay: `${i * 100}ms` }}
+            className="h-2 w-8 bg-white/10 rounded animate-pulse"
+            style={{ animationDelay: `${i * 80}ms` }}
           />
         ))}
       </div>
@@ -602,24 +614,57 @@ function ChartSkeleton() {
 }
 
 function HeatmapSkeleton() {
+  // Generate consistent opacity pattern (not random to avoid hydration issues)
+  const getOpacity = (week: number, day: number) => {
+    const pattern = [0.2, 0.4, 0.3, 0.5, 0.35, 0.25, 0.45];
+    return pattern[(week + day) % pattern.length];
+  };
+
   return (
-    <div className="h-20 flex flex-col gap-1">
-      {/* Heatmap grid */}
-      <div className="flex gap-0.5 flex-wrap">
-        {[...Array(52)].map((_, weekIndex) => (
-          <div key={weekIndex} className="flex flex-col gap-0.5">
+    <div className="flex flex-col gap-2">
+      {/* Month labels */}
+      <div className="flex justify-between px-1 mb-1">
+        {["", "", "", "", "", ""].map((_, i) => (
+          <div
+            key={i}
+            className="h-2 w-6 bg-white/10 rounded animate-pulse"
+            style={{ animationDelay: `${i * 50}ms` }}
+          />
+        ))}
+      </div>
+
+      {/* Heatmap grid - horizontal layout matching actual design */}
+      <div className="flex gap-[3px] overflow-hidden">
+        {[...Array(26)].map((_, weekIndex) => (
+          <div key={weekIndex} className="flex flex-col gap-[3px]">
             {[...Array(7)].map((_, dayIndex) => (
               <div
                 key={dayIndex}
-                className="w-2 h-2 bg-white/10 rounded-sm animate-pulse"
+                className="w-[10px] h-[10px] rounded-sm animate-pulse"
                 style={{
-                  animationDelay: `${(weekIndex * 7 + dayIndex) * 5}ms`,
-                  opacity: Math.random() > 0.3 ? 1 : 0.5,
+                  backgroundColor: `rgba(218, 119, 86, ${getOpacity(weekIndex, dayIndex)})`,
+                  animationDelay: `${(weekIndex * 7 + dayIndex) * 8}ms`,
                 }}
               />
             ))}
           </div>
         ))}
+      </div>
+
+      {/* Legend skeleton */}
+      <div className="flex items-center justify-end gap-1 mt-1">
+        <div className="h-2 w-6 bg-white/10 rounded animate-pulse" />
+        {[0.2, 0.35, 0.5, 0.65, 0.8].map((opacity, i) => (
+          <div
+            key={i}
+            className="w-[10px] h-[10px] rounded-sm animate-pulse"
+            style={{
+              backgroundColor: `rgba(218, 119, 86, ${opacity})`,
+              animationDelay: `${i * 100}ms`,
+            }}
+          />
+        ))}
+        <div className="h-2 w-8 bg-white/10 rounded animate-pulse" />
       </div>
     </div>
   );
@@ -829,6 +874,8 @@ export function ProfileSidePanel({
       if (!user) return;
 
       setHistoryLoading(true);
+      setUsageHistory([]); // Reset immediately to avoid showing stale data
+      setUserBadges([]); // Reset badges too
       setFreshSocialLinks(null); // Reset on user change
       try {
         // Fetch history (includes fresh social_links)
@@ -961,7 +1008,18 @@ export function ProfileSidePanel({
 
   const countryRank = currentUser.country_rank || currentUser.rank;
 
-  // Calculate period stats from history
+  // Use currentUser data directly for instant display (no API wait)
+  // period_tokens/period_cost come from leaderboard API, total_tokens/total_cost for "all" filter
+  const periodTokens =
+    periodFilter === "all"
+      ? currentUser.total_tokens
+      : (currentUser.period_tokens ?? currentUser.total_tokens);
+  const periodCost =
+    periodFilter === "all"
+      ? currentUser.total_cost
+      : (currentUser.period_cost ?? currentUser.total_cost);
+
+  // Calculate average from history (this can load async)
   const days =
     periodFilter === "today"
       ? 1
@@ -971,9 +1029,10 @@ export function ProfileSidePanel({
           ? 30
           : usageHistory.length;
   const filteredHistory = usageHistory.slice(-days);
-  const periodTokens = filteredHistory.reduce((sum, day) => sum + day.tokens, 0);
-  const periodCost = filteredHistory.reduce((sum, day) => sum + day.cost, 0);
-  const avgDailyTokens = filteredHistory.length > 0 ? periodTokens / filteredHistory.length : 0;
+  const avgDailyTokens =
+    filteredHistory.length > 0
+      ? filteredHistory.reduce((sum, day) => sum + day.tokens, 0) / filteredHistory.length
+      : 0;
 
   const periodLabel =
     periodFilter === "today"

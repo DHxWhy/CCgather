@@ -1,5 +1,7 @@
 "use client";
 
+import Image from "next/image";
+
 interface ProfileCardProps {
   imageUrl?: string;
   fullName?: string | null;
@@ -16,7 +18,13 @@ export default function ProfileCard({ imageUrl, fullName, username }: ProfileCar
       <h2 className="text-sm font-medium text-[var(--color-text-secondary)] mb-3">Profile</h2>
       <div className="flex items-center gap-4 p-4 rounded-xl bg-[var(--color-bg-tertiary)] border border-[var(--border-default)]">
         {imageUrl ? (
-          <img src={imageUrl} alt={displayName} className="w-14 h-14 rounded-xl object-cover" />
+          <Image
+            src={imageUrl}
+            alt={displayName}
+            width={56}
+            height={56}
+            className="rounded-xl object-cover"
+          />
         ) : (
           <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-primary to-[#B85C3D] flex items-center justify-center">
             <span className="text-white font-bold text-xl">{initial}</span>

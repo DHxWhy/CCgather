@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Image from "next/image";
 
 interface User {
   id: string;
@@ -222,7 +223,13 @@ export default function AdminUsersPage() {
                     <td className="px-4 py-2.5">
                       <div className="flex items-center gap-2.5">
                         {user.avatar_url ? (
-                          <img src={user.avatar_url} alt="" className="w-6 h-6 rounded-full" />
+                          <Image
+                            src={user.avatar_url}
+                            alt=""
+                            width={24}
+                            height={24}
+                            className="rounded-full"
+                          />
                         ) : (
                           <div className="w-6 h-6 rounded-full bg-white/10" />
                         )}

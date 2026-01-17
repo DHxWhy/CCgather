@@ -58,7 +58,13 @@ async function handleCronRequest(request: NextRequest, isManual: boolean) {
 
     // Get run_id if manual
     if (isManual) {
-      const body = await request.json().catch(() => ({}));
+      const body = await request.json().catch((e) => {
+        // Expected when no body is provided (e.g., GET-style call)
+        if (process.env.NODE_ENV === "development") {
+          console.debug("[Cron] Optional body parse:", e instanceof Error ? e.message : e);
+        }
+        return {};
+      });
       runId = body.run_id;
     }
 
