@@ -2,7 +2,8 @@
 
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { useSignIn } from "@clerk/nextjs";
+import { useSignIn, useUser } from "@clerk/nextjs";
+import { useRouter } from "next/navigation";
 import { X } from "lucide-react";
 
 interface AuthModalProps {
@@ -12,6 +13,8 @@ interface AuthModalProps {
 
 export function AuthModal({ isOpen, onClose }: AuthModalProps) {
   const { signIn, isLoaded } = useSignIn();
+  const { isSignedIn } = useUser();
+  const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -23,9 +26,24 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
     }
   }, [isOpen]);
 
+  // If already signed in, redirect to leaderboard
+  useEffect(() => {
+    if (isOpen && isSignedIn) {
+      onClose();
+      router.push("/leaderboard");
+    }
+  }, [isOpen, isSignedIn, onClose, router]);
+
   const handleGitHubSignIn = async () => {
     // Clear previous error
     setError(null);
+
+    // Check if already signed in
+    if (isSignedIn) {
+      onClose();
+      router.push("/leaderboard");
+      return;
+    }
 
     // Check if Clerk is loaded
     if (!isLoaded) {
@@ -45,8 +63,15 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
         redirectUrl: "/sso-callback",
         redirectUrlComplete: "/leaderboard",
       });
-    } catch (err) {
+    } catch (err: unknown) {
       console.error("GitHub sign in error:", err);
+      // Handle "already signed in" error
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      if (errorMessage.includes("already signed in")) {
+        onClose();
+        router.push("/leaderboard");
+        return;
+      }
       setError("Failed to connect to GitHub. Please try again.");
       setIsLoading(false);
     }

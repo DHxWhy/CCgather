@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { X as CloseIcon } from "lucide-react";
-import { useSignIn } from "@clerk/nextjs";
+import { useSignIn, useUser } from "@clerk/nextjs";
 
 type PromptType = "social_link" | "profile_limit";
 
@@ -44,14 +44,28 @@ export function LoginPromptModal({
   onContinueAsGuest,
 }: LoginPromptModalProps) {
   const { signIn, isLoaded } = useSignIn();
+  const { isSignedIn } = useUser();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const content = PROMPT_CONTENT[type];
+
+  // If already signed in, close modal
+  useEffect(() => {
+    if (isOpen && isSignedIn) {
+      onClose();
+    }
+  }, [isOpen, isSignedIn, onClose]);
 
   if (!isOpen) return null;
 
   const handleOAuthSignIn = async (provider: "oauth_github" | "oauth_google") => {
     setError(null);
+
+    // Check if already signed in
+    if (isSignedIn) {
+      onClose();
+      return;
+    }
 
     if (!isLoaded) {
       setError("Loading... Please wait.");
@@ -70,8 +84,14 @@ export function LoginPromptModal({
         redirectUrl: "/sso-callback",
         redirectUrlComplete: window.location.pathname,
       });
-    } catch (err) {
+    } catch (err: unknown) {
       console.error("OAuth sign in error:", err);
+      // Handle "already signed in" error
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      if (errorMessage.includes("already signed in")) {
+        onClose();
+        return;
+      }
       setError("Connection failed. Please try again.");
       setIsLoading(false);
     }
