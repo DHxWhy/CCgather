@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import { redirect } from "next/navigation";
+import { auth } from "@clerk/nextjs/server";
 import { LandingHeader } from "@/components/layout/LandingHeader";
 import { Footer } from "@/components/layout/footer";
 import { LandingHero, LeaderboardPreview, HowItWorks } from "@/components/landing";
@@ -20,6 +22,12 @@ export const metadata: Metadata = {
 };
 
 export default async function HomePage() {
+  // Redirect logged-in users to leaderboard
+  const { userId } = await auth();
+  if (userId) {
+    redirect("/leaderboard");
+  }
+
   // Fetch stats on server for immediate display (zero-latency)
   const stats = await getGlobalStats();
   return (
