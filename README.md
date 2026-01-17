@@ -2,7 +2,7 @@
 
 # CCGather
 
-### Where Claude Code Developers Gather
+### Proof of your Claude Code dedication
 
 **Real-time Global Leaderboard | Country Rankings | Level System**
 

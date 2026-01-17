@@ -42,12 +42,12 @@ export const LOGO = `
 
 // Compact logo for smaller screens
 export const LOGO_COMPACT = `
-  ${colors.primary("CC")}${colors.secondary("gather")} ${colors.muted("- Where Claude Code Developers Gather")}
+  ${colors.primary("CC")}${colors.secondary("gather")} ${colors.muted("- Proof of your Claude Code dedication")}
 `;
 
 // Taglines
-export const TAGLINE = colors.muted("          Where Claude Code Developers Gather");
-export const SLOGAN = colors.dim("                Gather. Compete. Rise.");
+export const TAGLINE = colors.muted("          Proof of your Claude Code dedication");
+export const SLOGAN = colors.dim("                Track. Prove. Rise.");
 
 // Version display
 export function getVersionLine(version: string): string {
@@ -131,12 +131,12 @@ export function createProfessionalHeader(): string[] {
   lines.push(colors.dim(`  ${boxRound.leftT}${h.repeat(HEADER_WIDTH)}${boxRound.rightT}`));
   lines.push(
     colors.dim(`  ${v}`) +
-      centerText(colors.muted("Where Claude Code Developers Gather"), HEADER_WIDTH) +
+      centerText(colors.muted("Proof of your Claude Code dedication"), HEADER_WIDTH) +
       colors.dim(v)
   );
   lines.push(
     colors.dim(`  ${v}`) +
-      centerText(colors.dim("Gather · Compete · Rise"), HEADER_WIDTH) +
+      centerText(colors.dim("Track · Prove · Rise"), HEADER_WIDTH) +
       colors.dim(v)
   );
   lines.push(colors.dim(`  ${v}`) + " ".repeat(HEADER_WIDTH) + colors.dim(v));

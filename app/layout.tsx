@@ -20,11 +20,11 @@ const jetbrainsMono = JetBrains_Mono({
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL ?? "https://ccgather.com"),
   title: {
-    default: "CCgather - Where Claude Code Developers Gather",
+    default: "CCgather - Proof of your Claude Code dedication",
     template: "%s | CCgather",
   },
   description:
-    "Real-time global leaderboard for Claude Code usage. Track your tokens, compete with developers worldwide, and rise through the ranks. Join the gathering!",
+    "Real-time global leaderboard for Claude Code usage. Track your tokens, prove your dedication, and rise through the ranks!",
   keywords: [
     "Claude Code",
     "Claude Code leaderboard",
@@ -47,8 +47,8 @@ export const metadata: Metadata = {
     alternateLocale: ["ko_KR", "ja_JP"],
     url: "https://ccgather.com",
     siteName: "CCgather",
-    title: "CCgather - Where Claude Code Developers Gather",
-    description: "Real-time global leaderboard for Claude Code usage. Track, compete, and rise!",
+    title: "CCgather - Proof of your Claude Code dedication",
+    description: "Real-time global leaderboard for Claude Code usage. Track, prove, and rise!",
     images: [
       {
         url: "/og-image.png",
@@ -60,7 +60,7 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "CCgather - Where Claude Code Developers Gather",
+    title: "CCgather - Proof of your Claude Code dedication",
     description: "Real-time global leaderboard for Claude Code usage",
     images: ["/og-image.png"],
     creator: "@ccgather",

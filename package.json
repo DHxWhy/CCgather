@@ -2,7 +2,7 @@
   "name": "ccgather",
   "version": "1.0.0",
   "private": true,
-  "description": "Where Claude Code Developers Gather - Real-time global leaderboard for Claude Code usage",
+  "description": "Proof of your Claude Code dedication - Real-time global leaderboard for Claude Code usage",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
