@@ -79,10 +79,10 @@ export default function GlobalError({ error, reset }: GlobalErrorProps) {
               marginBottom: "0.5rem",
             }}
           >
-            문제가 발생했습니다
+            Something went wrong
           </h1>
           <p style={{ color: "var(--color-text-secondary)", marginBottom: "1.5rem" }}>
-            심각한 오류가 발생했습니다. 다시 시도하거나 홈으로 이동해 주세요.
+            A critical error occurred. Please try again or return to the home page.
           </p>
 
           {/* Error Details (Development) */}
@@ -164,7 +164,7 @@ export default function GlobalError({ error, reset }: GlobalErrorProps) {
                   d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
                 />
               </svg>
-              다시 시도
+              Try Again
             </button>
             <button
               onClick={() => (window.location.href = "/")}
@@ -197,7 +197,7 @@ export default function GlobalError({ error, reset }: GlobalErrorProps) {
                   d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"
                 />
               </svg>
-              홈으로 이동
+              Go Home
             </button>
           </div>
         </div>
