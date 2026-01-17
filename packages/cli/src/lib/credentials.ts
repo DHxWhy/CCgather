@@ -5,15 +5,26 @@ import { execSync } from "child_process";
 
 export type CCPlan = "free" | "pro" | "max" | "team" | "enterprise" | string;
 
+// Authentication method used
+export type AuthMethod = "oauth" | "api_key" | "unknown";
+
 export interface CredentialsData {
   ccplan: CCPlan | null;
   rateLimitTier: string | null;
+  authMethod: AuthMethod;
+  rawSubscriptionType: string | null; // Original value for server logging
 }
 
 interface ClaudeCredentials {
   claudeAiOauth?: {
     subscriptionType?: string;
     rateLimitTier?: string;
+  };
+  // API Key based auth (Anthropic Console) may have different structure
+  anthropicConsole?: {
+    apiKey?: string;
+    organizationId?: string;
+    organizationType?: string; // "team" | "enterprise" | "personal"
   };
 }
 
@@ -98,6 +109,8 @@ function mapSubscriptionToCCPlan(subscriptionType: string | undefined): CCPlan |
  * - "default_claude_max_20x" → "max"
  * - "default_claude_pro" → "pro"
  * - "free" → "free"
+ * - "default_claude_team_*" → "team"
+ * - "default_claude_enterprise_*" → "enterprise"
  */
 function inferPlanFromRateLimitTier(rateLimitTier: string | undefined): CCPlan | null {
   if (!rateLimitTier) {
@@ -106,16 +119,21 @@ function inferPlanFromRateLimitTier(rateLimitTier: string | undefined): CCPlan |
 
   const tier = rateLimitTier.toLowerCase();
 
+  // Order matters: check more specific patterns first
+  if (tier.includes("enterprise")) {
+    return "enterprise";
+  }
+
+  if (tier.includes("team")) {
+    return "team";
+  }
+
   if (tier.includes("max")) {
     return "max";
   }
 
   if (tier.includes("pro")) {
     return "pro";
-  }
-
-  if (tier.includes("team") || tier.includes("enterprise")) {
-    return "team";
   }
 
   if (tier.includes("free")) {
@@ -126,9 +144,32 @@ function inferPlanFromRateLimitTier(rateLimitTier: string | undefined): CCPlan |
 }
 
 /**
+ * Detect if user is using API Key authentication (Team/Enterprise)
+ * Team/Enterprise users typically authenticate via Anthropic Console with API keys
+ */
+function detectApiKeyAuth(): { isApiKey: boolean; orgType: CCPlan | null } {
+  // Check environment variables that indicate API key usage
+  const anthropicApiKey = process.env.ANTHROPIC_API_KEY;
+  const claudeOAuthToken = process.env.CLAUDE_CODE_OAUTH_TOKEN;
+
+  // If ANTHROPIC_API_KEY is set without OAuth token, likely Team/Enterprise
+  if (anthropicApiKey && !claudeOAuthToken) {
+    // API keys from Team/Enterprise may have specific prefixes or patterns
+    // sk-ant-api03- is typical for console API keys
+    if (anthropicApiKey.startsWith("sk-ant-api")) {
+      return { isApiKey: true, orgType: null }; // Can't determine exact type from key
+    }
+  }
+
+  return { isApiKey: false, orgType: null };
+}
+
+/**
  * Read credentials from platform-specific storage
  * - macOS: Keychain
  * - Linux/Windows: ~/.claude/.credentials.json
+ *
+ * Also detects API Key authentication (used by Team/Enterprise)
  *
  * Returns account information or null values if not found
  */
@@ -137,7 +178,20 @@ export function readCredentials(): CredentialsData {
   const defaultData: CredentialsData = {
     ccplan: null,
     rateLimitTier: null,
+    authMethod: "unknown",
+    rawSubscriptionType: null,
   };
+
+  // First, check for API Key authentication (Team/Enterprise typically uses this)
+  const apiKeyAuth = detectApiKeyAuth();
+  if (apiKeyAuth.isApiKey) {
+    return {
+      ccplan: apiKeyAuth.orgType || "team", // Default to "team" for API key users
+      rateLimitTier: null,
+      authMethod: "api_key",
+      rawSubscriptionType: "api_key_auth", // Signal to server that this is API key auth
+    };
+  }
 
   let credentials: ClaudeCredentials | null = null;
 
@@ -155,7 +209,18 @@ export function readCredentials(): CredentialsData {
     return defaultData;
   }
 
-  // Extract OAuth data
+  // Check for Anthropic Console auth structure (Team/Enterprise)
+  if (credentials.anthropicConsole?.organizationType) {
+    const orgType = credentials.anthropicConsole.organizationType.toLowerCase();
+    return {
+      ccplan: orgType === "enterprise" ? "enterprise" : orgType === "team" ? "team" : orgType,
+      rateLimitTier: null,
+      authMethod: "api_key",
+      rawSubscriptionType: orgType,
+    };
+  }
+
+  // Extract OAuth data (Pro/Max individual users)
   const oauthData = credentials.claudeAiOauth;
 
   if (!oauthData) {
@@ -164,12 +229,14 @@ export function readCredentials(): CredentialsData {
 
   // Map subscription type to CCPlan, fallback to rateLimitTier inference
   const rateLimitTier = oauthData.rateLimitTier || null;
+  const rawSubscriptionType = oauthData.subscriptionType || null;
   const ccplan =
-    mapSubscriptionToCCPlan(oauthData.subscriptionType) ||
-    inferPlanFromRateLimitTier(rateLimitTier);
+    mapSubscriptionToCCPlan(rawSubscriptionType) || inferPlanFromRateLimitTier(rateLimitTier);
 
   return {
     ccplan,
     rateLimitTier,
+    authMethod: "oauth",
+    rawSubscriptionType,
   };
 }

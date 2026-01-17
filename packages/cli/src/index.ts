@@ -17,6 +17,19 @@ import {
 import { getConfig, isAuthenticated, resetConfig } from "./lib/config.js";
 import { getStatus } from "./lib/api.js";
 
+// Simple semver comparison: returns true if v1 > v2
+function isNewerVersion(v1: string, v2: string): boolean {
+  const parts1 = v1.split(".").map(Number);
+  const parts2 = v2.split(".").map(Number);
+  for (let i = 0; i < 3; i++) {
+    const p1 = parts1[i] || 0;
+    const p2 = parts2[i] || 0;
+    if (p1 > p2) return true;
+    if (p1 < p2) return false;
+  }
+  return false;
+}
+
 // Check for updates (real-time npm registry check)
 async function checkLatestVersion(): Promise<string | null> {
   try {
@@ -88,7 +101,7 @@ async function showMainMenu(): Promise<void> {
 
   // Check for newer version and prompt for update
   const latestVersion = await checkLatestVersion();
-  if (latestVersion && latestVersion !== VERSION) {
+  if (latestVersion && isNewerVersion(latestVersion, VERSION)) {
     const willUpdate = await promptForUpdate(latestVersion);
     if (willUpdate) {
       // Wait for child process to take over
