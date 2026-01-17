@@ -11,21 +11,47 @@ interface CLIModalProps {
 
 function CopyButton({ text }: { text: string }) {
   const [copied, setCopied] = useState(false);
+  const [error, setError] = useState(false);
 
   const handleCopy = async () => {
-    await navigator.clipboard.writeText(text);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    try {
+      // Try modern clipboard API first
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(text);
+      } else {
+        // Fallback for HTTP or unsupported browsers
+        const textArea = document.createElement("textarea");
+        textArea.value = text;
+        textArea.style.position = "fixed";
+        textArea.style.left = "-999999px";
+        textArea.style.top = "-999999px";
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+        const successful = document.execCommand("copy");
+        document.body.removeChild(textArea);
+        if (!successful) throw new Error("Copy failed");
+      }
+      setCopied(true);
+      setError(false);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (err) {
+      console.error("Failed to copy:", err);
+      setError(true);
+      setTimeout(() => setError(false), 2000);
+    }
   };
 
   return (
     <button
       onClick={handleCopy}
       className="p-1.5 rounded hover:bg-white/10 transition-colors"
-      title="Copy to clipboard"
+      title={error ? "Failed to copy" : "Copy to clipboard"}
     >
       {copied ? (
         <Check className="w-4 h-4 text-green-400" />
+      ) : error ? (
+        <X className="w-4 h-4 text-red-400" />
       ) : (
         <Copy className="w-4 h-4 text-[var(--color-text-muted)]" />
       )}

@@ -78,9 +78,10 @@ export async function POST(request: NextRequest) {
     if (!existingUser) {
       // Create new user
       apiKey = `ccg_${randomBytes(32).toString("hex")}`;
-      const username = user?.username || user?.firstName || "user";
+      let username = user?.username || user?.firstName || "user";
 
-      const { data: newUser, error: createError } = await supabase
+      // Try to insert, handle username conflict
+      let { data: newUser, error: createError } = await supabase
         .from("users")
         .insert({
           clerk_id: clerkUserId,
@@ -93,12 +94,39 @@ export async function POST(request: NextRequest) {
         .select("id")
         .single();
 
+      // Handle username conflict (23505 = unique_violation)
+      if (createError?.code === "23505" && createError.message?.includes("username")) {
+        // Append clerk_id suffix to make unique
+        const uniqueUsername = `${username}_${clerkUserId.slice(0, 8)}`;
+        console.log(`[Device Authorize] Username conflict, retrying with: ${uniqueUsername}`);
+
+        const retryResult = await supabase
+          .from("users")
+          .insert({
+            clerk_id: clerkUserId,
+            username: uniqueUsername,
+            display_name: user?.fullName || username,
+            avatar_url: user?.imageUrl,
+            api_key: apiKey,
+            onboarding_completed: false,
+          })
+          .select("id")
+          .single();
+
+        if (retryResult.error) {
+          console.error("[Device Authorize] Error creating user (retry):", retryResult.error);
+          return NextResponse.json({ error: "Failed to create user" }, { status: 500 });
+        }
+        newUser = retryResult.data;
+        createError = null;
+      }
+
       if (createError) {
         console.error("[Device Authorize] Error creating user:", createError);
         return NextResponse.json({ error: "Failed to create user" }, { status: 500 });
       }
 
-      userId = newUser.id;
+      userId = newUser!.id;
     } else if (!existingUser.api_key) {
       // Generate API key if user doesn't have one
       apiKey = `ccg_${randomBytes(32).toString("hex")}`;

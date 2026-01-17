@@ -79,6 +79,33 @@ export default function CLIAuthPage() {
     }
   }
 
+  // Validate callback URL to prevent Open Redirect attacks
+  function isValidCallbackUrl(url: string): boolean {
+    try {
+      const parsed = new URL(url);
+      const hostname = parsed.hostname.toLowerCase();
+
+      // Allow localhost for development
+      if (hostname === "localhost" || hostname === "127.0.0.1") {
+        return true;
+      }
+
+      // Allow ccgather domains
+      if (hostname === "ccgather.com" || hostname.endsWith(".ccgather.com")) {
+        return true;
+      }
+
+      // Allow ccgather.dev domains
+      if (hostname === "ccgather.dev" || hostname.endsWith(".ccgather.dev")) {
+        return true;
+      }
+
+      return false;
+    } catch {
+      return false;
+    }
+  }
+
   async function generateTokenAndRedirect() {
     try {
       const response = await fetch("/api/cli/auth/token", {
@@ -93,6 +120,11 @@ export default function CLIAuthPage() {
       const data = await response.json();
 
       if (callback) {
+        // Validate callback URL before redirecting
+        if (!isValidCallbackUrl(callback)) {
+          throw new Error("Invalid callback URL. Only localhost and ccgather.com are allowed.");
+        }
+
         const callbackUrl = new URL(callback);
         callbackUrl.searchParams.set("token", data.token);
         callbackUrl.searchParams.set("userId", data.userId);
