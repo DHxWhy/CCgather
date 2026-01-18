@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Plus, LayoutList, LayoutGrid, Loader2 } from "lucide-react";
 import { useAuth, useUser } from "@clerk/nextjs";
+import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { ToolCard, ToolListItem, CategoryTabs, PeriodFilter } from "@/components/tools";
 import { EligibilityModal } from "@/components/tools/EligibilityModal";
@@ -298,28 +299,30 @@ export default function ToolsContent() {
           {viewMode === "list" ? (
             <div className="space-y-2">
               {tools.map((tool, index) => (
-                <ToolListItem
-                  key={tool.id}
-                  tool={tool}
-                  rank={index + 1}
-                  isVoted={userVotes.has(tool.id)}
-                  onVote={handleVote}
-                  currentUserId={currentUserDbId || undefined}
-                  currentUserAvatar={currentUserAvatar}
-                  currentUserName={currentUserName}
-                />
+                <motion.div key={tool.id} layout transition={{ duration: 0.15, ease: "easeOut" }}>
+                  <ToolListItem
+                    tool={tool}
+                    rank={index + 1}
+                    isVoted={userVotes.has(tool.id)}
+                    onVote={handleVote}
+                    currentUserId={currentUserDbId || undefined}
+                    currentUserAvatar={currentUserAvatar}
+                    currentUserName={currentUserName}
+                  />
+                </motion.div>
               ))}
             </div>
           ) : (
             <div className="space-y-3">
               {tools.map((tool) => (
-                <ToolCard
-                  key={tool.id}
-                  tool={tool}
-                  variant="default"
-                  isVoted={userVotes.has(tool.id)}
-                  onVote={handleVote}
-                />
+                <motion.div key={tool.id} layout transition={{ duration: 0.15, ease: "easeOut" }}>
+                  <ToolCard
+                    tool={tool}
+                    variant="default"
+                    isVoted={userVotes.has(tool.id)}
+                    onVote={handleVote}
+                  />
+                </motion.div>
               ))}
             </div>
           )}
