@@ -333,6 +333,9 @@ export async function submit(options: SubmitOptions): Promise<void> {
   const totalFiles = getSessionFileCount();
 
   console.log(`\n  ${colors.muted("Project:")} ${colors.white(projectName)}`);
+  console.log(
+    `  ${colors.dim("📋 Reading subscriptionType & rateLimitTier for league placement only.")}`
+  );
 
   if (totalFiles > 0) {
     console.log(
