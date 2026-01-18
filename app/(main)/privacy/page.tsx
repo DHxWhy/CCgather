@@ -118,7 +118,12 @@ export default function PrivacyPage() {
           </p>
           <p className="mt-3">
             Questions? Contact us at{" "}
-            <span className="text-[var(--color-claude-coral)]">privacy@ccgather.com</span>
+            <a
+              href="mailto:contact@ccgather.com"
+              className="text-[var(--color-claude-coral)] hover:underline"
+            >
+              contact@ccgather.com
+            </a>
           </p>
         </section>
 

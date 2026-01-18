@@ -99,7 +99,12 @@ export default function TermsPage() {
           </p>
           <p>
             Questions? Contact us at{" "}
-            <span className="text-[var(--color-claude-coral)]">support@ccgather.com</span>
+            <a
+              href="mailto:contact@ccgather.com"
+              className="text-[var(--color-claude-coral)] hover:underline"
+            >
+              contact@ccgather.com
+            </a>
           </p>
         </section>
 
