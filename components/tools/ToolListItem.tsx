@@ -369,6 +369,7 @@ function ToolListItemComponent({
                 height={40}
                 className="rounded-lg object-cover"
                 sizes="40px"
+                quality={60}
               />
             ) : (
               <div className="w-10 h-10 rounded-lg bg-[var(--color-bg-elevated)] flex items-center justify-center text-xl">

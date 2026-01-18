@@ -66,11 +66,18 @@ export async function POST(
       // Update vote count
       const newUpvoteCount = Math.max(0, (tool.upvote_count || 0) - 1);
 
-      await supabase.from("tools").update({ upvote_count: newUpvoteCount }).eq("id", toolId);
+      // Get updated weighted_score after update
+      const { data: updatedTool } = await supabase
+        .from("tools")
+        .update({ upvote_count: newUpvoteCount })
+        .eq("id", toolId)
+        .select("weighted_score")
+        .single();
 
       return NextResponse.json({
         voted: false,
         new_count: newUpvoteCount,
+        new_weighted_score: updatedTool?.weighted_score || newUpvoteCount,
       });
     } else {
       // Add vote
@@ -87,11 +94,18 @@ export async function POST(
       // Update vote count
       const newUpvoteCount = (tool.upvote_count || 0) + 1;
 
-      await supabase.from("tools").update({ upvote_count: newUpvoteCount }).eq("id", toolId);
+      // Get updated weighted_score after update
+      const { data: updatedTool } = await supabase
+        .from("tools")
+        .update({ upvote_count: newUpvoteCount })
+        .eq("id", toolId)
+        .select("weighted_score")
+        .single();
 
       return NextResponse.json({
         voted: true,
         new_count: newUpvoteCount,
+        new_weighted_score: updatedTool?.weighted_score || newUpvoteCount,
       });
     }
   } catch (error) {
