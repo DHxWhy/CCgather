@@ -1,9 +1,10 @@
-'use client';
+"use client";
 
-import { forwardRef, type HTMLAttributes } from 'react';
-import Link from 'next/link';
-import { cn } from '@/lib/utils';
-import { RankChangeBadge } from '@/components/ui/Badge';
+import { forwardRef, type HTMLAttributes } from "react";
+import Link from "next/link";
+import Image from "next/image";
+import { cn } from "@/lib/utils";
+import { RankChangeBadge } from "@/components/ui/Badge";
 
 // ============================================
 // Types
@@ -49,9 +50,7 @@ export const RankingCard = forwardRef<HTMLDivElement, RankingCardProps>(
         {/* Top section: Rank + User info + Rank change */}
         <div className="flex items-center justify-between mb-3">
           {/* Rank */}
-          <span className="text-lg font-bold text-[var(--color-claude-coral)]">
-            #{rank}
-          </span>
+          <span className="text-lg font-bold text-[var(--color-claude-coral)]">#{rank}</span>
 
           {/* Rank change */}
           <RankChangeBadge change={rankChange} size="sm" />
@@ -61,9 +60,11 @@ export const RankingCard = forwardRef<HTMLDivElement, RankingCardProps>(
         <div className="flex items-center gap-3 mb-3">
           {/* Avatar */}
           {avatarUrl ? (
-            <img
+            <Image
               src={avatarUrl}
               alt={username}
+              width={48}
+              height={48}
               className="w-12 h-12 rounded-full object-cover"
             />
           ) : (
@@ -74,9 +75,7 @@ export const RankingCard = forwardRef<HTMLDivElement, RankingCardProps>(
 
           {/* User info */}
           <div className="flex-1 min-w-0">
-            <p className="font-medium text-[var(--color-text-primary)] truncate">
-              {username}
-            </p>
+            <p className="font-medium text-[var(--color-text-primary)] truncate">{username}</p>
             <div className="flex items-center gap-2 text-sm text-[var(--color-text-muted)]">
               {countryFlag && <span>{countryFlag}</span>}
               {country && <span>{country}</span>}
@@ -89,29 +88,25 @@ export const RankingCard = forwardRef<HTMLDivElement, RankingCardProps>(
         <div className="grid grid-cols-2 gap-3 pt-3 border-t border-[var(--border-default)]">
           <div>
             <p className="text-xs text-[var(--color-text-muted)] mb-1">Tokens</p>
-            <p className="font-mono font-medium text-[var(--color-text-primary)]">
-              {tokens}
-            </p>
+            <p className="font-mono font-medium text-[var(--color-text-primary)]">{tokens}</p>
           </div>
           <div className="text-right">
             <p className="text-xs text-[var(--color-text-muted)] mb-1">Cost</p>
-            <p className="font-mono text-[var(--color-text-secondary)]">
-              {cost}
-            </p>
+            <p className="font-mono text-[var(--color-text-secondary)]">{cost}</p>
           </div>
         </div>
       </div>
     );
 
     const cardClasses = cn(
-      'group relative rounded-xl overflow-hidden',
-      'bg-[var(--color-bg-card)]',
-      'border border-[var(--border-default)]',
-      'transition-all duration-200',
-      'hover:border-[var(--color-claude-coral)]/20',
-      'hover:bg-[var(--color-bg-card-hover)]',
-      'active:scale-[0.98]',
-      userId && 'cursor-pointer',
+      "group relative rounded-xl overflow-hidden",
+      "bg-[var(--color-bg-card)]",
+      "border border-[var(--border-default)]",
+      "transition-all duration-200",
+      "hover:border-[var(--color-claude-coral)]/20",
+      "hover:bg-[var(--color-bg-card-hover)]",
+      "active:scale-[0.98]",
+      userId && "cursor-pointer",
       className
     );
 
@@ -122,10 +117,10 @@ export const RankingCard = forwardRef<HTMLDivElement, RankingCardProps>(
             {/* Left highlight bar */}
             <div
               className={cn(
-                'absolute left-0 top-0 bottom-0 w-1',
-                'bg-gradient-to-b from-[var(--color-claude-coral)] to-[var(--color-claude-rust)]',
-                'opacity-0 group-hover:opacity-100',
-                'transition-opacity duration-300'
+                "absolute left-0 top-0 bottom-0 w-1",
+                "bg-gradient-to-b from-[var(--color-claude-coral)] to-[var(--color-claude-rust)]",
+                "opacity-0 group-hover:opacity-100",
+                "transition-opacity duration-300"
               )}
             />
             {content}
@@ -139,10 +134,10 @@ export const RankingCard = forwardRef<HTMLDivElement, RankingCardProps>(
         {/* Left highlight bar */}
         <div
           className={cn(
-            'absolute left-0 top-0 bottom-0 w-1',
-            'bg-gradient-to-b from-[var(--color-claude-coral)] to-[var(--color-claude-rust)]',
-            'opacity-0 group-hover:opacity-100',
-            'transition-opacity duration-300'
+            "absolute left-0 top-0 bottom-0 w-1",
+            "bg-gradient-to-b from-[var(--color-claude-coral)] to-[var(--color-claude-rust)]",
+            "opacity-0 group-hover:opacity-100",
+            "transition-opacity duration-300"
           )}
         />
         {content}
@@ -151,6 +146,6 @@ export const RankingCard = forwardRef<HTMLDivElement, RankingCardProps>(
   }
 );
 
-RankingCard.displayName = 'RankingCard';
+RankingCard.displayName = "RankingCard";
 
 export default RankingCard;

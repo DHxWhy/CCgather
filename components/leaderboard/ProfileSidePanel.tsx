@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useMemo, useCallback } from "react";
+import Image from "next/image";
 import { X as CloseIcon, Github, Linkedin, Globe } from "lucide-react";
 import ReactCountryFlag from "react-country-flag";
 import { useUser } from "@clerk/nextjs";
@@ -1087,9 +1088,11 @@ export function ProfileSidePanel({
           <div className="p-4 pb-3 border-b border-[var(--border-default)] bg-[var(--color-bg-primary)]">
             <div className="flex items-start gap-3">
               {currentUser.avatar_url ? (
-                <img
+                <Image
                   src={currentUser.avatar_url}
                   alt={currentUser.username}
+                  width={48}
+                  height={48}
                   className="w-12 h-12 rounded-full object-cover flex-shrink-0"
                 />
               ) : (

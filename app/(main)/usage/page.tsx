@@ -314,9 +314,11 @@ export default function UsagePage() {
           {userStats && (
             <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white/5 border border-white/10">
               {userStats.avatar_url && (
-                <img
+                <Image
                   src={userStats.avatar_url}
                   alt={userStats.username}
+                  width={16}
+                  height={16}
                   className="w-4 h-4 rounded-full"
                 />
               )}

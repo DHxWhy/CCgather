@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { motion } from "framer-motion";
 import { FlagIcon } from "@/components/ui/FlagIcon";
 import { formatNumber, formatCost } from "@/lib/utils/format";
@@ -171,9 +172,11 @@ function ProfilePanel({ user }: { user: (typeof MOCK_LEADERBOARD)[0] | null }) {
     >
       {/* 1. Profile Header */}
       <div className="flex items-center gap-3">
-        <img
+        <Image
           src={getAvatarUrl(user.username)}
           alt={user.displayName}
+          width={48}
+          height={48}
           className="w-12 h-12 rounded-full bg-[var(--color-bg-secondary)]"
         />
         <div className="min-w-0 flex-1">
@@ -414,9 +417,11 @@ export function LeaderboardPreview() {
 
                     {/* User */}
                     <div className="col-span-4 sm:col-span-3 flex items-center gap-1 sm:gap-2">
-                      <img
+                      <Image
                         src={getAvatarUrl(user.username)}
                         alt={user.displayName}
+                        width={28}
+                        height={28}
                         className="w-5 h-5 sm:w-7 sm:h-7 rounded-full bg-[var(--color-bg-secondary)]"
                       />
                       <span className="text-[11px] sm:text-sm font-medium text-[var(--color-text-primary)] truncate">

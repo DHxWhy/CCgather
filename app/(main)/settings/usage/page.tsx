@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo, useRef } from "react";
+import Image from "next/image";
 import { Globe, Trophy, Coins, Zap, ChevronDown } from "lucide-react";
 import { FlagIcon } from "@/components/ui/FlagIcon";
 import { cn } from "@/lib/utils";
@@ -241,9 +242,11 @@ export default function SettingsUsagePage() {
           {userStats && (
             <div className="flex items-center gap-2 min-w-0">
               {userStats.avatar_url ? (
-                <img
+                <Image
                   src={userStats.avatar_url}
                   alt={userStats.username}
+                  width={24}
+                  height={24}
                   className="w-6 h-6 rounded-full object-cover flex-shrink-0"
                 />
               ) : (

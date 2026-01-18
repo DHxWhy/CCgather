@@ -9,6 +9,10 @@ const nextConfig: NextConfig = {
         hostname: "**",
       },
     ],
+    // SVG 아바타 지원 (dicebear 등)
+    dangerouslyAllowSVG: true,
+    contentDispositionType: "attachment",
+    contentSecurityPolicy: "default-src 'self'; script-src 'none'; sandbox;",
   },
   // 성능 최적화
   experimental: {
