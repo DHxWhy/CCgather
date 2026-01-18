@@ -226,8 +226,8 @@ export default function ToolsContent() {
         {/* Period Filter */}
         <PeriodFilter selected={period} onChange={(p) => updateFilter("period", p)} />
 
-        {/* View Mode Toggle */}
-        <div className="flex items-center gap-1 bg-[var(--color-filter-bg)] rounded-lg p-1 border border-[var(--border-default)]">
+        {/* View Mode Toggle - h-8 to match period filter */}
+        <div className="flex items-center gap-1 bg-[var(--color-filter-bg)] rounded-lg px-1 h-8 border border-[var(--border-default)]">
           <button
             onClick={() => setViewMode("list")}
             className={cn(

@@ -62,11 +62,11 @@ function PeriodFilterComponent({ selected, onChange, className }: PeriodFilterPr
 
   return (
     <div ref={containerRef} className={cn("relative", className)}>
-      {/* Trigger Button */}
+      {/* Trigger Button - height matches view mode toggle (h-8) */}
       <button
         onClick={() => setIsOpen(!isOpen)}
         className={cn(
-          "flex items-center gap-2 px-3 py-1.5 rounded-lg",
+          "flex items-center gap-2 px-3 h-8 rounded-lg",
           "bg-[var(--color-filter-bg)]",
           "border border-[var(--border-default)]",
           "text-sm text-[var(--color-text-primary)]",
@@ -93,10 +93,10 @@ function PeriodFilterComponent({ selected, onChange, className }: PeriodFilterPr
             transition={{ duration: 0.15 }}
             className={cn(
               "absolute top-full left-0 mt-1 z-50",
-              "min-w-[180px] py-1 rounded-lg",
-              "bg-[var(--color-bg-elevated)]",
+              "min-w-[160px] py-1 rounded-lg overflow-hidden",
+              "bg-[#2a2a30] dark:bg-[#2a2a30]",
               "border border-[var(--border-default)]",
-              "shadow-lg"
+              "shadow-xl shadow-black/20"
             )}
             role="listbox"
           >
@@ -113,18 +113,20 @@ function PeriodFilterComponent({ selected, onChange, className }: PeriodFilterPr
                   className={cn(
                     "w-full flex items-center justify-between px-3 py-2",
                     "text-left text-sm",
-                    "hover:bg-[var(--color-filter-hover)]",
+                    "hover:bg-white/5",
                     "transition-colors duration-150",
-                    isSelected && "text-[var(--color-claude-coral)]"
+                    isSelected
+                      ? "text-[var(--color-claude-coral)] bg-white/5"
+                      : "text-[var(--color-text-primary)]"
                   )}
                   role="option"
                   aria-selected={isSelected}
                 >
                   <div>
-                    <div className="font-medium">{period.label}</div>
-                    <div className="text-[10px] text-[var(--color-text-muted)]">
-                      {period.description}
+                    <div className={cn("font-medium", !isSelected && "text-white")}>
+                      {period.label}
                     </div>
+                    <div className="text-[10px] text-gray-400">{period.description}</div>
                   </div>
                   {isSelected && <Check className="w-4 h-4 text-[var(--color-claude-coral)]" />}
                 </button>
