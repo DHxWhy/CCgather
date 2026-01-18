@@ -46,10 +46,10 @@ function ToolDetailSkeleton() {
     <div className="animate-pulse space-y-6">
       {/* Header skeleton */}
       <div className="flex items-start gap-4">
-        <div className="w-20 h-20 rounded-xl bg-[var(--color-bg-elevated)]" />
-        <div className="flex-1 space-y-3">
-          <div className="h-10 w-64 bg-[var(--color-bg-elevated)] rounded" />
-          <div className="h-5 w-full max-w-md bg-[var(--color-bg-elevated)] rounded" />
+        <div className="w-10 h-10 rounded-lg bg-[var(--color-bg-elevated)]" />
+        <div className="flex-1 space-y-2">
+          <div className="h-6 w-48 bg-[var(--color-bg-elevated)] rounded" />
+          <div className="h-4 w-full max-w-sm bg-[var(--color-bg-elevated)] rounded" />
           <div className="flex gap-2">
             <div className="h-6 w-24 bg-[var(--color-bg-elevated)] rounded" />
             <div className="h-6 w-20 bg-[var(--color-bg-elevated)] rounded" />
@@ -293,13 +293,14 @@ export default function ToolDetailClient({ initialTool, slug }: ToolDetailClient
                 <Image
                   src={tool.logo_url}
                   alt={tool.name}
-                  width={80}
-                  height={80}
-                  className="rounded-xl object-cover"
-                  sizes="80px"
+                  width={40}
+                  height={40}
+                  className="rounded-lg object-cover"
+                  sizes="40px"
+                  quality={60}
                 />
               ) : (
-                <div className="w-20 h-20 rounded-xl bg-[var(--color-bg-elevated)] flex items-center justify-center text-4xl">
+                <div className="w-10 h-10 rounded-lg bg-[var(--color-bg-elevated)] flex items-center justify-center text-xl">
                   {categoryMeta.emoji}
                 </div>
               )}
@@ -309,14 +310,12 @@ export default function ToolDetailClient({ initialTool, slug }: ToolDetailClient
             <div className="flex-1 min-w-0">
               <div className="flex items-start justify-between gap-4 flex-wrap">
                 <div>
-                  {/* Title - matches News page hierarchy */}
-                  <h1 className="text-2xl md:text-3xl lg:text-4xl font-bold text-[var(--color-text-primary)] mb-3 leading-tight">
+                  {/* Title */}
+                  <h1 className="text-lg md:text-xl font-bold text-[var(--color-text-primary)] mb-2 leading-tight">
                     {tool.name}
                   </h1>
                   {/* Tagline */}
-                  <p className="text-base md:text-lg text-[var(--color-text-secondary)] mb-4">
-                    {tool.tagline}
-                  </p>
+                  <p className="text-sm text-[var(--color-text-secondary)] mb-3">{tool.tagline}</p>
                 </div>
 
                 {/* Vote Button - Desktop */}

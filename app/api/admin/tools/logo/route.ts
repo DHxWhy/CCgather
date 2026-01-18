@@ -1,9 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/server";
 import { auth } from "@clerk/nextjs/server";
+import sharp from "sharp";
 
 const BUCKET_NAME = "tool-logos";
 const MAX_FILE_SIZE = 1024 * 1024; // 1MB
+const OUTPUT_SIZE = 100; // 100x100px (enough for 2x retina at 50px display)
+const OUTPUT_QUALITY = 80;
 
 // =====================================================
 // POST /api/admin/tools/logo - 로고 이미지 업로드
@@ -52,20 +55,39 @@ export async function POST(request: NextRequest) {
     }
 
     // Generate unique filename
-    const ext = file.name.split(".").pop() || "png";
     const timestamp = Date.now();
     const randomStr = Math.random().toString(36).substring(2, 8);
-    const fileName = toolSlug
-      ? `${toolSlug}-${timestamp}.${ext}`
-      : `logo-${timestamp}-${randomStr}.${ext}`;
+    const isSvg = file.type === "image/svg+xml";
 
     // Convert file to buffer
     const arrayBuffer = await file.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
+    const inputBuffer = Buffer.from(arrayBuffer);
+
+    let finalBuffer: Buffer;
+    let finalContentType: string;
+    let fileName: string;
+
+    if (isSvg) {
+      // SVG: pass through without optimization
+      finalBuffer = inputBuffer;
+      finalContentType = "image/svg+xml";
+      fileName = toolSlug ? `${toolSlug}-${timestamp}.svg` : `logo-${timestamp}-${randomStr}.svg`;
+    } else {
+      // Raster images: optimize with Sharp (resize to 100x100, convert to WebP)
+      finalBuffer = await sharp(inputBuffer)
+        .resize(OUTPUT_SIZE, OUTPUT_SIZE, {
+          fit: "cover",
+          position: "center",
+        })
+        .webp({ quality: OUTPUT_QUALITY })
+        .toBuffer();
+      finalContentType = "image/webp";
+      fileName = toolSlug ? `${toolSlug}-${timestamp}.webp` : `logo-${timestamp}-${randomStr}.webp`;
+    }
 
     // Upload to Supabase Storage
-    const { data, error } = await supabase.storage.from(BUCKET_NAME).upload(fileName, buffer, {
-      contentType: file.type,
+    const { data, error } = await supabase.storage.from(BUCKET_NAME).upload(fileName, finalBuffer, {
+      contentType: finalContentType,
       upsert: false,
     });
 

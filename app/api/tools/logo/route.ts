@@ -1,9 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/server";
 import { auth } from "@clerk/nextjs/server";
+import sharp from "sharp";
 
 const BUCKET_NAME = "tool-logos";
 const MAX_FILE_SIZE = 512 * 1024; // 512KB for regular users
+const OUTPUT_SIZE = 100; // 100x100px (enough for 2x retina at 50px display)
+const OUTPUT_QUALITY = 80;
 
 // =====================================================
 // POST /api/tools/logo - 사용자 로고 이미지 업로드
@@ -50,21 +53,31 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Generate unique filename with user prefix
-    const ext = file.type.split("/")[1] || "png";
+    // Generate unique filename with user prefix (always WebP now)
     const timestamp = Date.now();
     const randomStr = Math.random().toString(36).substring(2, 8);
-    const fileName = `user/${user.id.slice(0, 8)}-${timestamp}-${randomStr}.${ext}`;
+    const fileName = `user/${user.id.slice(0, 8)}-${timestamp}-${randomStr}.webp`;
 
     // Convert file to buffer
     const arrayBuffer = await file.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
+    const inputBuffer = Buffer.from(arrayBuffer);
 
-    // Upload to Supabase Storage
-    const { data, error } = await supabase.storage.from(BUCKET_NAME).upload(fileName, buffer, {
-      contentType: file.type,
-      upsert: false,
-    });
+    // Optimize image with Sharp: resize to 100x100 and convert to WebP
+    const optimizedBuffer = await sharp(inputBuffer)
+      .resize(OUTPUT_SIZE, OUTPUT_SIZE, {
+        fit: "cover",
+        position: "center",
+      })
+      .webp({ quality: OUTPUT_QUALITY })
+      .toBuffer();
+
+    // Upload optimized image to Supabase Storage
+    const { data, error } = await supabase.storage
+      .from(BUCKET_NAME)
+      .upload(fileName, optimizedBuffer, {
+        contentType: "image/webp",
+        upsert: false,
+      });
 
     if (error) {
       console.error("Storage upload error:", error);
