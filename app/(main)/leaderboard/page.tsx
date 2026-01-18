@@ -534,7 +534,7 @@ export default function LeaderboardPage() {
                   </span>
                 </h1>
                 {/* Description */}
-                <p className="text-sm text-[var(--color-text-muted)] mt-1">
+                <p className="text-xs sm:text-sm text-[var(--color-text-muted)] mt-1 whitespace-nowrap">
                   Top Claude Code developers ranked by{" "}
                   {sortBy === "tokens" ? "token usage" : "spending"}
                 </p>
