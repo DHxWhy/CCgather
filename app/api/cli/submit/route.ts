@@ -328,6 +328,7 @@ export async function POST(request: NextRequest) {
           cache_read_tokens: day.cacheReadTokens || 0,
           cache_write_tokens: day.cacheWriteTokens || 0,
           cost_usd: day.cost,
+          sessions: day.sessions || 0,
           primary_model: dayPrimaryModel,
           submitted_at: new Date().toISOString(),
           submission_source: "cli",
