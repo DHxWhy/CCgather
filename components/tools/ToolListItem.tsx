@@ -251,9 +251,9 @@ function ToolListItemComponent({
         )}
         style={getRankStyle()}
       >
-        {/* ==================== MOBILE LAYOUT (3-row) ==================== */}
+        {/* ==================== MOBILE LAYOUT ==================== */}
         <div className="sm:hidden flex gap-2">
-          {/* Left: Rank (vertically centered to entire card height) */}
+          {/* Left: Rank (vertically centered) */}
           {showRank && rank && (
             <div className="w-6 flex-shrink-0 flex items-center justify-center">
               {getRankBadge() ? (
@@ -268,8 +268,8 @@ function ToolListItemComponent({
 
           {/* Right: Logo + Content */}
           <div className="flex-1 min-w-0">
-            {/* Top section: Logo + Name/Avatars */}
-            <div className="flex gap-2.5">
+            {/* Row 1: Logo + Name + Badge + Avatars | Vote Button */}
+            <div className="flex items-center gap-2.5">
               {/* Logo */}
               <div className="flex-shrink-0">
                 {tool.logo_url ? (
@@ -288,59 +288,38 @@ function ToolListItemComponent({
                 )}
               </div>
 
-              {/* Name + Avatars column */}
-              <div
-                className={cn(
-                  "flex-1 min-w-0 flex flex-col",
-                  // vote한 사람이 없으면 세로 중앙 정렬
-                  voters.length === 0 && "justify-center"
-                )}
-              >
-                {/* Row 1: Name + Badge */}
-                <div className="flex items-center gap-1.5">
-                  <h3 className="font-semibold text-sm text-[var(--color-text-primary)] truncate group-hover:text-[var(--color-claude-coral)] transition-colors">
-                    {tool.name}
-                  </h3>
-                  {renderStatusBadge()}
-                </div>
-
-                {/* Row 2: Avatars + Vote Button (only if voters exist) */}
-                {voters.length > 0 ? (
-                  <div className="flex items-center justify-between mt-1">
-                    <div className="flex items-center gap-2">
-                      {renderAvatars(MAX_VISIBLE_AVATARS_MOBILE)}
-                      {commentCount > 0 && (
-                        <div className="flex items-center gap-0.5 text-[var(--color-text-muted)]">
-                          <MessageCircle className="w-3 h-3" />
-                          <span className="text-[10px]">{commentCount}</span>
-                        </div>
-                      )}
-                    </div>
-                    <VoteButton
-                      count={voteCount}
-                      voted={voted}
-                      loading={isVoting}
-                      onClick={handleVote}
-                      size="sm"
-                    />
-                  </div>
-                ) : (
-                  /* No voters: Vote button next to name */
-                  <div className="flex items-center justify-end mt-1">
-                    <VoteButton
-                      count={voteCount}
-                      voted={voted}
-                      loading={isVoting}
-                      onClick={handleVote}
-                      size="sm"
-                    />
+              {/* Name + Badge + Avatars */}
+              <div className="flex-1 min-w-0 flex items-center gap-1.5">
+                <h3 className="font-semibold text-sm text-[var(--color-text-primary)] truncate group-hover:text-[var(--color-claude-coral)] transition-colors">
+                  {tool.name}
+                </h3>
+                {renderStatusBadge()}
+                {/* Voter Avatars - inline with name */}
+                {voters.length > 0 && (
+                  <div className="flex items-center gap-1 ml-auto flex-shrink-0">
+                    {renderAvatars(MAX_VISIBLE_AVATARS_MOBILE)}
+                    {commentCount > 0 && (
+                      <div className="flex items-center gap-0.5 text-[var(--color-text-muted)]">
+                        <MessageCircle className="w-3 h-3" />
+                        <span className="text-[10px]">{commentCount}</span>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
+
+              {/* Vote Button */}
+              <VoteButton
+                count={voteCount}
+                voted={voted}
+                loading={isVoting}
+                onClick={handleVote}
+                size="sm"
+              />
             </div>
 
-            {/* Row 3: Description (below logo, left-aligned with logo) */}
-            <p className="text-[11px] text-[var(--color-text-muted)] line-clamp-2 mt-1.5">
+            {/* Row 2: Description */}
+            <p className="text-[11px] text-[var(--color-text-muted)] line-clamp-2 mt-1.5 pl-[52px]">
               {tool.tagline}
             </p>
           </div>
