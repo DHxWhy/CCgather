@@ -119,15 +119,15 @@ export async function GET(request: NextRequest) {
       query = query.eq("country_code", country.toUpperCase());
     }
 
-    // Determine ordering based on filters
-    if (ccplan !== "all") {
-      // Order by ccplan_rank when filtering by specific tier
-      query = query.order("ccplan_rank", { ascending: true, nullsFirst: false });
-    } else if (country) {
-      query = query.order("country_rank", { ascending: true });
-    } else {
-      query = query.order("global_rank", { ascending: true });
-    }
+    // Always order by total_tokens for consistent real-time ranking
+    // This ensures accurate ranking across all filter combinations:
+    // - Global: all users sorted by tokens
+    // - Country: filtered users sorted by tokens
+    // - CCplan: filtered users sorted by tokens
+    // Secondary sort by created_at for deterministic ordering of tied users
+    query = query
+      .order("total_tokens", { ascending: false })
+      .order("created_at", { ascending: true });
 
     query = query.range(offset, offset + limit - 1);
 
@@ -241,6 +241,7 @@ export async function GET(request: NextRequest) {
   }
 
   // Combine user data with period aggregates and sort
+  // Secondary sort by created_at for deterministic ordering of tied users
   const combinedUsers = (usersData || [])
     .map((user) => {
       const aggregate = userAggregates.get(user.id) || { tokens: 0, cost: 0 };
@@ -250,7 +251,14 @@ export async function GET(request: NextRequest) {
         period_cost: aggregate.cost,
       };
     })
-    .sort((a, b) => b.period_tokens - a.period_tokens);
+    .sort((a, b) => {
+      // Primary: tokens descending
+      if (b.period_tokens !== a.period_tokens) {
+        return b.period_tokens - a.period_tokens;
+      }
+      // Secondary: earlier signup wins (created_at not available here, use id as proxy)
+      return a.id.localeCompare(b.id);
+    });
 
   // Calculate period ranks
   const rankedUsers = combinedUsers.map((user, index) => ({

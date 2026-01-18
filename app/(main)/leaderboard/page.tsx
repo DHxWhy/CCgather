@@ -6,6 +6,7 @@ import ReactCountryFlag from "react-country-flag";
 import { useUser } from "@clerk/nextjs";
 import { ProfileSidePanel } from "@/components/leaderboard/ProfileSidePanel";
 import { CCplanTabs } from "@/components/leaderboard/CCplanTabs";
+import { LeagueRulesInfo } from "@/components/leaderboard/LeagueRulesInfo";
 import { LiveStatsTicker } from "@/components/stats/LiveStatsTicker";
 import { LEVELS, getLevelByTokens } from "@/lib/constants/levels";
 import type {
@@ -197,16 +198,15 @@ export default function LeaderboardPage() {
       // Transform API response to display format
       const transformedUsers: DisplayUser[] = (data.users || []).map(
         (user: LeaderboardUser, index: number) => {
-          // For period queries, use period_rank; for ccplan filter, use ccplan_rank; otherwise use global/country rank
+          // All filters now use total_tokens sorting from API
+          // Use pagination-based rank for consistent real-time ranking
           let rank: number;
           if (periodFilter !== "all") {
+            // Period queries return period_rank from server-side calculation
             rank = user.period_rank || (currentPage - 1) * ITEMS_PER_PAGE + index + 1;
-          } else if (ccplanFilter !== "all") {
-            rank = user.ccplan_rank || (currentPage - 1) * ITEMS_PER_PAGE + index + 1;
-          } else if (scopeFilter === "country") {
-            rank = user.country_rank || (currentPage - 1) * ITEMS_PER_PAGE + index + 1;
           } else {
-            rank = user.global_rank || (currentPage - 1) * ITEMS_PER_PAGE + index + 1;
+            // Global, Country, CCplan all use total_tokens sorting
+            rank = (currentPage - 1) * ITEMS_PER_PAGE + index + 1;
           }
 
           return {
@@ -535,6 +535,9 @@ export default function LeaderboardPage() {
           <div className="mb-4">
             <CCplanTabs value={ccplanFilter} onChange={setCcplanFilter} />
           </div>
+
+          {/* League Rules Info - Expandable */}
+          <LeagueRulesInfo />
 
           {/* Filters */}
           <div className="flex items-center justify-between gap-1.5 sm:gap-2 md:gap-3 mb-6">
