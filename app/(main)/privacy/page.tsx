@@ -95,7 +95,8 @@ export default function PrivacyPage() {
           </h2>
           <p>
             We use HTTPS encryption and secure database storage. Your data is retained while your
-            account is active. Deleted accounts are purged within 30 days.
+            account is active. Deleted accounts enter a 3-day grace period (allowing recovery),
+            after which all data is permanently purged.
           </p>
         </section>
 
