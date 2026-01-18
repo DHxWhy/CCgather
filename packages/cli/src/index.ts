@@ -14,7 +14,7 @@ import {
   dotAnimation,
   VERSION,
 } from "./lib/ui.js";
-import { getConfig, isAuthenticated, resetConfig } from "./lib/config.js";
+import { getConfig, isAuthenticated } from "./lib/config.js";
 import { getStatus } from "./lib/api.js";
 
 // Simple semver comparison: returns true if v1 > v2
@@ -215,8 +215,10 @@ async function showSettingsMenu(): Promise<void> {
       name: "settingsAction",
       message: "Settings:",
       choices: [
-        { name: `🔐  ${colors.white("Re-authenticate")}`, value: "auth" },
-        { name: `🗑️   ${colors.white("Disconnect from CCgather")}`, value: "disconnect" },
+        {
+          name: `🔐  ${colors.white("Re-authenticate")}  ${colors.dim("– switch account or fix login issues")}`,
+          value: "auth",
+        },
         { name: `⬅️   ${chalk.gray("Back")}`, value: "back" },
       ],
       loop: false,
@@ -229,55 +231,10 @@ async function showSettingsMenu(): Promise<void> {
       await auth({});
       break;
     }
-    case "disconnect": {
-      await handleDisconnect();
-      break;
-    }
     case "back":
       await showMenuOnly();
       break;
   }
-}
-
-// Disconnect handler with double confirmation
-async function handleDisconnect(): Promise<void> {
-  const { confirmFirst } = await inquirer.prompt([
-    {
-      type: "confirm",
-      name: "confirmFirst",
-      message: chalk.yellow("Are you sure you want to disconnect from CCgather?"),
-      default: false,
-    },
-  ]);
-
-  if (!confirmFirst) {
-    console.log(colors.dim("\n  Cancelled.\n"));
-    await showSettingsMenu();
-    return;
-  }
-
-  const { confirmSecond } = await inquirer.prompt([
-    {
-      type: "confirm",
-      name: "confirmSecond",
-      message: chalk.red("This will remove all local settings. Are you really sure?"),
-      default: false,
-    },
-  ]);
-
-  if (!confirmSecond) {
-    console.log(colors.dim("\n  Cancelled.\n"));
-    await showSettingsMenu();
-    return;
-  }
-
-  // Reset only CCgather config (no Claude Code files touched)
-  resetConfig();
-
-  console.log();
-  console.log(colors.success("  ✓ Disconnected from CCgather"));
-  console.log(colors.dim("  Your CCgather settings have been removed."));
-  console.log(colors.dim("  Run npx ccgather to set up again.\n"));
 }
 
 // Default action - show main menu

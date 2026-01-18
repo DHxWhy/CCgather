@@ -311,13 +311,8 @@ export async function submit(options: SubmitOptions): Promise<void> {
     return;
   }
 
-  verifySpinner.succeed(colors.success("Authenticated"));
-
   const username = tokenCheck.username || config.get("username");
-
-  if (username) {
-    console.log(`\n  ${colors.muted("Logged in as:")} ${colors.white(username)}`);
-  }
+  verifySpinner.succeed(colors.success(`Authenticated as ${colors.white(username || "unknown")}`));
 
   // Check if current project has Claude Code sessions
   const projectName = getCurrentProjectName();
