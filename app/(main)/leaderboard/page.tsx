@@ -104,7 +104,7 @@ function LevelBadge({ tokens }: { tokens: number }) {
       </span>
       {isHovered && (
         <div
-          className="fixed z-[100] w-56 p-2 bg-black/70 backdrop-blur-xl border border-white/10 rounded-lg"
+          className="fixed z-[100] w-56 p-2 bg-black/50 backdrop-blur-xl border border-white/10 rounded-lg"
           style={{
             top: popoverPos.top,
             left: popoverPos.left,
