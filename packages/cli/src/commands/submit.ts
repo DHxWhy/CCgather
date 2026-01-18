@@ -333,7 +333,6 @@ export async function submit(options: SubmitOptions): Promise<void> {
   const totalFiles = getSessionFileCount();
 
   console.log(`\n  ${colors.muted("Project:")} ${colors.white(projectName)}`);
-  console.log(`  ${colors.dim("📋 League: reading plan info only (not tokens)")}`);
 
   if (totalFiles > 0) {
     console.log(
@@ -366,9 +365,6 @@ export async function submit(options: SubmitOptions): Promise<void> {
     console.log(`  ${colors.muted("Make sure you have used Claude Code at least once.")}\n`);
     process.exit(1);
   }
-
-  // Show what plan info was read (transparency - field names only)
-  console.log(`  ${colors.dim("📋 plan info: subscriptionType, rateLimitTier")}`);
 
   // ═══════════════════════════════════════════════════════════
   // PLAN DETECTION LOGIC - Fair League Placement
@@ -443,6 +439,10 @@ export async function submit(options: SubmitOptions): Promise<void> {
   else {
     // Use current plan from credentials (already set in usageData.ccplan)
     planDetectionReason = "current";
+    // Transparency: show that we're reading credentials for league placement
+    console.log(
+      `  ${colors.dim("📋 League: reading plan info only (subscriptionType, rateLimitTier)")}`
+    );
     // Only show if plan is detected
     if (usageData.ccplan) {
       for (const line of currentPlanMessage(usageData.ccplan)) {
