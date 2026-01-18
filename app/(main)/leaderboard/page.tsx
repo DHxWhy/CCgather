@@ -87,7 +87,7 @@ function LevelBadge({ tokens }: { tokens: number }) {
         {currentLevel.icon} Lv.{currentLevel.level}
       </span>
       {isHovered && (
-        <div className="absolute left-0 bottom-full mb-1 z-50 w-56 p-2 bg-[var(--color-bg-secondary)] border border-[var(--border-default)] rounded-lg shadow-xl">
+        <div className="absolute left-0 top-full mt-1 z-50 w-56 p-2 bg-[var(--color-bg-secondary)] border border-[var(--border-default)] rounded-lg shadow-xl">
           <div className="text-[9px] text-[var(--color-text-muted)] uppercase tracking-wide mb-1.5">
             Level System
           </div>
@@ -128,7 +128,7 @@ function LevelBadge({ tokens }: { tokens: number }) {
   );
 }
 
-const ITEMS_PER_PAGE = 20;
+const ITEMS_PER_PAGE = 50;
 
 // Extended user type for UI
 interface DisplayUser extends LeaderboardUser {
