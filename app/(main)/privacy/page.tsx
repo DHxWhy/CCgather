@@ -7,7 +7,7 @@ export const metadata: Metadata = {
 };
 
 export default function PrivacyPage() {
-  const lastUpdated = "January 8, 2026";
+  const lastUpdated = "January 19, 2026";
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-8">
@@ -68,6 +68,7 @@ export default function PrivacyPage() {
             <li>Clerk (authentication)</li>
             <li>Supabase (database)</li>
             <li>Vercel (hosting)</li>
+            <li>PostHog (analytics)</li>
           </ul>
           <p className="mt-3">We do not sell your personal data.</p>
         </section>
