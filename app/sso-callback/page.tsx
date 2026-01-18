@@ -83,8 +83,8 @@ export default function SSOCallbackPage() {
         <p className="text-zinc-500 text-xs mt-2">Please wait a moment</p>
       </div>
       <AuthenticateWithRedirectCallback
-        afterSignInUrl="/leaderboard"
-        afterSignUpUrl="/leaderboard"
+        signInFallbackRedirectUrl="/leaderboard"
+        signUpFallbackRedirectUrl="/leaderboard"
       />
     </div>
   );

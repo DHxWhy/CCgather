@@ -154,6 +154,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           colorPrimary: "#DA7756",
         },
       }}
+      signInFallbackRedirectUrl="/leaderboard"
+      signUpFallbackRedirectUrl="/leaderboard"
     >
       <html
         lang="en"
