@@ -1,8 +1,11 @@
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
-import { createClient } from "@/lib/supabase/server";
+import { createClient, createServiceClient } from "@/lib/supabase/server";
+import { auth } from "@clerk/nextjs/server";
 import ToolDetailClient from "./ToolDetailClient";
 import { CATEGORY_META, PRICING_META } from "@/types/tools";
+import { calculateTrustTier } from "@/lib/tools/eligibility";
+import type { ToolWithInteraction } from "@/types/tools";
 
 // ===========================================
 // Types
@@ -62,6 +65,155 @@ async function getToolBySlug(slug: string): Promise<ToolBasicData | null> {
     }
 
     return data;
+  } catch {
+    return null;
+  }
+}
+
+// ===========================================
+// Full Data Fetching (with voters, interaction)
+// ===========================================
+
+async function getFullToolData(slug: string): Promise<ToolWithInteraction | null> {
+  try {
+    const supabase = createServiceClient();
+    const { userId } = await auth();
+
+    // Fetch tool with submitter
+    const { data: tool, error: toolError } = await supabase
+      .from("tools")
+      .select(
+        `
+        *,
+        submitter:users!submitted_by (
+          id,
+          username,
+          avatar_url,
+          current_level,
+          global_rank
+        )
+      `
+      )
+      .eq("slug", slug)
+      .in("status", ["approved", "featured"])
+      .single();
+
+    if (toolError || !tool) return null;
+
+    // Get voters (limited)
+    const { data: votes } = await supabase
+      .from("tool_votes")
+      .select(
+        `
+        user_id,
+        weight,
+        comment,
+        user:users!user_id (
+          id,
+          username,
+          avatar_url,
+          current_level,
+          global_rank
+        )
+      `
+      )
+      .eq("tool_id", tool.id)
+      .order("weight", { ascending: false })
+      .limit(10);
+
+    // Process submitter
+    const submitter = tool.submitter as {
+      id: string;
+      username: string;
+      avatar_url: string | null;
+      current_level: number;
+      global_rank: number | null;
+    } | null;
+
+    // Process voters
+    type VoterInfo = {
+      user_id: string;
+      username: string;
+      avatar_url: string | null;
+      trust_tier: string;
+      weight: unknown;
+      comment: string | null;
+    };
+
+    const voters: VoterInfo[] =
+      votes?.map((vote: Record<string, unknown>) => {
+        const user = vote.user as {
+          id: string;
+          username: string;
+          avatar_url: string | null;
+          current_level: number;
+          global_rank: number | null;
+        };
+        return {
+          user_id: user.id,
+          username: user.username,
+          avatar_url: user.avatar_url,
+          trust_tier: calculateTrustTier(user.current_level, user.global_rank),
+          weight: vote.weight,
+          comment: vote.comment as string | null,
+        };
+      }) || [];
+
+    // Top comment
+    const voterWithComment = voters.find((v) => v.comment);
+    const topComment = voterWithComment
+      ? {
+          username: voterWithComment.username,
+          avatar_url: voterWithComment.avatar_url,
+          trust_tier: voterWithComment.trust_tier,
+          comment: voterWithComment.comment!,
+        }
+      : null;
+
+    // Check user interaction
+    let isVoted = false;
+    let isBookmarked = false;
+
+    if (userId) {
+      const { data: dbUser } = await supabase
+        .from("users")
+        .select("id")
+        .eq("clerk_id", userId)
+        .single();
+
+      if (dbUser) {
+        const [voteRes, bookmarkRes] = await Promise.all([
+          supabase
+            .from("tool_votes")
+            .select("tool_id")
+            .eq("tool_id", tool.id)
+            .eq("user_id", dbUser.id)
+            .single(),
+          supabase
+            .from("tool_bookmarks")
+            .select("tool_id")
+            .eq("tool_id", tool.id)
+            .eq("user_id", dbUser.id)
+            .single(),
+        ]);
+        isVoted = !!voteRes.data;
+        isBookmarked = !!bookmarkRes.data;
+      }
+    }
+
+    return {
+      ...tool,
+      submitter: submitter
+        ? {
+            ...submitter,
+            trust_tier: calculateTrustTier(submitter.current_level, submitter.global_rank),
+          }
+        : null,
+      voters,
+      top_comment: topComment,
+      is_voted: isVoted,
+      is_bookmarked: isBookmarked,
+    } as ToolWithInteraction;
   } catch {
     return null;
   }
@@ -192,16 +344,18 @@ function ToolJsonLd({ tool }: { tool: ToolBasicData }) {
 
 export default async function ToolDetailPage({ params }: ToolPageProps) {
   const { slug } = await params;
-  const tool = await getToolBySlug(slug);
 
-  if (!tool) {
+  // Fetch both basic (for JSON-LD) and full data (for client) in parallel
+  const [basicTool, fullTool] = await Promise.all([getToolBySlug(slug), getFullToolData(slug)]);
+
+  if (!basicTool) {
     notFound();
   }
 
   return (
     <>
-      <ToolJsonLd tool={tool} />
-      <ToolDetailClient initialTool={null} slug={slug} />
+      <ToolJsonLd tool={basicTool} />
+      <ToolDetailClient initialTool={fullTool} slug={slug} />
     </>
   );
 }
