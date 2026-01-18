@@ -9,6 +9,37 @@ interface DailyUsage {
   inputTokens?: number;
   outputTokens?: number;
   sessions?: number;
+  models?: Record<string, number>; // model name -> token count
+}
+
+// Find the most used model from daily usage data
+function getPrimaryModel(dailyUsage?: DailyUsage[]): string | null {
+  if (!dailyUsage || dailyUsage.length === 0) return null;
+
+  const modelTotals: Record<string, number> = {};
+
+  for (const day of dailyUsage) {
+    if (day.models) {
+      for (const [model, tokens] of Object.entries(day.models)) {
+        modelTotals[model] = (modelTotals[model] || 0) + tokens;
+      }
+    }
+  }
+
+  if (Object.keys(modelTotals).length === 0) return null;
+
+  // Find model with highest token usage
+  let primaryModel: string | null = null;
+  let maxTokens = 0;
+
+  for (const [model, tokens] of Object.entries(modelTotals)) {
+    if (tokens > maxTokens) {
+      maxTokens = tokens;
+      primaryModel = model;
+    }
+  }
+
+  return primaryModel;
 }
 
 interface SessionFingerprint {
@@ -209,12 +240,20 @@ export async function POST(request: NextRequest) {
     }
 
     // Update user stats (use max values to prevent lowering)
+    const overallPrimaryModel = getPrimaryModel(body.dailyUsage);
+
     const updateData: Record<string, unknown> = {
       total_tokens: Math.max(authenticatedUser.total_tokens || 0, body.totalTokens),
       total_cost: Math.max(authenticatedUser.total_cost || 0, body.totalSpent),
       last_submission_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     };
+
+    // Update primary_model if detected
+    if (overallPrimaryModel) {
+      updateData.primary_model = overallPrimaryModel;
+      updateData.primary_model_updated_at = new Date().toISOString();
+    }
 
     // Update ccplan if provided
     if (body.ccplan) {
@@ -265,19 +304,33 @@ export async function POST(request: NextRequest) {
     // Insert usage_stats records
     if (body.dailyUsage && body.dailyUsage.length > 0) {
       // Bulk insert daily usage data
-      const usageRecords = body.dailyUsage.map((day) => ({
-        user_id: authenticatedUser.id,
-        date: day.date,
-        total_tokens: day.tokens,
-        input_tokens: day.inputTokens || 0,
-        output_tokens: day.outputTokens || 0,
-        cache_read_tokens: 0,
-        cache_write_tokens: 0,
-        cost_usd: day.cost,
-        primary_model: "claude-sonnet-4",
-        submitted_at: new Date().toISOString(),
-        submission_source: "cli",
-      }));
+      const usageRecords = body.dailyUsage.map((day) => {
+        // Find primary model for this day
+        let dayPrimaryModel: string | null = null;
+        if (day.models && Object.keys(day.models).length > 0) {
+          let maxTokens = 0;
+          for (const [model, tokens] of Object.entries(day.models)) {
+            if (tokens > maxTokens) {
+              maxTokens = tokens;
+              dayPrimaryModel = model;
+            }
+          }
+        }
+
+        return {
+          user_id: authenticatedUser.id,
+          date: day.date,
+          total_tokens: day.tokens,
+          input_tokens: day.inputTokens || 0,
+          output_tokens: day.outputTokens || 0,
+          cache_read_tokens: 0,
+          cache_write_tokens: 0,
+          cost_usd: day.cost,
+          primary_model: dayPrimaryModel,
+          submitted_at: new Date().toISOString(),
+          submission_source: "cli",
+        };
+      });
 
       const { error: statsError } = await supabase
         .from("usage_stats")
@@ -304,7 +357,7 @@ export async function POST(request: NextRequest) {
           cache_read_tokens: body.cacheReadTokens || 0,
           cache_write_tokens: body.cacheWriteTokens || 0,
           cost_usd: body.totalSpent,
-          primary_model: "claude-sonnet-4",
+          primary_model: overallPrimaryModel,
           submitted_at: new Date().toISOString(),
           submission_source: "cli",
         },
