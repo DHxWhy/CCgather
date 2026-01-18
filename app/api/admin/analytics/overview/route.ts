@@ -71,16 +71,18 @@ export async function GET(request: Request) {
     const signups = calculateTotalWithTrend(signupsTrends, 0);
 
     // Calculate total events across all series
+    // Note: PostHog returns data as number[] and days as string[]
     let totalEventsValue = 0;
     let totalEventsPrevious = 0;
     if (eventsTrends?.results) {
       for (const series of eventsTrends.results) {
-        if (series.data) {
+        if (series.data && Array.isArray(series.data)) {
           const midpoint = Math.floor(series.data.length / 2);
-          const current = series.data.slice(midpoint).reduce((sum, p) => sum + (p.count || 0), 0);
+          // series.data is number[] not TrendDataPoint[]
+          const current = series.data.slice(midpoint).reduce((sum, count) => sum + (count || 0), 0);
           const previous = series.data
             .slice(0, midpoint)
-            .reduce((sum, p) => sum + (p.count || 0), 0);
+            .reduce((sum, count) => sum + (count || 0), 0);
           totalEventsValue += current;
           totalEventsPrevious += previous;
         }

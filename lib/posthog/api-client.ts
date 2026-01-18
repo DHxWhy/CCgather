@@ -16,9 +16,13 @@ interface PostHogQueryOptions {
 interface TrendsQueryResult {
   results: Array<{
     label: string;
-    data: Array<{ date: string; count: number }>;
+    data: number[]; // Array of counts per time interval
+    days: string[]; // Array of date strings (ISO format)
+    labels: string[]; // Array of formatted date labels
     count: number;
+    aggregated_value?: number;
   }>;
+  is_cached?: boolean;
 }
 
 interface FunnelQueryResult {

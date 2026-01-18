@@ -43,12 +43,24 @@ export async function GET(request: Request) {
     });
 
     // Transform to response format
+    // PostHog returns: { data: number[], days: string[] }
+    // We need: { data: Array<{ date: string; count: number }> }
     const results =
-      trendsData?.results?.map((series) => ({
-        label: series.label,
-        data: series.data || [],
-        total: series.count || series.data?.reduce((sum, p) => sum + (p.count || 0), 0) || 0,
-      })) || [];
+      trendsData?.results?.map((series) => {
+        // Convert PostHog format to our internal format
+        const convertedData = (series.days || []).map((date: string, index: number) => ({
+          date,
+          count: series.data?.[index] || 0,
+        }));
+        return {
+          label: series.label,
+          data: convertedData,
+          total:
+            series.count ||
+            series.data?.reduce((sum: number, count: number) => sum + (count || 0), 0) ||
+            0,
+        };
+      }) || [];
 
     const response: AnalyticsTrendsResponse = {
       results,
