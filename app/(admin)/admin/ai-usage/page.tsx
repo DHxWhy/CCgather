@@ -403,23 +403,22 @@ export default function AdminAIUsagePage() {
   const [showPricing, setShowPricing] = useState(false);
 
   useEffect(() => {
+    async function fetchStats() {
+      setLoading(true);
+      try {
+        const response = await fetch(`/api/admin/ai-usage?period=${period}`);
+        if (response.ok) {
+          const data = await response.json();
+          setStats(data);
+        }
+      } catch (error) {
+        console.error("Failed to fetch AI usage stats:", error);
+      } finally {
+        setLoading(false);
+      }
+    }
     fetchStats();
   }, [period]);
-
-  async function fetchStats() {
-    setLoading(true);
-    try {
-      const response = await fetch(`/api/admin/ai-usage?period=${period}`);
-      if (response.ok) {
-        const data = await response.json();
-        setStats(data);
-      }
-    } catch (error) {
-      console.error("Failed to fetch AI usage stats:", error);
-    } finally {
-      setLoading(false);
-    }
-  }
 
   const formatNumber = (num: number) => {
     if (num >= 1000000) return (num / 1000000).toFixed(2) + "M";

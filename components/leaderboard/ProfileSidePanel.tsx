@@ -515,12 +515,13 @@ const RARITY_ORDER: Record<Badge["rarity"], number> = {
   common: 1,
 };
 
+// Badge categories (defined outside component for stable reference)
+const BADGE_CATEGORIES: Badge["category"][] = ["streak", "tokens", "rank", "model", "social"];
+
 // Badge display component
 function BadgeGrid({ badgeIds, userCountry }: { badgeIds: string[]; userCountry: string }) {
-  const categories: Badge["category"][] = ["streak", "tokens", "rank", "model", "social"];
-
   const badgesByCategory = useMemo(() => {
-    return categories.map((category) => ({
+    return BADGE_CATEGORIES.map((category) => ({
       category,
       badges: BADGES.filter((b) => b.category === category).sort(
         (a, b) => RARITY_ORDER[b.rarity] - RARITY_ORDER[a.rarity]
@@ -774,6 +775,7 @@ export function ProfileSidePanel({
       // Increment view count
       incrementProfileViewCount();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, user?.id, isSignedIn]);
 
   // Only mobile uses overlay mode, tablet uses push mode
@@ -906,6 +908,7 @@ export function ProfileSidePanel({
       }
     }
     fetchUserData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]);
 
   // Handle user change with transition

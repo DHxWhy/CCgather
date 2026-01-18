@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useUser, SignIn } from "@clerk/nextjs";
 import { useSearchParams, useRouter } from "next/navigation";
 
@@ -18,6 +18,18 @@ export default function CLIAuthPage() {
   // Legacy callback flow (for backwards compatibility)
   const callback = searchParams.get("callback");
 
+  const authorizeDirectly = useCallback(async () => {
+    if (userCode) {
+      await authorizeDevice(userCode);
+    } else if (callback) {
+      await generateTokenAndRedirect();
+    } else {
+      // No code provided - show success
+      setStatus("success");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userCode, callback]);
+
   useEffect(() => {
     if (!isLoaded) return;
 
@@ -28,7 +40,7 @@ export default function CLIAuthPage() {
 
     // Proceed directly to authorization (no onboarding check needed for CLI)
     authorizeDirectly();
-  }, [isLoaded, isSignedIn, userCode, callback]);
+  }, [isLoaded, isSignedIn, authorizeDirectly]);
 
   // Redirect to leaderboard after success (unless callback flow)
   useEffect(() => {
@@ -40,17 +52,6 @@ export default function CLIAuthPage() {
     }
     return;
   }, [status, callback, router]);
-
-  async function authorizeDirectly() {
-    if (userCode) {
-      await authorizeDevice(userCode);
-    } else if (callback) {
-      await generateTokenAndRedirect();
-    } else {
-      // No code provided - show success
-      setStatus("success");
-    }
-  }
 
   async function authorizeDevice(code: string) {
     setStatus("authorizing");

@@ -77,10 +77,6 @@ export default function CronScheduler({ onRefresh, onCollectionComplete }: CronS
   const pollingRef = useRef<NodeJS.Timeout | null>(null);
   const batchAbortRef = useRef<AbortController | null>(null);
 
-  useEffect(() => {
-    fetchJobStatus();
-  }, [selectedJobId]);
-
   // Cleanup polling on unmount
   useEffect(() => {
     return () => {
@@ -124,6 +120,8 @@ export default function CronScheduler({ onRefresh, onCollectionComplete }: CronS
         console.error("Failed to poll progress:", error);
       }
     },
+    // fetchJobStatus excluded to avoid circular dependency
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [stopPolling, onRefresh, onCollectionComplete, selectedJobId]
   );
 
@@ -143,7 +141,7 @@ export default function CronScheduler({ onRefresh, onCollectionComplete }: CronS
     [pollProgress]
   );
 
-  async function fetchJobStatus() {
+  const fetchJobStatus = useCallback(async () => {
     setLoading(true);
     try {
       const response = await fetch(`/api/admin/cron?jobId=${selectedJobId}&history=true&limit=5`);
@@ -164,7 +162,13 @@ export default function CronScheduler({ onRefresh, onCollectionComplete }: CronS
     } finally {
       setLoading(false);
     }
-  }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedJobId]);
+
+  // Fetch job status on mount and when selectedJobId changes
+  useEffect(() => {
+    fetchJobStatus();
+  }, [fetchJobStatus]);
 
   async function toggleEnabled() {
     if (!job) return;

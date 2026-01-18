@@ -264,7 +264,6 @@ export default function LeaderboardPage() {
     ccplanFilter,
     currentUserCountry,
     currentUsername,
-    clerkUser?.id,
   ]);
 
   // Fetch current user's country and username
@@ -335,7 +334,7 @@ export default function LeaderboardPage() {
     if (userInfoLoaded) {
       fetchLeaderboard();
     }
-  }, [userInfoLoaded]);
+  }, [userInfoLoaded, fetchLeaderboard]);
 
   // Update selectedUser when users array changes (to reflect updated social_links)
   useEffect(() => {

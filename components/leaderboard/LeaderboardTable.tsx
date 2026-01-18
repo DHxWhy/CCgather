@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { UserRow } from "./UserRow";
 import { FilterBar } from "./FilterBar";
 
@@ -56,48 +56,51 @@ export function LeaderboardTable({
 
   const pageSize = 50;
 
+  const fetchLeaderboard = useCallback(
+    async (loadMore = false) => {
+      setLoading(true);
+      try {
+        const params = new URLSearchParams();
+        params.set("page", loadMore ? String(page + 1) : "1");
+        params.set("pageSize", String(pageSize));
+
+        if (filters.search) params.set("search", filters.search);
+        if (filters.tier !== "all") params.set("tier", filters.tier);
+        if (filters.country !== "all") params.set("country", filters.country);
+        if (filters.timeframe !== "all") params.set("timeframe", filters.timeframe);
+
+        const response = await fetch(`/api/leaderboard?${params}`);
+        const data = await response.json();
+
+        if (data.users) {
+          const markedUsers = data.users.map((u: LeaderboardUser) => ({
+            ...u,
+            isCurrentUser: u.id === currentUserId,
+          }));
+
+          if (loadMore) {
+            setUsers((prev) => [...prev, ...markedUsers]);
+            setPage((p) => p + 1);
+          } else {
+            setUsers(markedUsers);
+            setPage(1);
+          }
+          setHasMore(data.users.length === pageSize);
+        }
+      } catch (error) {
+        console.error("Failed to fetch leaderboard:", error);
+      } finally {
+        setLoading(false);
+      }
+    },
+    [filters, page, currentUserId]
+  );
+
   useEffect(() => {
     if (initialUsers.length === 0) {
       fetchLeaderboard();
     }
-  }, [filters]);
-
-  async function fetchLeaderboard(loadMore = false) {
-    setLoading(true);
-    try {
-      const params = new URLSearchParams();
-      params.set("page", loadMore ? String(page + 1) : "1");
-      params.set("pageSize", String(pageSize));
-
-      if (filters.search) params.set("search", filters.search);
-      if (filters.tier !== "all") params.set("tier", filters.tier);
-      if (filters.country !== "all") params.set("country", filters.country);
-      if (filters.timeframe !== "all") params.set("timeframe", filters.timeframe);
-
-      const response = await fetch(`/api/leaderboard?${params}`);
-      const data = await response.json();
-
-      if (data.users) {
-        const markedUsers = data.users.map((u: LeaderboardUser) => ({
-          ...u,
-          isCurrentUser: u.id === currentUserId,
-        }));
-
-        if (loadMore) {
-          setUsers((prev) => [...prev, ...markedUsers]);
-          setPage((p) => p + 1);
-        } else {
-          setUsers(markedUsers);
-          setPage(1);
-        }
-        setHasMore(data.users.length === pageSize);
-      }
-    } catch (error) {
-      console.error("Failed to fetch leaderboard:", error);
-    } finally {
-      setLoading(false);
-    }
-  }
+  }, [initialUsers.length, fetchLeaderboard]);
 
   function handleFilterChange(newFilters: Partial<LeaderboardFilters>) {
     setFilters((prev) => ({ ...prev, ...newFilters }));
