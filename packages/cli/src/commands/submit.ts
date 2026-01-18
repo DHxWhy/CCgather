@@ -9,6 +9,8 @@ import {
   CCGatherData,
   DailyUsage,
   SessionFingerprint,
+  hasOpusUsageInProject,
+  hasOldData,
 } from "../lib/ccgather-json.js";
 import {
   colors,
@@ -17,6 +19,7 @@ import {
   header,
   success,
   error,
+  warning,
   link,
   createBox,
   progressBar,
@@ -25,6 +28,11 @@ import {
   slotMachineRank,
   animatedProgressBar,
   suspenseDots,
+  planDetectionSection,
+  maxVerifiedMessage,
+  pastDataWarningMessage,
+  trustMessage,
+  currentPlanMessage,
 } from "../lib/ui.js";
 
 interface UsageData {
@@ -362,6 +370,94 @@ export async function submit(options: SubmitOptions): Promise<void> {
     console.log(`  ${colors.muted("Make sure you have used Claude Code at least once.")}\n`);
     process.exit(1);
   }
+
+  // ═══════════════════════════════════════════════════════════
+  // PLAN DETECTION LOGIC - Fair League Placement
+  // Priority: 1. Opus usage → Max | 2. Recent → Current | 3. Old → User choice
+  // ═══════════════════════════════════════════════════════════
+
+  const opusCheck = hasOpusUsageInProject(usageData.dailyUsage);
+  const oldDataCheck = hasOldData(usageData.dailyUsage, 30);
+  let finalPlan: string = usageData.ccplan || "free";
+  let planDetectionReason: "opus" | "current" | "user_choice" = "current";
+
+  // Case 1: Opus usage detected anywhere → Max (verified)
+  if (opusCheck.detected) {
+    finalPlan = "max";
+    planDetectionReason = "opus";
+
+    console.log(planDetectionSection("Plan Detection", "🚀"));
+    for (const line of maxVerifiedMessage(opusCheck.opusModels)) {
+      console.log(line);
+    }
+  }
+  // Case 2: No Opus + Old data (>30 days) → User choice
+  else if (oldDataCheck.hasOldData) {
+    planDetectionReason = "user_choice";
+
+    console.log(planDetectionSection("Past Data Detected", "📅"));
+    for (const line of pastDataWarningMessage(
+      oldDataCheck.oldestDate || "",
+      oldDataCheck.daysSinceOldest
+    )) {
+      console.log(line);
+    }
+    for (const line of trustMessage()) {
+      console.log(line);
+    }
+
+    // User selection prompt
+    const planChoices = [
+      {
+        name: `${colors.pro("⚡")} Pro plan`,
+        value: "pro",
+        short: "Pro",
+      },
+      {
+        name: `${colors.free("⚪")} Free plan`,
+        value: "free",
+        short: "Free",
+      },
+      {
+        name: `${colors.dim("?")} Can't remember ${colors.dim("(submit as Free)")}`,
+        value: "free_default",
+        short: "Free (default)",
+      },
+    ];
+
+    const { selectedPlan } = await inquirer.prompt([
+      {
+        type: "list",
+        name: "selectedPlan",
+        message: "Which plan were you using at that time?",
+        choices: planChoices,
+        default: 0,
+      },
+    ]);
+
+    // "Can't remember" → Free (more conservative/fair approach)
+    finalPlan = selectedPlan === "free_default" ? "free" : selectedPlan;
+    console.log();
+    console.log(`  ${success(`Selected: ${finalPlan.toUpperCase()}`)}`);
+  }
+  // Case 3: No Opus + Recent data (≤30 days) → Current plan from credentials
+  else {
+    // Use current plan from credentials (already set in usageData.ccplan)
+    planDetectionReason = "current";
+    // Only show if plan is detected
+    if (usageData.ccplan) {
+      for (const line of currentPlanMessage(usageData.ccplan)) {
+        console.log(line);
+      }
+    }
+  }
+
+  // Apply final plan to all daily usage records
+  usageData.ccplan = finalPlan;
+  usageData.dailyUsage = usageData.dailyUsage.map((daily) => ({
+    ...daily,
+    ccplan: finalPlan,
+  }));
 
   // Show summary
   console.log();

@@ -6,7 +6,6 @@ import ReactCountryFlag from "react-country-flag";
 import { useUser } from "@clerk/nextjs";
 import { ProfileSidePanel } from "@/components/leaderboard/ProfileSidePanel";
 import { CCplanTabs } from "@/components/leaderboard/CCplanTabs";
-import { LeagueRulesInfo } from "@/components/leaderboard/LeagueRulesInfo";
 import { LiveStatsTicker } from "@/components/stats/LiveStatsTicker";
 import { LEVELS, getLevelByTokens } from "@/lib/constants/levels";
 import type {
@@ -494,22 +493,9 @@ export default function LeaderboardPage() {
         >
           {/* Header */}
           <div className="mb-6">
-            {/* Top row: Rankings label + Stats ticker */}
-            <div className="flex items-start justify-between mb-3">
-              <p className="text-xs text-[var(--color-claude-coral)] font-medium tracking-wide uppercase pt-1">
-                Rankings
-              </p>
-              {/* Live Stats Ticker - always top-right */}
-              <LiveStatsTicker
-                variant="compact"
-                className="px-3 py-2 rounded-lg bg-[var(--color-filter-bg)] border border-[var(--border-default)] min-w-[120px]"
-                userCountryCode={currentUserCountry}
-                useRealData={true}
-              />
-            </div>
-            {/* Title and description */}
-            <div>
-              <h1 className="text-2xl md:text-3xl font-semibold text-[var(--color-text-primary)] mb-2 flex items-center gap-2">
+            {/* Title row with Stats ticker */}
+            <div className="flex items-start justify-between gap-3 mb-2 flex-wrap">
+              <h1 className="text-2xl md:text-3xl font-semibold text-[var(--color-text-primary)] flex items-center gap-2">
                 {scopeFilter === "global" ? (
                   "Global"
                 ) : (
@@ -524,20 +510,25 @@ export default function LeaderboardPage() {
                 )}{" "}
                 Leaderboard
               </h1>
-              <p className="text-sm text-[var(--color-text-muted)]">
-                Top Claude Code developers ranked by{" "}
-                {sortBy === "tokens" ? "token usage" : "spending"}
-              </p>
+              {/* Live Stats Ticker */}
+              <LiveStatsTicker
+                variant="compact"
+                className="px-3 py-2 rounded-lg bg-[var(--color-filter-bg)] border border-[var(--border-default)] min-w-[120px] flex-shrink-0"
+                userCountryCode={currentUserCountry}
+                useRealData={true}
+              />
             </div>
+            {/* Description */}
+            <p className="text-sm text-[var(--color-text-muted)]">
+              Top Claude Code developers ranked by{" "}
+              {sortBy === "tokens" ? "token usage" : "spending"}
+            </p>
           </div>
 
-          {/* CCplan League Tabs */}
+          {/* CCplan League Tabs with Info Button */}
           <div className="mb-4">
             <CCplanTabs value={ccplanFilter} onChange={setCcplanFilter} />
           </div>
-
-          {/* League Rules Info - Expandable */}
-          <LeagueRulesInfo />
 
           {/* Filters */}
           <div className="flex items-center justify-between gap-1.5 sm:gap-2 md:gap-3 mb-6">

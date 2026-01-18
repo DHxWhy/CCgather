@@ -430,6 +430,70 @@ export function link(url: string): string {
   return hyperlink(colors.cyan.underline(url), url);
 }
 
+// ============================================
+// Plan Detection UI Components
+// ============================================
+
+// Plan detection section header
+export function planDetectionSection(title: string, icon: string = "🔍"): string {
+  return `\n${colors.dim("─".repeat(50))}\n  ${icon} ${colors.white.bold(title)}\n${colors.dim("─".repeat(50))}`;
+}
+
+// Max plan verified message (Opus detected)
+export function maxVerifiedMessage(opusModels: string[]): string[] {
+  const modelList =
+    opusModels.length > 2
+      ? `${opusModels.slice(0, 2).join(", ")} +${opusModels.length - 2} more`
+      : opusModels.join(", ");
+
+  return [
+    ``,
+    `  ${success("Max plan verified")}`,
+    ``,
+    `    ${colors.muted("💡 Reason:")} Opus model usage detected`,
+    `       ${colors.dim("Models:")} ${colors.cyan(modelList)}`,
+    ``,
+    `    ${colors.dim("All data will be recorded under Max league.")}`,
+    ``,
+  ];
+}
+
+// Past data warning message (no Opus, older than 30 days)
+export function pastDataWarningMessage(oldestDate: string, daysSince: number): string[] {
+  return [
+    ``,
+    `  ${warning(`Data older than 30 days detected`)}`,
+    ``,
+    `    ${colors.muted("Oldest record:")} ${colors.white(oldestDate)} ${colors.dim(`(${daysSince} days ago)`)}`,
+    `    ${colors.muted("Opus usage:")} ${colors.dim("Not found")}`,
+    ``,
+    `    ${colors.dim("→ Max plan cannot be verified automatically.")}`,
+    ``,
+  ];
+}
+
+// Trust message for user selection
+export function trustMessage(): string[] {
+  return [
+    `  ${colors.muted("💡 For fair league placement, we trust your choice.")}`,
+    `     ${colors.dim("Tip: Submit regularly for accurate tracking!")}`,
+    ``,
+  ];
+}
+
+// Current plan auto-apply message
+export function currentPlanMessage(plan: string): string[] {
+  const planColor = plan === "max" ? colors.max : plan === "pro" ? colors.pro : colors.free;
+  const planBadge = plan === "max" ? "🚀 MAX" : plan === "pro" ? "⚡ PRO" : "⚪ FREE";
+
+  return [
+    ``,
+    `  ${colors.muted("📋 Plan:")} ${planColor(planBadge)}`,
+    `    ${colors.dim("Current plan from credentials will be used.")}`,
+    ``,
+  ];
+}
+
 // Highlight text
 export function highlight(text: string): string {
   return colors.primary.bold(text);

@@ -14,6 +14,65 @@ export interface DailyUsage {
   cacheReadTokens: number;
   sessions: number;
   models: Record<string, number>;
+  ccplan?: string; // Plan at submission time (for fair league placement)
+}
+
+/**
+ * Check if any daily usage contains Opus model usage
+ * Opus models are only available on Max plan, so this is definitive proof
+ */
+export function hasOpusUsageInProject(dailyUsage: DailyUsage[]): {
+  detected: boolean;
+  opusModels: string[];
+  opusDates: string[];
+} {
+  const opusModels = new Set<string>();
+  const opusDates: string[] = [];
+
+  for (const daily of dailyUsage) {
+    for (const model of Object.keys(daily.models)) {
+      if (model.toLowerCase().includes("opus")) {
+        opusModels.add(model);
+        opusDates.push(daily.date);
+      }
+    }
+  }
+
+  return {
+    detected: opusModels.size > 0,
+    opusModels: Array.from(opusModels),
+    opusDates,
+  };
+}
+
+/**
+ * Check if project has data older than specified days
+ */
+export function hasOldData(
+  dailyUsage: DailyUsage[],
+  days: number = 30
+): {
+  hasOldData: boolean;
+  oldestDate: string | null;
+  daysSinceOldest: number;
+} {
+  if (dailyUsage.length === 0) {
+    return { hasOldData: false, oldestDate: null, daysSinceOldest: 0 };
+  }
+
+  const sortedDates = dailyUsage.map((d) => d.date).sort((a, b) => a.localeCompare(b));
+
+  const oldestDate = sortedDates[0];
+  const oldestDateObj = new Date(oldestDate);
+  const now = new Date();
+  const diffTime = now.getTime() - oldestDateObj.getTime();
+  const daysSinceOldest = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+
+  return {
+    hasOldData: daysSinceOldest > days,
+    oldestDate,
+    daysSinceOldest,
+  };
 }
 
 export interface SessionFingerprint {
