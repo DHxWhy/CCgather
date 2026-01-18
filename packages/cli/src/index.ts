@@ -176,7 +176,7 @@ async function showMenuOnly(): Promise<void> {
       message: "What would you like to do?",
       choices: [
         { name: `📤  ${colors.white("Submit usage data")}`, value: "submit" },
-        { name: `📊  ${colors.white("View my rank")}`, value: "rank" },
+        { name: `🌐  ${colors.white("Open leaderboard")}`, value: "leaderboard" },
         { name: `⚙️   ${colors.white("Settings")}`, value: "settings" },
       ],
       loop: false,
@@ -190,10 +190,17 @@ async function showMenuOnly(): Promise<void> {
       await dotAnimation("Preparing", 400);
       await submit({});
       break;
-    case "rank":
-      await dotAnimation("Fetching stats", 400);
-      await status({});
+    case "leaderboard": {
+      const cfg = getConfig();
+      const username = cfg.get("username") as string | undefined;
+      const leaderboardUrl = username
+        ? `https://ccgather.com/leaderboard?u=${username}`
+        : "https://ccgather.com/leaderboard";
+      console.log(colors.dim(`  Opening ${leaderboardUrl}...\n`));
+      const open = (await import("open")).default;
+      await open(leaderboardUrl);
       break;
+    }
     case "settings":
       await showSettingsMenu();
       break;
