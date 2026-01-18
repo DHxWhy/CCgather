@@ -54,6 +54,8 @@ export interface CCGatherData {
   account?: {
     ccplan: string | null;
     rateLimitTier: string | null;
+    authMethod?: string; // "oauth" | "api_key" | "unknown"
+    rawSubscriptionType?: string | null; // Original value for discovery
   };
   sessionFingerprint?: SessionFingerprint;
 }
@@ -497,6 +499,8 @@ export function scanUsageData(options: ScanOptions = {}): CCGatherData | null {
     account: {
       ccplan: credentials.ccplan,
       rateLimitTier: credentials.rateLimitTier,
+      authMethod: credentials.authMethod,
+      rawSubscriptionType: credentials.rawSubscriptionType,
     },
     sessionFingerprint,
   };

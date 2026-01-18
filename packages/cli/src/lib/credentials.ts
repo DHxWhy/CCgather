@@ -228,10 +228,11 @@ export function readCredentials(): CredentialsData {
   }
 
   // Map subscription type to CCPlan, fallback to rateLimitTier inference
-  const rateLimitTier = oauthData.rateLimitTier || null;
-  const rawSubscriptionType = oauthData.subscriptionType || null;
+  const rateLimitTier = oauthData.rateLimitTier ?? null;
+  const rawSubscriptionType = oauthData.subscriptionType ?? null;
   const ccplan =
-    mapSubscriptionToCCPlan(rawSubscriptionType) || inferPlanFromRateLimitTier(rateLimitTier);
+    mapSubscriptionToCCPlan(rawSubscriptionType ?? undefined) ||
+    inferPlanFromRateLimitTier(rateLimitTier ?? undefined);
 
   return {
     ccplan,

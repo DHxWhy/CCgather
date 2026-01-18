@@ -39,6 +39,8 @@ interface UsageData {
   lastUsed: string | null;
   ccplan?: string | null;
   rateLimitTier?: string | null;
+  authMethod?: string; // "oauth" | "api_key" | "unknown"
+  rawSubscriptionType?: string | null; // Original value for discovery
   dailyUsage: DailyUsage[];
   sessionFingerprint?: SessionFingerprint;
 }
@@ -85,6 +87,8 @@ function ccgatherToUsageData(data: CCGatherData): UsageData {
     lastUsed: data.stats.lastUsed,
     ccplan: data.account?.ccplan || null,
     rateLimitTier: data.account?.rateLimitTier || null,
+    authMethod: data.account?.authMethod || "unknown",
+    rawSubscriptionType: data.account?.rawSubscriptionType || null,
     dailyUsage: data.dailyUsage || [],
     sessionFingerprint: data.sessionFingerprint,
   };
@@ -119,6 +123,8 @@ async function submitToServer(data: UsageData): Promise<SubmitResponse> {
         daysTracked: data.daysTracked,
         ccplan: data.ccplan,
         rateLimitTier: data.rateLimitTier,
+        authMethod: data.authMethod,
+        rawSubscriptionType: data.rawSubscriptionType,
         timestamp: new Date().toISOString(),
         dailyUsage: data.dailyUsage,
         // Session fingerprint for duplicate prevention

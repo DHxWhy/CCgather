@@ -28,10 +28,15 @@ interface SubmitPayload {
   daysTracked?: number;
   ccplan?: string | null;
   rateLimitTier?: string | null;
+  authMethod?: string; // "oauth" | "api_key" | "unknown" - for Team/Enterprise detection
+  rawSubscriptionType?: string | null; // Original value for discovery logging
   timestamp: string;
   dailyUsage?: DailyUsage[]; // Array of daily usage data
   sessionFingerprint?: SessionFingerprint; // For duplicate prevention
 }
+
+// Known CCplan values
+const KNOWN_CCPLANS = ["free", "pro", "max", "team", "enterprise"];
 
 interface AuthenticatedUser {
   id: string;
@@ -213,8 +218,38 @@ export async function POST(request: NextRequest) {
 
     // Update ccplan if provided
     if (body.ccplan) {
-      updateData.ccplan = body.ccplan.toLowerCase();
+      const normalizedCcplan = body.ccplan.toLowerCase();
+      updateData.ccplan = normalizedCcplan;
       updateData.ccplan_updated_at = new Date().toISOString();
+
+      // Log unknown ccplan values for discovery (Team/Enterprise patterns)
+      if (!KNOWN_CCPLANS.includes(normalizedCcplan)) {
+        console.log(
+          `[CLI Submit] Unknown ccplan discovered: "${body.ccplan}" (raw: "${body.rawSubscriptionType}", auth: "${body.authMethod}") for user ${authenticatedUser.username}`
+        );
+
+        // Store alert for admin review
+        await supabase.from("admin_alerts").insert({
+          type: "unknown_ccplan",
+          message: `Unknown ccplan "${body.ccplan}" discovered`,
+          metadata: {
+            user_id: authenticatedUser.id,
+            username: authenticatedUser.username,
+            ccplan: body.ccplan,
+            rawSubscriptionType: body.rawSubscriptionType,
+            authMethod: body.authMethod,
+            rateLimitTier: body.rateLimitTier,
+            timestamp: new Date().toISOString(),
+          },
+        });
+      }
+    }
+
+    // Log API key auth users for Team/Enterprise discovery
+    if (body.authMethod === "api_key") {
+      console.log(
+        `[CLI Submit] API Key auth user: ${authenticatedUser.username} (ccplan: ${body.ccplan || "unknown"}, raw: ${body.rawSubscriptionType || "none"})`
+      );
     }
 
     const { error: updateError } = await supabase
