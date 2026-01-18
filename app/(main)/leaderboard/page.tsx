@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useMemo, useEffect, useCallback } from "react";
+import { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import { useSearchParams } from "next/navigation";
+import Image from "next/image";
 import ReactCountryFlag from "react-country-flag";
 import { useUser } from "@clerk/nextjs";
 import { ProfileSidePanel } from "@/components/leaderboard/ProfileSidePanel";
@@ -65,13 +66,28 @@ function formatLevelRange(min: number, max: number): string {
 // Level Badge with Popover
 function LevelBadge({ tokens }: { tokens: number }) {
   const [isHovered, setIsHovered] = useState(false);
+  const [popoverPos, setPopoverPos] = useState({ top: 0, left: 0 });
+  const badgeRef = useRef<HTMLDivElement>(null);
   const currentLevel = getLevelByTokens(tokens);
   const useCssClass = currentLevel.level === 5 || currentLevel.level === 6;
 
+  const handleMouseEnter = () => {
+    if (badgeRef.current) {
+      const rect = badgeRef.current.getBoundingClientRect();
+      // Position to the left of the badge, vertically centered
+      setPopoverPos({
+        top: rect.top + rect.height / 2,
+        left: rect.left - 8, // 8px gap from badge
+      });
+    }
+    setIsHovered(true);
+  };
+
   return (
     <div
+      ref={badgeRef}
       className="relative inline-block"
-      onMouseEnter={() => setIsHovered(true)}
+      onMouseEnter={handleMouseEnter}
       onMouseLeave={() => setIsHovered(false)}
     >
       <span
@@ -87,7 +103,14 @@ function LevelBadge({ tokens }: { tokens: number }) {
         {currentLevel.icon} Lv.{currentLevel.level}
       </span>
       {isHovered && (
-        <div className="absolute left-0 top-full mt-1 z-50 w-56 p-2 bg-[var(--color-bg-secondary)] border border-[var(--border-default)] rounded-lg shadow-xl">
+        <div
+          className="fixed z-[100] w-56 p-2 bg-[var(--color-bg-secondary)] border border-[var(--border-default)] rounded-lg shadow-xl"
+          style={{
+            top: popoverPos.top,
+            left: popoverPos.left,
+            transform: "translate(-100%, -50%)",
+          }}
+        >
           <div className="text-[9px] text-[var(--color-text-muted)] uppercase tracking-wide mb-1.5">
             Level System
           </div>
@@ -830,9 +853,11 @@ export default function LeaderboardPage() {
                               <div className="flex items-center gap-1.5">
                                 <div className="w-6 lg:w-8 flex items-center justify-center flex-shrink-0">
                                   {user.avatar_url ? (
-                                    <img
+                                    <Image
                                       src={user.avatar_url}
                                       alt={user.username}
+                                      width={32}
+                                      height={32}
                                       className={`${avatarSize} rounded-full object-cover`}
                                     />
                                   ) : (
