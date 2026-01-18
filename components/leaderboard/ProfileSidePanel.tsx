@@ -164,6 +164,7 @@ function UsageChart({
               strokeWidth={2}
               dot={false}
               activeDot={{ r: 4, fill: "#DA7756", stroke: "#fff", strokeWidth: 2 }}
+              isAnimationActive={false}
             />
           </LineChart>
         </ResponsiveContainer>
@@ -210,13 +211,14 @@ function LevelProgressBar({
   useEffect(() => {
     setAnimatedProgress(0);
 
-    const duration = 500; // Reduced from 800ms
+    const duration = 400;
     const startTime = performance.now();
 
     const animate = (currentTime: number) => {
       const elapsed = currentTime - startTime;
       const progress = Math.min(elapsed / duration, 1);
-      const easedProgress = progress * progress;
+      // easeOutCubic: smoother deceleration at the end
+      const easedProgress = 1 - Math.pow(1 - progress, 3);
       setAnimatedProgress(easedProgress * progressToNext);
 
       if (progress < 1) {
@@ -224,7 +226,6 @@ function LevelProgressBar({
       }
     };
 
-    // Start immediately without delay
     requestAnimationFrame(animate);
   }, [userId, progressToNext]);
 
@@ -555,119 +556,6 @@ function BadgeGrid({ badgeIds, userCountry }: { badgeIds: string[]; userCountry:
           </div>
         );
       })}
-    </div>
-  );
-}
-
-// Skeleton components for loading states
-function ChartSkeleton() {
-  // Simulated line chart path points for skeleton
-  const pathPoints = [40, 55, 45, 70, 60, 80, 50, 65, 75, 55, 60, 70];
-
-  return (
-    <div className="h-32 relative">
-      {/* Y-axis labels */}
-      <div className="absolute left-0 top-0 bottom-4 w-9 flex flex-col justify-between py-1">
-        {[1, 2, 3, 4].map((i) => (
-          <div
-            key={i}
-            className="h-2 w-7 bg-white/10 rounded animate-pulse"
-            style={{ animationDelay: `${i * 100}ms` }}
-          />
-        ))}
-      </div>
-
-      {/* Chart area with grid lines */}
-      <div className="ml-9 mr-4 h-full relative">
-        {/* Horizontal grid lines */}
-        {[0, 1, 2, 3].map((i) => (
-          <div
-            key={i}
-            className="absolute left-0 right-0 border-t border-dashed border-white/10"
-            style={{ top: `${i * 25 + 12}%` }}
-          />
-        ))}
-
-        {/* Simulated line chart skeleton */}
-        <svg className="absolute inset-0 w-full h-full" preserveAspectRatio="none">
-          <path
-            d={`M 0 ${100 - (pathPoints[0] ?? 40)} ${pathPoints.map((p, i) => `L ${(i / (pathPoints.length - 1)) * 100}% ${100 - p}%`).join(" ")}`}
-            fill="none"
-            stroke="var(--color-claude-coral)"
-            strokeWidth="2"
-            strokeOpacity="0.3"
-            className="animate-pulse"
-          />
-        </svg>
-      </div>
-
-      {/* X-axis labels */}
-      <div className="absolute bottom-0 left-9 right-4 flex justify-between">
-        {[1, 2, 3, 4, 5].map((i) => (
-          <div
-            key={i}
-            className="h-2 w-8 bg-white/10 rounded animate-pulse"
-            style={{ animationDelay: `${i * 80}ms` }}
-          />
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function HeatmapSkeleton() {
-  // Generate consistent opacity pattern (not random to avoid hydration issues)
-  const getOpacity = (week: number, day: number) => {
-    const pattern = [0.2, 0.4, 0.3, 0.5, 0.35, 0.25, 0.45];
-    return pattern[(week + day) % pattern.length];
-  };
-
-  return (
-    <div className="flex flex-col gap-2">
-      {/* Month labels */}
-      <div className="flex justify-between px-1 mb-1">
-        {["", "", "", "", "", ""].map((_, i) => (
-          <div
-            key={i}
-            className="h-2 w-6 bg-white/10 rounded animate-pulse"
-            style={{ animationDelay: `${i * 50}ms` }}
-          />
-        ))}
-      </div>
-
-      {/* Heatmap grid - horizontal layout matching actual design */}
-      <div className="flex gap-[3px] overflow-hidden">
-        {[...Array(26)].map((_, weekIndex) => (
-          <div key={weekIndex} className="flex flex-col gap-[3px]">
-            {[...Array(7)].map((_, dayIndex) => (
-              <div
-                key={dayIndex}
-                className="w-[10px] h-[10px] rounded-sm animate-pulse"
-                style={{
-                  backgroundColor: `rgba(218, 119, 86, ${getOpacity(weekIndex, dayIndex)})`,
-                  animationDelay: `${(weekIndex * 7 + dayIndex) * 8}ms`,
-                }}
-              />
-            ))}
-          </div>
-        ))}
-      </div>
-
-      {/* Legend skeleton */}
-      <div className="flex items-center justify-end gap-1 mt-1">
-        <div className="h-2 w-6 bg-white/10 rounded animate-pulse" />
-        {[0.2, 0.35, 0.5, 0.65, 0.8].map((opacity, i) => (
-          <div
-            key={i}
-            className="w-[10px] h-[10px] rounded-sm animate-pulse"
-            style={{
-              backgroundColor: `rgba(218, 119, 86, ${opacity})`,
-              animationDelay: `${i * 100}ms`,
-            }}
-          />
-        ))}
-        <div className="h-2 w-8 bg-white/10 rounded animate-pulse" />
-      </div>
     </div>
   );
 }
@@ -1060,8 +948,8 @@ export function ProfileSidePanel({
 
       <div
         ref={panelRef}
-        className={`fixed top-0 right-0 h-full flex flex-col bg-[var(--color-bg-primary)] border-l border-[var(--border-default)] z-50 shadow-2xl ${
-          isDragging ? "" : "transition-transform duration-300 ease-out"
+        className={`fixed top-0 right-0 h-full flex flex-col bg-[var(--color-bg-primary)] border-l border-[var(--border-default)] z-50 shadow-2xl will-change-transform ${
+          isDragging ? "" : "transition-transform duration-200 ease-out"
         } ${isOpen ? "translate-x-0" : "translate-x-full"}`}
         style={{
           width: isMobile ? "calc(100% - 56px)" : isTabletPortrait ? "320px" : "440px",
@@ -1336,32 +1224,32 @@ export function ProfileSidePanel({
           </div>
 
           {/* Usage Chart */}
-          <div className="mb-4 p-3 bg-[var(--color-section-bg)] rounded-lg border border-[var(--border-default)]">
+          <div
+            className={`mb-4 p-3 bg-[var(--color-section-bg)] rounded-lg border border-[var(--border-default)] transition-opacity duration-200 ${
+              historyLoading ? "opacity-50" : "opacity-100"
+            }`}
+          >
             <div className="flex items-center justify-between mb-2">
               <div className="text-[10px] text-[var(--color-text-muted)] uppercase tracking-wide">
                 📈 Usage History
               </div>
               <div className="text-[9px] text-[var(--color-text-muted)]">
-                {historyLoading
-                  ? "Loading..."
-                  : periodFilter === "today"
-                    ? "Today"
-                    : periodFilter === "7d"
-                      ? "Last 7 days"
-                      : periodFilter === "30d"
-                        ? "Last 30 days"
-                        : usageHistory.length > 60
-                          ? "All Time (Monthly)"
-                          : "All Time"}
+                {periodFilter === "today"
+                  ? "Today"
+                  : periodFilter === "7d"
+                    ? "Last 7 days"
+                    : periodFilter === "30d"
+                      ? "Last 30 days"
+                      : usageHistory.length > 60
+                        ? "All Time (Monthly)"
+                        : "All Time"}
               </div>
             </div>
-            {historyLoading ? (
-              <ChartSkeleton />
-            ) : usageHistory.length > 0 ? (
+            {usageHistory.length > 0 ? (
               <UsageChart history={usageHistory} periodFilter={periodFilter} />
             ) : (
               <div className="h-32 flex items-center justify-center text-[var(--color-text-muted)] text-xs">
-                No usage data available
+                {historyLoading ? "Loading..." : "No usage data available"}
               </div>
             )}
             <div className="text-[11px] text-[var(--color-text-secondary)] mt-2 pt-2 border-t border-[var(--border-default)] text-center">
@@ -1374,15 +1262,15 @@ export function ProfileSidePanel({
           </div>
 
           {/* Activity Heatmap */}
-          <div className="mb-4 p-3 pt-6 pb-4 bg-[var(--color-section-bg)] rounded-lg border border-[var(--border-default)]">
+          <div
+            className={`mb-4 p-3 pt-6 pb-4 bg-[var(--color-section-bg)] rounded-lg border border-[var(--border-default)] transition-opacity duration-200 ${
+              historyLoading ? "opacity-50" : "opacity-100"
+            }`}
+          >
             <div className="text-[10px] text-[var(--color-text-muted)] uppercase tracking-wide mb-3">
               📅 Activity (Last Year)
             </div>
-            {historyLoading ? (
-              <HeatmapSkeleton />
-            ) : (
-              <ActivityHeatmap data={usageHistory} periodDays={365} />
-            )}
+            <ActivityHeatmap data={usageHistory} periodDays={365} />
           </div>
 
           {/* Badges */}

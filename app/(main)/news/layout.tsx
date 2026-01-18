@@ -1,7 +1,7 @@
 import { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "News & Resources | CCgather",
+  title: "News & Resources",
   description:
     "Tips, guides, and updates for Claude Code developers. Learn token-saving patterns, best practices, and stay updated with the latest Claude Code features.",
   keywords: [
@@ -14,13 +14,13 @@ export const metadata: Metadata = {
     "CCgather news",
   ],
   openGraph: {
-    title: "News & Resources | CCgather",
+    title: "News & Resources - CCgather",
     description: "Tips, guides, and updates for Claude Code developers.",
     type: "website",
   },
   twitter: {
     card: "summary_large_image",
-    title: "News & Resources | CCgather",
+    title: "News & Resources - CCgather",
     description: "Tips, guides, and updates for Claude Code developers.",
   },
 };

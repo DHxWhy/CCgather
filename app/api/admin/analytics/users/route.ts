@@ -36,19 +36,23 @@ export async function GET(request: Request) {
       );
     }
 
-    // Fetch user activity trends for different periods
+    // Fetch unique user counts for different periods
+    // Using math: "dau" to count unique users, not pageviews
     const [dailyTrends, weeklyTrends, monthlyTrends] = await Promise.all([
       posthogApi.getTrends(["$pageview"], {
-        dateRange: { date_from: "-1d" },
-        interval: "hour",
+        dateRange: { date_from: "-2d" },
+        interval: "day",
+        math: "dau",
       }),
       posthogApi.getTrends(["$pageview"], {
-        dateRange: { date_from: "-7d" },
-        interval: "day",
+        dateRange: { date_from: "-14d" },
+        interval: "week",
+        math: "weekly_active",
       }),
       posthogApi.getTrends(["$pageview"], {
-        dateRange: { date_from: "-30d" },
-        interval: "day",
+        dateRange: { date_from: "-60d" },
+        interval: "month",
+        math: "monthly_active",
       }),
     ]);
 

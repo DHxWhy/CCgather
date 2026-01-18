@@ -11,6 +11,7 @@ interface PostHogQueryOptions {
   dateRange?: { date_from: string; date_to?: string };
   interval?: "hour" | "day" | "week" | "month";
   breakdown?: string;
+  math?: "total" | "dau" | "weekly_active" | "monthly_active" | "unique_session";
 }
 
 interface TrendsQueryResult {
@@ -88,6 +89,7 @@ class PostHogApiClient {
           series: events.map((event) => ({
             event,
             kind: "EventsNode",
+            math: options.math || "total",
           })),
           breakdownFilter: options.breakdown
             ? {

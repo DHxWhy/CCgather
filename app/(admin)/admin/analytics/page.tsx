@@ -232,7 +232,8 @@ export default function AnalyticsPage() {
       {/* 핵심 KPI */}
       {!isLoading && coreKPI && (
         <>
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          {/* 활성 사용자 지표 */}
+          <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
             <CoreMetricCard
               title="WAU"
               subtitle="Weekly Active Submitters"
@@ -241,6 +242,27 @@ export default function AnalyticsPage() {
               trend={coreKPI.metrics.wauSubmitters.trend}
               infoKey="wau_submitters"
             />
+            <CoreMetricCard
+              title="MAU"
+              subtitle="Monthly Active Submitters"
+              value={coreKPI.metrics.mauSubmitters.value}
+              changePercent={coreKPI.metrics.mauSubmitters.changePercent}
+              trend={coreKPI.metrics.mauSubmitters.trend}
+              infoKey="mau_submitters"
+            />
+            <CoreMetricCard
+              title="WAU/MAU"
+              subtitle="Stickiness"
+              value={coreKPI.metrics.stickiness.value}
+              changePercent={coreKPI.metrics.stickiness.changePercent}
+              trend={coreKPI.metrics.stickiness.trend}
+              format="percent"
+              infoKey="stickiness"
+            />
+          </div>
+
+          {/* 기타 핵심 지표 */}
+          <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
             <CoreMetricCard
               title="제출 수"
               subtitle="Total Submissions"

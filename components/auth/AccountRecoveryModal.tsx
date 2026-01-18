@@ -52,6 +52,7 @@ export function AccountRecoveryModal({
     try {
       await onRecover();
     } catch (err) {
+      console.error("Account recovery failed:", err);
       setError("복구 중 오류가 발생했습니다. 다시 시도해주세요.");
       setIsLoading(null);
     }
@@ -63,6 +64,7 @@ export function AccountRecoveryModal({
     try {
       await onFreshStart();
     } catch (err) {
+      console.error("Fresh start failed:", err);
       setError("새로 시작 중 오류가 발생했습니다. 다시 시도해주세요.");
       setIsLoading(null);
     }

@@ -50,12 +50,24 @@ export async function GET(request: Request) {
     const previousStartStr = previousStart.toISOString();
     const nowStr = now.toISOString();
 
+    // MAU 기간 계산 (30일)
+    const mauStart = new Date(now);
+    mauStart.setDate(mauStart.getDate() - 30);
+    const mauPreviousStart = new Date(mauStart);
+    mauPreviousStart.setDate(mauPreviousStart.getDate() - 30);
+    const mauStartStr = mauStart.toISOString();
+    const mauPreviousStartStr = mauPreviousStart.toISOString();
+
     // 병렬로 모든 쿼리 실행
     const [
       // WAU (Weekly Active Submitters) - 현재 기간
       wauCurrentResult,
       // WAU - 이전 기간
       wauPreviousResult,
+      // MAU (Monthly Active Submitters) - 현재 30일
+      mauCurrentResult,
+      // MAU - 이전 30일
+      mauPreviousResult,
       // 총 제출 수 - 현재 기간
       submissionsCurrentResult,
       // 총 제출 수 - 이전 기간
@@ -88,6 +100,20 @@ export async function GET(request: Request) {
         .select("user_id")
         .gte("submitted_at", previousStartStr)
         .lt("submitted_at", currentStartStr),
+
+      // MAU Current (30일)
+      supabase
+        .from("usage_stats")
+        .select("user_id")
+        .gte("submitted_at", mauStartStr)
+        .lte("submitted_at", nowStr),
+
+      // MAU Previous (이전 30일)
+      supabase
+        .from("usage_stats")
+        .select("user_id")
+        .gte("submitted_at", mauPreviousStartStr)
+        .lt("submitted_at", mauStartStr),
 
       // Submissions Current
       supabase
@@ -147,8 +173,28 @@ export async function GET(request: Request) {
       wauPreviousResult.data?.map((r: { user_id: string }) => r.user_id) || []
     );
 
+    // MAU 계산 (고유 user_id 수)
+    const mauCurrentUsers = new Set(
+      mauCurrentResult.data?.map((r: { user_id: string }) => r.user_id) || []
+    );
+    const mauPreviousUsers = new Set(
+      mauPreviousResult.data?.map((r: { user_id: string }) => r.user_id) || []
+    );
+
     // 지표 계산
     const wauSubmitters = calculateTrend(wauCurrentUsers.size, wauPreviousUsers.size);
+    const mauSubmitters = calculateTrend(mauCurrentUsers.size, mauPreviousUsers.size);
+
+    // WAU/MAU 비율 (Stickiness)
+    const currentStickiness =
+      mauCurrentUsers.size > 0
+        ? Math.round((wauCurrentUsers.size / mauCurrentUsers.size) * 1000) / 10
+        : 0;
+    const previousStickiness =
+      mauPreviousUsers.size > 0
+        ? Math.round((wauPreviousUsers.size / mauPreviousUsers.size) * 1000) / 10
+        : 0;
+    const stickiness = calculateTrend(currentStickiness, previousStickiness);
     const totalSubmissions = calculateTrend(
       submissionsCurrentResult.count || 0,
       submissionsPreviousResult.count || 0
@@ -228,6 +274,8 @@ export async function GET(request: Request) {
     return NextResponse.json({
       metrics: {
         wauSubmitters,
+        mauSubmitters,
+        stickiness,
         totalSubmissions,
         newSignups,
         firstSubmitRate,

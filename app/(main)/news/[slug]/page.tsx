@@ -6,7 +6,7 @@ import Image from "next/image";
 import { createClient } from "@/lib/supabase/server";
 import type { ContentItem } from "@/types/automation";
 import NewsArticleJsonLd from "@/components/seo/NewsArticleJsonLd";
-import CTASection from "@/components/news/CTASection";
+import LeaderboardCTA from "@/components/news/LeaderboardCTA";
 import ViewTracker from "@/components/news/ViewTracker";
 import { sanitizeHtml, isNewArticle } from "@/lib/utils/sanitize";
 import { DIFFICULTY_COLORS, DIFFICULTY_LABELS, type Difficulty } from "@/lib/constants/news";
@@ -189,7 +189,7 @@ export async function generateMetadata({ params }: NewsDetailPageProps): Promise
 
   if (!article) {
     return {
-      title: "Article Not Found | CCgather",
+      title: "Article Not Found",
     };
   }
 
@@ -198,7 +198,7 @@ export async function generateMetadata({ params }: NewsDetailPageProps): Promise
   const description = richContent?.summary?.text || article.summary_md || article.summary || "";
 
   return {
-    title: `${title} | CCgather News`,
+    title: `${title} - CCgather News`,
     description: description.slice(0, 160),
     keywords: ["Claude Code", "Claude Code news", "AI news", "Anthropic", ...(article.tags || [])],
     openGraph: {
@@ -244,7 +244,6 @@ export default async function NewsDetailPage({ params }: NewsDetailPageProps) {
   // Parse content - use optional chaining for all nested properties
   const title = richContent?.title?.text || article.title;
   const titleEmoji = richContent?.title?.emoji;
-  const oneLiner = article.one_liner;
   const summary = richContent?.summary?.text || article.summary_md || article.summary;
   const analogy = richContent?.summary?.analogy;
   const keyPoints =
@@ -283,26 +282,26 @@ export default async function NewsDetailPage({ params }: NewsDetailPageProps) {
         </Link>
 
         {/* Article Header */}
-        <header className="mb-8">
-          {/* Title */}
-          <h1 className="text-2xl md:text-3xl lg:text-4xl font-bold text-[var(--color-text-primary)] mb-4 leading-tight">
+        <header className="mb-5">
+          {/* Title - 크기 축소 */}
+          <h1 className="text-lg md:text-xl font-bold text-[var(--color-text-primary)] mb-2.5 leading-snug">
             {titleEmoji && <span className="mr-2">{titleEmoji}</span>}
             {title}
           </h1>
 
           {/* Meta Information */}
-          <div className="flex flex-wrap items-center gap-3 text-sm text-[var(--color-text-muted)]">
+          <div className="flex flex-wrap items-center gap-2 text-[11px] text-[var(--color-text-muted)]">
             <time
               className="flex items-center gap-1.5"
               dateTime={article.published_at || article.created_at}
             >
-              <Calendar className="w-4 h-4" aria-hidden="true" />
+              <Calendar className="w-3.5 h-3.5" aria-hidden="true" />
               {publishedDate}
             </time>
 
             {category && (
-              <span className="flex items-center gap-1.5 px-2 py-0.5 rounded bg-[var(--color-bg-elevated)]">
-                <Tag className="w-3.5 h-3.5" aria-hidden="true" />
+              <span className="flex items-center gap-1 px-2 py-0.5 rounded bg-[var(--color-bg-elevated)]">
+                <Tag className="w-3 h-3" aria-hidden="true" />
                 {category}
               </span>
             )}
@@ -318,7 +317,7 @@ export default async function NewsDetailPage({ params }: NewsDetailPageProps) {
 
             {difficulty && (
               <span
-                className={`px-2 py-0.5 rounded text-xs font-medium ${DIFFICULTY_COLORS[difficulty as Difficulty]}`}
+                className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${DIFFICULTY_COLORS[difficulty as Difficulty]}`}
                 aria-label={`Difficulty: ${DIFFICULTY_LABELS[difficulty as Difficulty]}`}
               >
                 {DIFFICULTY_LABELS[difficulty as Difficulty]}
@@ -326,85 +325,91 @@ export default async function NewsDetailPage({ params }: NewsDetailPageProps) {
             )}
 
             {isNew && (
-              <span className="px-2 py-0.5 rounded text-xs font-medium bg-green-500/20 text-green-400">
+              <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-green-500/20 text-green-400">
                 NEW
               </span>
             )}
           </div>
         </header>
 
-        {/* Hero Image (OG 이미지 배제, 3단계 폴백) */}
+        {/* Hero Section: PC에서 2컬럼 (이미지 + Key Takeaways) */}
         {(() => {
           const thumbnailSrc = getThumbnailSrc(article);
           const categoryGradient = getCategoryGradient(article);
           const fallbackEmoji = getCategoryEmoji(article, titleEmoji);
+          const hasKeyTakeaways = keyTakeaways && keyTakeaways.length > 0;
 
           return (
-            <div className="relative w-full aspect-video rounded-xl overflow-hidden mb-8 bg-black/20">
-              {thumbnailSrc ? (
-                <Image
-                  src={thumbnailSrc}
-                  alt={title}
-                  fill
-                  className="object-cover"
-                  priority
-                  sizes="(max-width: 768px) 100vw, 800px"
-                />
-              ) : (
-                <div
-                  className="w-full h-full flex items-center justify-center"
-                  style={{
-                    background: `linear-gradient(135deg, ${categoryGradient.from}30, ${categoryGradient.to}20)`,
-                  }}
-                >
-                  <span className="text-8xl opacity-40" aria-hidden="true">
-                    {fallbackEmoji}
-                  </span>
-                </div>
+            <div className={`mb-6 ${hasKeyTakeaways ? "lg:grid lg:grid-cols-2 lg:gap-5" : ""}`}>
+              {/* Image */}
+              <div className="relative w-full aspect-video lg:aspect-[4/3] rounded-xl overflow-hidden bg-black/20">
+                {thumbnailSrc ? (
+                  <Image
+                    src={thumbnailSrc}
+                    alt={title}
+                    fill
+                    className="object-cover"
+                    priority
+                    sizes="(max-width: 1024px) 100vw, 450px"
+                  />
+                ) : (
+                  <div
+                    className="w-full h-full flex items-center justify-center"
+                    style={{
+                      background: `linear-gradient(135deg, ${categoryGradient.from}30, ${categoryGradient.to}20)`,
+                    }}
+                  >
+                    <span className="text-6xl opacity-40" aria-hidden="true">
+                      {fallbackEmoji}
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              {/* Key Takeaways - PC에서 이미지 옆에 */}
+              {hasKeyTakeaways && (
+                <section className="mt-3 lg:mt-0 p-3 rounded-lg bg-[var(--color-section-bg)] border border-[var(--border-default)] lg:flex lg:flex-col">
+                  <h2 className="text-sm font-semibold text-[var(--color-text-primary)] mb-2.5">
+                    📌 Key Takeaways
+                  </h2>
+                  <ul className="space-y-1.5 flex-1">
+                    {keyTakeaways.map((point, index) => (
+                      <li
+                        key={index}
+                        className="flex items-start gap-1.5 text-[var(--color-text-secondary)]"
+                      >
+                        <span className="text-xs flex-shrink-0">{iconToEmoji(point.icon)}</span>
+                        <span className="text-[12px] leading-relaxed">{point.text}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </section>
               )}
             </div>
           );
         })()}
 
-        {/* Key Takeaways (요약테이블) */}
-        {keyTakeaways && keyTakeaways.length > 0 && (
-          <section className="mb-8 p-5 rounded-xl bg-[var(--color-section-bg)] border border-[var(--border-default)]">
-            <h2 className="text-lg font-semibold text-[var(--color-text-primary)] mb-4">
-              📌 Key Takeaways
-            </h2>
-            <ul className="space-y-2.5">
-              {keyTakeaways.map((point, index) => (
-                <li
-                  key={index}
-                  className="flex items-start gap-2.5 text-[var(--color-text-secondary)]"
-                >
-                  <span className="text-base flex-shrink-0">{iconToEmoji(point.icon)}</span>
-                  <span className="text-[15px] leading-relaxed">{point.text}</span>
-                </li>
-              ))}
-            </ul>
-          </section>
-        )}
-
         {/* Article Body (본문) */}
-        <div className="prose prose-lg max-w-none mb-8">
+        <div className="prose prose-sm max-w-none mb-6">
           {/* Summary/Intro - bodyHtml 없을 때만 */}
           {summary && !bodyHtml && (
-            <p className="text-lg text-[var(--color-text-secondary)] leading-relaxed">{summary}</p>
+            <p className="text-sm text-[var(--color-text-secondary)] leading-relaxed">{summary}</p>
           )}
 
           {/* Analogy Box */}
           {analogy && (
-            <div className="not-prose my-6 p-4 rounded-lg bg-blue-500/10 border-l-4 border-blue-500/50">
-              <span className="mr-2 text-lg">{analogy.icon}</span>
-              <span className="text-[var(--color-text-secondary)] italic">{analogy.text}</span>
+            <div className="not-prose my-4 p-3 rounded-lg bg-blue-500/10 border-l-4 border-blue-500/50">
+              <span className="mr-2 text-sm">{analogy.icon}</span>
+              <span className="text-[var(--color-text-secondary)] italic text-[13px]">
+                {analogy.text}
+              </span>
             </div>
           )}
 
           {/* Full Body HTML */}
           {bodyHtml && (
             <div
-              className="not-prose article-body"
+              className="not-prose article-body article-body-compact"
               dangerouslySetInnerHTML={{ __html: sanitizeHtml(bodyHtml) }}
             />
           )}
@@ -412,12 +417,12 @@ export default async function NewsDetailPage({ params }: NewsDetailPageProps) {
 
         {/* In Simple Terms - 본문 다음 배치 */}
         {insightHtml && (
-          <div className="mb-6 p-5 rounded-xl bg-emerald-500/10 border-l-4 border-emerald-500/50">
-            <h3 className="text-lg font-semibold text-[var(--color-text-primary)] mb-3 flex items-center gap-2">
+          <div className="mb-5 p-4 rounded-lg bg-emerald-500/10 border-l-4 border-emerald-500/50">
+            <h3 className="text-sm font-semibold text-[var(--color-text-primary)] mb-2 flex items-center gap-2">
               🌱 In Simple Terms
             </h3>
             <div
-              className="text-[var(--color-text-secondary)] leading-relaxed text-[15px]"
+              className="text-[var(--color-text-secondary)] leading-relaxed text-[13px]"
               dangerouslySetInnerHTML={{ __html: sanitizeHtml(insightHtml) }}
             />
           </div>
@@ -425,26 +430,26 @@ export default async function NewsDetailPage({ params }: NewsDetailPageProps) {
 
         {/* Fallback Insight from rich_content */}
         {!insightHtml && richContent?.summary?.analogy && (
-          <div className="mb-6 p-5 rounded-xl bg-emerald-500/10 border-l-4 border-emerald-500/50">
-            <h3 className="text-lg font-semibold text-[var(--color-text-primary)] mb-3 flex items-center gap-2">
+          <div className="mb-5 p-4 rounded-lg bg-emerald-500/10 border-l-4 border-emerald-500/50">
+            <h3 className="text-sm font-semibold text-[var(--color-text-primary)] mb-2 flex items-center gap-2">
               🌱 In Simple Terms
             </h3>
-            <p className="text-[var(--color-text-secondary)] leading-relaxed text-[15px]">
+            <p className="text-[var(--color-text-secondary)] leading-relaxed text-[13px]">
               {richContent.summary?.analogy?.text}
             </p>
           </div>
         )}
 
-        {/* CTA / Share Section - In Simple Terms 다음 */}
-        <CTASection articleUrl={`/news/${slug}`} articleTitle={title} oneLiner={oneLiner} />
+        {/* Leaderboard CTA - 리더보드 유도 */}
+        <LeaderboardCTA />
 
         {/* Related Articles (최하단) */}
         {relatedNews.length > 0 && (
-          <section className="mb-8">
-            <h2 className="text-lg font-semibold text-[var(--color-text-primary)] mb-4">
+          <section className="mb-6">
+            <h2 className="text-sm font-semibold text-[var(--color-text-primary)] mb-3">
               🔗 Related Articles
             </h2>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
               {relatedNews.map((related) => {
                 const relatedThumbnail = getThumbnailSrc(related as ContentItem);
                 const relatedGradient = getCategoryGradient(related as ContentItem);
@@ -454,9 +459,9 @@ export default async function NewsDetailPage({ params }: NewsDetailPageProps) {
                   <Link
                     key={related.id}
                     href={related.slug ? `/news/${related.slug}` : "#"}
-                    className="group p-3 rounded-lg bg-[var(--color-section-bg)] border border-[var(--border-default)] hover:border-[var(--border-hover)] transition-colors"
+                    className="group p-2.5 rounded-lg bg-[var(--color-section-bg)] border border-[var(--border-default)] hover:border-[var(--border-hover)] transition-colors"
                   >
-                    <div className="relative w-full aspect-video rounded-md overflow-hidden mb-2 bg-[var(--color-bg-elevated)]">
+                    <div className="relative w-full aspect-video rounded-md overflow-hidden mb-1.5 bg-[var(--color-bg-elevated)]">
                       {relatedThumbnail ? (
                         <Image
                           src={relatedThumbnail}
@@ -472,13 +477,13 @@ export default async function NewsDetailPage({ params }: NewsDetailPageProps) {
                             background: `linear-gradient(135deg, ${relatedGradient.from}25, ${relatedGradient.to}15)`,
                           }}
                         >
-                          <span className="text-3xl opacity-50" aria-hidden="true">
+                          <span className="text-2xl opacity-50" aria-hidden="true">
                             {relatedEmoji}
                           </span>
                         </div>
                       )}
                     </div>
-                    <h4 className="text-sm font-medium text-[var(--color-text-primary)] group-hover:text-[var(--color-claude-coral)] transition-colors line-clamp-2">
+                    <h4 className="text-[12px] font-medium text-[var(--color-text-primary)] group-hover:text-[var(--color-claude-coral)] transition-colors line-clamp-2">
                       {related.title}
                     </h4>
                   </Link>
@@ -489,8 +494,8 @@ export default async function NewsDetailPage({ params }: NewsDetailPageProps) {
         )}
 
         {/* Reference - 작은 footer 스타일 */}
-        <div className="mb-8 pt-4 border-t border-[var(--border-default)]">
-          <p className="text-[11px] text-[var(--color-text-muted)] leading-relaxed">
+        <div className="mb-6 pt-3 border-t border-[var(--border-default)]">
+          <p className="text-[10px] text-[var(--color-text-muted)] leading-relaxed">
             Source:{" "}
             <a
               href={article.source_url}

@@ -229,7 +229,7 @@ export async function generateMetadata({ params }: ToolPageProps): Promise<Metad
 
   if (!tool) {
     return {
-      title: "Tool Not Found | CCgather",
+      title: "Tool Not Found",
       description: "The requested tool could not be found.",
     };
   }
@@ -237,7 +237,7 @@ export async function generateMetadata({ params }: ToolPageProps): Promise<Metad
   const categoryMeta = CATEGORY_META[tool.category as keyof typeof CATEGORY_META];
   const pricingMeta = PRICING_META[tool.pricing_type as keyof typeof PRICING_META];
 
-  const title = `${tool.name} - ${categoryMeta?.label || "Tool"} | CCgather`;
+  const title = `${tool.name} - ${categoryMeta?.label || "Tool"}`;
   const description = tool.description
     ? `${tool.tagline}. ${tool.description.slice(0, 120)}...`
     : `${tool.tagline}. Discover ${tool.name}, a ${pricingMeta?.label?.toLowerCase() || "free"} ${categoryMeta?.label?.toLowerCase() || "tool"} for Claude Code developers.`;

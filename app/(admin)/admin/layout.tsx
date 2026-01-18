@@ -31,7 +31,7 @@ const ADMIN_MENU = [
 // Analytics 서브메뉴
 const ANALYTICS_SUBMENU = [
   { id: "analytics-overview", label: "Overview", href: "/admin/analytics" },
-  { id: "analytics-users", label: "사용자 분석", href: "/admin/analytics/users" },
+  { id: "analytics-users", label: "웹 트래픽", href: "/admin/analytics/users" },
   { id: "analytics-funnels", label: "퍼널 분석", href: "/admin/analytics/funnels" },
 ];
 

@@ -177,9 +177,9 @@ export default function UsersAnalyticsPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-lg font-semibold text-white">사용자 분석</h1>
+          <h1 className="text-lg font-semibold text-white">웹 트래픽 분석</h1>
           <p className="text-[12px] text-white/50 mt-0.5">
-            DAU, WAU, MAU 및 국가별 사용자 분포 (PostHog 기반)
+            웹사이트 고유 방문자 수 (PostHog 기반) · 뉴스 SEO 유입 포함
           </p>
         </div>
         <select

@@ -1,8 +1,8 @@
-'use client';
+"use client";
 
-import { useEffect } from 'react';
-import { AlertTriangle, RefreshCw, Home } from 'lucide-react';
-import { Button } from '@/components/ui/Button';
+import { useEffect } from "react";
+import { AlertTriangle, RefreshCw, Home } from "lucide-react";
+import { Button } from "@/components/ui/Button";
 
 interface ErrorProps {
   error: Error & { digest?: string };
@@ -12,8 +12,7 @@ interface ErrorProps {
 export default function Error({ error, reset }: ErrorProps) {
   useEffect(() => {
     // Log error to monitoring service (e.g., Sentry)
-    // eslint-disable-next-line no-console
-    console.error('Application Error:', error);
+    console.error("Application Error:", error);
   }, [error]);
 
   return (
@@ -27,24 +26,17 @@ export default function Error({ error, reset }: ErrorProps) {
         </div>
 
         {/* Error Message */}
-        <h1 className="text-2xl font-bold text-text-primary mb-2">
-          Something went wrong
-        </h1>
+        <h1 className="text-2xl font-bold text-text-primary mb-2">Something went wrong</h1>
         <p className="text-text-secondary mb-6">
-          An unexpected error occurred. Please try again or return to the home
-          page.
+          An unexpected error occurred. Please try again or return to the home page.
         </p>
 
         {/* Error Details (Development) */}
-        {process.env.NODE_ENV === 'development' && (
+        {process.env.NODE_ENV === "development" && (
           <div className="mb-6 p-4 bg-[var(--color-bg-card)] border border-[var(--border-default)] rounded-lg text-left">
-            <p className="text-xs font-mono text-text-muted break-all">
-              {error.message}
-            </p>
+            <p className="text-xs font-mono text-text-muted break-all">{error.message}</p>
             {error.digest && (
-              <p className="text-xs font-mono text-text-disabled mt-2">
-                Digest: {error.digest}
-              </p>
+              <p className="text-xs font-mono text-text-disabled mt-2">Digest: {error.digest}</p>
             )}
           </div>
         )}
@@ -55,7 +47,7 @@ export default function Error({ error, reset }: ErrorProps) {
             <RefreshCw className="w-4 h-4 mr-2" />
             Try Again
           </Button>
-          <Button variant="outline" onClick={() => (window.location.href = '/')}>
+          <Button variant="outline" onClick={() => (window.location.href = "/")}>
             <Home className="w-4 h-4 mr-2" />
             Go Home
           </Button>

@@ -194,6 +194,8 @@ interface DistributionItem {
 interface CoreKPIResponse {
   metrics: {
     wauSubmitters: CoreMetricWithTrend;
+    mauSubmitters: CoreMetricWithTrend;
+    stickiness: CoreMetricWithTrend;
     totalSubmissions: CoreMetricWithTrend;
     newSignups: CoreMetricWithTrend;
     firstSubmitRate: CoreMetricWithTrend;

@@ -4,7 +4,7 @@ import type { Metadata } from "next";
 // SEO Metadata for Leaderboard
 // ===========================================
 export const metadata: Metadata = {
-  title: "Claude Code Leaderboard - Global Developer Rankings | CCgather",
+  title: "Claude Code Leaderboard - Global Developer Rankings",
   description:
     "Real-time Claude Code leaderboard and ranking. Track top Claude Code developers by token usage worldwide. Compare Claude Code rankings by country and see who leads the global AI coding community.",
   keywords: [

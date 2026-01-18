@@ -43,6 +43,7 @@ export function AccountDeleteModal({
       await onConfirmDelete();
       onClose();
     } catch (err) {
+      console.error("Account deletion failed:", err);
       setError("An error occurred while deleting your account. Please try again.");
       setIsDeleting(false);
     }

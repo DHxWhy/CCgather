@@ -33,8 +33,8 @@ export async function generateMetadata({ searchParams }: PageProps): Promise<Met
   const categoryEmoji = categoryMeta ? categoryMeta.emoji : "🛠️";
 
   const title = isValidCategory
-    ? `${categoryEmoji} ${categoryLabel} Tools | CCgather - Claude Code Tools`
-    : "Developer Tools | CCgather - Claude Code Tools & Extensions";
+    ? `${categoryEmoji} ${categoryLabel} Tools - Claude Code Tools`
+    : "Developer Tools - Claude Code Tools & Extensions";
 
   const description = isValidCategory
     ? `Discover ${periodLabel.toLowerCase()} best ${categoryLabel.toLowerCase()} tools for Claude Code developers. Browse, vote, and share ${categoryLabel.toLowerCase()} tools with the community.`
@@ -61,14 +61,14 @@ export async function generateMetadata({ searchParams }: PageProps): Promise<Met
       ...(categoryMeta ? [`${categoryMeta.label} tools`, `Claude Code ${categoryMeta.label}`] : []),
     ],
     openGraph: {
-      title: isValidCategory ? `${categoryLabel} Tools | CCgather` : "Developer Tools | CCgather",
+      title: isValidCategory ? `${categoryLabel} Tools - CCgather` : "Developer Tools - CCgather",
       description: ogDescription,
       type: "website",
       url: "https://ccgather.com/tools",
     },
     twitter: {
       card: "summary_large_image",
-      title: isValidCategory ? `${categoryLabel} Tools | CCgather` : "Developer Tools | CCgather",
+      title: isValidCategory ? `${categoryLabel} Tools - CCgather` : "Developer Tools - CCgather",
       description: ogDescription,
     },
     alternates: {

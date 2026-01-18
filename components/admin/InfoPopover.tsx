@@ -129,6 +129,26 @@ export const METRIC_INFO = {
       "신규 가입자 대비 비율로 활성화율을 파악할 수 있습니다",
     ],
   },
+  mau_submitters: {
+    title: "MAU (Monthly Active Submitters)",
+    description: "최근 30일간 최소 1회 이상 CLI로 데이터를 제출한 고유 사용자 수입니다.",
+    formula: "COUNT(DISTINCT user_id) WHERE submitted_at >= 30일 전",
+    insights: [
+      "월간 활성 사용자 규모를 파악합니다",
+      "WAU와 함께 보면 서비스 점착도를 측정할 수 있습니다",
+    ],
+  },
+  stickiness: {
+    title: "WAU/MAU (Stickiness)",
+    description:
+      "WAU를 MAU로 나눈 비율입니다. 사용자들이 얼마나 자주 서비스를 이용하는지 보여줍니다.",
+    formula: "(WAU / MAU) × 100",
+    insights: [
+      "25% 이상이면 건강한 engagement입니다",
+      "15% 미만이면 사용자 이탈 위험 신호입니다",
+      "개발 도구 특성상 20-30%가 일반적입니다",
+    ],
+  },
   total_submissions: {
     title: "총 제출 수",
     description: "선택한 기간 동안 발생한 모든 CLI 제출 횟수입니다.",
@@ -155,24 +175,21 @@ export const METRIC_INFO = {
     ],
   },
 
-  // DAU/WAU/MAU
+  // DAU/WAU/MAU (웹 트래픽 - PostHog)
   dau: {
-    title: "DAU (Daily Active Users)",
-    description: "오늘 사이트에 방문한 고유 사용자 수입니다. PostHog 기준.",
-    insights: ["일일 트래픽을 파악합니다", "WAU/MAU와 비교하여 방문 빈도를 추정할 수 있습니다"],
+    title: "DAU (Daily Active Visitors)",
+    description: "오늘 웹사이트에 방문한 고유 방문자 수입니다. 뉴스 SEO 유입 포함.",
+    insights: ["일일 웹 트래픽을 파악합니다", "뉴스 콘텐츠의 SEO 효과를 측정할 수 있습니다"],
   },
   wau: {
-    title: "WAU (Weekly Active Users)",
-    description: "최근 7일간 사이트에 방문한 고유 사용자 수입니다.",
-    insights: ["주간 활성 사용자 규모를 파악합니다"],
+    title: "WAU (Weekly Active Visitors)",
+    description: "최근 7일간 웹사이트에 방문한 고유 방문자 수입니다.",
+    insights: ["주간 웹 트래픽 규모를 파악합니다", "Overview의 WAU(제출자)와 다른 지표입니다"],
   },
   mau: {
-    title: "MAU (Monthly Active Users)",
-    description: "최근 30일간 사이트에 방문한 고유 사용자 수입니다.",
-    insights: [
-      "월간 사용자 규모를 파악합니다",
-      "DAU/MAU 비율로 서비스 점착도(stickiness)를 측정합니다",
-    ],
+    title: "MAU (Monthly Active Visitors)",
+    description: "최근 30일간 웹사이트에 방문한 고유 방문자 수입니다.",
+    insights: ["월간 웹 트래픽 규모를 파악합니다", "Overview의 MAU(제출자)와 다른 지표입니다"],
   },
 
   // 리텐션
