@@ -362,31 +362,6 @@ export default async function NewsDetailPage({ params }: NewsDetailPageProps) {
           );
         })()}
 
-        {/* In Simple Terms - 썸네일 바로 아래 배치 */}
-        {insightHtml && (
-          <div className="mb-6 p-5 rounded-xl bg-emerald-500/10 border-l-4 border-emerald-500/50">
-            <h3 className="text-lg font-semibold text-[var(--color-text-primary)] mb-3 flex items-center gap-2">
-              🌱 In Simple Terms
-            </h3>
-            <div
-              className="text-[var(--color-text-secondary)] leading-relaxed text-[15px]"
-              dangerouslySetInnerHTML={{ __html: sanitizeHtml(insightHtml) }}
-            />
-          </div>
-        )}
-
-        {/* Fallback Insight from rich_content */}
-        {!insightHtml && richContent?.summary?.analogy && (
-          <div className="mb-6 p-5 rounded-xl bg-emerald-500/10 border-l-4 border-emerald-500/50">
-            <h3 className="text-lg font-semibold text-[var(--color-text-primary)] mb-3 flex items-center gap-2">
-              🌱 In Simple Terms
-            </h3>
-            <p className="text-[var(--color-text-secondary)] leading-relaxed text-[15px]">
-              {richContent.summary?.analogy?.text}
-            </p>
-          </div>
-        )}
-
         {/* Key Takeaways (요약테이블) */}
         {keyTakeaways && keyTakeaways.length > 0 && (
           <section className="mb-8 p-5 rounded-xl bg-[var(--color-section-bg)] border border-[var(--border-default)]">
@@ -431,7 +406,35 @@ export default async function NewsDetailPage({ params }: NewsDetailPageProps) {
           )}
         </div>
 
-        {/* Related Articles (OG 이미지 배제) */}
+        {/* In Simple Terms - 본문 다음 배치 */}
+        {insightHtml && (
+          <div className="mb-6 p-5 rounded-xl bg-emerald-500/10 border-l-4 border-emerald-500/50">
+            <h3 className="text-lg font-semibold text-[var(--color-text-primary)] mb-3 flex items-center gap-2">
+              🌱 In Simple Terms
+            </h3>
+            <div
+              className="text-[var(--color-text-secondary)] leading-relaxed text-[15px]"
+              dangerouslySetInnerHTML={{ __html: sanitizeHtml(insightHtml) }}
+            />
+          </div>
+        )}
+
+        {/* Fallback Insight from rich_content */}
+        {!insightHtml && richContent?.summary?.analogy && (
+          <div className="mb-6 p-5 rounded-xl bg-emerald-500/10 border-l-4 border-emerald-500/50">
+            <h3 className="text-lg font-semibold text-[var(--color-text-primary)] mb-3 flex items-center gap-2">
+              🌱 In Simple Terms
+            </h3>
+            <p className="text-[var(--color-text-secondary)] leading-relaxed text-[15px]">
+              {richContent.summary?.analogy?.text}
+            </p>
+          </div>
+        )}
+
+        {/* CTA / Share Section - In Simple Terms 다음 */}
+        <CTASection articleUrl={`/news/${slug}`} articleTitle={title} oneLiner={oneLiner} />
+
+        {/* Related Articles (최하단) */}
         {relatedNews.length > 0 && (
           <section className="mb-8">
             <h2 className="text-lg font-semibold text-[var(--color-text-primary)] mb-4">
@@ -500,9 +503,6 @@ export default async function NewsDetailPage({ params }: NewsDetailPageProps) {
             AI-reconstructed content. Verify with original source.
           </p>
         </div>
-
-        {/* CTA / Share Section */}
-        <CTASection articleUrl={`/news/${slug}`} articleTitle={title} oneLiner={oneLiner} />
       </article>
     </>
   );
