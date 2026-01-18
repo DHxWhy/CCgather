@@ -5,8 +5,6 @@
 # Ensures that when package.json changes, the correct lockfile is updated.
 # This prevents the exact issue that caused the Vercel build failure.
 
-set -e
-
 # Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -17,8 +15,10 @@ NC='\033[0m' # No Color
 if git diff --cached --name-only | grep -q "package.json"; then
     echo -e "${YELLOW}📦 package.json changes detected${NC}"
 
-    # Check if dependencies were modified (not just metadata)
-    if git diff --cached package.json | grep -q '"dependencies"\|"devDependencies"'; then
+    # Get the actual dependency changes
+    DEPS_CHANGED=$(git diff --cached package.json | grep -E '^\+\s+"(@[^"]+|[a-z0-9@/-]+)":\s*"\^' || true)
+
+    if [ -n "$DEPS_CHANGED" ]; then
         # Check if pnpm-lock.yaml is also staged
         if ! git diff --cached --name-only | grep -q "pnpm-lock.yaml"; then
             echo -e "${RED}❌ ERROR: Dependencies modified but pnpm-lock.yaml not updated!${NC}"

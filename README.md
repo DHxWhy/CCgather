@@ -141,6 +141,38 @@ AI-summarized latest news about Claude Code. *(Coming Soon)*
 
 <br/>
 
+## Development
+
+### Prerequisites
+
+This project uses **pnpm** as the package manager. Using npm or yarn will cause build failures.
+
+**Required:**
+- Node.js >= 18.17.0
+- pnpm >= 10.0.0
+
+### Setup
+
+```bash
+# Install pnpm if you haven't
+npm install -g pnpm
+
+# Install dependencies
+pnpm install
+
+# Run development server
+pnpm dev
+```
+
+### Important Notes
+
+- **Always use `pnpm`** for package management, never `npm` or `yarn`
+- The project enforces pnpm usage via preinstall hook
+- `pnpm-lock.yaml` must be kept in sync with `package.json`
+- Vercel builds use `frozen-lockfile` mode and will fail if lockfiles are out of sync
+
+<br/>
+
 ## Tech Stack
 
 <table>

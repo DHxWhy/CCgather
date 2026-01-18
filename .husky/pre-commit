@@ -1,1 +1,8 @@
+#!/bin/sh
+. "$(dirname "$0")/_/husky.sh"
+
+# Verify lockfile synchronization
+bash scripts/verify-lockfiles.sh
+
+# Run lint-staged
 npx lint-staged
