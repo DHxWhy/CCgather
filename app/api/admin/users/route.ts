@@ -5,6 +5,7 @@ import { checkAdminAccess } from "@/lib/admin";
 interface UserRow {
   last_submission_at: string | null;
   total_tokens: number | null;
+  ccplan: string | null;
 }
 
 export async function GET() {
@@ -31,7 +32,9 @@ export async function GET() {
         global_rank,
         created_at,
         onboarding_completed,
-        last_submission_at
+        last_submission_at,
+        ccplan,
+        ccplan_updated_at
       `
       )
       .order("created_at", { ascending: false });
@@ -55,12 +58,41 @@ export async function GET() {
     const totalTokens =
       users?.reduce((sum: number, u: UserRow) => sum + (u.total_tokens || 0), 0) || 0;
 
+    // Calculate plan distribution
+    const knownPlans = ["free", "pro", "max", "team", "enterprise"];
+    const planStats = {
+      free: 0,
+      pro: 0,
+      max: 0,
+      business: 0, // team + enterprise combined
+      null: 0, // unset
+      unknown: 0, // other values
+    };
+
+    users?.forEach((u: UserRow) => {
+      const plan = u.ccplan?.toLowerCase();
+      if (!plan) {
+        planStats.null++;
+      } else if (plan === "free") {
+        planStats.free++;
+      } else if (plan === "pro") {
+        planStats.pro++;
+      } else if (plan === "max") {
+        planStats.max++;
+      } else if (plan === "team" || plan === "enterprise") {
+        planStats.business++;
+      } else if (!knownPlans.includes(plan)) {
+        planStats.unknown++;
+      }
+    });
+
     return NextResponse.json({
       users: users || [],
       stats: {
         totalUsers,
         activeToday,
         totalTokens,
+        planStats,
       },
     });
   } catch (error) {

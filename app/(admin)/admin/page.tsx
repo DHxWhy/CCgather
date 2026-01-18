@@ -15,6 +15,17 @@ interface User {
   global_rank: number | null;
   created_at: string;
   onboarding_completed: boolean;
+  ccplan: string | null;
+  ccplan_updated_at: string | null;
+}
+
+interface PlanStats {
+  free: number;
+  pro: number;
+  max: number;
+  business: number;
+  null: number;
+  unknown: number;
 }
 
 interface AdminAlert {
@@ -30,8 +41,14 @@ export default function AdminUsersPage() {
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
+  const [filterPlan, setFilterPlan] = useState<string>("");
   const [alerts, setAlerts] = useState<AdminAlert[]>([]);
-  const [stats, setStats] = useState({ totalUsers: 0, activeToday: 0, totalTokens: 0 });
+  const [stats, setStats] = useState({
+    totalUsers: 0,
+    activeToday: 0,
+    totalTokens: 0,
+    planStats: { free: 0, pro: 0, max: 0, business: 0, null: 0, unknown: 0 } as PlanStats,
+  });
 
   useEffect(() => {
     fetchUsers();
@@ -69,6 +86,14 @@ export default function AdminUsersPage() {
           totalUsers: data.stats?.totalUsers || 0,
           activeToday: data.stats?.activeToday || 0,
           totalTokens: data.stats?.totalTokens || 0,
+          planStats: data.stats?.planStats || {
+            free: 0,
+            pro: 0,
+            max: 0,
+            business: 0,
+            null: 0,
+            unknown: 0,
+          },
         });
       }
     } catch (error) {
@@ -78,17 +103,68 @@ export default function AdminUsersPage() {
     }
   }
 
-  const filteredUsers = users.filter(
-    (user) =>
+  // Helper to categorize ccplan
+  const getPlanCategory = (ccplan: string | null): string => {
+    if (!ccplan) return "null";
+    const plan = ccplan.toLowerCase();
+    if (["free", "pro", "max"].includes(plan)) return plan;
+    if (["team", "enterprise"].includes(plan)) return "business";
+    return "unknown";
+  };
+
+  const filteredUsers = users.filter((user) => {
+    // Search filter
+    const matchesSearch =
       user.username.toLowerCase().includes(searchQuery.toLowerCase()) ||
       user.email?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      user.display_name?.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+      user.display_name?.toLowerCase().includes(searchQuery.toLowerCase());
+
+    // Plan filter
+    const matchesPlan = !filterPlan || getPlanCategory(user.ccplan) === filterPlan;
+
+    return matchesSearch && matchesPlan;
+  });
 
   const formatNumber = (num: number) => {
     if (num >= 1000000) return (num / 1000000).toFixed(1) + "M";
     if (num >= 1000) return (num / 1000).toFixed(1) + "K";
     return num.toString();
+  };
+
+  // CCplan badge renderer
+  const renderPlanBadge = (ccplan: string | null) => {
+    if (!ccplan) {
+      return (
+        <span className="px-1.5 py-0.5 rounded text-[10px] bg-yellow-500/20 text-yellow-400">
+          ⚠️ 미설정
+        </span>
+      );
+    }
+
+    const plan = ccplan.toLowerCase();
+    const badgeStyles: Record<string, string> = {
+      free: "bg-white/10 text-white/60",
+      pro: "bg-blue-500/20 text-blue-400",
+      max: "bg-purple-500/20 text-purple-400",
+      team: "bg-emerald-500/20 text-emerald-400",
+      enterprise: "bg-amber-500/20 text-amber-400",
+    };
+
+    if (badgeStyles[plan]) {
+      const label = plan === "team" || plan === "enterprise" ? `🏢 ${plan}` : plan;
+      return (
+        <span className={`px-1.5 py-0.5 rounded text-[10px] uppercase ${badgeStyles[plan]}`}>
+          {label}
+        </span>
+      );
+    }
+
+    // Unknown plan
+    return (
+      <span className="px-1.5 py-0.5 rounded text-[10px] bg-red-500/20 text-red-400">
+        ❓ {ccplan}
+      </span>
+    );
   };
 
   return (
@@ -143,7 +219,7 @@ export default function AdminUsersPage() {
         </div>
       )}
 
-      {/* 통계 카드 */}
+      {/* 기본 통계 카드 */}
       <div className="grid grid-cols-3 gap-3">
         <div className="bg-[#161616] rounded-lg p-4 border border-white/[0.06]">
           <div className="text-xl font-semibold text-white">{formatNumber(stats.totalUsers)}</div>
@@ -160,6 +236,87 @@ export default function AdminUsersPage() {
             {formatNumber(stats.totalTokens)}
           </div>
           <div className="text-[11px] text-white/50 mt-0.5">총 토큰</div>
+        </div>
+      </div>
+
+      {/* 플랜별 통계 */}
+      <div className="bg-[#161616] rounded-lg p-4 border border-white/[0.06]">
+        <div className="text-[11px] text-white/40 uppercase tracking-wide mb-3">플랜 분포</div>
+        <div className="flex flex-wrap gap-2">
+          <button
+            onClick={() => setFilterPlan("")}
+            className={`px-2.5 py-1 rounded text-[11px] transition-colors ${
+              filterPlan === ""
+                ? "bg-white/20 text-white"
+                : "bg-white/5 text-white/50 hover:bg-white/10"
+            }`}
+          >
+            전체 {stats.totalUsers}
+          </button>
+          <button
+            onClick={() => setFilterPlan("max")}
+            className={`px-2.5 py-1 rounded text-[11px] transition-colors ${
+              filterPlan === "max"
+                ? "bg-purple-500/30 text-purple-300"
+                : "bg-purple-500/10 text-purple-400 hover:bg-purple-500/20"
+            }`}
+          >
+            Max {stats.planStats.max}
+          </button>
+          <button
+            onClick={() => setFilterPlan("pro")}
+            className={`px-2.5 py-1 rounded text-[11px] transition-colors ${
+              filterPlan === "pro"
+                ? "bg-blue-500/30 text-blue-300"
+                : "bg-blue-500/10 text-blue-400 hover:bg-blue-500/20"
+            }`}
+          >
+            Pro {stats.planStats.pro}
+          </button>
+          <button
+            onClick={() => setFilterPlan("free")}
+            className={`px-2.5 py-1 rounded text-[11px] transition-colors ${
+              filterPlan === "free"
+                ? "bg-white/20 text-white"
+                : "bg-white/5 text-white/50 hover:bg-white/10"
+            }`}
+          >
+            Free {stats.planStats.free}
+          </button>
+          <button
+            onClick={() => setFilterPlan("business")}
+            className={`px-2.5 py-1 rounded text-[11px] transition-colors ${
+              filterPlan === "business"
+                ? "bg-emerald-500/30 text-emerald-300"
+                : "bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20"
+            }`}
+          >
+            🏢 Business(추정) {stats.planStats.business}
+          </button>
+          {stats.planStats.null > 0 && (
+            <button
+              onClick={() => setFilterPlan("null")}
+              className={`px-2.5 py-1 rounded text-[11px] transition-colors ${
+                filterPlan === "null"
+                  ? "bg-yellow-500/30 text-yellow-300"
+                  : "bg-yellow-500/10 text-yellow-400 hover:bg-yellow-500/20"
+              }`}
+            >
+              ⚠️ 미설정 {stats.planStats.null}
+            </button>
+          )}
+          {stats.planStats.unknown > 0 && (
+            <button
+              onClick={() => setFilterPlan("unknown")}
+              className={`px-2.5 py-1 rounded text-[11px] transition-colors ${
+                filterPlan === "unknown"
+                  ? "bg-red-500/30 text-red-300"
+                  : "bg-red-500/10 text-red-400 hover:bg-red-500/20"
+              }`}
+            >
+              ❓ 기타 {stats.planStats.unknown}
+            </button>
+          )}
         </div>
       </div>
 
@@ -180,6 +337,9 @@ export default function AdminUsersPage() {
               <tr className="border-b border-white/[0.06]">
                 <th className="px-4 py-2.5 text-left text-[11px] font-medium text-white/40 uppercase">
                   사용자
+                </th>
+                <th className="px-4 py-2.5 text-center text-[11px] font-medium text-white/40 uppercase">
+                  플랜
                 </th>
                 <th className="px-4 py-2.5 text-left text-[11px] font-medium text-white/40 uppercase">
                   이메일
@@ -204,14 +364,14 @@ export default function AdminUsersPage() {
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={7} className="px-4 py-8 text-center text-[12px] text-white/30">
+                  <td colSpan={8} className="px-4 py-8 text-center text-[12px] text-white/30">
                     로딩 중...
                   </td>
                 </tr>
               ) : filteredUsers.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-4 py-8 text-center text-[12px] text-white/30">
-                    {searchQuery ? "검색 결과가 없습니다." : "사용자가 없습니다."}
+                  <td colSpan={8} className="px-4 py-8 text-center text-[12px] text-white/30">
+                    {searchQuery || filterPlan ? "검색 결과가 없습니다." : "사용자가 없습니다."}
                   </td>
                 </tr>
               ) : (
@@ -241,6 +401,7 @@ export default function AdminUsersPage() {
                         </div>
                       </div>
                     </td>
+                    <td className="px-4 py-2.5 text-center">{renderPlanBadge(user.ccplan)}</td>
                     <td className="px-4 py-2.5 text-[12px] text-white/50">{user.email || "-"}</td>
                     <td className="px-4 py-2.5 text-center text-[12px] text-white/50">
                       {user.country_code || "-"}
