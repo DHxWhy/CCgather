@@ -8,6 +8,8 @@ interface DailyUsage {
   cost: number;
   inputTokens?: number;
   outputTokens?: number;
+  cacheReadTokens?: number;
+  cacheWriteTokens?: number;
   sessions?: number;
   models?: Record<string, number>; // model name -> token count
 }
@@ -323,8 +325,8 @@ export async function POST(request: NextRequest) {
           total_tokens: day.tokens,
           input_tokens: day.inputTokens || 0,
           output_tokens: day.outputTokens || 0,
-          cache_read_tokens: 0,
-          cache_write_tokens: 0,
+          cache_read_tokens: day.cacheReadTokens || 0,
+          cache_write_tokens: day.cacheWriteTokens || 0,
           cost_usd: day.cost,
           primary_model: dayPrimaryModel,
           submitted_at: new Date().toISOString(),
