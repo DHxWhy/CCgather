@@ -865,7 +865,15 @@ function ContentCard({
           <h4 className="text-[13px] text-white font-medium line-clamp-1 mb-0.5">{item.title}</h4>
           <div className="text-[11px] text-white/40">
             {item.type === "youtube" ? item.channel_name : item.source_name}
-            {item.view_count && ` • ${(item.view_count / 1000).toFixed(1)}K`}
+            {item.view_count !== undefined && item.view_count > 0 && (
+              <span className="text-white/50">
+                {" "}
+                • 👁{" "}
+                {item.view_count >= 1000
+                  ? `${(item.view_count / 1000).toFixed(1)}K`
+                  : item.view_count}
+              </span>
+            )}
             {" • "}
             {new Date(item.created_at).toLocaleDateString("ko-KR")}
           </div>

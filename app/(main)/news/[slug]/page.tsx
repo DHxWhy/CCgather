@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabase/server";
 import type { ContentItem } from "@/types/automation";
 import NewsArticleJsonLd from "@/components/seo/NewsArticleJsonLd";
 import CTASection from "@/components/news/CTASection";
+import ViewTracker from "@/components/news/ViewTracker";
 import { sanitizeHtml, isNewArticle } from "@/lib/utils/sanitize";
 import { DIFFICULTY_COLORS, DIFFICULTY_LABELS, type Difficulty } from "@/lib/constants/news";
 import { getThumbnailSrc, getCategoryGradient, getCategoryEmoji } from "@/lib/utils/news";
@@ -264,6 +265,9 @@ export default async function NewsDetailPage({ params }: NewsDetailPageProps) {
 
   return (
     <>
+      {/* View Tracking (admin only, not shown to users) */}
+      <ViewTracker slug={slug} />
+
       {/* JSON-LD Structured Data */}
       <NewsArticleJsonLd article={article} />
 
