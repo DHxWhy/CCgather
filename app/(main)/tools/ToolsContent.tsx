@@ -195,13 +195,15 @@ export default function ToolsContent() {
         });
       }
 
-      // Update tool in list
+      // Update tool in list and re-sort by weighted_score
       setTools((prev) =>
-        prev.map((tool) =>
-          tool.id === toolId
-            ? { ...tool, upvote_count: data.new_count, weighted_score: data.new_weighted_score }
-            : tool
-        )
+        prev
+          .map((tool) =>
+            tool.id === toolId
+              ? { ...tool, upvote_count: data.new_count, weighted_score: data.new_weighted_score }
+              : tool
+          )
+          .sort((a, b) => (b.weighted_score || 0) - (a.weighted_score || 0))
       );
     }
   };
