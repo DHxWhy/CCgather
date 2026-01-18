@@ -170,3 +170,87 @@ export function useAnalyticsHealth() {
     refetchInterval: 60 * 1000, // Refresh every minute
   });
 }
+
+// ============================================
+// DB 기반 핵심 KPI (PostHog 독립)
+// ============================================
+
+interface CoreMetricWithTrend {
+  value: number;
+  previousValue: number;
+  change: number;
+  changePercent: number;
+  trend: "up" | "down" | "neutral";
+}
+
+interface DistributionItem {
+  code?: string;
+  plan?: string;
+  model?: string;
+  count: number;
+  percentage: number;
+}
+
+interface CoreKPIResponse {
+  metrics: {
+    wauSubmitters: CoreMetricWithTrend;
+    totalSubmissions: CoreMetricWithTrend;
+    newSignups: CoreMetricWithTrend;
+    firstSubmitRate: CoreMetricWithTrend;
+  };
+  distributions: {
+    country: DistributionItem[];
+    plan: DistributionItem[];
+    model: DistributionItem[];
+  };
+  totals: {
+    activeUsers: number;
+    periodDays: number;
+  };
+  generatedAt: string;
+}
+
+/**
+ * Fetch DB-based core KPI metrics (PostHog 독립)
+ */
+export function useCoreKPI(options: { days?: number; enabled?: boolean } = {}) {
+  const { days = 7, enabled = true } = options;
+
+  return useQuery<CoreKPIResponse>({
+    queryKey: ["analytics", "core", days],
+    queryFn: () => fetchAnalytics<CoreKPIResponse>("core", { days: String(days) }),
+    staleTime: 2 * 60 * 1000, // 2 minutes
+    enabled,
+  });
+}
+
+interface RetentionCohort {
+  cohortWeek: string;
+  cohortSize: number;
+  retentionByWeek: number[];
+}
+
+interface RetentionDBResponse {
+  cohorts: RetentionCohort[];
+  summary: {
+    w1Retention: number;
+    w4Retention: number;
+    avgRetention: number;
+    totalCohorts: number;
+  };
+  generatedAt: string;
+}
+
+/**
+ * Fetch DB-based retention metrics
+ */
+export function useRetentionDB(options: { weeks?: number; enabled?: boolean } = {}) {
+  const { weeks = 8, enabled = true } = options;
+
+  return useQuery<RetentionDBResponse>({
+    queryKey: ["analytics", "retention-db", weeks],
+    queryFn: () => fetchAnalytics<RetentionDBResponse>("retention-db", { weeks: String(weeks) }),
+    staleTime: 5 * 60 * 1000, // 5 minutes
+    enabled,
+  });
+}
