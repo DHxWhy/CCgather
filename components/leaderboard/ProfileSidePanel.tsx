@@ -763,48 +763,67 @@ export function ProfileSidePanel({
 
   // Fetch user history and badges when user changes
   useEffect(() => {
-    async function fetchUserData() {
-      if (!user) return;
+    if (!user) return;
 
-      setHistoryLoading(true);
-      // Fade out chart before loading new data
+    const userId = user.id; // Capture for async closure
+    let cancelled = false;
+    const FADE_DURATION = 200; // Match CSS transition duration
+
+    async function fetchUserData() {
+      // Phase 1: Fade out (wait for animation to complete)
       setChartFadeIn(false);
+      await new Promise((resolve) => setTimeout(resolve, FADE_DURATION));
+
+      if (cancelled) return;
+
+      // Phase 2: Clear old data (while hidden)
+      setHistoryLoading(true);
+      setUsageHistory([]);
+      setUserBadges([]);
       setFreshSocialLinks(null);
 
       try {
-        // Fetch history (includes fresh social_links)
-        const historyResponse = await fetch(`/api/users/${user.id}/history?days=365`);
+        // Fetch new data
+        const [historyResponse, badgesResponse] = await Promise.all([
+          fetch(`/api/users/${userId}/history?days=365`),
+          fetch(`/api/users/${userId}/badges`),
+        ]);
+
+        if (cancelled) return;
+
         if (historyResponse.ok) {
           const data = await historyResponse.json();
           setUsageHistory(data.history || []);
-          // Use fresh social_links from API
           if (data.user?.social_links) {
             setFreshSocialLinks(data.user.social_links);
           }
         }
 
-        // Fetch badges (from user_badges table)
-        const badgesResponse = await fetch(`/api/users/${user.id}/badges`);
         if (badgesResponse.ok) {
           const data = await badgesResponse.json();
           setUserBadges((data.badges || []).map((b: { badge_type: string }) => b.badge_type));
-        } else {
-          setUserBadges([]);
         }
       } catch {
-        // Only clear on error
-        setUsageHistory([]);
-        setUserBadges([]);
+        if (!cancelled) {
+          setUsageHistory([]);
+          setUserBadges([]);
+        }
       } finally {
-        setHistoryLoading(false);
-        // Fade in chart after data loaded
-        requestAnimationFrame(() => {
-          setChartFadeIn(true);
-        });
+        if (!cancelled) {
+          setHistoryLoading(false);
+          // Phase 3: Fade in with new data
+          requestAnimationFrame(() => {
+            setChartFadeIn(true);
+          });
+        }
       }
     }
+
     fetchUserData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+
+    return () => {
+      cancelled = true;
+    };
   }, [user?.id]);
 
   // Handle user change with transition
@@ -1251,7 +1270,7 @@ export function ProfileSidePanel({
             </div>
             <div
               key={`chart-${currentUser.id}`}
-              className={`transition-opacity duration-300 ${chartFadeIn ? "opacity-100" : "opacity-0"}`}
+              className={`transition-opacity duration-200 ${chartFadeIn ? "opacity-100" : "opacity-0"}`}
             >
               <UsageChart history={usageHistory} periodFilter={periodFilter} />
             </div>
@@ -1271,7 +1290,7 @@ export function ProfileSidePanel({
             </div>
             <div
               key={`heatmap-${currentUser.id}`}
-              className={`transition-opacity duration-300 ${chartFadeIn ? "opacity-100" : "opacity-0"}`}
+              className={`transition-opacity duration-200 ${chartFadeIn ? "opacity-100" : "opacity-0"}`}
             >
               <ActivityHeatmap data={usageHistory} periodDays={365} />
             </div>

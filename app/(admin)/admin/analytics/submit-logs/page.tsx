@@ -115,29 +115,32 @@ function LogRow({ log }: { log: SubmitLogItem }) {
               {log.username.charAt(0).toUpperCase()}
             </div>
           )}
-          <div>
-            <div className="text-[13px] text-white font-medium">{log.username}</div>
-            <div className="flex items-center gap-1.5">
-              <PlanBadge plan={log.ccplan} />
-            </div>
-          </div>
+          <div className="text-[13px] text-white font-medium">{log.username}</div>
         </div>
       </td>
 
-      {/* 기간 */}
+      {/* 플랜 */}
       <td className="px-3 py-3">
-        <div className="text-[12px] text-white/70">{dateRange}</div>
-        <div className="text-[10px] text-white/40">{log.days_count}일</div>
+        <PlanBadge plan={log.ccplan} />
       </td>
 
-      {/* 토큰 */}
-      <td className="px-3 py-3 text-right">
-        <div className="text-[13px] text-white font-mono">{formatTokens(log.total_tokens)}</div>
+      {/* 기간 - (n일) 날짜범위 한 줄로 */}
+      <td className="px-3 py-3">
+        <div className="text-[12px] text-white/70">
+          <span className="text-white/40">({log.days_count}일)</span> {dateRange}
+        </div>
       </td>
 
-      {/* 비용 */}
+      {/* 토큰 - 시그니처 컬러 (coral) */}
       <td className="px-3 py-3 text-right">
-        <div className="text-[13px] text-emerald-400 font-mono">{formatCost(log.total_cost)}</div>
+        <div className="text-[13px] text-[var(--color-claude-coral)] font-mono">
+          {formatTokens(log.total_tokens)}
+        </div>
+      </td>
+
+      {/* 비용 - 옐로 계열 */}
+      <td className="px-3 py-3 text-right">
+        <div className="text-[13px] text-yellow-400 font-mono">{formatCost(log.total_cost)}</div>
       </td>
 
       {/* 모델 */}
@@ -281,6 +284,9 @@ export default function SubmitLogsPage() {
                     사용자
                   </th>
                   <th className="px-3 py-2.5 text-left text-[11px] font-medium text-white/40 uppercase">
+                    플랜
+                  </th>
+                  <th className="px-3 py-2.5 text-left text-[11px] font-medium text-white/40 uppercase">
                     기간
                   </th>
                   <th className="px-3 py-2.5 text-right text-[11px] font-medium text-white/40 uppercase">
@@ -300,7 +306,7 @@ export default function SubmitLogsPage() {
               <tbody>
                 {data.logs.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="py-12 text-center text-[13px] text-white/30">
+                    <td colSpan={8} className="py-12 text-center text-[13px] text-white/30">
                       {search ? `"${search}" 검색 결과가 없습니다` : "제출 로그가 없습니다"}
                     </td>
                   </tr>
