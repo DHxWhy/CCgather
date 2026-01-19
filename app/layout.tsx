@@ -163,6 +163,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         suppressHydrationWarning
       >
         <head>
+          {/* Preconnect hints for faster resource loading */}
+          <link rel="preconnect" href="https://clerk.ccgather.com" />
+          <link rel="preconnect" href="https://img.clerk.com" />
+          <link rel="dns-prefetch" href="https://clerk.ccgather.com" />
+          <link rel="dns-prefetch" href="https://img.clerk.com" />
           <GlobalJsonLd />
         </head>
         <body className="min-h-screen bg-bg-primary font-sans antialiased">

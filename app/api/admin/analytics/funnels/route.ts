@@ -19,6 +19,10 @@ const FUNNELS = {
     name: "Engagement Funnel",
     steps: ["$pageview", "leaderboard_view", "profile_panel_open", "cli_install_click"],
   },
+  news_to_signup: {
+    name: "News → Signup Funnel",
+    steps: ["news_article_view", "news_leaderboard_cta_click", "leaderboard_view", "user_signup"],
+  },
 };
 
 export async function GET(request: Request) {
@@ -30,7 +34,8 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const dateFrom = searchParams.get("date_from") || "-7d";
     const dateTo = searchParams.get("date_to") || undefined;
-    const funnelType = (searchParams.get("funnel") as "signup" | "engagement") || "signup";
+    const funnelType =
+      (searchParams.get("funnel") as "signup" | "engagement" | "news_to_signup") || "signup";
 
     const funnelConfig = FUNNELS[funnelType] || FUNNELS.signup;
 

@@ -164,7 +164,9 @@ function UsageChart({
               strokeWidth={2}
               dot={false}
               activeDot={{ r: 4, fill: "#DA7756", stroke: "#fff", strokeWidth: 2 }}
-              isAnimationActive={false}
+              animationDuration={500}
+              animationBegin={50}
+              animationEasing="ease-out"
             />
           </LineChart>
         </ResponsiveContainer>
@@ -1270,7 +1272,13 @@ export function ProfileSidePanel({
             <div className="text-[10px] text-[var(--color-text-muted)] uppercase tracking-wide mb-3">
               📅 Activity (Last Year)
             </div>
-            <ActivityHeatmap data={usageHistory} periodDays={365} />
+            {historyLoading ? (
+              <div className="flex items-center justify-center h-24 text-[var(--color-text-muted)] text-sm">
+                Loading...
+              </div>
+            ) : (
+              <ActivityHeatmap data={usageHistory} periodDays={365} />
+            )}
           </div>
 
           {/* Badges */}

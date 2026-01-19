@@ -16,8 +16,17 @@ const nextConfig: NextConfig = {
   },
   // 성능 최적화
   experimental: {
-    // 모던 번들 최적화
-    optimizePackageImports: ["lucide-react", "@clerk/nextjs"],
+    // 모던 번들 최적화 - 트리 쉐이킹 개선
+    optimizePackageImports: [
+      "lucide-react",
+      "@clerk/nextjs",
+      "date-fns",
+      "recharts",
+      "framer-motion",
+      "@supabase/supabase-js",
+      "clsx",
+      "tailwind-merge",
+    ],
   },
   // PostHog 프록시 설정 - AdBlocker 우회 및 CORS 문제 해결
   async rewrites() {

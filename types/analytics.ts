@@ -26,8 +26,10 @@ export type AnalyticsEventName =
   | "profile_view"
   // News Events
   | "news_tab_view"
+  | "news_article_view"
   | "news_article_click"
   | "news_category_filter"
+  | "news_leaderboard_cta_click"
   // Engagement Events
   | "feature_discovery"
   | "cta_click";
@@ -84,6 +86,12 @@ export interface AnalyticsEventProperties {
   news_tab_view: {
     category?: string;
   };
+  news_article_view: {
+    article_slug: string;
+    article_title: string;
+    category?: string;
+    referrer?: string;
+  };
   news_article_click: {
     article_id: string;
     category: string;
@@ -91,6 +99,10 @@ export interface AnalyticsEventProperties {
   };
   news_category_filter: {
     category: string;
+  };
+  news_leaderboard_cta_click: {
+    article_slug: string;
+    article_title: string;
   };
   // Engagement Events
   feature_discovery: {
@@ -244,7 +256,7 @@ export interface AnalyticsQueryParams {
 }
 
 export interface FunnelQueryParams extends AnalyticsQueryParams {
-  funnel: "signup" | "engagement";
+  funnel: "signup" | "engagement" | "news_to_signup";
 }
 
 export interface ContentQueryParams extends AnalyticsQueryParams {

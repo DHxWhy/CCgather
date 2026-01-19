@@ -163,8 +163,7 @@ export function CLIModal({ isOpen, onClose }: CLIModalProps) {
               <div className="space-y-1.5 text-xs font-mono">
                 {[
                   { icon: "📤", name: "Submit usage data", desc: "Scan & submit to leaderboard" },
-                  { icon: "📊", name: "View my rank", desc: "Check your current ranking" },
-                  { icon: "⚙️", name: "Settings", desc: "Re-authenticate or disconnect" },
+                  { icon: "⚙️", name: "Settings", desc: "Re-authenticate" },
                 ].map((item) => (
                   <div
                     key={item.name}

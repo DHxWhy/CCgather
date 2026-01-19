@@ -5,13 +5,19 @@ import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@clerk/nextjs";
 import { Menu, Settings } from "lucide-react";
-import { useState, useEffect } from "react";
+import { useState, useEffect, lazy, Suspense } from "react";
 import { cn } from "@/lib/utils";
 import { ThemeSwitcher } from "@/components/ui/theme-switcher";
 import { MobileDrawer } from "./MobileDrawer";
 import { Button } from "@/components/ui/Button";
-import { CLIModal } from "@/components/cli/CLIModal";
-import { AuthModal } from "@/components/auth/AuthModal";
+
+// Modal 컴포넌트 지연 로딩 - 초기 번들 크기 감소
+const CLIModal = lazy(() =>
+  import("@/components/cli/CLIModal").then((mod) => ({ default: mod.CLIModal }))
+);
+const AuthModal = lazy(() =>
+  import("@/components/auth/AuthModal").then((mod) => ({ default: mod.AuthModal }))
+);
 
 // ============================================
 // Navigation Links
@@ -145,6 +151,7 @@ export function Header() {
               alt="CCgather Logo"
               width={32}
               height={32}
+              priority
               className="w-7 h-7 md:w-8 md:h-8 rounded-md transition-all duration-300 group-hover:shadow-[var(--glow-primary)]"
             />
             {/* Logo Text */}
@@ -298,11 +305,19 @@ export function Header() {
         </div>
       </MobileDrawer>
 
-      {/* CLI Modal */}
-      <CLIModal isOpen={cliModalOpen} onClose={() => setCLIModalOpen(false)} />
+      {/* CLI Modal - 지연 로딩 */}
+      {cliModalOpen && (
+        <Suspense fallback={null}>
+          <CLIModal isOpen={cliModalOpen} onClose={() => setCLIModalOpen(false)} />
+        </Suspense>
+      )}
 
-      {/* Auth Modal */}
-      <AuthModal isOpen={authModalOpen} onClose={() => setAuthModalOpen(false)} />
+      {/* Auth Modal - 지연 로딩 */}
+      {authModalOpen && (
+        <Suspense fallback={null}>
+          <AuthModal isOpen={authModalOpen} onClose={() => setAuthModalOpen(false)} />
+        </Suspense>
+      )}
     </>
   );
 }

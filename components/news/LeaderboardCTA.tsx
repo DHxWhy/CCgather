@@ -2,8 +2,25 @@
 
 import Link from "next/link";
 import { Trophy, ArrowRight } from "lucide-react";
+import { usePostHog } from "posthog-js/react";
 
-export default function LeaderboardCTA() {
+interface LeaderboardCTAProps {
+  articleSlug?: string;
+  articleTitle?: string;
+}
+
+export default function LeaderboardCTA({ articleSlug, articleTitle }: LeaderboardCTAProps) {
+  const posthog = usePostHog();
+
+  const handleClick = () => {
+    if (posthog && articleSlug) {
+      posthog.capture("news_leaderboard_cta_click", {
+        article_slug: articleSlug,
+        article_title: articleTitle || "",
+      });
+    }
+  };
+
   return (
     <section className="my-6 p-4 rounded-xl bg-gradient-to-br from-amber-500/10 to-orange-500/5 border border-amber-500/20">
       <div className="flex flex-col items-center text-center gap-3">
@@ -20,6 +37,7 @@ export default function LeaderboardCTA() {
 
         <Link
           href="/leaderboard"
+          onClick={handleClick}
           className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-amber-500 text-black text-[12px] font-medium hover:bg-amber-400 transition-colors"
         >
           Submit &amp; Claim Your Rank

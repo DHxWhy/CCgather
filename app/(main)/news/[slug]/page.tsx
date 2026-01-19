@@ -264,8 +264,8 @@ export default async function NewsDetailPage({ params }: NewsDetailPageProps) {
 
   return (
     <>
-      {/* View Tracking (admin only, not shown to users) */}
-      <ViewTracker slug={slug} />
+      {/* View Tracking & PostHog Funnel Event */}
+      <ViewTracker slug={slug} title={title} category={category} />
 
       {/* JSON-LD Structured Data */}
       <NewsArticleJsonLd article={article} />
@@ -441,7 +441,7 @@ export default async function NewsDetailPage({ params }: NewsDetailPageProps) {
         )}
 
         {/* Leaderboard CTA - 리더보드 유도 */}
-        <LeaderboardCTA />
+        <LeaderboardCTA articleSlug={slug} articleTitle={title} />
 
         {/* Related Articles (최하단) */}
         {relatedNews.length > 0 && (

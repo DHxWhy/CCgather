@@ -10,9 +10,11 @@ import { cn } from "@/lib/utils";
 import { ThemeSwitcher } from "@/components/ui/theme-switcher";
 import { MobileDrawer } from "./MobileDrawer";
 import { Button } from "@/components/ui/Button";
-import { CLIModal } from "@/components/cli/CLIModal";
 
-// Lazy load AuthModal to defer Clerk JS loading until user clicks Sign In
+// Lazy load modals to defer JS loading until user interaction
+const CLIModal = dynamic(() => import("@/components/cli/CLIModal").then((mod) => mod.CLIModal), {
+  ssr: false,
+});
 const AuthModal = dynamic(
   () => import("@/components/auth/AuthModal").then((mod) => mod.AuthModal),
   {
@@ -128,6 +130,7 @@ export function LandingHeader() {
               alt="CCgather Logo"
               width={32}
               height={32}
+              priority
               className="w-7 h-7 md:w-8 md:h-8 rounded-md transition-all duration-300 group-hover:shadow-[var(--glow-primary)]"
             />
             {/* Logo Text */}
