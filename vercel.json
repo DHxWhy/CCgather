@@ -8,5 +8,19 @@
       "path": "/api/cron/cleanup-deleted-users",
       "schedule": "0 0 * * *"
     }
+  ],
+  "rewrites": [
+    {
+      "source": "/ingest/static/:path*",
+      "destination": "https://us-assets.i.posthog.com/static/:path*"
+    },
+    {
+      "source": "/ingest/:path*",
+      "destination": "https://us.i.posthog.com/:path*"
+    },
+    {
+      "source": "/ingest",
+      "destination": "https://us.i.posthog.com"
+    }
   ]
 }

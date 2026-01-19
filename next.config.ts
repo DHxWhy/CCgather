@@ -28,8 +28,8 @@ const nextConfig: NextConfig = {
       "tailwind-merge",
     ],
   },
-  // PostHog 프록시는 API route로 처리 (app/ingest/[[...path]]/route.ts)
-  // rewrites는 POST 요청에서 405 에러 발생하여 API route로 대체됨
+  // PostHog 프록시는 vercel.json rewrites로 처리
+  // Next.js rewrites는 POST 요청에서 405 에러 발생하여 Vercel rewrites로 대체
 };
 
 export default nextConfig;
