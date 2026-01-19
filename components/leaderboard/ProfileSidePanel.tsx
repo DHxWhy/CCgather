@@ -164,8 +164,8 @@ function UsageChart({
               strokeWidth={2}
               dot={false}
               activeDot={{ r: 4, fill: "#DA7756", stroke: "#fff", strokeWidth: 2 }}
-              animationDuration={500}
-              animationBegin={50}
+              animationDuration={600}
+              animationBegin={200}
               animationEasing="ease-out"
             />
           </LineChart>
@@ -767,9 +767,8 @@ export function ProfileSidePanel({
       if (!user) return;
 
       setHistoryLoading(true);
-      setUsageHistory([]); // Reset immediately to avoid showing stale data
-      setUserBadges([]); // Reset badges too
-      setFreshSocialLinks(null); // Reset on user change
+      // Don't clear previous data - keep showing it until new data arrives
+      setFreshSocialLinks(null);
       try {
         // Fetch history (includes fresh social_links)
         const historyResponse = await fetch(`/api/users/${user.id}/history?days=365`);
@@ -791,6 +790,7 @@ export function ProfileSidePanel({
           setUserBadges([]);
         }
       } catch {
+        // Only clear on error
         setUsageHistory([]);
         setUserBadges([]);
       } finally {
@@ -1226,11 +1226,7 @@ export function ProfileSidePanel({
           </div>
 
           {/* Usage Chart */}
-          <div
-            className={`mb-4 p-3 bg-[var(--color-section-bg)] rounded-lg border border-[var(--border-default)] transition-opacity duration-200 ${
-              historyLoading ? "opacity-50" : "opacity-100"
-            }`}
-          >
+          <div className="mb-4 p-3 bg-[var(--color-section-bg)] rounded-lg border border-[var(--border-default)]">
             <div className="flex items-center justify-between mb-2">
               <div className="text-[10px] text-[var(--color-text-muted)] uppercase tracking-wide">
                 📈 Usage History
@@ -1247,13 +1243,9 @@ export function ProfileSidePanel({
                         : "All Time"}
               </div>
             </div>
-            {usageHistory.length > 0 ? (
+            <div key={`chart-${currentUser.id}`}>
               <UsageChart history={usageHistory} periodFilter={periodFilter} />
-            ) : (
-              <div className="h-32 flex items-center justify-center text-[var(--color-text-muted)] text-xs">
-                {historyLoading ? "Loading..." : "No usage data available"}
-              </div>
-            )}
+            </div>
             <div className="text-[11px] text-[var(--color-text-secondary)] mt-2 pt-2 border-t border-[var(--border-default)] text-center">
               Avg Daily:{" "}
               <span className="font-medium text-[var(--color-claude-coral)]">
@@ -1264,21 +1256,11 @@ export function ProfileSidePanel({
           </div>
 
           {/* Activity Heatmap */}
-          <div
-            className={`mb-4 p-3 pt-6 pb-4 bg-[var(--color-section-bg)] rounded-lg border border-[var(--border-default)] transition-opacity duration-200 ${
-              historyLoading ? "opacity-50" : "opacity-100"
-            }`}
-          >
+          <div className="mb-4 p-3 pt-6 pb-4 bg-[var(--color-section-bg)] rounded-lg border border-[var(--border-default)]">
             <div className="text-[10px] text-[var(--color-text-muted)] uppercase tracking-wide mb-3">
               📅 Activity (Last Year)
             </div>
-            {historyLoading ? (
-              <div className="flex items-center justify-center h-24 text-[var(--color-text-muted)] text-sm">
-                Loading...
-              </div>
-            ) : (
-              <ActivityHeatmap data={usageHistory} periodDays={365} />
-            )}
+            <ActivityHeatmap data={usageHistory} periodDays={365} />
           </div>
 
           {/* Badges */}

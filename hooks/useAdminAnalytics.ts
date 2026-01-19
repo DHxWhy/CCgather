@@ -256,3 +256,79 @@ export function useRetentionDB(options: { weeks?: number; enabled?: boolean } = 
     enabled,
   });
 }
+
+// ============================================
+// Submit Logs (제출 로그)
+// ============================================
+
+export interface SubmitLogItem {
+  submitted_at: string;
+  user_id: string;
+  username: string;
+  avatar_url: string | null;
+  ccplan: string | null;
+  days_count: number;
+  date_from: string;
+  date_to: string;
+  total_tokens: number;
+  total_cost: number;
+  submission_source: string;
+  primary_model: string | null;
+}
+
+interface SubmitLogsResponse {
+  logs: SubmitLogItem[];
+  pagination: {
+    page: number;
+    pageSize: number;
+    totalCount: number;
+    totalPages: number;
+  };
+  filters: {
+    startDate: string;
+    endDate: string;
+    search: string | null;
+    source: string | null;
+  };
+  generatedAt: string;
+}
+
+interface SubmitLogsOptions {
+  page?: number;
+  pageSize?: number;
+  search?: string;
+  source?: string;
+  startDate?: string;
+  endDate?: string;
+  enabled?: boolean;
+}
+
+/**
+ * Fetch submit logs (제출 1회당 1건)
+ */
+export function useSubmitLogs(options: SubmitLogsOptions = {}) {
+  const {
+    page = 1,
+    pageSize = 50,
+    search = "",
+    source = "",
+    startDate = "",
+    endDate = "",
+    enabled = true,
+  } = options;
+
+  return useQuery<SubmitLogsResponse>({
+    queryKey: ["analytics", "submit-logs", page, pageSize, search, source, startDate, endDate],
+    queryFn: () =>
+      fetchAnalytics<SubmitLogsResponse>("submit-logs", {
+        page: String(page),
+        pageSize: String(pageSize),
+        search: search || undefined,
+        source: source || undefined,
+        startDate: startDate || undefined,
+        endDate: endDate || undefined,
+      }),
+    staleTime: 30 * 1000, // 30 seconds
+    enabled,
+  });
+}
