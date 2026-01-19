@@ -8,12 +8,17 @@ import {
   hasProjectSessions,
   getCurrentProjectName,
   getAllProjectFolders,
+  getProjectPath,
   CCGatherData,
   DailyUsage,
   SessionFingerprint,
   hasOpusUsageInProject,
   hasOldData,
   getSessionPathDebugInfo,
+  // Project link functions
+  hasProjectLink,
+  loadProjectLink,
+  saveProjectLink,
 } from "../lib/ccgather-json.js";
 import {
   colors,
@@ -322,12 +327,46 @@ export async function submit(options: SubmitOptions): Promise<void> {
   const username = tokenCheck.username || config.get("username");
   verifySpinner.succeed(colors.success(`Authenticated as ${colors.white(username || "unknown")}`));
 
-  // Check if current project has Claude Code sessions
+  // ═══════════════════════════════════════════════════════════════════════════
+  // PROJECT DETECTION FLOW (Fairness-First Design)
+  // Priority: 1. Saved link (.ccgather) | 2. Auto-match | 3. User selection
+  // ═══════════════════════════════════════════════════════════════════════════
+
   const projectName = getCurrentProjectName();
   let selectedProjectPath: string | null = null;
+  let selectedFolderName: string | null = null;
+  let linkSource: "saved" | "auto" | "manual" | null = null;
 
-  if (!hasProjectSessions()) {
-    // Try to find available projects for fallback selection
+  // Step 1: Check for saved project link (.ccgather file)
+  const savedLink = loadProjectLink();
+  if (savedLink) {
+    selectedProjectPath = savedLink.claudeProjectPath;
+    selectedFolderName = savedLink.folderName;
+    linkSource = "saved";
+    console.log(`\n  ${colors.success("✓")} ${colors.muted("Using saved project link:")}`);
+    console.log(`    ${colors.dim(savedLink.folderName)}`);
+  }
+
+  // Step 2: If no saved link, try auto-matching (encoding-based)
+  if (!selectedProjectPath && hasProjectSessions()) {
+    const autoMatchedPath = getProjectPath();
+    if (autoMatchedPath) {
+      selectedProjectPath = autoMatchedPath;
+      selectedFolderName = autoMatchedPath.split(/[/\\]/).pop() || null;
+      linkSource = "auto";
+      console.log(`\n  ${colors.success("✓")} ${colors.muted("Auto-matched project:")}`);
+      console.log(`    ${colors.dim(selectedFolderName || projectName)}`);
+
+      // Save the auto-matched link for future use
+      if (selectedFolderName) {
+        saveProjectLink(selectedProjectPath, selectedFolderName);
+        console.log(`    ${colors.dim("(saved to .ccgather)")}`);
+      }
+    }
+  }
+
+  // Step 3: If still no match, show manual selection (Fallback UI)
+  if (!selectedProjectPath) {
     const availableProjects = getAllProjectFolders();
 
     if (availableProjects.length === 0) {
@@ -356,14 +395,14 @@ export async function submit(options: SubmitOptions): Promise<void> {
       process.exit(1);
     }
 
-    // Fallback: Let user select from available projects
+    // Manual selection required
     console.log(
       `\n  ${colors.warning("⚠")} ${colors.muted("No session found for current directory:")}`
     );
     console.log(`  ${colors.dim(projectName)}`);
     console.log();
     console.log(
-      `  ${colors.muted("But found")} ${colors.white(availableProjects.length.toString())} ${colors.muted("other project(s) with Claude Code sessions:")}`
+      `  ${colors.muted("Found")} ${colors.white(availableProjects.length.toString())} ${colors.muted("project(s) with Claude Code sessions:")}`
     );
     console.log();
 
@@ -383,7 +422,7 @@ export async function submit(options: SubmitOptions): Promise<void> {
       {
         type: "list",
         name: "selectedProject",
-        message: "Select a project to submit:",
+        message: "Select a project to link with this folder:",
         choices,
         loop: false,
       },
@@ -396,63 +435,39 @@ export async function submit(options: SubmitOptions): Promise<void> {
 
     selectedProjectPath = selectedProject;
     const selected = availableProjects.find((p) => p.fullPath === selectedProject);
-    console.log(`\n  ${success(`Selected: ${selected?.displayName}`)}`);
+    selectedFolderName = selected?.folderName || null;
+    linkSource = "manual";
+
+    // Save the manual selection for future use
+    if (selected && selectedProjectPath) {
+      saveProjectLink(selectedProjectPath, selected.folderName);
+      console.log(`\n  ${success(`Linked: ${selected.displayName}`)}`);
+      console.log(`  ${colors.dim("(saved to .ccgather - will auto-use next time)")}`);
+    }
   }
 
-  // Always scan fresh data
+  // Always scan fresh data from the selected project path
   let usageData: UsageData | null = null;
-  let displayProjectName = projectName;
 
-  // Use selected project path if fallback was triggered
-  if (selectedProjectPath) {
-    const selected = getAllProjectFolders().find((p) => p.fullPath === selectedProjectPath);
-    displayProjectName = selected?.displayName || projectName;
+  // Get display name from selected folder
+  const allProjects = getAllProjectFolders();
+  const selectedInfo = allProjects.find((p) => p.fullPath === selectedProjectPath);
+  const displayProjectName = selectedInfo?.displayName || selectedFolderName || projectName;
 
-    console.log(`\n  ${colors.muted("Project:")} ${colors.white(displayProjectName)}`);
-    console.log(`  ${colors.muted("Scanning sessions...")}`);
+  console.log(`\n  ${colors.muted("Project:")} ${colors.white(displayProjectName)}`);
+  console.log(`  ${colors.muted("Scanning sessions...")}`);
 
-    const scannedData = scanUsageDataFromPath(selectedProjectPath, {
-      onProgress: (current, total) => {
-        progressBar(current, total, "Scanning");
-      },
-    });
+  const scannedData = scanUsageDataFromPath(selectedProjectPath!, {
+    onProgress: (current, total) => {
+      progressBar(current, total, "Scanning");
+    },
+  });
 
-    await sleep(200);
+  await sleep(200);
 
-    if (scannedData) {
-      usageData = ccgatherToUsageData(scannedData);
-      console.log(`  ${success("Scan complete!")}`);
-    }
-  } else {
-    // Normal flow: scan current project
-    const totalFiles = getSessionFileCount();
-
-    console.log(`\n  ${colors.muted("Project:")} ${colors.white(projectName)}`);
-
-    if (totalFiles > 0) {
-      console.log(
-        `  ${colors.muted("Scanning")} ${colors.white(totalFiles.toString())} ${colors.muted("sessions...")}`
-      );
-
-      const scannedData = scanUsageData({
-        onProgress: (current, total) => {
-          progressBar(current, total, "Scanning");
-        },
-      });
-
-      await sleep(200);
-
-      if (scannedData) {
-        usageData = ccgatherToUsageData(scannedData);
-        console.log(`  ${success("Scan complete!")}`);
-      }
-    } else {
-      const scannedData = scanUsageData();
-      if (scannedData) {
-        usageData = ccgatherToUsageData(scannedData);
-        console.log(`\n  ${success("Scan complete!")}`);
-      }
-    }
+  if (scannedData) {
+    usageData = ccgatherToUsageData(scannedData);
+    console.log(`  ${success("Scan complete!")}`);
   }
 
   if (!usageData) {

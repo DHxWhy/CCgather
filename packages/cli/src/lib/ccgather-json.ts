@@ -695,6 +695,14 @@ export function hasProjectSessions(): boolean {
 }
 
 /**
+ * Get current project path (full path to Claude project folder)
+ * Returns null if no matching project found
+ */
+export function getProjectPath(): string | null {
+  return getCurrentProjectDir();
+}
+
+/**
  * Get current project name from cwd
  */
 export function getCurrentProjectName(): string {
@@ -1032,4 +1040,100 @@ export function getSessionPathDebugInfo(): {
     platform: process.platform,
     home,
   };
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// .ccgather Project Link - Persistent project folder mapping
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Structure of .ccgather file for project linking
+ */
+export interface ProjectLink {
+  claudeProjectPath: string; // Full path to Claude project folder
+  folderName: string; // Encoded folder name (for display)
+  linkedAt: string; // ISO timestamp when link was created
+}
+
+const CCGATHER_FILE = ".ccgather";
+
+/**
+ * Get .ccgather file path for current working directory
+ */
+function getCcgatherFilePath(): string {
+  return path.join(process.cwd(), CCGATHER_FILE);
+}
+
+/**
+ * Check if project link exists in current directory
+ */
+export function hasProjectLink(): boolean {
+  try {
+    return fs.existsSync(getCcgatherFilePath());
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Load project link from .ccgather file
+ */
+export function loadProjectLink(): ProjectLink | null {
+  try {
+    const filePath = getCcgatherFilePath();
+    if (!fs.existsSync(filePath)) {
+      return null;
+    }
+
+    const content = fs.readFileSync(filePath, "utf-8");
+    const data = JSON.parse(content) as ProjectLink;
+
+    // Validate required fields
+    if (!data.claudeProjectPath || !data.folderName) {
+      return null;
+    }
+
+    // Verify the linked path still exists
+    if (!fs.existsSync(data.claudeProjectPath)) {
+      return null;
+    }
+
+    return data;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Save project link to .ccgather file
+ */
+export function saveProjectLink(claudeProjectPath: string, folderName: string): boolean {
+  try {
+    const filePath = getCcgatherFilePath();
+    const data: ProjectLink = {
+      claudeProjectPath,
+      folderName,
+      linkedAt: new Date().toISOString(),
+    };
+
+    fs.writeFileSync(filePath, JSON.stringify(data, null, 2), "utf-8");
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Remove project link (.ccgather file)
+ */
+export function removeProjectLink(): boolean {
+  try {
+    const filePath = getCcgatherFilePath();
+    if (fs.existsSync(filePath)) {
+      fs.unlinkSync(filePath);
+    }
+    return true;
+  } catch {
+    return false;
+  }
 }
