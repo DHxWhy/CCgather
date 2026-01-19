@@ -4,7 +4,14 @@ import Link from "next/link";
 import Image from "next/image";
 import { useSignIn } from "@clerk/nextjs";
 import { AuthLeftPanel } from "@/components/auth/AuthLeftPanel";
+import dynamic from "next/dynamic";
 import { useState } from "react";
+
+// Lazy load StarsCanvas for performance
+const StarsCanvas = dynamic(
+  () => import("@/components/ui/stars-canvas").then((mod) => ({ default: mod.StarsCanvas })),
+  { ssr: false, loading: () => null }
+);
 
 export default function SignInPage() {
   const { signIn, isLoaded } = useSignIn();
@@ -27,15 +34,25 @@ export default function SignInPage() {
   };
 
   return (
-    <div className="flex min-h-screen bg-[var(--color-bg-primary)]">
+    <div className="flex min-h-screen bg-[var(--color-bg-primary)] relative overflow-hidden">
+      {/* Stars Background */}
+      <StarsCanvas starCount={150} />
+
       {/* Left Panel - Brand & Visual (hidden on mobile/tablet) */}
-      <div className="hidden lg:flex lg:w-1/2 relative">
+      <div className="hidden lg:flex lg:w-1/2 relative z-10">
         <AuthLeftPanel />
       </div>
 
+      {/* Center Divider */}
+      <div className="hidden lg:flex items-center relative z-10">
+        <div className="w-1 h-64 bg-white/10 rounded-full" />
+      </div>
+
       {/* Right Panel - Sign In Form */}
-      <div className="flex-1 flex flex-col items-center lg:items-start justify-center px-6 py-12 lg:pl-16 lg:pr-20">
+      <div className="flex-1 flex flex-col items-center lg:items-start justify-center px-6 py-12 lg:pl-16 lg:pr-16 relative z-10">
         <div className="w-full max-w-sm">
+          {/* Glass card */}
+          <div className="relative backdrop-blur-sm bg-white/[0.02] border border-white/[0.08] rounded-2xl p-8">
           {/* Mobile/Tablet Header */}
           <div className="lg:hidden text-center mb-8">
             <Link href="/" className="inline-flex items-center gap-2 mb-6">
@@ -64,7 +81,7 @@ export default function SignInPage() {
               <span className="text-lg font-bold text-white">CCgather</span>
             </Link>
             <h1 className="text-xl font-bold text-white mb-1">
-              Proof of your <span className="shimmer-text">Claude Code dedication</span>
+              Proof of your<br /><span className="shimmer-text">Claude Code dedication</span>
             </h1>
             <p className="text-sm text-[var(--color-text-muted)]">
               Sign in to track your AI coding journey
@@ -112,6 +129,7 @@ export default function SignInPage() {
                 Privacy Policy
               </Link>
             </p>
+          </div>
           </div>
         </div>
       </div>

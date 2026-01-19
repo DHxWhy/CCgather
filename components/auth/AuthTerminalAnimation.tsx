@@ -4,18 +4,8 @@ import { useState, useEffect, useCallback, useRef } from "react";
 
 interface TerminalLine {
   text: string;
-  type:
-    | "command"
-    | "header"
-    | "success"
-    | "muted"
-    | "box"
-    | "stat"
-    | "empty"
-    | "rank"
-    | "link"
-    | "logo-primary"
-    | "logo-secondary";
+  type: "command" | "success" | "muted" | "stat" | "empty" | "rank" | "highlight" | "link";
+  indent?: boolean;
   delay: number;
 }
 
@@ -27,42 +17,37 @@ const TERMINAL_LINES: TerminalLine[] = [
   { text: "", type: "empty", delay: 500 },
 
   // 2. Auth verification
-  { text: "🔐 Verifying authentication...", type: "muted", delay: 800 },
+  { text: "Verifying authentication...", type: "muted", delay: 800 },
   { text: "✓ Authenticated as DHxYoon", type: "success", delay: 1400 },
   { text: "", type: "empty", delay: 1700 },
 
   // 3. Session scan
-  { text: "📁 Scanning Claude Code sessions...", type: "muted", delay: 2000 },
-  { text: "   Found 127 sessions in 3 projects", type: "muted", delay: 2600 },
+  { text: "Scanning Claude Code sessions...", type: "muted", delay: 2000 },
+  { text: "Found 127 sessions in 3 projects", type: "muted", indent: true, delay: 2600 },
   { text: "✓ Scan complete", type: "success", delay: 3000 },
   { text: "", type: "empty", delay: 3300 },
 
   // 4. Usage measurement
-  { text: "📊 Calculating usage metrics...", type: "muted", delay: 3600 },
-  { text: "┌─────────────────────────────────┐", type: "box", delay: 4000 },
-  { text: "│  Total Tokens    12,847,291    │", type: "stat", delay: 4200 },
-  { text: "│  Total Cost      $384.52       │", type: "stat", delay: 4400 },
-  { text: "│  Active Days     89 days       │", type: "stat", delay: 4600 },
-  { text: "└─────────────────────────────────┘", type: "box", delay: 4800 },
-  { text: "", type: "empty", delay: 5100 },
+  { text: "Calculating usage metrics...", type: "muted", delay: 3600 },
+  { text: "Total Tokens     12,847,291", type: "stat", indent: true, delay: 4000 },
+  { text: "Total Cost       $384.52", type: "stat", indent: true, delay: 4200 },
+  { text: "Active Days      89 days", type: "stat", indent: true, delay: 4400 },
+  { text: "", type: "empty", delay: 4700 },
 
   // 5. Rank & Level calculation
-  { text: "🏆 Calculating rank & level...", type: "muted", delay: 5400 },
-  { text: "┌─────────────────────────────────┐", type: "box", delay: 5800 },
-  { text: "│  👑 Level 6 · Grandmaster       │", type: "logo-primary", delay: 6000 },
-  { text: "│  🌍 Global Rank: #1             │", type: "rank", delay: 6200 },
-  { text: "│  🇰🇷 Country Rank: #1           │", type: "rank", delay: 6400 },
-  { text: "└─────────────────────────────────┘", type: "box", delay: 6600 },
-  { text: "", type: "empty", delay: 6900 },
+  { text: "Calculating rank & level...", type: "muted", delay: 5000 },
+  { text: "Level 6 · Grandmaster", type: "highlight", indent: true, delay: 5400 },
+  { text: "Global Rank      #1", type: "rank", indent: true, delay: 5600 },
+  { text: "Country Rank     #1  KR", type: "rank", indent: true, delay: 5800 },
+  { text: "", type: "empty", delay: 6100 },
 
   // 6. Submit
-  { text: "📤 Submitting to leaderboard...", type: "muted", delay: 7200 },
-  { text: "✓ Successfully submitted!", type: "success", delay: 7800 },
-  { text: "", type: "empty", delay: 8100 },
-  { text: "🔗 View: ccgather.com/u/DHxYoon", type: "logo-primary", delay: 8400 },
+  { text: "Submitting to leaderboard...", type: "muted", delay: 6400 },
+  { text: "✓ Successfully submitted!", type: "success", delay: 7000 },
+  { text: "", type: "empty", delay: 7300 },
+  { text: "View your profile:", type: "muted", delay: 7600 },
+  { text: "https://ccgather.com/u/DHxYoon", type: "link", indent: true, delay: 7900 },
 ];
-
-const MAX_VISIBLE_LINES = 14;
 
 export function AuthTerminalAnimation() {
   const [visibleLines, setVisibleLines] = useState<number>(0);
@@ -110,32 +95,24 @@ export function AuthTerminalAnimation() {
     switch (type) {
       case "command":
         return "text-white font-medium";
-      case "header":
-        return "text-white font-semibold";
       case "success":
         return "text-emerald-400";
       case "muted":
         return "text-zinc-500";
-      case "box":
-        return "text-zinc-600";
       case "stat":
         return "text-[var(--color-claude-coral)]";
       case "rank":
-        return "text-white font-semibold";
-      case "link":
-        return "text-[var(--color-claude-coral)] underline";
-      case "logo-primary":
+        return "text-zinc-300";
+      case "highlight":
         return "text-[var(--color-claude-coral)] font-bold";
-      case "logo-secondary":
-        return "text-orange-400";
+      case "link":
+        return "text-blue-400 underline";
       default:
         return "";
     }
   };
 
-  // Calculate which lines to show (sliding window)
-  const startIndex = Math.max(0, visibleLines - MAX_VISIBLE_LINES);
-  const displayLines = TERMINAL_LINES.slice(startIndex, visibleLines);
+  const displayLines = TERMINAL_LINES.slice(0, visibleLines);
 
   return (
     <div className="w-full max-w-md">
@@ -151,31 +128,25 @@ export function AuthTerminalAnimation() {
           <span className="flex-1 text-center text-[10px] text-zinc-500 font-mono">Terminal</span>
         </div>
 
-        {/* Terminal content - fixed height with scroll effect */}
+        {/* Terminal content */}
         <div
           ref={contentRef}
-          className="p-5 font-mono text-[12px] h-[420px] leading-[1.8] overflow-hidden"
+          className="p-5 font-mono text-[13px] h-[420px] leading-[1.9] overflow-hidden"
         >
-          {displayLines.map((line, displayIndex) => {
-            const actualIndex = startIndex + displayIndex;
-            return (
-              <div
-                key={`${cycleCount}-${actualIndex}`}
-                className={`${getLineStyle(line.type)} ${line.type === "empty" ? "h-2.5" : ""} transition-opacity duration-200`}
-                style={{
-                  opacity: displayIndex < 2 && startIndex > 0 ? 0.4 : 1,
-                }}
-              >
-                {line.text}
-                {actualIndex === visibleLines - 1 && isTyping && line.type === "command" && (
-                  <span className="inline-block w-1.5 h-3 bg-white/80 ml-0.5 animate-pulse" />
-                )}
-              </div>
-            );
-          })}
+          {displayLines.map((line, index) => (
+            <div
+              key={`${cycleCount}-${index}`}
+              className={`${getLineStyle(line.type)} ${line.type === "empty" ? "h-3" : ""} ${line.indent ? "pl-4" : ""} transition-opacity duration-200`}
+            >
+              {line.text}
+              {index === visibleLines - 1 && isTyping && line.type === "command" && (
+                <span className="inline-block w-2 h-4 bg-white/80 ml-0.5 animate-pulse" />
+              )}
+            </div>
+          ))}
           {visibleLines === 0 && (
             <div className="text-white">
-              $ <span className="inline-block w-1.5 h-3 bg-white/80 animate-pulse" />
+              $ <span className="inline-block w-2 h-4 bg-white/80 animate-pulse" />
             </div>
           )}
         </div>
