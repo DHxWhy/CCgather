@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/server";
 import { checkAndAwardBadges } from "@/lib/services/badgeService";
-import { calculateLevel, getLevelLeague } from "@/lib/types/leaderboard";
+import { calculateLevel } from "@/lib/types/leaderboard";
 
 interface DailyUsage {
   date: string;
@@ -250,18 +250,15 @@ export async function POST(request: NextRequest) {
     const overallPrimaryModel = getPrimaryModel(body.dailyUsage);
     const finalTotalTokens = Math.max(authenticatedUser.total_tokens || 0, body.totalTokens);
 
-    // V2.0: Calculate level and level_league from total tokens
+    // Calculate level from total tokens
     const level = calculateLevel(finalTotalTokens);
-    const levelLeague = getLevelLeague(level);
 
     const updateData: Record<string, unknown> = {
       total_tokens: finalTotalTokens,
       total_cost: Math.max(authenticatedUser.total_cost || 0, body.totalSpent),
       last_submission_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
-      // V2.0: Level-based ranking
       current_level: level,
-      level_league: levelLeague,
     };
 
     // V2.0: Store Opus usage for badge display

@@ -23,46 +23,9 @@ export const CCPLAN_CONFIG: Record<
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
-// V2.0: Level-Based League System
-// League is determined by level (token usage), not subscription plan
+// Level System (V2.0)
+// Simple level progression based on total token usage
 // ═══════════════════════════════════════════════════════════════════════════
-
-export type LevelLeagueFilter = "all" | "eco" | "builder" | "master" | "legend";
-
-// Level league configuration
-export const LEVEL_LEAGUE_CONFIG: Record<
-  Exclude<LevelLeagueFilter, "all">,
-  { name: string; icon: string; color: string; levels: string; description: string }
-> = {
-  eco: {
-    name: "Eco League",
-    icon: "🌿",
-    color: "#22C55E",
-    levels: "Lv 1-3",
-    description: "Efficient & Economical Developers",
-  },
-  builder: {
-    name: "Builder League",
-    icon: "🔨",
-    color: "#3B82F6",
-    levels: "Lv 4-6",
-    description: "Architect, Expert, Master",
-  },
-  master: {
-    name: "Master League",
-    icon: "⚔️",
-    color: "#8B5CF6",
-    levels: "Lv 7-9",
-    description: "Grandmaster, Legend, Titan",
-  },
-  legend: {
-    name: "Legend League",
-    icon: "🏆",
-    color: "#F59E0B",
-    levels: "Lv 10",
-    description: "Immortal",
-  },
-};
 
 // Level thresholds (tokens required)
 export const LEVEL_THRESHOLDS = [
@@ -91,17 +54,11 @@ export function calculateLevel(totalTokens: number): number {
 }
 
 /**
- * Get level league from level number
- * - Lv 1-3: eco (efficient & economical)
- * - Lv 4-6: builder
- * - Lv 7-9: master
- * - Lv 10: legend
+ * Get level info from level number
  */
-export function getLevelLeague(level: number): Exclude<LevelLeagueFilter, "all"> {
-  if (level <= 3) return "eco";
-  if (level <= 6) return "builder";
-  if (level <= 9) return "master";
-  return "legend";
+export function getLevelInfo(level: number) {
+  const threshold = LEVEL_THRESHOLDS.find((t) => t.level === level);
+  return threshold || LEVEL_THRESHOLDS[0];
 }
 
 // Social links structure
@@ -127,12 +84,8 @@ export interface LeaderboardUser {
   period_tokens?: number;
   period_cost?: number;
   period_rank?: number;
-  // V2.0: Level-based league (for ranking)
-  level_league?: LevelLeagueFilter | null;
-  level_league_rank?: number | null;
-  // CCplan fields (for badge display only, not ranking)
+  // CCplan fields (for badge display only)
   ccplan?: CCPlanFilter | null;
-  ccplan_rank?: number | null; // Deprecated - use level_league_rank
   // Opus badge
   has_opus_usage?: boolean;
   // Social links
@@ -148,21 +101,6 @@ export interface LeaderboardResponse {
     totalPages: number;
   };
   period: PeriodFilter;
-  // V2.0: Level-based league info
-  level_league: LevelLeagueFilter;
-  level_league_info?: {
-    name: string;
-    icon: string;
-    levels: string;
-    total_users: number;
-  };
-  // CCplan info (for badge display only)
-  ccplan?: CCPlanFilter;
-  ccplan_info?: {
-    name: string;
-    icon: string;
-    total_users: number;
-  };
 }
 
 export interface UsageHistoryPoint {
