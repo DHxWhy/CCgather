@@ -54,9 +54,11 @@ build/
 coverage/
 .nyc_output/
 
-# E2E Tests (Playwright)
-tests/
+# E2E Tests (Playwright) - root level only
+/tests/
 playwright.config.ts
+# Allow package-specific tests
+!packages/*/tests/
 test-results/
 playwright-report/
 .playwright/
