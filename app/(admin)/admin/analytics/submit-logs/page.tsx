@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import Image from "next/image";
 import { useSubmitLogs, type SubmitLogItem } from "@/hooks/useAdminAnalytics";
 import { Search, ChevronLeft, ChevronRight } from "lucide-react";
@@ -167,9 +167,15 @@ export default function SubmitLogsPage() {
   const [source, setSource] = useState("");
   const [dateRangeDays, setDateRangeDays] = useState(30);
 
-  // 날짜 범위 계산
-  const endDate = new Date().toISOString();
-  const startDate = new Date(Date.now() - dateRangeDays * 24 * 60 * 60 * 1000).toISOString();
+  // 날짜 범위 계산 (메모이제이션으로 무한 루프 방지)
+  const { startDate, endDate } = useMemo(() => {
+    const end = new Date();
+    const start = new Date(end.getTime() - dateRangeDays * 24 * 60 * 60 * 1000);
+    return {
+      startDate: start.toISOString(),
+      endDate: end.toISOString(),
+    };
+  }, [dateRangeDays]);
 
   const { data, isLoading, error } = useSubmitLogs({
     page,

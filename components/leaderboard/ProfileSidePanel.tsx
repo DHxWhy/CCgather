@@ -96,10 +96,6 @@ function UsageChart({
   history: UsageHistoryPoint[];
   periodFilter: PeriodFilter;
 }) {
-  const [displayData, setDisplayData] = useState<{ date: string; tokens: number }[]>([]);
-  const [yDomain, setYDomain] = useState<[number, number]>([0, 1]);
-  const [animationEnabled, setAnimationEnabled] = useState(false);
-
   const days =
     periodFilter === "today"
       ? 1
@@ -111,38 +107,15 @@ function UsageChart({
   const filteredData = history.slice(-days);
   const useMonthly = filteredData.length > 60;
 
-  const chartData = useMemo(() => {
-    return useMonthly
-      ? aggregateByMonth(filteredData)
-      : filteredData.map((day) => ({
-          date: day.date.slice(5),
-          tokens: day.tokens,
-        }));
-  }, [filteredData, useMonthly]);
-
-  // Two-phase update: Y-axis first, then line animation
-  useEffect(() => {
-    if (chartData.length === 0) {
-      setDisplayData([]);
-      return;
-    }
-
-    // Phase 1: Update Y-axis domain immediately (no animation)
-    const maxTokens = Math.max(...chartData.map((d) => d.tokens), 1);
-    setYDomain([0, maxTokens * 1.1]);
-    setAnimationEnabled(false);
-    setDisplayData(chartData);
-
-    // Phase 2: Enable animation after axis has updated
-    const timer = setTimeout(() => {
-      setAnimationEnabled(true);
-    }, 100);
-
-    return () => clearTimeout(timer);
-  }, [chartData]);
+  const chartData = useMonthly
+    ? aggregateByMonth(filteredData)
+    : filteredData.map((day) => ({
+        date: day.date.slice(5),
+        tokens: day.tokens,
+      }));
 
   // Don't render chart if no data
-  if (history.length === 0) {
+  if (chartData.length === 0) {
     return (
       <div className="h-32 flex items-center justify-center text-[var(--color-text-muted)] text-xs">
         No data for this period
@@ -154,10 +127,7 @@ function UsageChart({
     <div>
       <div className="h-32">
         <ResponsiveContainer width="100%" height="100%" minHeight={128}>
-          <LineChart
-            data={displayData.length > 0 ? displayData : chartData}
-            margin={{ top: 5, right: 20, left: 0, bottom: 0 }}
-          >
+          <LineChart data={chartData} margin={{ top: 5, right: 20, left: 0, bottom: 0 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="var(--border-default)" vertical={false} />
             <XAxis
               dataKey="date"
@@ -179,7 +149,6 @@ function UsageChart({
               }
             />
             <YAxis
-              domain={yDomain}
               axisLine={false}
               tickLine={false}
               tick={{ fill: "#71717A", fontSize: 9 }}
@@ -194,9 +163,8 @@ function UsageChart({
               strokeWidth={2}
               dot={false}
               activeDot={{ r: 4, fill: "#DA7756", stroke: "#fff", strokeWidth: 2 }}
-              isAnimationActive={animationEnabled}
               animationDuration={500}
-              animationBegin={0}
+              animationBegin={50}
               animationEasing="ease-out"
             />
           </LineChart>
