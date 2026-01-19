@@ -1125,6 +1125,7 @@ export function saveProjectLink(claudeProjectPath: string, folderName: string): 
 
 /**
  * Remove project link (.ccgather file)
+ * @deprecated Project linking is deprecated in v2.0. Use scanAllProjects() instead.
  */
 export function removeProjectLink(): boolean {
   try {
@@ -1136,4 +1137,293 @@ export function removeProjectLink(): boolean {
   } catch {
     return false;
   }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// SCAN ALL PROJECTS - Level-based league system (v2.0)
+// Simplifies submission by scanning ALL projects instead of per-project
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Scan ALL Claude Code projects and aggregate usage data
+ * This replaces the per-project scan for simpler, fairer ranking
+ *
+ * Key differences from scanUsageData():
+ * - Scans ALL projects, not just current directory
+ * - No project linking/matching required
+ * - Returns aggregated data across all projects
+ *
+ * @param options.days - Number of days to include (default: 0 = all time)
+ */
+export function scanAllProjects(options: ScanOptions = {}): CCGatherData | null {
+  const projectsDirs = getClaudeProjectsDirs();
+
+  if (projectsDirs.length === 0) {
+    debugLog("No project directories found");
+    return null;
+  }
+
+  // Calculate cutoff date (default: 0 = no limit for all-time data)
+  const days = options.days ?? 0;
+  let cutoffDate: string | null = null;
+
+  if (days > 0) {
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - days);
+    cutoff.setHours(0, 0, 0, 0);
+    cutoffDate = cutoff.toISOString();
+  }
+
+  let totalInputTokens = 0;
+  let totalOutputTokens = 0;
+  let totalCacheRead = 0;
+  let totalCacheWrite = 0;
+  let totalCost = 0;
+  let sessionsCount = 0;
+  const dates = new Set<string>();
+  const models: Record<string, number> = {};
+  const projects: Record<
+    string,
+    {
+      tokens: number;
+      cost: number;
+      sessions: number;
+      models: Record<string, number>;
+    }
+  > = {};
+  const dailyData: Record<
+    string,
+    {
+      tokens: number;
+      cost: number;
+      inputTokens: number;
+      outputTokens: number;
+      cacheWriteTokens: number;
+      cacheReadTokens: number;
+      sessions: Set<string>;
+      models: Record<string, number>;
+    }
+  > = {};
+  let firstTimestamp: string | null = null;
+  let lastTimestamp: string | null = null;
+
+  // Collect all JSONL files from all project directories
+  const allJsonlFiles: string[] = [];
+  for (const projectsDir of projectsDirs) {
+    try {
+      const entries = fs.readdirSync(projectsDir, { withFileTypes: true });
+      for (const entry of entries) {
+        if (!entry.isDirectory()) continue;
+        if (entry.name.startsWith(".")) continue; // Skip hidden folders
+
+        const projectPath = path.join(projectsDir, entry.name);
+        const jsonlFiles = findJsonlFiles(projectPath);
+        allJsonlFiles.push(...jsonlFiles);
+      }
+    } catch {
+      continue;
+    }
+  }
+
+  if (allJsonlFiles.length === 0) {
+    debugLog("No JSONL files found in any project");
+    return null;
+  }
+
+  sessionsCount = allJsonlFiles.length;
+  const { onProgress } = options;
+
+  for (let i = 0; i < allJsonlFiles.length; i++) {
+    const filePath = allJsonlFiles[i];
+
+    if (onProgress) {
+      onProgress(i + 1, allJsonlFiles.length);
+    }
+
+    const projectName = extractProjectName(filePath);
+
+    if (!projects[projectName]) {
+      projects[projectName] = {
+        tokens: 0,
+        cost: 0,
+        sessions: 0,
+        models: {},
+      };
+    }
+    projects[projectName].sessions++;
+
+    try {
+      const content = fs.readFileSync(filePath, "utf-8");
+      const lines = content.split("\n").filter((line) => line.trim());
+
+      for (const line of lines) {
+        try {
+          const event = JSON.parse(line);
+
+          if (event.type === "assistant" && event.message?.usage) {
+            if (cutoffDate && event.timestamp && event.timestamp < cutoffDate) {
+              continue;
+            }
+
+            const usage = event.message.usage;
+            const model = event.message.model || "unknown";
+            const inputTokens = usage.input_tokens || 0;
+            const outputTokens = usage.output_tokens || 0;
+            const cacheWrite = usage.cache_creation_input_tokens || 0;
+            const cacheRead = usage.cache_read_input_tokens || 0;
+
+            totalInputTokens += inputTokens;
+            totalOutputTokens += outputTokens;
+            totalCacheRead += cacheRead;
+            totalCacheWrite += cacheWrite;
+
+            const messageCost = estimateCost(
+              model,
+              inputTokens,
+              outputTokens,
+              cacheWrite,
+              cacheRead
+            );
+            totalCost += messageCost;
+
+            const totalModelTokens = inputTokens + outputTokens + cacheWrite + cacheRead;
+            models[model] = (models[model] || 0) + totalModelTokens;
+
+            projects[projectName].tokens += totalModelTokens;
+            projects[projectName].cost += messageCost;
+            projects[projectName].models[model] =
+              (projects[projectName].models[model] || 0) + totalModelTokens;
+
+            if (event.timestamp) {
+              const date = new Date(event.timestamp).toISOString().split("T")[0];
+              dates.add(date);
+
+              if (!dailyData[date]) {
+                dailyData[date] = {
+                  tokens: 0,
+                  cost: 0,
+                  inputTokens: 0,
+                  outputTokens: 0,
+                  cacheWriteTokens: 0,
+                  cacheReadTokens: 0,
+                  sessions: new Set(),
+                  models: {},
+                };
+              }
+
+              dailyData[date].tokens += totalModelTokens;
+              dailyData[date].cost += messageCost;
+              dailyData[date].inputTokens += inputTokens;
+              dailyData[date].outputTokens += outputTokens;
+              dailyData[date].cacheWriteTokens += cacheWrite;
+              dailyData[date].cacheReadTokens += cacheRead;
+              dailyData[date].sessions.add(filePath);
+              dailyData[date].models[model] =
+                (dailyData[date].models[model] || 0) + totalModelTokens;
+
+              if (!firstTimestamp || event.timestamp < firstTimestamp) {
+                firstTimestamp = event.timestamp;
+              }
+              if (!lastTimestamp || event.timestamp > lastTimestamp) {
+                lastTimestamp = event.timestamp;
+              }
+            }
+          }
+        } catch {
+          // Skip invalid JSON lines
+        }
+      }
+    } catch {
+      // Skip unreadable files
+    }
+  }
+
+  const totalTokens = totalInputTokens + totalOutputTokens + totalCacheWrite + totalCacheRead;
+
+  if (totalTokens === 0) {
+    return null;
+  }
+
+  for (const projectName of Object.keys(projects)) {
+    projects[projectName].cost = Math.round(projects[projectName].cost * 100) / 100;
+  }
+
+  const dailyUsage: DailyUsage[] = Object.entries(dailyData)
+    .map(([date, data]) => ({
+      date,
+      tokens: data.tokens,
+      cost: Math.round(data.cost * 100) / 100,
+      inputTokens: data.inputTokens,
+      outputTokens: data.outputTokens,
+      cacheWriteTokens: data.cacheWriteTokens,
+      cacheReadTokens: data.cacheReadTokens,
+      sessions: data.sessions.size,
+      models: data.models,
+    }))
+    .sort((a, b) => a.date.localeCompare(b.date));
+
+  const credentials = readCredentials();
+  const sessionFingerprint = generateSessionFingerprint(allJsonlFiles);
+
+  return {
+    version: CCGATHER_JSON_VERSION,
+    lastUpdated: new Date().toISOString(),
+    lastScanned: new Date().toISOString(),
+    usage: {
+      totalTokens,
+      totalCost: Math.round(totalCost * 100) / 100,
+      inputTokens: totalInputTokens,
+      outputTokens: totalOutputTokens,
+      cacheReadTokens: totalCacheRead,
+      cacheWriteTokens: totalCacheWrite,
+    },
+    stats: {
+      daysTracked: dates.size,
+      sessionsCount,
+      firstUsed: firstTimestamp ? new Date(firstTimestamp).toISOString().split("T")[0] : null,
+      lastUsed: lastTimestamp ? new Date(lastTimestamp).toISOString().split("T")[0] : null,
+    },
+    models,
+    projects,
+    dailyUsage,
+    account: {
+      ccplan: credentials.ccplan,
+      rateLimitTier: credentials.rateLimitTier,
+      authMethod: credentials.authMethod,
+      rawSubscriptionType: credentials.rawSubscriptionType,
+    },
+    sessionFingerprint,
+  };
+}
+
+/**
+ * Get total count of all session files across all projects
+ */
+export function getAllSessionsCount(): number {
+  const projectsDirs = getClaudeProjectsDirs();
+  let count = 0;
+
+  for (const projectsDir of projectsDirs) {
+    try {
+      const entries = fs.readdirSync(projectsDir, { withFileTypes: true });
+      for (const entry of entries) {
+        if (!entry.isDirectory()) continue;
+        if (entry.name.startsWith(".")) continue;
+
+        const projectPath = path.join(projectsDir, entry.name);
+        count += findJsonlFiles(projectPath).length;
+      }
+    } catch {
+      continue;
+    }
+  }
+
+  return count;
+}
+
+/**
+ * Check if any Claude Code sessions exist
+ */
+export function hasAnySessions(): boolean {
+  return getAllSessionsCount() > 0;
 }

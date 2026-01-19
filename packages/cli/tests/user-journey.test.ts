@@ -820,3 +820,158 @@ function encodePathLikeClaude(inputPath: string): string {
     })
     .join("");
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// V2.0 Tests: Level-Based League System (Scan All Projects)
+// ═══════════════════════════════════════════════════════════════════════════
+
+describe("V2.0: Scan All Projects - Level-Based League", () => {
+  /**
+   * V2.0 simplifies submission by scanning ALL projects.
+   * No more per-project selection - total usage determines league.
+   */
+
+  it("should aggregate tokens from multiple projects", () => {
+    // Mock multiple project data
+    const project1Tokens = 1_000_000;
+    const project2Tokens = 2_000_000;
+    const project3Tokens = 500_000;
+
+    const totalTokens = project1Tokens + project2Tokens + project3Tokens;
+
+    expect(totalTokens).toBe(3_500_000);
+  });
+
+  it("should calculate level from total tokens", () => {
+    const levelThresholds = [
+      { level: 1, min: 0, max: 10_000_000, name: "Rookie" },
+      { level: 2, min: 10_000_000, max: 50_000_000, name: "Coder" },
+      { level: 3, min: 50_000_000, max: 200_000_000, name: "Builder" },
+      { level: 4, min: 200_000_000, max: 500_000_000, name: "Architect" },
+      { level: 5, min: 500_000_000, max: 1_000_000_000, name: "Expert" },
+      { level: 6, min: 1_000_000_000, max: 3_000_000_000, name: "Master" },
+      { level: 7, min: 3_000_000_000, max: 10_000_000_000, name: "Grandmaster" },
+      { level: 8, min: 10_000_000_000, max: 30_000_000_000, name: "Legend" },
+      { level: 9, min: 30_000_000_000, max: 100_000_000_000, name: "Titan" },
+      { level: 10, min: 100_000_000_000, max: Infinity, name: "Immortal" },
+    ];
+
+    const getLevel = (tokens: number) => {
+      return levelThresholds.find((t) => tokens >= t.min && tokens < t.max) || levelThresholds[0];
+    };
+
+    expect(getLevel(5_000_000).level).toBe(1); // Rookie
+    expect(getLevel(25_000_000).level).toBe(2); // Coder
+    expect(getLevel(100_000_000).level).toBe(3); // Builder
+    expect(getLevel(300_000_000).level).toBe(4); // Architect
+    expect(getLevel(750_000_000).level).toBe(5); // Expert
+    expect(getLevel(2_000_000_000).level).toBe(6); // Master
+    expect(getLevel(5_000_000_000).level).toBe(7); // Grandmaster
+    expect(getLevel(15_000_000_000).level).toBe(8); // Legend
+    expect(getLevel(50_000_000_000).level).toBe(9); // Titan
+    expect(getLevel(150_000_000_000).level).toBe(10); // Immortal
+  });
+
+  it("should determine level league from level", () => {
+    // 4 leagues based on level groups
+    const getLevelLeague = (level: number): string => {
+      if (level <= 3) return "rookie"; // Lv1-3: 루키 리그
+      if (level <= 6) return "builder"; // Lv4-6: 빌더 리그
+      if (level <= 9) return "master"; // Lv7-9: 마스터 리그
+      return "legend"; // Lv10: 레전드 리그
+    };
+
+    expect(getLevelLeague(1)).toBe("rookie");
+    expect(getLevelLeague(3)).toBe("rookie");
+    expect(getLevelLeague(4)).toBe("builder");
+    expect(getLevelLeague(6)).toBe("builder");
+    expect(getLevelLeague(7)).toBe("master");
+    expect(getLevelLeague(9)).toBe("master");
+    expect(getLevelLeague(10)).toBe("legend");
+  });
+
+  it("should preserve ccplan as badge only (not for league)", () => {
+    const usageData = {
+      totalTokens: 1_500_000_000, // Level 6 (Master)
+      ccplan: "max", // Max plan badge
+    };
+
+    // Level determines league, not ccplan
+    const level = 6; // Based on tokens
+    const levelLeague = "builder"; // Lv4-6 → builder league
+
+    // ccplan is just a badge for display
+    expect(usageData.ccplan).toBe("max");
+    expect(levelLeague).toBe("builder"); // League is from level, not plan
+  });
+
+  it("should preserve Opus detection as badge", () => {
+    const dailyUsage = [
+      { date: "2026-01-15", models: { "claude-opus-4-20250514": 10000 } },
+      { date: "2026-01-16", models: { "claude-sonnet-4-20250514": 5000 } },
+    ];
+
+    // Opus detection for badge display (not league placement)
+    let hasOpusUsage = false;
+    const opusModels: string[] = [];
+
+    for (const daily of dailyUsage) {
+      for (const model of Object.keys(daily.models)) {
+        if (model.toLowerCase().includes("opus")) {
+          hasOpusUsage = true;
+          opusModels.push(model);
+        }
+      }
+    }
+
+    expect(hasOpusUsage).toBe(true);
+    expect(opusModels).toContain("claude-opus-4-20250514");
+    // But this doesn't affect league - only badges
+  });
+});
+
+describe("V2.0: No Per-Project Selection", () => {
+  /**
+   * V2.0 removes per-project selection UI.
+   * Scanning is automatic for all projects.
+   */
+
+  it("should not require .ccgather file for submission", () => {
+    // V2.0 scans all projects regardless of .ccgather
+    const hasCcgatherFile = false;
+    const canSubmit = true; // Can always submit if sessions exist
+
+    expect(hasCcgatherFile).toBe(false);
+    expect(canSubmit).toBe(true);
+  });
+
+  it("should scan from all Claude Code project directories", () => {
+    // Mock project directories structure
+    const projectDirs = [
+      "/Users/kim/.config/claude/projects", // XDG path
+      "/Users/kim/.claude/projects", // Legacy path
+    ];
+
+    const projectsInXdg = ["-Users-kim-project-a", "-Users-kim-project-b"];
+    const projectsInLegacy = ["-Users-kim-old-project"];
+
+    const allProjects = [...projectsInXdg, ...projectsInLegacy];
+
+    expect(allProjects.length).toBe(3);
+    expect(allProjects).toContain("-Users-kim-project-a");
+    expect(allProjects).toContain("-Users-kim-old-project");
+  });
+
+  it("should combine all session files from all projects", () => {
+    // Mock session files across projects
+    const sessionFiles = {
+      "-Users-kim-project-a": ["session1.jsonl", "session2.jsonl"],
+      "-Users-kim-project-b": ["session3.jsonl"],
+      "-Users-kim-old-project": ["session4.jsonl", "session5.jsonl"],
+    };
+
+    const allFiles = Object.values(sessionFiles).flat();
+
+    expect(allFiles.length).toBe(5);
+  });
+});

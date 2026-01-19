@@ -2,23 +2,14 @@ import ora from "ora";
 import inquirer from "inquirer";
 import { getApiUrl, getConfig } from "../lib/config.js";
 import {
-  scanUsageData,
-  scanUsageDataFromPath,
-  getSessionFileCount,
-  hasProjectSessions,
-  getCurrentProjectName,
-  getAllProjectFolders,
-  getProjectPath,
+  scanAllProjects,
+  getAllSessionsCount,
+  hasAnySessions,
   CCGatherData,
   DailyUsage,
   SessionFingerprint,
   hasOpusUsageInProject,
-  hasOldData,
   getSessionPathDebugInfo,
-  // Project link functions
-  hasProjectLink,
-  loadProjectLink,
-  saveProjectLink,
 } from "../lib/ccgather-json.js";
 import {
   colors,
@@ -35,11 +26,6 @@ import {
   slotMachineRank,
   animatedProgressBar,
   suspenseDots,
-  planDetectionSection,
-  maxVerifiedMessage,
-  pastDataWarningMessage,
-  trustMessage,
-  currentPlanMessage,
 } from "../lib/ui.js";
 
 interface UsageData {
@@ -52,15 +38,16 @@ interface UsageData {
   daysTracked: number;
   firstUsed: string | null;
   lastUsed: string | null;
+  // Plan info for badge display (not for league placement)
   ccplan?: string | null;
   rateLimitTier?: string | null;
-  authMethod?: string; // "oauth" | "api_key" | "unknown"
-  rawSubscriptionType?: string | null; // Original value for discovery
+  authMethod?: string;
+  rawSubscriptionType?: string | null;
   dailyUsage: DailyUsage[];
   sessionFingerprint?: SessionFingerprint;
-  // League placement reason for audit trail
-  leagueReason?: "opus" | "credential" | "user_choice";
-  leagueReasonDetails?: string; // e.g., "opus-4-5 detected", "30↓ cred"
+  // Opus detection for badge display
+  hasOpusUsage?: boolean;
+  opusModels?: string[];
 }
 
 interface SubmitOptions {
@@ -93,6 +80,9 @@ interface SubmitResponse {
  * Convert CCGatherData to UsageData
  */
 function ccgatherToUsageData(data: CCGatherData): UsageData {
+  // Check for Opus usage (for badge display)
+  const opusCheck = hasOpusUsageInProject(data.dailyUsage);
+
   return {
     totalTokens: data.usage.totalTokens,
     totalCost: data.usage.totalCost,
@@ -109,6 +99,8 @@ function ccgatherToUsageData(data: CCGatherData): UsageData {
     rawSubscriptionType: data.account?.rawSubscriptionType || null,
     dailyUsage: data.dailyUsage || [],
     sessionFingerprint: data.sessionFingerprint,
+    hasOpusUsage: opusCheck.detected,
+    opusModels: opusCheck.opusModels,
   };
 }
 
@@ -139,6 +131,7 @@ async function submitToServer(data: UsageData): Promise<SubmitResponse> {
         cacheReadTokens: data.cacheReadTokens,
         cacheWriteTokens: data.cacheWriteTokens,
         daysTracked: data.daysTracked,
+        // Plan info for badge display (not league placement)
         ccplan: data.ccplan,
         rateLimitTier: data.rateLimitTier,
         authMethod: data.authMethod,
@@ -147,9 +140,9 @@ async function submitToServer(data: UsageData): Promise<SubmitResponse> {
         dailyUsage: data.dailyUsage,
         // Session fingerprint for duplicate prevention
         sessionFingerprint: data.sessionFingerprint,
-        // League placement audit trail
-        leagueReason: data.leagueReason,
-        leagueReasonDetails: data.leagueReasonDetails,
+        // Opus info for badge display
+        hasOpusUsage: data.hasOpusUsage,
+        opusModels: data.opusModels,
       }),
     });
 
@@ -278,7 +271,33 @@ async function verifyToken(): Promise<{ valid: boolean; username?: string }> {
 }
 
 /**
- * Main submit command
+ * Get plan display color
+ */
+function getPlanColor(plan: string): (text: string) => string {
+  switch (plan.toLowerCase()) {
+    case "max":
+      return colors.max;
+    case "pro":
+      return colors.pro;
+    case "team":
+      return colors.team;
+    case "enterprise":
+      return colors.team;
+    default:
+      return colors.free;
+  }
+}
+
+/**
+ * Main submit command (v2.0 - Level-based league system)
+ *
+ * Simplified flow:
+ * 1. Authenticate
+ * 2. Scan ALL projects (no per-project selection)
+ * 3. Display summary with plan badge
+ * 4. Submit to leaderboard
+ *
+ * Ranking is now based purely on token usage (level-based leagues)
  */
 export async function submit(options: SubmitOptions): Promise<void> {
   console.log(header("Submit Usage Data", "📤"));
@@ -328,136 +347,43 @@ export async function submit(options: SubmitOptions): Promise<void> {
   verifySpinner.succeed(colors.success(`Authenticated as ${colors.white(username || "unknown")}`));
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // PROJECT DETECTION FLOW (Fairness-First Design)
-  // Priority: 1. Saved link (.ccgather) | 2. Auto-match | 3. User selection
+  // SCAN ALL PROJECTS (v2.0 - Level-based League System)
+  // No more per-project selection - scan everything for fair ranking
   // ═══════════════════════════════════════════════════════════════════════════
 
-  const projectName = getCurrentProjectName();
-  let selectedProjectPath: string | null = null;
-  let selectedFolderName: string | null = null;
-  let linkSource: "saved" | "auto" | "manual" | null = null;
-
-  // Step 1: Check for saved project link (.ccgather file)
-  const savedLink = loadProjectLink();
-  if (savedLink) {
-    selectedProjectPath = savedLink.claudeProjectPath;
-    selectedFolderName = savedLink.folderName;
-    linkSource = "saved";
-    console.log(`\n  ${colors.success("✓")} ${colors.muted("Using saved project link:")}`);
-    console.log(`    ${colors.dim(savedLink.folderName)}`);
-  }
-
-  // Step 2: If no saved link, try auto-matching (encoding-based)
-  if (!selectedProjectPath && hasProjectSessions()) {
-    const autoMatchedPath = getProjectPath();
-    if (autoMatchedPath) {
-      selectedProjectPath = autoMatchedPath;
-      selectedFolderName = autoMatchedPath.split(/[/\\]/).pop() || null;
-      linkSource = "auto";
-      console.log(`\n  ${colors.success("✓")} ${colors.muted("Auto-matched project:")}`);
-      console.log(`    ${colors.dim(selectedFolderName || projectName)}`);
-
-      // Save the auto-matched link for future use
-      if (selectedFolderName) {
-        saveProjectLink(selectedProjectPath, selectedFolderName);
-        console.log(`    ${colors.dim("(saved to .ccgather)")}`);
-      }
-    }
-  }
-
-  // Step 3: If still no match, show manual selection (Fallback UI)
-  if (!selectedProjectPath) {
-    const availableProjects = getAllProjectFolders();
-
-    if (availableProjects.length === 0) {
-      // No Claude Code sessions found anywhere
-      console.log(`\n  ${error("No Claude Code sessions found.")}`);
-      console.log();
-      console.log(`  ${colors.muted("This usually means:")}`);
-      console.log(`  ${colors.muted("  • You haven't used Claude Code yet, or")}`);
-      console.log(`  ${colors.muted("  • You ran Claude Code but didn't send any messages")}`);
-      console.log();
-      console.log(
-        `  ${colors.warning("💡 Tip:")} ${colors.muted("Sessions are only created after you")}`
-      );
-      console.log(`  ${colors.muted("   send at least one message in Claude Code.")}`);
-      console.log();
-
-      // Show debug info
-      const debugInfo = getSessionPathDebugInfo();
-      console.log(`  ${colors.dim("─".repeat(40))}`);
-      console.log(`  ${colors.muted("Searched paths:")}`);
-      for (const pathInfo of debugInfo.searchedPaths) {
-        const status = pathInfo.exists ? colors.success("✓") : colors.error("✗");
-        console.log(`    ${status} ${pathInfo.path}`);
-      }
-      console.log();
-      process.exit(1);
-    }
-
-    // Manual selection required
-    console.log(
-      `\n  ${colors.warning("⚠")} ${colors.muted("No session found for current directory:")}`
-    );
-    console.log(`  ${colors.dim(projectName)}`);
+  // Check if any sessions exist
+  if (!hasAnySessions()) {
+    console.log(`\n  ${error("No Claude Code sessions found.")}`);
+    console.log();
+    console.log(`  ${colors.muted("This usually means:")}`);
+    console.log(`  ${colors.muted("  • You haven't used Claude Code yet, or")}`);
+    console.log(`  ${colors.muted("  • You ran Claude Code but didn't send any messages")}`);
     console.log();
     console.log(
-      `  ${colors.muted("Found")} ${colors.white(availableProjects.length.toString())} ${colors.muted("project(s) with Claude Code sessions:")}`
+      `  ${colors.warning("💡 Tip:")} ${colors.muted("Sessions are only created after you")}`
     );
+    console.log(`  ${colors.muted("   send at least one message in Claude Code.")}`);
     console.log();
 
-    const choices = availableProjects.map((p) => ({
-      name: `${colors.white(p.displayName)} ${colors.dim(`(${p.folderName.slice(0, 40)}${p.folderName.length > 40 ? "..." : ""})`)}`,
-      value: p.fullPath,
-      short: p.displayName,
-    }));
-
-    choices.push({
-      name: colors.dim("Cancel"),
-      value: "__cancel__",
-      short: "Cancel",
-    });
-
-    const { selectedProject } = await inquirer.prompt([
-      {
-        type: "list",
-        name: "selectedProject",
-        message: "Select a project to link with this folder:",
-        choices,
-        loop: false,
-      },
-    ]);
-
-    if (selectedProject === "__cancel__") {
-      console.log(`\n  ${colors.muted("Cancelled.")}\n`);
-      process.exit(0);
+    // Show debug info
+    const debugInfo = getSessionPathDebugInfo();
+    console.log(`  ${colors.dim("─".repeat(40))}`);
+    console.log(`  ${colors.muted("Searched paths:")}`);
+    for (const pathInfo of debugInfo.searchedPaths) {
+      const status = pathInfo.exists ? colors.success("✓") : colors.error("✗");
+      console.log(`    ${status} ${pathInfo.path}`);
     }
-
-    selectedProjectPath = selectedProject;
-    const selected = availableProjects.find((p) => p.fullPath === selectedProject);
-    selectedFolderName = selected?.folderName || null;
-    linkSource = "manual";
-
-    // Save the manual selection for future use
-    if (selected && selectedProjectPath) {
-      saveProjectLink(selectedProjectPath, selected.folderName);
-      console.log(`\n  ${success(`Linked: ${selected.displayName}`)}`);
-      console.log(`  ${colors.dim("(saved to .ccgather - will auto-use next time)")}`);
-    }
+    console.log();
+    process.exit(1);
   }
 
-  // Always scan fresh data from the selected project path
-  let usageData: UsageData | null = null;
+  // Scan ALL projects
+  console.log(`\n  ${colors.muted("Scanning all Claude Code sessions...")}`);
 
-  // Get display name from selected folder
-  const allProjects = getAllProjectFolders();
-  const selectedInfo = allProjects.find((p) => p.fullPath === selectedProjectPath);
-  const displayProjectName = selectedInfo?.displayName || selectedFolderName || projectName;
+  const totalSessions = getAllSessionsCount();
+  console.log(`  ${colors.dim(`Found ${totalSessions} session file(s)`)}`);
 
-  console.log(`\n  ${colors.muted("Project:")} ${colors.white(displayProjectName)}`);
-  console.log(`  ${colors.muted("Scanning sessions...")}`);
-
-  const scannedData = scanUsageDataFromPath(selectedProjectPath!, {
+  const scannedData = scanAllProjects({
     onProgress: (current, total) => {
       progressBar(current, total, "Scanning");
     },
@@ -465,126 +391,20 @@ export async function submit(options: SubmitOptions): Promise<void> {
 
   await sleep(200);
 
-  if (scannedData) {
-    usageData = ccgatherToUsageData(scannedData);
-    console.log(`  ${success("Scan complete!")}`);
-  }
-
-  if (!usageData) {
+  if (!scannedData) {
     console.log(`\n  ${error("No usage data found.")}`);
     console.log(`  ${colors.muted("Make sure you have used Claude Code at least once.")}\n`);
     process.exit(1);
   }
 
-  // ═══════════════════════════════════════════════════════════
-  // PLAN DETECTION LOGIC - Fair League Placement
-  // Priority: 1. Opus usage → Max | 2. Recent → Current | 3. Old → User choice
-  // ═══════════════════════════════════════════════════════════
+  const usageData = ccgatherToUsageData(scannedData);
+  console.log(`  ${success("Scan complete!")}`);
 
-  const opusCheck = hasOpusUsageInProject(usageData.dailyUsage);
-  const oldDataCheck = hasOldData(usageData.dailyUsage, 30);
-  let finalPlan: string = usageData.ccplan || "free";
-  let planDetectionReason: "opus" | "current" | "user_choice" = "current";
+  // ═══════════════════════════════════════════════════════════════════════════
+  // DISPLAY SUMMARY
+  // Plan is shown as badge only (not used for league placement)
+  // ═══════════════════════════════════════════════════════════════════════════
 
-  // Case 1: Opus usage detected anywhere → Max (verified)
-  if (opusCheck.detected) {
-    finalPlan = "max";
-    planDetectionReason = "opus";
-
-    console.log(planDetectionSection("Plan Detection", "🚀"));
-    for (const line of maxVerifiedMessage(opusCheck.opusModels)) {
-      console.log(line);
-    }
-  }
-  // Case 2: No Opus + Old data (>30 days) → User choice
-  else if (oldDataCheck.hasOldData) {
-    planDetectionReason = "user_choice";
-
-    console.log(planDetectionSection("Past Data Detected", "📅"));
-    for (const line of pastDataWarningMessage(
-      oldDataCheck.oldestDate || "",
-      oldDataCheck.daysSinceOldest
-    )) {
-      console.log(line);
-    }
-    for (const line of trustMessage()) {
-      console.log(line);
-    }
-
-    // User selection prompt
-    const planChoices = [
-      {
-        name: `${colors.pro("⚡")} Pro plan`,
-        value: "pro",
-        short: "Pro",
-      },
-      {
-        name: `${colors.free("⚪")} Free plan`,
-        value: "free",
-        short: "Free",
-      },
-      {
-        name: `${colors.dim("?")} Can't remember ${colors.dim("(submit as Free)")}`,
-        value: "free_default",
-        short: "Free (default)",
-      },
-    ];
-
-    const { selectedPlan } = await inquirer.prompt([
-      {
-        type: "list",
-        name: "selectedPlan",
-        message: "Which plan were you using at that time?",
-        choices: planChoices,
-        default: 0,
-      },
-    ]);
-
-    // "Can't remember" → Free (more conservative/fair approach)
-    finalPlan = selectedPlan === "free_default" ? "free" : selectedPlan;
-    console.log();
-    console.log(`  ${success(`Selected: ${finalPlan.toUpperCase()}`)}`);
-  }
-  // Case 3: No Opus + Recent data (≤30 days) → Current plan from credentials
-  else {
-    // Use current plan from credentials (already set in usageData.ccplan)
-    planDetectionReason = "current";
-    // Transparency: show that we're reading credentials for league placement
-    console.log(
-      `  ${colors.dim("📋 League: reading plan info only (subscriptionType, rateLimitTier)")}`
-    );
-    // Only show if plan is detected
-    if (usageData.ccplan) {
-      for (const line of currentPlanMessage(usageData.ccplan)) {
-        console.log(line);
-      }
-    }
-  }
-
-  // Apply final plan and league reason to usage data
-  usageData.ccplan = finalPlan;
-  usageData.leagueReason =
-    planDetectionReason === "opus"
-      ? "opus"
-      : planDetectionReason === "user_choice"
-        ? "user_choice"
-        : "credential";
-
-  // Build detailed reason string for audit
-  if (planDetectionReason === "opus") {
-    usageData.leagueReasonDetails = `Opus verified: ${opusCheck.opusModels.join(", ")}`;
-  } else if (planDetectionReason === "user_choice") {
-    usageData.leagueReasonDetails = `User selected: ${finalPlan} (data >${oldDataCheck.daysSinceOldest}d old)`;
-  } else {
-    usageData.leagueReasonDetails = `Credential: ${usageData.ccplan || "free"}`;
-  }
-
-  usageData.dailyUsage = usageData.dailyUsage.map((daily) => ({
-    ...daily,
-    ccplan: finalPlan,
-  }));
-
-  // Show summary
   console.log();
 
   // Format date range (YYMMDD format)
@@ -606,25 +426,40 @@ export async function submit(options: SubmitOptions): Promise<void> {
     ? `${usageData.daysTracked} days ${colors.dim(`(${dateRange})`)}`
     : usageData.daysTracked.toString();
 
+  // Get level info for display
+  const levelProgress = getLevelProgress(usageData.totalTokens);
+  const currentLevel = levelProgress.current;
+
   const summaryLines = [
     `${colors.muted("Total Cost")}     ${colors.success(formatCost(usageData.totalCost))}`,
     `${colors.muted("Total Tokens")}   ${colors.primary(formatNumber(usageData.totalTokens))}`,
     `${colors.muted("Period")}         ${colors.warning(daysTrackedDisplay)}`,
+    `${colors.muted("Level")}          ${currentLevel.icon} ${currentLevel.color(`${currentLevel.name}`)}`,
   ];
 
+  // Show plan as badge (display only, not for ranking)
   if (usageData.ccplan) {
+    const planColor = getPlanColor(usageData.ccplan);
     summaryLines.push(
-      `${colors.muted("CCplan")}         ${colors.cyan(usageData.ccplan.toUpperCase())}`
+      `${colors.muted("Plan")}           ${planColor(usageData.ccplan.toUpperCase())} ${colors.dim("(badge)")}`
+    );
+  }
+
+  // Show Opus badge if detected
+  if (usageData.hasOpusUsage) {
+    summaryLines.push(
+      `${colors.muted("Models")}         ${colors.max("✦")} ${colors.max("Opus User")}`
     );
   }
 
   console.log(createBox(summaryLines));
   console.log();
 
-  // Debug: Show daily usage count
-  if (usageData.dailyUsage.length > 0) {
-    console.log(`  ${colors.dim(`Daily records: ${usageData.dailyUsage.length} days`)}`);
-  }
+  // Show project count
+  const projectCount = Object.keys(scannedData.projects).length;
+  console.log(
+    `  ${colors.dim(`Scanned ${projectCount} project(s), ${usageData.dailyUsage.length} day(s) of data`)}`
+  );
 
   // Confirm submission
   const { confirmSubmit } = await inquirer.prompt([
@@ -694,9 +529,6 @@ export async function submit(options: SubmitOptions): Promise<void> {
     console.log();
     console.log(sectionHeader("⬆️", "Level Progress"));
     console.log();
-
-    const levelProgress = getLevelProgress(usageData.totalTokens);
-    const currentLevel = levelProgress.current;
 
     // Show level with slight delay
     await sleep(200);

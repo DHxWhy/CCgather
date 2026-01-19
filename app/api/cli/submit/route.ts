@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/server";
 import { checkAndAwardBadges } from "@/lib/services/badgeService";
+import { calculateLevel, getLevelLeague } from "@/lib/types/leaderboard";
 
 interface DailyUsage {
   date: string;
@@ -59,6 +60,7 @@ interface SubmitPayload {
   cacheReadTokens?: number;
   cacheWriteTokens?: number;
   daysTracked?: number;
+  // Plan info - used for badge display only (not league placement in v2.0)
   ccplan?: string | null;
   rateLimitTier?: string | null;
   authMethod?: string; // "oauth" | "api_key" | "unknown" - for Team/Enterprise detection
@@ -66,9 +68,9 @@ interface SubmitPayload {
   timestamp: string;
   dailyUsage?: DailyUsage[]; // Array of daily usage data
   sessionFingerprint?: SessionFingerprint; // For duplicate prevention
-  // League placement audit trail
-  leagueReason?: "opus" | "credential" | "user_choice";
-  leagueReasonDetails?: string;
+  // V2.0: Opus detection (for badge display)
+  hasOpusUsage?: boolean;
+  opusModels?: string[];
 }
 
 // Known CCplan values
@@ -246,13 +248,29 @@ export async function POST(request: NextRequest) {
 
     // Update user stats (use max values to prevent lowering)
     const overallPrimaryModel = getPrimaryModel(body.dailyUsage);
+    const finalTotalTokens = Math.max(authenticatedUser.total_tokens || 0, body.totalTokens);
+
+    // V2.0: Calculate level and level_league from total tokens
+    const level = calculateLevel(finalTotalTokens);
+    const levelLeague = getLevelLeague(level);
 
     const updateData: Record<string, unknown> = {
-      total_tokens: Math.max(authenticatedUser.total_tokens || 0, body.totalTokens),
+      total_tokens: finalTotalTokens,
       total_cost: Math.max(authenticatedUser.total_cost || 0, body.totalSpent),
       last_submission_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
+      // V2.0: Level-based ranking
+      current_level: level,
+      level_league: levelLeague,
     };
+
+    // V2.0: Store Opus usage for badge display
+    if (body.hasOpusUsage) {
+      updateData.has_opus_usage = true;
+      if (body.opusModels && body.opusModels.length > 0) {
+        updateData.opus_models = body.opusModels;
+      }
+    }
 
     // Update primary_model if detected
     if (overallPrimaryModel) {
@@ -335,9 +353,6 @@ export async function POST(request: NextRequest) {
           primary_model: dayPrimaryModel,
           submitted_at: new Date().toISOString(),
           submission_source: "cli",
-          // League placement audit trail
-          league_reason: body.leagueReason || null,
-          league_reason_details: body.leagueReasonDetails || null,
         };
       });
 
@@ -369,9 +384,6 @@ export async function POST(request: NextRequest) {
           primary_model: overallPrimaryModel,
           submitted_at: new Date().toISOString(),
           submission_source: "cli",
-          // League placement audit trail
-          league_reason: body.leagueReason || null,
-          league_reason_details: body.leagueReasonDetails || null,
         },
         { onConflict: "user_id,date" }
       );

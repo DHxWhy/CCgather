@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { CCPLAN_CONFIG, type CCPlanFilter } from "@/lib/types/leaderboard";
+import {
+  CCPLAN_CONFIG,
+  LEVEL_LEAGUE_CONFIG,
+  type CCPlanFilter,
+  type LevelLeagueFilter,
+} from "@/lib/types/leaderboard";
 
 type Period = "today" | "7d" | "30d" | "all";
 
@@ -39,6 +44,9 @@ export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
   const period = (searchParams.get("period") || "all") as Period;
   const country = searchParams.get("country") || null;
+  // V2.0: level_league is the primary filter for ranking
+  const levelLeague = (searchParams.get("level_league") || "all") as LevelLeagueFilter;
+  // ccplan is kept for backward compatibility but now only used for badge display
   const ccplan = (searchParams.get("ccplan") || "all") as CCPlanFilter;
   const page = parseInt(searchParams.get("page") || "1", 10);
   const limit = parseInt(searchParams.get("limit") || "50", 10);
@@ -52,7 +60,9 @@ export async function GET(request: NextRequest) {
   if (findUser && !dateRange) {
     let rankQuery = supabase
       .from("users")
-      .select("id, username, global_rank, country_rank, country_code, ccplan_rank")
+      .select(
+        "id, username, global_rank, country_rank, country_code, ccplan_rank, level_league, level_league_rank"
+      )
       .eq("onboarding_completed", true)
       .gt("total_tokens", 0)
       .ilike("username", findUser)
@@ -65,8 +75,11 @@ export async function GET(request: NextRequest) {
     }
 
     // Get the appropriate rank based on filters
+    // V2.0: level_league is primary, ccplan is secondary (backward compat)
     let rank = foundUser.global_rank;
-    if (ccplan !== "all") {
+    if (levelLeague !== "all") {
+      rank = foundUser.level_league_rank;
+    } else if (ccplan !== "all") {
       rank = foundUser.ccplan_rank;
     } else if (country) {
       rank = foundUser.country_rank;
@@ -81,6 +94,7 @@ export async function GET(request: NextRequest) {
         username: foundUser.username,
         rank,
         page: userPage,
+        level_league: foundUser.level_league,
       },
     });
   }
@@ -103,6 +117,9 @@ export async function GET(request: NextRequest) {
         total_cost,
         ccplan,
         ccplan_rank,
+        level_league,
+        level_league_rank,
+        has_opus_usage,
         social_links
       `,
         { count: "exact" }
@@ -110,7 +127,12 @@ export async function GET(request: NextRequest) {
       .eq("onboarding_completed", true)
       .gt("total_tokens", 0); // Only show users who have submitted usage data
 
-    // Apply ccplan filter
+    // V2.0: Apply level_league filter (primary)
+    if (levelLeague !== "all") {
+      query = query.eq("level_league", levelLeague);
+    }
+
+    // Apply ccplan filter (backward compatibility, for badge filtering)
     if (ccplan !== "all") {
       query = query.eq("ccplan", ccplan);
     }
@@ -123,7 +145,7 @@ export async function GET(request: NextRequest) {
     // This ensures accurate ranking across all filter combinations:
     // - Global: all users sorted by tokens
     // - Country: filtered users sorted by tokens
-    // - CCplan: filtered users sorted by tokens
+    // - Level League: filtered users sorted by tokens
     // Secondary sort by created_at for deterministic ordering of tied users
     query = query
       .order("total_tokens", { ascending: false })
@@ -138,7 +160,18 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Failed to fetch leaderboard" }, { status: 500 });
     }
 
-    // Build ccplan_info if filtering by specific tier
+    // V2.0: Build level_league_info if filtering by specific league
+    const levelLeagueInfo =
+      levelLeague !== "all"
+        ? {
+            name: LEVEL_LEAGUE_CONFIG[levelLeague].name,
+            icon: LEVEL_LEAGUE_CONFIG[levelLeague].icon,
+            levels: LEVEL_LEAGUE_CONFIG[levelLeague].levels,
+            total_users: count || 0,
+          }
+        : undefined;
+
+    // Build ccplan_info if filtering by specific tier (backward compat)
     const ccplanInfo =
       ccplan !== "all"
         ? {
@@ -157,6 +190,8 @@ export async function GET(request: NextRequest) {
         totalPages: Math.ceil((count || 0) / limit),
       },
       period,
+      level_league: levelLeague,
+      level_league_info: levelLeagueInfo,
       ccplan,
       ccplan_info: ccplanInfo,
     });
@@ -199,6 +234,7 @@ export async function GET(request: NextRequest) {
         totalPages: 0,
       },
       period,
+      level_league: levelLeague,
       ccplan,
     });
   }
@@ -218,13 +254,21 @@ export async function GET(request: NextRequest) {
       total_cost,
       ccplan,
       ccplan_rank,
+      level_league,
+      level_league_rank,
+      has_opus_usage,
       social_links
     `
     )
     .in("id", userIds)
     .eq("onboarding_completed", true);
 
-  // Apply ccplan filter
+  // V2.0: Apply level_league filter (primary)
+  if (levelLeague !== "all") {
+    usersQuery = usersQuery.eq("level_league", levelLeague);
+  }
+
+  // Apply ccplan filter (backward compatibility)
   if (ccplan !== "all") {
     usersQuery = usersQuery.eq("ccplan", ccplan);
   }
@@ -270,7 +314,18 @@ export async function GET(request: NextRequest) {
   const total = rankedUsers.length;
   const paginatedUsers = rankedUsers.slice(offset, offset + limit);
 
-  // Build ccplan_info if filtering by specific tier
+  // V2.0: Build level_league_info if filtering by specific league
+  const levelLeagueInfo =
+    levelLeague !== "all"
+      ? {
+          name: LEVEL_LEAGUE_CONFIG[levelLeague].name,
+          icon: LEVEL_LEAGUE_CONFIG[levelLeague].icon,
+          levels: LEVEL_LEAGUE_CONFIG[levelLeague].levels,
+          total_users: total,
+        }
+      : undefined;
+
+  // Build ccplan_info if filtering by specific tier (backward compat)
   const ccplanInfo =
     ccplan !== "all"
       ? {
@@ -289,6 +344,8 @@ export async function GET(request: NextRequest) {
       totalPages: Math.ceil(total / limit),
     },
     period,
+    level_league: levelLeague,
+    level_league_info: levelLeagueInfo,
     ccplan,
     ccplan_info: ccplanInfo,
   });
