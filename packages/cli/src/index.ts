@@ -74,9 +74,34 @@ async function showMainMenu(): Promise<void> {
           ccplan: stats.tier,
         });
         console.log();
+      } else if (!result.success) {
+        // Token invalid or user not found - clear local auth
+        const config = getConfig();
+        config.delete("apiToken");
+        config.delete("userId");
+        config.delete("username");
+
+        console.log(colors.warning("\n  🔐 Session expired. Please log in again.\n"));
+
+        const { startAuth } = await inquirer.prompt([
+          {
+            type: "confirm",
+            name: "startAuth",
+            message: "Would you like to authenticate now?",
+            default: true,
+          },
+        ]);
+
+        if (startAuth) {
+          const { auth } = await import("./commands/auth.js");
+          await auth({});
+        } else {
+          console.log(colors.dim("\n  Goodbye!\n"));
+          process.exit(0);
+        }
       }
     } catch {
-      // Silently fail, continue without welcome box
+      // Network error - continue without welcome box
     }
   }
 

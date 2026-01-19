@@ -11,6 +11,7 @@ import {
   SessionFingerprint,
   hasOpusUsageInProject,
   hasOldData,
+  getSessionPathDebugInfo,
 } from "../lib/ccgather-json.js";
 import {
   colors,
@@ -329,6 +330,35 @@ export async function submit(options: SubmitOptions): Promise<void> {
     console.log(`  ${colors.muted("Make sure you:")}`);
     console.log(`  ${colors.muted("  1. Run this command from a project directory")}`);
     console.log(`  ${colors.muted("  2. Have used Claude Code in this project at least once")}`);
+    console.log();
+
+    // Show debug info to help troubleshoot
+    console.log(`  ${colors.dim("─".repeat(40))}`);
+    console.log(`  ${colors.warning("Debug Info")} ${colors.dim("(for troubleshooting)")}`);
+    console.log();
+
+    const debugInfo = getSessionPathDebugInfo();
+    console.log(`  ${colors.muted("Platform:")} ${colors.white(debugInfo.platform)}`);
+    console.log(`  ${colors.muted("CWD:")} ${colors.white(debugInfo.cwd)}`);
+    console.log(`  ${colors.muted("Encoded:")} ${colors.dim(debugInfo.encodedCwd)}`);
+    console.log();
+
+    console.log(`  ${colors.muted("Searched paths:")}`);
+    for (const pathInfo of debugInfo.searchedPaths) {
+      const status = pathInfo.exists ? colors.success("✓") : colors.error("✗");
+      console.log(`    ${status} ${pathInfo.path}`);
+
+      // Show similar directories if found
+      if (pathInfo.exists && pathInfo.matchingDirs && pathInfo.matchingDirs.length > 0) {
+        console.log(`      ${colors.dim("Similar dirs found:")}`);
+        for (const dir of pathInfo.matchingDirs) {
+          console.log(`        ${colors.cyan("→")} ${dir}`);
+        }
+      }
+    }
+
+    console.log();
+    console.log(`  ${colors.dim("Need help? Run: CCGATHER_DEBUG=1 npx ccgather")}`);
     console.log();
     process.exit(1);
   }

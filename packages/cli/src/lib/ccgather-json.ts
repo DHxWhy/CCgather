@@ -145,6 +145,15 @@ function extractProjectName(filePath: string): string {
   return "unknown";
 }
 
+// Debug mode flag - set via environment variable
+const DEBUG = process.env.CCGATHER_DEBUG === "1" || process.env.CCGATHER_DEBUG === "true";
+
+function debugLog(...args: unknown[]): void {
+  if (DEBUG) {
+    console.log("[DEBUG]", ...args);
+  }
+}
+
 /**
  * Get all possible Claude Code projects directories
  * Supports:
@@ -156,10 +165,15 @@ function getClaudeProjectsDirs(): string[] {
   const dirs: string[] = [];
   const home = os.homedir();
 
+  debugLog("Home directory:", home);
+  debugLog("Platform:", process.platform);
+
   // 1. CLAUDE_CONFIG_DIR environment variable (highest priority)
   const configDir = process.env.CLAUDE_CONFIG_DIR;
   if (configDir) {
-    dirs.push(path.join(configDir, "projects"));
+    const envPath = path.join(configDir, "projects");
+    dirs.push(envPath);
+    debugLog("CLAUDE_CONFIG_DIR path:", envPath);
   }
 
   // 2. XDG path (Claude Code v1.0.30+)
@@ -168,17 +182,30 @@ function getClaudeProjectsDirs(): string[] {
   if (process.platform === "win32") {
     const appData = process.env.APPDATA;
     if (appData) {
-      dirs.push(path.join(appData, "claude", "projects"));
+      const appDataPath = path.join(appData, "claude", "projects");
+      dirs.push(appDataPath);
+      debugLog("APPDATA path:", appDataPath);
     }
   }
-  dirs.push(path.join(home, ".config", "claude", "projects"));
+  const xdgPath = path.join(home, ".config", "claude", "projects");
+  dirs.push(xdgPath);
+  debugLog("XDG path:", xdgPath);
 
   // 3. Legacy path (Claude Code < v1.0.30)
-  dirs.push(path.join(home, ".claude", "projects"));
+  const legacyPath = path.join(home, ".claude", "projects");
+  dirs.push(legacyPath);
+  debugLog("Legacy path:", legacyPath);
 
   // Return only unique paths that exist
   const uniqueDirs = [...new Set(dirs)];
-  return uniqueDirs.filter((dir) => fs.existsSync(dir));
+  const existingDirs = uniqueDirs.filter((dir) => {
+    const exists = fs.existsSync(dir);
+    debugLog(`Path ${dir} exists:`, exists);
+    return exists;
+  });
+
+  debugLog("Existing project dirs:", existingDirs);
+  return existingDirs;
 }
 
 /**
@@ -638,4 +665,74 @@ export function hasProjectSessions(): boolean {
 export function getCurrentProjectName(): string {
   const cwd = process.cwd();
   return path.basename(cwd);
+}
+
+/**
+ * Get debug info about session paths
+ * Used when no sessions are found to help users troubleshoot
+ */
+export function getSessionPathDebugInfo(): {
+  cwd: string;
+  encodedCwd: string;
+  searchedPaths: Array<{ path: string; exists: boolean; matchingDirs?: string[] }>;
+  platform: string;
+  home: string;
+} {
+  const home = os.homedir();
+  const cwd = process.cwd();
+  const encodedCwd = encodePathLikeClaude(cwd);
+
+  const pathsToCheck = [
+    path.join(home, ".config", "claude", "projects"),
+    path.join(home, ".claude", "projects"),
+  ];
+
+  // Add CLAUDE_CONFIG_DIR if set
+  const configDir = process.env.CLAUDE_CONFIG_DIR;
+  if (configDir) {
+    pathsToCheck.unshift(path.join(configDir, "projects"));
+  }
+
+  // Add APPDATA on Windows
+  if (process.platform === "win32" && process.env.APPDATA) {
+    pathsToCheck.unshift(path.join(process.env.APPDATA, "claude", "projects"));
+  }
+
+  const searchedPaths = pathsToCheck.map((p) => {
+    const exists = fs.existsSync(p);
+    let matchingDirs: string[] | undefined;
+
+    if (exists) {
+      try {
+        const entries = fs.readdirSync(p, { withFileTypes: true });
+        // Find directories that might match (partial match for debugging)
+        matchingDirs = entries
+          .filter((e) => e.isDirectory())
+          .map((e) => e.name)
+          .filter((name) => {
+            // Check if this could be the project we're looking for
+            const lowerName = name.toLowerCase();
+            const lowerEncoded = encodedCwd.toLowerCase();
+            return (
+              lowerName.includes(path.basename(cwd).toLowerCase()) ||
+              lowerEncoded.includes(lowerName) ||
+              lowerName.includes(lowerEncoded.slice(-20))
+            );
+          })
+          .slice(0, 5); // Limit to 5 matches
+      } catch {
+        matchingDirs = undefined;
+      }
+    }
+
+    return { path: p, exists, matchingDirs };
+  });
+
+  return {
+    cwd,
+    encodedCwd,
+    searchedPaths,
+    platform: process.platform,
+    home,
+  };
 }
