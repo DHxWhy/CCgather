@@ -27,19 +27,19 @@ export const CCPLAN_CONFIG: Record<
 // League is determined by level (token usage), not subscription plan
 // ═══════════════════════════════════════════════════════════════════════════
 
-export type LevelLeagueFilter = "all" | "rookie" | "builder" | "master" | "legend";
+export type LevelLeagueFilter = "all" | "eco" | "builder" | "master" | "legend";
 
 // Level league configuration
 export const LEVEL_LEAGUE_CONFIG: Record<
   Exclude<LevelLeagueFilter, "all">,
   { name: string; icon: string; color: string; levels: string; description: string }
 > = {
-  rookie: {
-    name: "Rookie League",
-    icon: "🌱",
+  eco: {
+    name: "Eco League",
+    icon: "🌿",
     color: "#22C55E",
     levels: "Lv 1-3",
-    description: "Rookie, Coder, Builder",
+    description: "Efficient & Economical Developers",
   },
   builder: {
     name: "Builder League",
@@ -92,13 +92,13 @@ export function calculateLevel(totalTokens: number): number {
 
 /**
  * Get level league from level number
- * - Lv 1-3: rookie
+ * - Lv 1-3: eco (efficient & economical)
  * - Lv 4-6: builder
  * - Lv 7-9: master
  * - Lv 10: legend
  */
 export function getLevelLeague(level: number): Exclude<LevelLeagueFilter, "all"> {
-  if (level <= 3) return "rookie";
+  if (level <= 3) return "eco";
   if (level <= 6) return "builder";
   if (level <= 9) return "master";
   return "legend";
