@@ -1,7 +1,5 @@
 import type { Metadata } from "next";
 import { Inter, JetBrains_Mono } from "next/font/google";
-import { ClerkProvider } from "@clerk/nextjs";
-import { dark } from "@clerk/themes";
 import { Providers } from "./providers";
 import "./globals.css";
 
@@ -147,33 +145,17 @@ function GlobalJsonLd() {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <ClerkProvider
-      appearance={{
-        baseTheme: dark,
-        variables: {
-          colorPrimary: "#DA7756",
-        },
-      }}
-      signInFallbackRedirectUrl="/leaderboard"
-      signUpFallbackRedirectUrl="/leaderboard"
+    <html
+      lang="en"
+      className={`${inter.variable} ${jetbrainsMono.variable}`}
+      suppressHydrationWarning
     >
-      <html
-        lang="en"
-        className={`${inter.variable} ${jetbrainsMono.variable}`}
-        suppressHydrationWarning
-      >
-        <head>
-          {/* Preconnect hints for faster resource loading */}
-          <link rel="preconnect" href="https://clerk.ccgather.com" />
-          <link rel="preconnect" href="https://img.clerk.com" />
-          <link rel="dns-prefetch" href="https://clerk.ccgather.com" />
-          <link rel="dns-prefetch" href="https://img.clerk.com" />
-          <GlobalJsonLd />
-        </head>
-        <body className="min-h-screen bg-bg-primary font-sans antialiased">
-          <Providers>{children}</Providers>
-        </body>
-      </html>
-    </ClerkProvider>
+      <head>
+        <GlobalJsonLd />
+      </head>
+      <body className="min-h-screen bg-bg-primary font-sans antialiased">
+        <Providers>{children}</Providers>
+      </body>
+    </html>
   );
 }

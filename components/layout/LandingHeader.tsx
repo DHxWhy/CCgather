@@ -9,18 +9,11 @@ import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { ThemeSwitcher } from "@/components/ui/theme-switcher";
 import { MobileDrawer } from "./MobileDrawer";
-import { Button } from "@/components/ui/Button";
 
-// Lazy load modals to defer JS loading until user interaction
+// Lazy load CLI modal - AuthModal 제거 (Sign In은 /sign-in 페이지로 이동)
 const CLIModal = dynamic(() => import("@/components/cli/CLIModal").then((mod) => mod.CLIModal), {
   ssr: false,
 });
-const AuthModal = dynamic(
-  () => import("@/components/auth/AuthModal").then((mod) => mod.AuthModal),
-  {
-    ssr: false,
-  }
-);
 
 // ============================================
 // Navigation Links
@@ -103,7 +96,6 @@ export function LandingHeader() {
   const pathname = usePathname();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [cliModalOpen, setCLIModalOpen] = useState(false);
-  const [authModalOpen, setAuthModalOpen] = useState(false);
 
   const closeMobileMenu = () => setMobileMenuOpen(false);
 
@@ -173,9 +165,12 @@ export function LandingHeader() {
           {/* Desktop Right Section */}
           <div className="hidden md:flex items-center gap-3">
             <ThemeSwitcher size="sm" />
-            <Button variant="primary" size="sm" onClick={() => setAuthModalOpen(true)}>
+            <Link
+              href="/sign-in"
+              className="px-4 py-2 rounded-lg bg-[var(--color-claude-coral)] text-white text-sm font-medium hover:opacity-90 transition-opacity"
+            >
               Sign In
-            </Button>
+            </Link>
           </div>
 
           {/* Mobile Menu Button */}
@@ -235,28 +230,19 @@ export function LandingHeader() {
 
           {/* Auth Section */}
           <div className="px-4 pt-4">
-            <Button
-              variant="primary"
-              size="lg"
-              fullWidth
-              onClick={() => {
-                closeMobileMenu();
-                setAuthModalOpen(true);
-              }}
+            <Link
+              href="/sign-in"
+              onClick={closeMobileMenu}
+              className="block w-full px-4 py-3 rounded-xl bg-[var(--color-claude-coral)] text-white text-base font-semibold text-center hover:opacity-90 transition-opacity"
             >
               Sign In
-            </Button>
+            </Link>
           </div>
         </div>
       </MobileDrawer>
 
       {/* CLI Modal */}
       <CLIModal isOpen={cliModalOpen} onClose={() => setCLIModalOpen(false)} />
-
-      {/* Auth Modal - only render when open to defer Clerk loading */}
-      {authModalOpen && (
-        <AuthModal isOpen={authModalOpen} onClose={() => setAuthModalOpen(false)} />
-      )}
     </>
   );
 }

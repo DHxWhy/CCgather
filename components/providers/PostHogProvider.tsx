@@ -4,7 +4,6 @@ import posthog from "posthog-js";
 import { PostHogProvider as PHProvider, usePostHog } from "posthog-js/react";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useEffect, Suspense } from "react";
-import { useUser } from "@clerk/nextjs";
 
 // PostHog 초기화 상태 (향후 상태 체크용)
 export let isPostHogInitialized = false;
@@ -83,40 +82,13 @@ function PostHogPageView() {
   return null;
 }
 
-// 사용자 식별 컴포넌트
-function PostHogUserIdentify() {
-  const { user, isLoaded } = useUser();
-  const posthog = usePostHog();
-
-  useEffect(() => {
-    if (!isLoaded || !posthog) return;
-
-    if (user) {
-      // 로그인한 사용자 식별
-      posthog.identify(user.id, {
-        email: user.primaryEmailAddress?.emailAddress,
-        username: user.username,
-        name: user.fullName,
-        avatar: user.imageUrl,
-        created_at: user.createdAt?.toISOString(),
-      });
-    } else {
-      // 로그아웃 시 리셋
-      posthog.reset();
-    }
-  }, [user, isLoaded, posthog]);
-
-  return null;
-}
-
-// 메인 Provider
+// 메인 Provider (Clerk 독립적)
 export function PostHogProvider({ children }: { children: React.ReactNode }) {
   return (
     <PHProvider client={posthog}>
       <Suspense fallback={null}>
         <PostHogPageView />
       </Suspense>
-      <PostHogUserIdentify />
       {children}
     </PHProvider>
   );
