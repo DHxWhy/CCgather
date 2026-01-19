@@ -274,6 +274,9 @@ export interface SubmitLogItem {
   total_cost: number;
   submission_source: string;
   primary_model: string | null;
+  // League placement audit
+  league_reason: string | null;
+  league_reason_details: string | null;
 }
 
 interface SubmitLogsResponse {

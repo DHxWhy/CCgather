@@ -20,6 +20,9 @@ interface SubmitLogRow {
   total_cost: number;
   submission_source: string;
   primary_model: string | null;
+  // League placement audit
+  league_reason: string | null;
+  league_reason_details: string | null;
 }
 
 export async function GET(request: NextRequest) {
@@ -74,6 +77,8 @@ export async function GET(request: NextRequest) {
           cost_usd,
           submission_source,
           primary_model,
+          league_reason,
+          league_reason_details,
           users!inner (
             username,
             avatar_url,
@@ -104,6 +109,8 @@ export async function GET(request: NextRequest) {
           total_cost: number;
           submission_source: string;
           primary_model: string | null;
+          league_reason: string | null;
+          league_reason_details: string | null;
         }
       >();
 
@@ -114,6 +121,8 @@ export async function GET(request: NextRequest) {
         total_tokens: number;
         cost_usd: number;
         submission_source: string;
+        league_reason: string | null;
+        league_reason_details: string | null;
         primary_model: string | null;
         users: {
           username: string;
@@ -137,6 +146,8 @@ export async function GET(request: NextRequest) {
             total_cost: row.cost_usd,
             submission_source: row.submission_source,
             primary_model: row.primary_model,
+            league_reason: row.league_reason,
+            league_reason_details: row.league_reason_details,
           });
         } else {
           const existing = groupedLogs.get(key)!;
@@ -145,6 +156,11 @@ export async function GET(request: NextRequest) {
           existing.total_cost += row.cost_usd;
           if (row.primary_model && !existing.primary_model) {
             existing.primary_model = row.primary_model;
+          }
+          // Keep first league_reason (they should be same for same submission)
+          if (row.league_reason && !existing.league_reason) {
+            existing.league_reason = row.league_reason;
+            existing.league_reason_details = row.league_reason_details;
           }
         }
       });
@@ -189,6 +205,8 @@ export async function GET(request: NextRequest) {
           total_cost: log.total_cost,
           submission_source: log.submission_source,
           primary_model: log.primary_model,
+          league_reason: log.league_reason,
+          league_reason_details: log.league_reason_details,
         };
       });
 

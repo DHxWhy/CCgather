@@ -51,6 +51,9 @@ interface UsageData {
   rawSubscriptionType?: string | null; // Original value for discovery
   dailyUsage: DailyUsage[];
   sessionFingerprint?: SessionFingerprint;
+  // League placement reason for audit trail
+  leagueReason?: "opus" | "credential" | "user_choice";
+  leagueReasonDetails?: string; // e.g., "opus-4-5 detected", "30↓ cred"
 }
 
 interface SubmitOptions {
@@ -137,6 +140,9 @@ async function submitToServer(data: UsageData): Promise<SubmitResponse> {
         dailyUsage: data.dailyUsage,
         // Session fingerprint for duplicate prevention
         sessionFingerprint: data.sessionFingerprint,
+        // League placement audit trail
+        leagueReason: data.leagueReason,
+        leagueReasonDetails: data.leagueReasonDetails,
       }),
     });
 
@@ -451,8 +457,24 @@ export async function submit(options: SubmitOptions): Promise<void> {
     }
   }
 
-  // Apply final plan to all daily usage records
+  // Apply final plan and league reason to usage data
   usageData.ccplan = finalPlan;
+  usageData.leagueReason =
+    planDetectionReason === "opus"
+      ? "opus"
+      : planDetectionReason === "user_choice"
+        ? "user_choice"
+        : "credential";
+
+  // Build detailed reason string for audit
+  if (planDetectionReason === "opus") {
+    usageData.leagueReasonDetails = `Opus verified: ${opusCheck.opusModels.join(", ")}`;
+  } else if (planDetectionReason === "user_choice") {
+    usageData.leagueReasonDetails = `User selected: ${finalPlan} (data >${oldDataCheck.daysSinceOldest}d old)`;
+  } else {
+    usageData.leagueReasonDetails = `Credential: ${usageData.ccplan || "free"}`;
+  }
+
   usageData.dailyUsage = usageData.dailyUsage.map((daily) => ({
     ...daily,
     ccplan: finalPlan,

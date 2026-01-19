@@ -66,6 +66,9 @@ interface SubmitPayload {
   timestamp: string;
   dailyUsage?: DailyUsage[]; // Array of daily usage data
   sessionFingerprint?: SessionFingerprint; // For duplicate prevention
+  // League placement audit trail
+  leagueReason?: "opus" | "credential" | "user_choice";
+  leagueReasonDetails?: string;
 }
 
 // Known CCplan values
@@ -332,6 +335,9 @@ export async function POST(request: NextRequest) {
           primary_model: dayPrimaryModel,
           submitted_at: new Date().toISOString(),
           submission_source: "cli",
+          // League placement audit trail
+          league_reason: body.leagueReason || null,
+          league_reason_details: body.leagueReasonDetails || null,
         };
       });
 
@@ -363,6 +369,9 @@ export async function POST(request: NextRequest) {
           primary_model: overallPrimaryModel,
           submitted_at: new Date().toISOString(),
           submission_source: "cli",
+          // League placement audit trail
+          league_reason: body.leagueReason || null,
+          league_reason_details: body.leagueReasonDetails || null,
         },
         { onConflict: "user_id,date" }
       );

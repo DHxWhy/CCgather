@@ -84,6 +84,25 @@ function PlanBadge({ plan }: { plan: string | null }) {
   );
 }
 
+// 리그 배치 근거 표시 (약어)
+function LeagueReasonBadge({ reason, details }: { reason: string | null; details: string | null }) {
+  if (!reason) return <span className="text-[10px] text-white/30">-</span>;
+
+  const config: Record<string, { icon: string; label: string; color: string }> = {
+    opus: { icon: "🚀", label: "Opus", color: "text-purple-400" },
+    credential: { icon: "📋", label: "Cred", color: "text-blue-400" },
+    user_choice: { icon: "👆", label: "Pick", color: "text-orange-400" },
+  };
+
+  const cfg = config[reason] || { icon: "?", label: reason, color: "text-white/50" };
+
+  return (
+    <span className={`text-[10px] ${cfg.color}`} title={details || reason}>
+      {cfg.icon} {cfg.label}
+    </span>
+  );
+}
+
 function LogRow({ log }: { log: SubmitLogItem }) {
   const dateRange =
     log.date_from === log.date_to
@@ -119,9 +138,12 @@ function LogRow({ log }: { log: SubmitLogItem }) {
         </div>
       </td>
 
-      {/* 플랜 */}
+      {/* 플랜 + 근거 */}
       <td className="px-3 py-3">
-        <PlanBadge plan={log.ccplan} />
+        <div className="flex items-center gap-2">
+          <PlanBadge plan={log.ccplan} />
+          <LeagueReasonBadge reason={log.league_reason} details={log.league_reason_details} />
+        </div>
       </td>
 
       {/* 기간 - (n일) 날짜범위 한 줄로 */}
@@ -284,7 +306,7 @@ export default function SubmitLogsPage() {
                     사용자
                   </th>
                   <th className="px-3 py-2.5 text-left text-[11px] font-medium text-white/40 uppercase">
-                    플랜
+                    플랜/근거
                   </th>
                   <th className="px-3 py-2.5 text-left text-[11px] font-medium text-white/40 uppercase">
                     기간
