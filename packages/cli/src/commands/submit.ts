@@ -3,9 +3,11 @@ import inquirer from "inquirer";
 import { getApiUrl, getConfig } from "../lib/config.js";
 import {
   scanUsageData,
+  scanUsageDataFromPath,
   getSessionFileCount,
   hasProjectSessions,
   getCurrentProjectName,
+  getAllProjectFolders,
   CCGatherData,
   DailyUsage,
   SessionFingerprint,
@@ -322,76 +324,134 @@ export async function submit(options: SubmitOptions): Promise<void> {
 
   // Check if current project has Claude Code sessions
   const projectName = getCurrentProjectName();
+  let selectedProjectPath: string | null = null;
 
   if (!hasProjectSessions()) {
-    console.log(`\n  ${error("No Claude Code sessions found for this project.")}`);
-    console.log(`  ${colors.muted("Project:")} ${colors.white(projectName)}`);
-    console.log();
-    console.log(`  ${colors.muted("Make sure you:")}`);
-    console.log(`  ${colors.muted("  1. Run this command from a project directory")}`);
-    console.log(`  ${colors.muted("  2. Have used Claude Code in this project at least once")}`);
-    console.log();
+    // Try to find available projects for fallback selection
+    const availableProjects = getAllProjectFolders();
 
-    // Show debug info to help troubleshoot
-    console.log(`  ${colors.dim("─".repeat(40))}`);
-    console.log(`  ${colors.warning("Debug Info")} ${colors.dim("(for troubleshooting)")}`);
-    console.log();
+    if (availableProjects.length === 0) {
+      // No Claude Code sessions found anywhere
+      console.log(`\n  ${error("No Claude Code sessions found.")}`);
+      console.log();
+      console.log(`  ${colors.muted("This usually means:")}`);
+      console.log(`  ${colors.muted("  • You haven't used Claude Code yet, or")}`);
+      console.log(`  ${colors.muted("  • You ran Claude Code but didn't send any messages")}`);
+      console.log();
+      console.log(
+        `  ${colors.warning("💡 Tip:")} ${colors.muted("Sessions are only created after you")}`
+      );
+      console.log(`  ${colors.muted("   send at least one message in Claude Code.")}`);
+      console.log();
 
-    const debugInfo = getSessionPathDebugInfo();
-    console.log(`  ${colors.muted("Platform:")} ${colors.white(debugInfo.platform)}`);
-    console.log(`  ${colors.muted("CWD:")} ${colors.white(debugInfo.cwd)}`);
-    console.log(`  ${colors.muted("Encoded:")} ${colors.dim(debugInfo.encodedCwd)}`);
-    console.log();
-
-    console.log(`  ${colors.muted("Searched paths:")}`);
-    for (const pathInfo of debugInfo.searchedPaths) {
-      const status = pathInfo.exists ? colors.success("✓") : colors.error("✗");
-      console.log(`    ${status} ${pathInfo.path}`);
-
-      // Show similar directories if found
-      if (pathInfo.exists && pathInfo.matchingDirs && pathInfo.matchingDirs.length > 0) {
-        console.log(`      ${colors.dim("Similar dirs found:")}`);
-        for (const dir of pathInfo.matchingDirs) {
-          console.log(`        ${colors.cyan("→")} ${dir}`);
-        }
+      // Show debug info
+      const debugInfo = getSessionPathDebugInfo();
+      console.log(`  ${colors.dim("─".repeat(40))}`);
+      console.log(`  ${colors.muted("Searched paths:")}`);
+      for (const pathInfo of debugInfo.searchedPaths) {
+        const status = pathInfo.exists ? colors.success("✓") : colors.error("✗");
+        console.log(`    ${status} ${pathInfo.path}`);
       }
+      console.log();
+      process.exit(1);
     }
 
+    // Fallback: Let user select from available projects
+    console.log(
+      `\n  ${colors.warning("⚠")} ${colors.muted("No session found for current directory:")}`
+    );
+    console.log(`  ${colors.dim(projectName)}`);
     console.log();
-    console.log(`  ${colors.dim("Need help? Run: CCGATHER_DEBUG=1 npx ccgather")}`);
+    console.log(
+      `  ${colors.muted("But found")} ${colors.white(availableProjects.length.toString())} ${colors.muted("other project(s) with Claude Code sessions:")}`
+    );
     console.log();
-    process.exit(1);
+
+    const choices = availableProjects.map((p) => ({
+      name: `${colors.white(p.displayName)} ${colors.dim(`(${p.folderName.slice(0, 40)}${p.folderName.length > 40 ? "..." : ""})`)}`,
+      value: p.fullPath,
+      short: p.displayName,
+    }));
+
+    choices.push({
+      name: colors.dim("Cancel"),
+      value: "__cancel__",
+      short: "Cancel",
+    });
+
+    const { selectedProject } = await inquirer.prompt([
+      {
+        type: "list",
+        name: "selectedProject",
+        message: "Select a project to submit:",
+        choices,
+        loop: false,
+      },
+    ]);
+
+    if (selectedProject === "__cancel__") {
+      console.log(`\n  ${colors.muted("Cancelled.")}\n`);
+      process.exit(0);
+    }
+
+    selectedProjectPath = selectedProject;
+    const selected = availableProjects.find((p) => p.fullPath === selectedProject);
+    console.log(`\n  ${success(`Selected: ${selected?.displayName}`)}`);
   }
 
-  // Always scan fresh data (current project only)
+  // Always scan fresh data
   let usageData: UsageData | null = null;
-  const totalFiles = getSessionFileCount();
+  let displayProjectName = projectName;
 
-  console.log(`\n  ${colors.muted("Project:")} ${colors.white(projectName)}`);
+  // Use selected project path if fallback was triggered
+  if (selectedProjectPath) {
+    const selected = getAllProjectFolders().find((p) => p.fullPath === selectedProjectPath);
+    displayProjectName = selected?.displayName || projectName;
 
-  if (totalFiles > 0) {
-    console.log(
-      `  ${colors.muted("Scanning")} ${colors.white(totalFiles.toString())} ${colors.muted("sessions...")}`
-    );
+    console.log(`\n  ${colors.muted("Project:")} ${colors.white(displayProjectName)}`);
+    console.log(`  ${colors.muted("Scanning sessions...")}`);
 
-    // Scan with progress bar (no file save - send directly to server)
-    const scannedData = scanUsageData({
+    const scannedData = scanUsageDataFromPath(selectedProjectPath, {
       onProgress: (current, total) => {
         progressBar(current, total, "Scanning");
       },
     });
 
-    await sleep(200); // Brief pause after progress bar completes
+    await sleep(200);
 
     if (scannedData) {
       usageData = ccgatherToUsageData(scannedData);
       console.log(`  ${success("Scan complete!")}`);
     }
   } else {
-    const scannedData = scanUsageData();
-    if (scannedData) {
-      usageData = ccgatherToUsageData(scannedData);
-      console.log(`\n  ${success("Scan complete!")}`);
+    // Normal flow: scan current project
+    const totalFiles = getSessionFileCount();
+
+    console.log(`\n  ${colors.muted("Project:")} ${colors.white(projectName)}`);
+
+    if (totalFiles > 0) {
+      console.log(
+        `  ${colors.muted("Scanning")} ${colors.white(totalFiles.toString())} ${colors.muted("sessions...")}`
+      );
+
+      const scannedData = scanUsageData({
+        onProgress: (current, total) => {
+          progressBar(current, total, "Scanning");
+        },
+      });
+
+      await sleep(200);
+
+      if (scannedData) {
+        usageData = ccgatherToUsageData(scannedData);
+        console.log(`  ${success("Scan complete!")}`);
+      }
+    } else {
+      const scannedData = scanUsageData();
+      if (scannedData) {
+        usageData = ccgatherToUsageData(scannedData);
+        console.log(`\n  ${success("Scan complete!")}`);
+      }
     }
   }
 

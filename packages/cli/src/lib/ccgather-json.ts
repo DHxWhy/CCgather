@@ -220,27 +220,27 @@ function _getClaudeProjectsDir(): string {
 
 /**
  * Encode a path the same way Claude Code does
- * Claude Code replaces special chars and non-ASCII with '-'
+ * Based on reverse-engineering from actual folder names:
+ * - / (slash) → - (hyphen)
+ * - _ (underscore) → - (hyphen)
+ * - Special chars and non-ASCII → - (hyphen)
+ * - Case is preserved (kakaoBot stays kakaoBot)
  */
 function encodePathLikeClaude(inputPath: string): string {
-  // Replace non-ASCII characters (like Korean, Chinese, etc.) with '-'
-  // Replace special characters (/, \, :, spaces) with '-'
   return inputPath
     .split("")
     .map((char) => {
       const code = char.charCodeAt(0);
-      // Keep ASCII alphanumeric and some safe chars
+      // Keep ASCII alphanumeric and dots only
       if (
         (code >= 48 && code <= 57) || // 0-9
         (code >= 65 && code <= 90) || // A-Z
         (code >= 97 && code <= 122) || // a-z
-        char === "-" ||
-        char === "_" ||
         char === "."
       ) {
         return char;
       }
-      // Replace everything else with '-'
+      // Replace everything else (including underscore) with '-'
       return "-";
     })
     .join("");
@@ -700,6 +700,268 @@ export function hasProjectSessions(): boolean {
 export function getCurrentProjectName(): string {
   const cwd = process.cwd();
   return path.basename(cwd);
+}
+
+/**
+ * Get all available project folders from Claude Code
+ * Returns list of { folderName, displayName } for user selection
+ */
+export function getAllProjectFolders(): Array<{
+  folderName: string;
+  fullPath: string;
+  displayName: string;
+}> {
+  const projectsDirs = getClaudeProjectsDirs();
+  const projects: Array<{ folderName: string; fullPath: string; displayName: string }> = [];
+
+  for (const projectsDir of projectsDirs) {
+    try {
+      const entries = fs.readdirSync(projectsDir, { withFileTypes: true });
+
+      for (const entry of entries) {
+        if (!entry.isDirectory()) continue;
+        if (entry.name.startsWith(".")) continue; // Skip hidden folders
+
+        const fullPath = path.join(projectsDir, entry.name);
+
+        // Check if folder has .jsonl files (actual sessions)
+        const hasJsonl = findJsonlFiles(fullPath).length > 0;
+        if (!hasJsonl) continue;
+
+        // Extract display name from folder name
+        // -Users-name-Documents-dev-myProject → myProject
+        const parts = entry.name.split("-").filter((p) => p.length > 0);
+        const displayName = parts.length > 0 ? parts[parts.length - 1] : entry.name;
+
+        projects.push({
+          folderName: entry.name,
+          fullPath,
+          displayName,
+        });
+      }
+    } catch {
+      continue;
+    }
+  }
+
+  return projects;
+}
+
+/**
+ * Scan usage data from a specific project folder path
+ */
+export function scanUsageDataFromPath(
+  projectPath: string,
+  options: ScanOptions = {}
+): CCGatherData | null {
+  // Calculate cutoff date (default: 30 days, 0 = no limit)
+  const days = options.days ?? 30;
+  let cutoffDate: string | null = null;
+
+  if (days > 0) {
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - days);
+    cutoff.setHours(0, 0, 0, 0);
+    cutoffDate = cutoff.toISOString();
+  }
+
+  let totalInputTokens = 0;
+  let totalOutputTokens = 0;
+  let totalCacheRead = 0;
+  let totalCacheWrite = 0;
+  let totalCost = 0;
+  let sessionsCount = 0;
+  const dates = new Set<string>();
+  const models: Record<string, number> = {};
+  const projects: Record<
+    string,
+    {
+      tokens: number;
+      cost: number;
+      sessions: number;
+      models: Record<string, number>;
+    }
+  > = {};
+  const dailyData: Record<
+    string,
+    {
+      tokens: number;
+      cost: number;
+      inputTokens: number;
+      outputTokens: number;
+      cacheWriteTokens: number;
+      cacheReadTokens: number;
+      sessions: Set<string>;
+      models: Record<string, number>;
+    }
+  > = {};
+  let firstTimestamp: string | null = null;
+  let lastTimestamp: string | null = null;
+
+  const jsonlFiles = findJsonlFiles(projectPath);
+  sessionsCount = jsonlFiles.length;
+  const { onProgress } = options;
+
+  for (let i = 0; i < jsonlFiles.length; i++) {
+    const filePath = jsonlFiles[i];
+
+    if (onProgress) {
+      onProgress(i + 1, jsonlFiles.length);
+    }
+    const projectName = extractProjectName(filePath);
+
+    if (!projects[projectName]) {
+      projects[projectName] = {
+        tokens: 0,
+        cost: 0,
+        sessions: 0,
+        models: {},
+      };
+    }
+    projects[projectName].sessions++;
+
+    try {
+      const content = fs.readFileSync(filePath, "utf-8");
+      const lines = content.split("\n").filter((line) => line.trim());
+
+      for (const line of lines) {
+        try {
+          const event = JSON.parse(line);
+
+          if (event.type === "assistant" && event.message?.usage) {
+            if (cutoffDate && event.timestamp && event.timestamp < cutoffDate) {
+              continue;
+            }
+
+            const usage = event.message.usage;
+            const model = event.message.model || "unknown";
+            const inputTokens = usage.input_tokens || 0;
+            const outputTokens = usage.output_tokens || 0;
+            const cacheWrite = usage.cache_creation_input_tokens || 0;
+            const cacheRead = usage.cache_read_input_tokens || 0;
+
+            totalInputTokens += inputTokens;
+            totalOutputTokens += outputTokens;
+            totalCacheRead += cacheRead;
+            totalCacheWrite += cacheWrite;
+
+            const messageCost = estimateCost(
+              model,
+              inputTokens,
+              outputTokens,
+              cacheWrite,
+              cacheRead
+            );
+            totalCost += messageCost;
+
+            const totalModelTokens = inputTokens + outputTokens + cacheWrite + cacheRead;
+            models[model] = (models[model] || 0) + totalModelTokens;
+
+            projects[projectName].tokens += totalModelTokens;
+            projects[projectName].cost += messageCost;
+            projects[projectName].models[model] =
+              (projects[projectName].models[model] || 0) + totalModelTokens;
+
+            if (event.timestamp) {
+              const date = new Date(event.timestamp).toISOString().split("T")[0];
+              dates.add(date);
+
+              if (!dailyData[date]) {
+                dailyData[date] = {
+                  tokens: 0,
+                  cost: 0,
+                  inputTokens: 0,
+                  outputTokens: 0,
+                  cacheWriteTokens: 0,
+                  cacheReadTokens: 0,
+                  sessions: new Set(),
+                  models: {},
+                };
+              }
+
+              dailyData[date].tokens += totalModelTokens;
+              dailyData[date].cost += messageCost;
+              dailyData[date].inputTokens += inputTokens;
+              dailyData[date].outputTokens += outputTokens;
+              dailyData[date].cacheWriteTokens += cacheWrite;
+              dailyData[date].cacheReadTokens += cacheRead;
+              dailyData[date].sessions.add(filePath);
+              dailyData[date].models[model] =
+                (dailyData[date].models[model] || 0) + totalModelTokens;
+
+              if (!firstTimestamp || event.timestamp < firstTimestamp) {
+                firstTimestamp = event.timestamp;
+              }
+              if (!lastTimestamp || event.timestamp > lastTimestamp) {
+                lastTimestamp = event.timestamp;
+              }
+            }
+          }
+        } catch {
+          // Skip invalid JSON lines
+        }
+      }
+    } catch {
+      // Skip unreadable files
+    }
+  }
+
+  const totalTokens = totalInputTokens + totalOutputTokens + totalCacheWrite + totalCacheRead;
+
+  if (totalTokens === 0) {
+    return null;
+  }
+
+  for (const projectName of Object.keys(projects)) {
+    projects[projectName].cost = Math.round(projects[projectName].cost * 100) / 100;
+  }
+
+  const dailyUsage: DailyUsage[] = Object.entries(dailyData)
+    .map(([date, data]) => ({
+      date,
+      tokens: data.tokens,
+      cost: Math.round(data.cost * 100) / 100,
+      inputTokens: data.inputTokens,
+      outputTokens: data.outputTokens,
+      cacheWriteTokens: data.cacheWriteTokens,
+      cacheReadTokens: data.cacheReadTokens,
+      sessions: data.sessions.size,
+      models: data.models,
+    }))
+    .sort((a, b) => a.date.localeCompare(b.date));
+
+  const credentials = readCredentials();
+  const sessionFingerprint = generateSessionFingerprint(jsonlFiles);
+
+  return {
+    version: CCGATHER_JSON_VERSION,
+    lastUpdated: new Date().toISOString(),
+    lastScanned: new Date().toISOString(),
+    usage: {
+      totalTokens,
+      totalCost: Math.round(totalCost * 100) / 100,
+      inputTokens: totalInputTokens,
+      outputTokens: totalOutputTokens,
+      cacheReadTokens: totalCacheRead,
+      cacheWriteTokens: totalCacheWrite,
+    },
+    stats: {
+      daysTracked: dates.size,
+      sessionsCount,
+      firstUsed: firstTimestamp ? new Date(firstTimestamp).toISOString().split("T")[0] : null,
+      lastUsed: lastTimestamp ? new Date(lastTimestamp).toISOString().split("T")[0] : null,
+    },
+    models,
+    projects,
+    dailyUsage,
+    account: {
+      ccplan: credentials.ccplan,
+      rateLimitTier: credentials.rateLimitTier,
+      authMethod: credentials.authMethod,
+      rawSubscriptionType: credentials.rawSubscriptionType,
+    },
+    sessionFingerprint,
+  };
 }
 
 /**
