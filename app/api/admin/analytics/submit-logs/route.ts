@@ -174,6 +174,8 @@ export async function GET(request: NextRequest) {
       // 응답 형식 변환
       const formattedLogs: SubmitLogRow[] = paginatedLogs.map((log) => {
         const sortedDates = Array.from(log.dates).sort();
+        const firstDate = sortedDates[0] || "";
+        const lastDate = sortedDates[sortedDates.length - 1] || firstDate;
         return {
           submitted_at: log.submitted_at,
           user_id: log.user_id,
@@ -181,8 +183,8 @@ export async function GET(request: NextRequest) {
           avatar_url: log.avatar_url,
           ccplan: log.ccplan,
           days_count: log.dates.size,
-          date_from: sortedDates[0],
-          date_to: sortedDates[sortedDates.length - 1],
+          date_from: firstDate,
+          date_to: lastDate,
           total_tokens: log.total_tokens,
           total_cost: log.total_cost,
           submission_source: log.submission_source,

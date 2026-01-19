@@ -96,6 +96,10 @@ function UsageChart({
   history: UsageHistoryPoint[];
   periodFilter: PeriodFilter;
 }) {
+  const [displayData, setDisplayData] = useState<{ date: string; tokens: number }[]>([]);
+  const [yDomain, setYDomain] = useState<[number, number]>([0, 1]);
+  const [animationEnabled, setAnimationEnabled] = useState(false);
+
   const days =
     periodFilter === "today"
       ? 1
@@ -105,18 +109,40 @@ function UsageChart({
           ? 30
           : history.length;
   const filteredData = history.slice(-days);
-
   const useMonthly = filteredData.length > 60;
 
-  const chartData = useMonthly
-    ? aggregateByMonth(filteredData)
-    : filteredData.map((day) => ({
-        date: day.date.slice(5),
-        tokens: day.tokens,
-      }));
+  const chartData = useMemo(() => {
+    return useMonthly
+      ? aggregateByMonth(filteredData)
+      : filteredData.map((day) => ({
+          date: day.date.slice(5),
+          tokens: day.tokens,
+        }));
+  }, [filteredData, useMonthly]);
 
-  // Don't render chart if no data to prevent dimension calculation errors
-  if (chartData.length === 0) {
+  // Two-phase update: Y-axis first, then line animation
+  useEffect(() => {
+    if (chartData.length === 0) {
+      setDisplayData([]);
+      return;
+    }
+
+    // Phase 1: Update Y-axis domain immediately (no animation)
+    const maxTokens = Math.max(...chartData.map((d) => d.tokens), 1);
+    setYDomain([0, maxTokens * 1.1]);
+    setAnimationEnabled(false);
+    setDisplayData(chartData);
+
+    // Phase 2: Enable animation after axis has updated
+    const timer = setTimeout(() => {
+      setAnimationEnabled(true);
+    }, 100);
+
+    return () => clearTimeout(timer);
+  }, [chartData]);
+
+  // Don't render chart if no data
+  if (history.length === 0) {
     return (
       <div className="h-32 flex items-center justify-center text-[var(--color-text-muted)] text-xs">
         No data for this period
@@ -128,7 +154,10 @@ function UsageChart({
     <div>
       <div className="h-32">
         <ResponsiveContainer width="100%" height="100%" minHeight={128}>
-          <LineChart data={chartData} margin={{ top: 5, right: 20, left: 0, bottom: 0 }}>
+          <LineChart
+            data={displayData.length > 0 ? displayData : chartData}
+            margin={{ top: 5, right: 20, left: 0, bottom: 0 }}
+          >
             <CartesianGrid strokeDasharray="3 3" stroke="var(--border-default)" vertical={false} />
             <XAxis
               dataKey="date"
@@ -150,6 +179,7 @@ function UsageChart({
               }
             />
             <YAxis
+              domain={yDomain}
               axisLine={false}
               tickLine={false}
               tick={{ fill: "#71717A", fontSize: 9 }}
@@ -164,8 +194,9 @@ function UsageChart({
               strokeWidth={2}
               dot={false}
               activeDot={{ r: 4, fill: "#DA7756", stroke: "#fff", strokeWidth: 2 }}
-              animationDuration={600}
-              animationBegin={200}
+              isAnimationActive={animationEnabled}
+              animationDuration={500}
+              animationBegin={0}
               animationEasing="ease-out"
             />
           </LineChart>
@@ -633,7 +664,8 @@ export function ProfileSidePanel({
   const [usageHistory, setUsageHistory] = useState<UsageHistoryPoint[]>([]);
   const [userBadges, setUserBadges] = useState<string[]>([]);
   const [freshSocialLinks, setFreshSocialLinks] = useState<SocialLinks | null>(null);
-  const [historyLoading, setHistoryLoading] = useState(false);
+  const [_historyLoading, setHistoryLoading] = useState(false);
+  const [chartFadeIn, setChartFadeIn] = useState(true);
 
   // Handle social link click for non-logged-in users
   const handleSocialLinkLoginRequired = useCallback((url: string) => {
@@ -767,8 +799,10 @@ export function ProfileSidePanel({
       if (!user) return;
 
       setHistoryLoading(true);
-      // Don't clear previous data - keep showing it until new data arrives
+      // Fade out chart before loading new data
+      setChartFadeIn(false);
       setFreshSocialLinks(null);
+
       try {
         // Fetch history (includes fresh social_links)
         const historyResponse = await fetch(`/api/users/${user.id}/history?days=365`);
@@ -795,6 +829,10 @@ export function ProfileSidePanel({
         setUserBadges([]);
       } finally {
         setHistoryLoading(false);
+        // Fade in chart after data loaded
+        requestAnimationFrame(() => {
+          setChartFadeIn(true);
+        });
       }
     }
     fetchUserData();
@@ -1243,7 +1281,10 @@ export function ProfileSidePanel({
                         : "All Time"}
               </div>
             </div>
-            <div key={`chart-${currentUser.id}`}>
+            <div
+              key={`chart-${currentUser.id}`}
+              className={`transition-opacity duration-300 ${chartFadeIn ? "opacity-100" : "opacity-0"}`}
+            >
               <UsageChart history={usageHistory} periodFilter={periodFilter} />
             </div>
             <div className="text-[11px] text-[var(--color-text-secondary)] mt-2 pt-2 border-t border-[var(--border-default)] text-center">
@@ -1260,7 +1301,12 @@ export function ProfileSidePanel({
             <div className="text-[10px] text-[var(--color-text-muted)] uppercase tracking-wide mb-3">
               📅 Activity (Last Year)
             </div>
-            <ActivityHeatmap data={usageHistory} periodDays={365} />
+            <div
+              key={`heatmap-${currentUser.id}`}
+              className={`transition-opacity duration-300 ${chartFadeIn ? "opacity-100" : "opacity-0"}`}
+            >
+              <ActivityHeatmap data={usageHistory} periodDays={365} />
+            </div>
           </div>
 
           {/* Badges */}

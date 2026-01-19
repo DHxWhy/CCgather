@@ -33,6 +33,7 @@ const ANALYTICS_SUBMENU = [
   { id: "analytics-overview", label: "Overview", href: "/admin/analytics" },
   { id: "analytics-users", label: "웹 트래픽", href: "/admin/analytics/users" },
   { id: "analytics-funnels", label: "퍼널 분석", href: "/admin/analytics/funnels" },
+  { id: "analytics-submit-logs", label: "Submit Logs", href: "/admin/analytics/submit-logs" },
 ];
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
