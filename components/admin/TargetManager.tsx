@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { Trash2, Power, PowerOff } from "lucide-react";
 import type {
   AutomationTarget,
   CreateTargetInput,
@@ -59,6 +60,9 @@ export default function TargetManager({ onRefresh }: TargetManagerProps) {
   const [editingTarget, setEditingTarget] = useState<AutomationTarget | null>(null);
   const [filterType, setFilterType] = useState<TargetType | "all">("all");
 
+  // Multi-select state
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+
   // Form state
   const [formData, setFormData] = useState<CreateTargetInput>({
     type: "url",
@@ -71,6 +75,11 @@ export default function TargetManager({ onRefresh }: TargetManagerProps) {
   useEffect(() => {
     fetchTargets();
   }, []);
+
+  // Clear selection when filter changes
+  useEffect(() => {
+    setSelectedIds(new Set());
+  }, [filterType]);
 
   async function fetchTargets() {
     setLoading(true);
@@ -135,11 +144,14 @@ export default function TargetManager({ onRefresh }: TargetManagerProps) {
   }
 
   async function deleteTarget(id: string) {
-    if (!confirm("정말 삭제하시겠습니까?")) return;
-
     // Optimistic update
     const previousTargets = [...targets];
     setTargets((prev) => prev.filter((t) => t.id !== id));
+    setSelectedIds((prev) => {
+      const newSet = new Set(prev);
+      newSet.delete(id);
+      return newSet;
+    });
 
     try {
       const response = await fetch(`/api/admin/targets/${id}`, {
@@ -157,8 +169,57 @@ export default function TargetManager({ onRefresh }: TargetManagerProps) {
     }
   }
 
-  async function toggleActive(id: string, currentActive: boolean) {
-    await updateTarget(id, { is_active: !currentActive });
+  // Bulk operations
+  async function bulkDelete() {
+    if (selectedIds.size === 0) return;
+    if (!confirm(`선택된 ${selectedIds.size}개 항목을 삭제하시겠습니까?`)) return;
+
+    const idsToDelete = Array.from(selectedIds);
+    const previousTargets = [...targets];
+
+    // Optimistic update
+    setTargets((prev) => prev.filter((t) => !selectedIds.has(t.id)));
+    setSelectedIds(new Set());
+
+    try {
+      await Promise.all(
+        idsToDelete.map((id) => fetch(`/api/admin/targets/${id}`, { method: "DELETE" }))
+      );
+    } catch (error) {
+      console.error("Failed to bulk delete:", error);
+      setTargets(previousTargets);
+    }
+  }
+
+  async function bulkSetActive(active: boolean) {
+    if (selectedIds.size === 0) return;
+
+    const idsToUpdate = Array.from(selectedIds);
+    const previousTargets = [...targets];
+
+    // Optimistic update
+    setTargets((prev) =>
+      prev.map((t) => (selectedIds.has(t.id) ? { ...t, is_active: active } : t))
+    );
+
+    try {
+      await Promise.all(
+        idsToUpdate.map((id) =>
+          fetch(`/api/admin/targets/${id}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ is_active: active }),
+          })
+        )
+      );
+    } catch (error) {
+      console.error("Failed to bulk update:", error);
+      setTargets(previousTargets);
+    }
+  }
+
+  function toggleActive(id: string, currentActive: boolean) {
+    updateTarget(id, { is_active: !currentActive });
   }
 
   function resetForm() {
@@ -224,34 +285,58 @@ export default function TargetManager({ onRefresh }: TargetManagerProps) {
     }
   }
 
+  // Selection helpers
   const filteredTargets = targets.filter((t) => filterType === "all" || t.type === filterType);
+  const allSelected =
+    filteredTargets.length > 0 && filteredTargets.every((t) => selectedIds.has(t.id));
+  const someSelected = selectedIds.size > 0;
+
+  function toggleSelectAll() {
+    if (allSelected) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(filteredTargets.map((t) => t.id)));
+    }
+  }
+
+  function toggleSelect(id: string) {
+    setSelectedIds((prev) => {
+      const newSet = new Set(prev);
+      if (newSet.has(id)) {
+        newSet.delete(id);
+      } else {
+        newSet.add(id);
+      }
+      return newSet;
+    });
+  }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="text-lg font-semibold text-white">수집 대상 관리</h3>
-          <p className="text-sm text-white/60">
+          <h3 className="text-[15px] font-semibold text-white">수집 대상 관리</h3>
+          <p className="text-[11px] text-white/50 mt-0.5">
             뉴스 수집에 사용될 URL, 키워드, 채널을 관리합니다.
           </p>
         </div>
         <button
           onClick={() => setShowAddForm(true)}
-          className="px-4 py-2 bg-[var(--color-claude-coral)] text-white rounded-lg hover:opacity-90 transition-colors"
+          className="px-3 py-1.5 bg-[var(--color-claude-coral)] text-white rounded-lg text-[12px] font-medium hover:opacity-90 transition-colors"
         >
           + 추가
         </button>
       </div>
 
       {/* Filter Tabs */}
-      <div className="flex gap-2">
+      <div className="flex gap-1.5">
         <button
           onClick={() => setFilterType("all")}
-          className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+          className={`px-3 py-1.5 rounded-lg text-[11px] font-medium transition-colors ${
             filterType === "all"
-              ? "bg-white/20 text-white"
-              : "bg-white/5 text-white/40 hover:text-white"
+              ? "bg-white/15 text-white"
+              : "bg-white/5 text-white/40 hover:text-white/60"
           }`}
         >
           전체 ({targets.length})
@@ -260,10 +345,10 @@ export default function TargetManager({ onRefresh }: TargetManagerProps) {
           <button
             key={opt.value}
             onClick={() => setFilterType(opt.value)}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+            className={`px-3 py-1.5 rounded-lg text-[11px] font-medium transition-colors ${
               filterType === opt.value
-                ? "bg-white/20 text-white"
-                : "bg-white/5 text-white/40 hover:text-white"
+                ? "bg-white/15 text-white"
+                : "bg-white/5 text-white/40 hover:text-white/60"
             }`}
           >
             {opt.icon} {opt.label} ({targets.filter((t) => t.type === opt.value).length})
@@ -271,22 +356,67 @@ export default function TargetManager({ onRefresh }: TargetManagerProps) {
         ))}
       </div>
 
+      {/* Bulk Action Bar */}
+      <div className="flex items-center gap-3 py-2 px-3 bg-white/[0.03] rounded-lg border border-white/[0.06]">
+        {/* Select All Checkbox */}
+        <label className="flex items-center gap-2 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={allSelected}
+            onChange={toggleSelectAll}
+            className="w-4 h-4 rounded border-white/20 bg-white/5 text-[var(--color-claude-coral)] focus:ring-[var(--color-claude-coral)] focus:ring-offset-0 cursor-pointer"
+          />
+          <span className="text-[11px] text-white/60">전체 선택</span>
+        </label>
+
+        {/* Bulk Actions - Show when items selected */}
+        {someSelected && (
+          <>
+            <div className="h-4 w-px bg-white/10" />
+            <span className="text-[11px] text-white/50">{selectedIds.size}개 선택됨</span>
+            <div className="flex gap-1.5 ml-auto">
+              <button
+                onClick={() => bulkSetActive(true)}
+                className="flex items-center gap-1 px-2.5 py-1 rounded text-[10px] font-medium bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 transition-colors"
+              >
+                <Power className="w-3 h-3" />
+                활성화
+              </button>
+              <button
+                onClick={() => bulkSetActive(false)}
+                className="flex items-center gap-1 px-2.5 py-1 rounded text-[10px] font-medium bg-white/10 text-white/60 hover:bg-white/15 transition-colors"
+              >
+                <PowerOff className="w-3 h-3" />
+                비활성화
+              </button>
+              <button
+                onClick={bulkDelete}
+                className="flex items-center gap-1 px-2.5 py-1 rounded text-[10px] font-medium bg-red-500/20 text-red-400 hover:bg-red-500/30 transition-colors"
+              >
+                <Trash2 className="w-3 h-3" />
+                삭제
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+
       {/* Add Form Modal */}
       {showAddForm && (
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
-          <div className="bg-[#1a1a1a] rounded-2xl w-full max-w-md p-6">
-            <h4 className="text-xl font-bold text-white mb-4">새 대상 추가</h4>
+          <div className="bg-[#1a1a1a] rounded-xl w-full max-w-md p-5 border border-white/10">
+            <h4 className="text-[15px] font-bold text-white mb-4">새 대상 추가</h4>
 
             <div className="space-y-4">
               {/* Type Selection */}
               <div>
-                <label className="block text-sm font-medium text-white/60 mb-2">유형</label>
+                <label className="block text-[11px] font-medium text-white/50 mb-2">유형</label>
                 <div className="flex gap-2">
                   {TYPE_OPTIONS.map((opt) => (
                     <button
                       key={opt.value}
                       onClick={() => setFormData({ ...formData, type: opt.value })}
-                      className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                      className={`flex-1 px-3 py-2 rounded-lg text-[11px] font-medium transition-colors ${
                         formData.type === opt.value
                           ? "bg-[var(--color-claude-coral)] text-white"
                           : "bg-white/10 text-white/60 hover:text-white"
@@ -300,7 +430,7 @@ export default function TargetManager({ onRefresh }: TargetManagerProps) {
 
               {/* Value Input */}
               <div>
-                <label className="block text-sm font-medium text-white/60 mb-2">
+                <label className="block text-[11px] font-medium text-white/50 mb-1.5">
                   {formData.type === "url"
                     ? "URL"
                     : formData.type === "keyword"
@@ -321,13 +451,13 @@ export default function TargetManager({ onRefresh }: TargetManagerProps) {
                         : "@ChannelName"
                   }
                   autoComplete="off"
-                  className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder:text-white/30 focus:outline-none focus:ring-2 focus:ring-[var(--color-claude-coral)]"
+                  className="w-full px-3 py-2.5 bg-white/5 border border-white/10 rounded-lg text-[13px] text-white placeholder:text-white/30 focus:outline-none focus:ring-1 focus:ring-[var(--color-claude-coral)]"
                 />
               </div>
 
               {/* Label */}
               <div>
-                <label className="block text-sm font-medium text-white/60 mb-2">
+                <label className="block text-[11px] font-medium text-white/50 mb-1.5">
                   표시 이름 (선택)
                 </label>
                 <input
@@ -338,64 +468,66 @@ export default function TargetManager({ onRefresh }: TargetManagerProps) {
                   onChange={(e) => setFormData({ ...formData, label: e.target.value })}
                   placeholder="Anthropic 공식 블로그"
                   autoComplete="off"
-                  className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder:text-white/30 focus:outline-none focus:ring-2 focus:ring-[var(--color-claude-coral)]"
+                  className="w-full px-3 py-2.5 bg-white/5 border border-white/10 rounded-lg text-[13px] text-white placeholder:text-white/30 focus:outline-none focus:ring-1 focus:ring-[var(--color-claude-coral)]"
                 />
               </div>
 
-              {/* Category */}
-              <div>
-                <label className="block text-sm font-medium text-white/60 mb-2">카테고리</label>
-                <select
-                  id="target-category"
-                  name="target-category"
-                  value={formData.category || "news"}
-                  onChange={(e) =>
-                    setFormData({ ...formData, category: e.target.value as TargetCategory })
-                  }
-                  className="w-full px-4 py-3 bg-[#2a2a2a] border border-white/10 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-[var(--color-claude-coral)]"
-                >
-                  {CATEGORY_OPTIONS.map((opt) => (
-                    <option key={opt.value} value={opt.value} className="bg-[#2a2a2a] text-white">
-                      {opt.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Priority */}
-              <div>
-                <label className="block text-sm font-medium text-white/60 mb-2">
-                  우선순위 (높을수록 먼저 수집)
-                </label>
-                <input
-                  id="target-priority"
-                  name="target-priority"
-                  type="number"
-                  value={formData.priority || 0}
-                  onChange={(e) =>
-                    setFormData({ ...formData, priority: parseInt(e.target.value) || 0 })
-                  }
-                  autoComplete="off"
-                  className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-[var(--color-claude-coral)]"
-                />
+              {/* Category & Priority Row */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[11px] font-medium text-white/50 mb-1.5">
+                    카테고리
+                  </label>
+                  <select
+                    id="target-category"
+                    name="target-category"
+                    value={formData.category || "press"}
+                    onChange={(e) =>
+                      setFormData({ ...formData, category: e.target.value as TargetCategory })
+                    }
+                    className="w-full px-3 py-2.5 bg-[#252525] border border-white/10 rounded-lg text-[13px] text-white focus:outline-none focus:ring-1 focus:ring-[var(--color-claude-coral)]"
+                  >
+                    {CATEGORY_OPTIONS.map((opt) => (
+                      <option key={opt.value} value={opt.value} className="bg-[#252525] text-white">
+                        {opt.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[11px] font-medium text-white/50 mb-1.5">
+                    우선순위
+                  </label>
+                  <input
+                    id="target-priority"
+                    name="target-priority"
+                    type="number"
+                    value={formData.priority || 0}
+                    onChange={(e) =>
+                      setFormData({ ...formData, priority: parseInt(e.target.value) || 0 })
+                    }
+                    autoComplete="off"
+                    className="w-full px-3 py-2.5 bg-white/5 border border-white/10 rounded-lg text-[13px] text-white focus:outline-none focus:ring-1 focus:ring-[var(--color-claude-coral)]"
+                  />
+                </div>
               </div>
             </div>
 
             {/* Actions */}
-            <div className="flex gap-3 mt-6">
+            <div className="flex gap-2 mt-5">
               <button
                 onClick={() => {
                   setShowAddForm(false);
                   resetForm();
                 }}
-                className="flex-1 px-4 py-3 bg-white/10 text-white rounded-xl hover:bg-white/20 transition-colors"
+                className="flex-1 px-4 py-2.5 bg-white/10 text-white rounded-lg text-[12px] hover:bg-white/15 transition-colors"
               >
                 취소
               </button>
               <button
                 onClick={createTarget}
                 disabled={!formData.value.trim()}
-                className="flex-1 px-4 py-3 bg-[var(--color-claude-coral)] text-white rounded-xl hover:opacity-90 transition-colors disabled:opacity-50"
+                className="flex-1 px-4 py-2.5 bg-[var(--color-claude-coral)] text-white rounded-lg text-[12px] hover:opacity-90 transition-colors disabled:opacity-50"
               >
                 추가
               </button>
@@ -407,14 +539,14 @@ export default function TargetManager({ onRefresh }: TargetManagerProps) {
       {/* Edit Form Modal */}
       {showEditForm && editingTarget && (
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
-          <div className="bg-[#1a1a1a] rounded-2xl w-full max-w-md p-6">
-            <h4 className="text-xl font-bold text-white mb-4">대상 수정</h4>
+          <div className="bg-[#1a1a1a] rounded-xl w-full max-w-md p-5 border border-white/10">
+            <h4 className="text-[15px] font-bold text-white mb-4">대상 수정</h4>
 
             <div className="space-y-4">
               {/* Type Display (read-only) */}
               <div>
-                <label className="block text-sm font-medium text-white/60 mb-2">유형</label>
-                <div className="px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white/60">
+                <label className="block text-[11px] font-medium text-white/50 mb-1.5">유형</label>
+                <div className="px-3 py-2.5 bg-white/5 border border-white/10 rounded-lg text-[13px] text-white/60">
                   {TYPE_OPTIONS.find((o) => o.value === editingTarget.type)?.icon}{" "}
                   {TYPE_OPTIONS.find((o) => o.value === editingTarget.type)?.label}
                 </div>
@@ -422,7 +554,7 @@ export default function TargetManager({ onRefresh }: TargetManagerProps) {
 
               {/* Value Input */}
               <div>
-                <label className="block text-sm font-medium text-white/60 mb-2">
+                <label className="block text-[11px] font-medium text-white/50 mb-1.5">
                   {formData.type === "url"
                     ? "URL"
                     : formData.type === "keyword"
@@ -436,13 +568,13 @@ export default function TargetManager({ onRefresh }: TargetManagerProps) {
                   value={formData.value}
                   onChange={(e) => setFormData({ ...formData, value: e.target.value })}
                   autoComplete="off"
-                  className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder:text-white/30 focus:outline-none focus:ring-2 focus:ring-[var(--color-claude-coral)]"
+                  className="w-full px-3 py-2.5 bg-white/5 border border-white/10 rounded-lg text-[13px] text-white placeholder:text-white/30 focus:outline-none focus:ring-1 focus:ring-[var(--color-claude-coral)]"
                 />
               </div>
 
               {/* Label */}
               <div>
-                <label className="block text-sm font-medium text-white/60 mb-2">
+                <label className="block text-[11px] font-medium text-white/50 mb-1.5">
                   표시 이름 (선택)
                 </label>
                 <input
@@ -453,65 +585,67 @@ export default function TargetManager({ onRefresh }: TargetManagerProps) {
                   onChange={(e) => setFormData({ ...formData, label: e.target.value })}
                   placeholder="Anthropic 공식 블로그"
                   autoComplete="off"
-                  className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder:text-white/30 focus:outline-none focus:ring-2 focus:ring-[var(--color-claude-coral)]"
+                  className="w-full px-3 py-2.5 bg-white/5 border border-white/10 rounded-lg text-[13px] text-white placeholder:text-white/30 focus:outline-none focus:ring-1 focus:ring-[var(--color-claude-coral)]"
                 />
               </div>
 
-              {/* Category */}
-              <div>
-                <label className="block text-sm font-medium text-white/60 mb-2">카테고리</label>
-                <select
-                  id="edit-target-category"
-                  name="edit-target-category"
-                  value={formData.category || "press"}
-                  onChange={(e) =>
-                    setFormData({ ...formData, category: e.target.value as TargetCategory })
-                  }
-                  className="w-full px-4 py-3 bg-[#2a2a2a] border border-white/10 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-[var(--color-claude-coral)]"
-                >
-                  {CATEGORY_OPTIONS.map((opt) => (
-                    <option key={opt.value} value={opt.value} className="bg-[#2a2a2a] text-white">
-                      {opt.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Priority */}
-              <div>
-                <label className="block text-sm font-medium text-white/60 mb-2">
-                  우선순위 (높을수록 먼저 수집)
-                </label>
-                <input
-                  id="edit-target-priority"
-                  name="edit-target-priority"
-                  type="number"
-                  value={formData.priority || 0}
-                  onChange={(e) =>
-                    setFormData({ ...formData, priority: parseInt(e.target.value) || 0 })
-                  }
-                  autoComplete="off"
-                  className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-[var(--color-claude-coral)]"
-                />
+              {/* Category & Priority Row */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[11px] font-medium text-white/50 mb-1.5">
+                    카테고리
+                  </label>
+                  <select
+                    id="edit-target-category"
+                    name="edit-target-category"
+                    value={formData.category || "press"}
+                    onChange={(e) =>
+                      setFormData({ ...formData, category: e.target.value as TargetCategory })
+                    }
+                    className="w-full px-3 py-2.5 bg-[#252525] border border-white/10 rounded-lg text-[13px] text-white focus:outline-none focus:ring-1 focus:ring-[var(--color-claude-coral)]"
+                  >
+                    {CATEGORY_OPTIONS.map((opt) => (
+                      <option key={opt.value} value={opt.value} className="bg-[#252525] text-white">
+                        {opt.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[11px] font-medium text-white/50 mb-1.5">
+                    우선순위
+                  </label>
+                  <input
+                    id="edit-target-priority"
+                    name="edit-target-priority"
+                    type="number"
+                    value={formData.priority || 0}
+                    onChange={(e) =>
+                      setFormData({ ...formData, priority: parseInt(e.target.value) || 0 })
+                    }
+                    autoComplete="off"
+                    className="w-full px-3 py-2.5 bg-white/5 border border-white/10 rounded-lg text-[13px] text-white focus:outline-none focus:ring-1 focus:ring-[var(--color-claude-coral)]"
+                  />
+                </div>
               </div>
             </div>
 
             {/* Actions */}
-            <div className="flex gap-3 mt-6">
+            <div className="flex gap-2 mt-5">
               <button
                 onClick={() => {
                   setShowEditForm(false);
                   setEditingTarget(null);
                   resetForm();
                 }}
-                className="flex-1 px-4 py-3 bg-white/10 text-white rounded-xl hover:bg-white/20 transition-colors"
+                className="flex-1 px-4 py-2.5 bg-white/10 text-white rounded-lg text-[12px] hover:bg-white/15 transition-colors"
               >
                 취소
               </button>
               <button
                 onClick={saveEdit}
                 disabled={!formData.value.trim()}
-                className="flex-1 px-4 py-3 bg-blue-500 text-white rounded-xl hover:opacity-90 transition-colors disabled:opacity-50"
+                className="flex-1 px-4 py-2.5 bg-blue-500 text-white rounded-lg text-[12px] hover:opacity-90 transition-colors disabled:opacity-50"
               >
                 저장
               </button>
@@ -521,80 +655,98 @@ export default function TargetManager({ onRefresh }: TargetManagerProps) {
       )}
 
       {/* Target List */}
-      <div className="space-y-3">
+      <div className="space-y-1.5">
         {loading ? (
-          <div className="text-center py-8 text-white/40">로딩 중...</div>
+          <div className="text-center py-8 text-white/40 text-[12px]">로딩 중...</div>
         ) : filteredTargets.length === 0 ? (
-          <div className="text-center py-8 text-white/40">등록된 대상이 없습니다.</div>
+          <div className="text-center py-8 text-white/40 text-[12px]">등록된 대상이 없습니다.</div>
         ) : (
           filteredTargets.map((target) => (
             <div
               key={target.id}
-              className={`bg-white/5 rounded-xl p-4 border transition-colors ${
-                target.is_active
-                  ? "border-white/10 hover:border-white/20"
-                  : "border-white/5 opacity-50"
+              className={`group flex items-center gap-3 bg-white/[0.03] rounded-lg p-3 border transition-all cursor-pointer ${
+                selectedIds.has(target.id)
+                  ? "border-[var(--color-claude-coral)]/50 bg-[var(--color-claude-coral)]/5"
+                  : target.is_active
+                    ? "border-white/[0.06] hover:border-white/10"
+                    : "border-white/[0.03] opacity-50"
               }`}
             >
-              <div className="flex items-center gap-4">
-                {/* Type Icon */}
-                <div className="text-2xl">
-                  {TYPE_OPTIONS.find((o) => o.value === target.type)?.icon}
-                </div>
+              {/* Checkbox */}
+              <input
+                type="checkbox"
+                checked={selectedIds.has(target.id)}
+                onChange={(e) => {
+                  e.stopPropagation();
+                  toggleSelect(target.id);
+                }}
+                className="w-4 h-4 rounded border-white/20 bg-white/5 text-[var(--color-claude-coral)] focus:ring-[var(--color-claude-coral)] focus:ring-offset-0 cursor-pointer flex-shrink-0"
+              />
 
-                {/* Info */}
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="font-medium text-white truncate">
-                      {target.label || target.value}
+              {/* Type Icon */}
+              <div className="text-lg flex-shrink-0">
+                {TYPE_OPTIONS.find((o) => o.value === target.type)?.icon}
+              </div>
+
+              {/* Info - Clickable for Edit */}
+              <div className="flex-1 min-w-0" onClick={() => startEdit(target)}>
+                <div className="flex items-center gap-2 mb-0.5">
+                  <span className="font-medium text-[13px] text-white truncate">
+                    {target.label || target.value}
+                  </span>
+                  {target.category && (
+                    <span
+                      className={`px-1.5 py-0.5 rounded text-[9px] ${
+                        CATEGORY_OPTIONS.find((c) => c.value === target.category)?.color ||
+                        "bg-white/10 text-white/60"
+                      }`}
+                    >
+                      {CATEGORY_OPTIONS.find((c) => c.value === target.category)?.label}
                     </span>
-                    {target.category && (
-                      <span
-                        className={`px-2 py-0.5 rounded-full text-xs ${
-                          CATEGORY_OPTIONS.find((c) => c.value === target.category)?.color ||
-                          "bg-white/10 text-white/60"
-                        }`}
-                      >
-                        {CATEGORY_OPTIONS.find((c) => c.value === target.category)?.label}
-                      </span>
-                    )}
-                    <span className="text-xs text-white/40">우선순위: {target.priority}</span>
-                  </div>
-                  <div className="text-sm text-white/40 truncate">{target.value}</div>
-                  <div className="text-xs text-white/30 mt-1">
-                    수집 {target.crawl_count || 0}회 | 성공률{" "}
-                    {Number(target.success_rate || 0).toFixed(0)}%
-                    {target.last_crawled_at && (
-                      <> | 마지막: {new Date(target.last_crawled_at).toLocaleDateString("ko-KR")}</>
-                    )}
-                  </div>
+                  )}
+                  <span className="text-[10px] text-white/30">P:{target.priority}</span>
                 </div>
+                <div className="text-[11px] text-white/40 truncate">{target.value}</div>
+                <div className="text-[10px] text-white/25 mt-0.5">
+                  수집 {target.crawl_count || 0}회 | 성공률{" "}
+                  {Number(target.success_rate || 0).toFixed(0)}%
+                  {target.last_crawled_at && (
+                    <> | {new Date(target.last_crawled_at).toLocaleDateString("ko-KR")}</>
+                  )}
+                </div>
+              </div>
 
-                {/* Actions */}
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => startEdit(target)}
-                    className="px-3 py-1.5 bg-blue-500/20 text-blue-400 rounded-lg text-xs font-medium hover:bg-blue-500/30 transition-colors"
-                  >
-                    수정
-                  </button>
-                  <button
-                    onClick={() => toggleActive(target.id, target.is_active)}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                      target.is_active
-                        ? "bg-green-500/20 text-green-400"
-                        : "bg-white/10 text-white/40"
-                    }`}
-                  >
-                    {target.is_active ? "활성" : "비활성"}
-                  </button>
-                  <button
-                    onClick={() => deleteTarget(target.id)}
-                    className="px-3 py-1.5 bg-red-500/20 text-red-400 rounded-lg text-xs font-medium hover:bg-red-500/30 transition-colors"
-                  >
-                    삭제
-                  </button>
-                </div>
+              {/* Toggle Switch */}
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  toggleActive(target.id, target.is_active);
+                }}
+                className={`relative w-10 h-5 rounded-full transition-colors flex-shrink-0 ${
+                  target.is_active ? "bg-emerald-500" : "bg-white/20"
+                }`}
+                title={target.is_active ? "비활성화" : "활성화"}
+              >
+                <div
+                  className={`absolute top-0.5 w-4 h-4 bg-white rounded-full transition-transform shadow ${
+                    target.is_active ? "translate-x-5" : "translate-x-0.5"
+                  }`}
+                />
+              </button>
+
+              {/* More Menu */}
+              <div className="relative">
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (!confirm("이 대상을 삭제하시겠습니까?")) return;
+                    deleteTarget(target.id);
+                  }}
+                  className="p-1.5 rounded hover:bg-white/10 text-white/30 hover:text-red-400 transition-colors"
+                  title="삭제"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
               </div>
             </div>
           ))
