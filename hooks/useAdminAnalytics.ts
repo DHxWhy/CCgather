@@ -306,6 +306,64 @@ interface SubmitLogsOptions {
   enabled?: boolean;
 }
 
+// ============================================
+// Traffic Sources (유입 경로 분석)
+// ============================================
+
+interface TrafficSourceMetric {
+  count: number;
+  percent: number;
+  icon: string;
+}
+
+interface TrafficTrendItem {
+  date: string;
+  direct: number;
+  search: number;
+  social: number;
+  referral: number;
+}
+
+interface TopDomainItem {
+  domain: string;
+  count: number;
+  percent: number;
+  type: "direct" | "search" | "social" | "referral";
+  icon: string;
+}
+
+interface TrafficSourcesResponse {
+  summary: {
+    direct: TrafficSourceMetric;
+    search: TrafficSourceMetric;
+    social: TrafficSourceMetric;
+    referral: TrafficSourceMetric;
+  };
+  trend: TrafficTrendItem[];
+  topDomains: TopDomainItem[];
+  totalVisitors: number;
+  dateRange: { from: string; to: string | undefined };
+  error?: string;
+}
+
+/**
+ * Fetch traffic sources analytics
+ */
+export function useTrafficSources(options: AnalyticsQueryOptions = {}) {
+  const { dateFrom = "-7d", dateTo, enabled = true } = options;
+
+  return useQuery<TrafficSourcesResponse>({
+    queryKey: ["analytics", "traffic-sources", dateFrom, dateTo],
+    queryFn: () =>
+      fetchAnalytics<TrafficSourcesResponse>("traffic-sources", {
+        date_from: dateFrom,
+        date_to: dateTo,
+      }),
+    staleTime: 60 * 1000, // 1 minute
+    enabled,
+  });
+}
+
 /**
  * Fetch submit logs (제출 1회당 1건)
  */

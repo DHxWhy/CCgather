@@ -74,12 +74,73 @@ export async function GET() {
     .single();
 
   if (error || !user) {
-    // User not found - auto-create from Clerk data (webhook may have failed/delayed)
+    // User not found by clerk_id - check if existing user with same email
     const clerkUser = await currentUser();
     if (!clerkUser) {
       return NextResponse.json({ error: "Failed to get user info" }, { status: 500 });
     }
 
+    const email = clerkUser.emailAddresses[0]?.emailAddress;
+
+    // First, check if there's an existing user with the same email (account linking)
+    if (email) {
+      const { data: existingByEmail } = await supabase
+        .from("users")
+        .select(
+          `
+          id,
+          username,
+          display_name,
+          avatar_url,
+          country_code,
+          timezone,
+          current_level,
+          global_rank,
+          country_rank,
+          total_tokens,
+          total_cost,
+          onboarding_completed,
+          is_admin,
+          social_links,
+          created_at
+        `
+        )
+        .eq("email", email)
+        .is("deleted_at", null)
+        .single();
+
+      if (existingByEmail) {
+        // Found existing account with same email - link clerk_id to this account
+        console.log("[/api/me] Linking existing account by email:", {
+          email,
+          old_user_id: existingByEmail.id,
+          new_clerk_id: userId,
+        });
+
+        const { error: linkError } = await supabase
+          .from("users")
+          .update({ clerk_id: userId, updated_at: new Date().toISOString() })
+          .eq("id", existingByEmail.id);
+
+        if (linkError) {
+          console.error("[/api/me] Failed to link account:", linkError);
+        } else {
+          // Return the existing user (now linked to new clerk_id)
+          return NextResponse.json(
+            { user: existingByEmail },
+            {
+              headers: {
+                "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
+                Pragma: "no-cache",
+                Expires: "0",
+              },
+            }
+          );
+        }
+      }
+    }
+
+    // No existing account found - create new user
     const displayName =
       [clerkUser.firstName, clerkUser.lastName].filter(Boolean).join(" ") ||
       clerkUser.username ||
@@ -92,7 +153,7 @@ export async function GET() {
         username: clerkUser.username || `user_${userId.slice(0, 8)}`,
         display_name: displayName,
         avatar_url: clerkUser.imageUrl,
-        email: clerkUser.emailAddresses[0]?.emailAddress,
+        email: email,
         onboarding_completed: false, // New user needs onboarding
       })
       .select(

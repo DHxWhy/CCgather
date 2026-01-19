@@ -36,8 +36,7 @@ node_modules/
 .pnp.js
 .yarn/install-state.gz
 
-# Wrong package manager lockfiles (project uses pnpm)
-package-lock.json
+# Wrong package manager lockfiles (project uses npm)
 yarn.lock
 
 # ══════════════════════════════════════════════════════════

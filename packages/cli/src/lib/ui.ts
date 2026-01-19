@@ -1,4 +1,5 @@
 import chalk from "chalk";
+import stringWidth from "string-width";
 
 // Version injected at build time by tsup
 declare const __VERSION__: string;
@@ -82,7 +83,7 @@ const HEADER_WIDTH = 46;
 
 // Center text within width
 function centerText(text: string, width: number): string {
-  const len = stripAnsi(text).length;
+  const len = getDisplayWidth(text);
   const pad = width - len;
   return (
     " ".repeat(Math.max(0, Math.floor(pad / 2))) +
@@ -93,7 +94,7 @@ function centerText(text: string, width: number): string {
 
 // Right-align text within width
 function rightAlignText(text: string, width: number): string {
-  const len = stripAnsi(text).length;
+  const len = getDisplayWidth(text);
   const pad = width - len;
   return " ".repeat(Math.max(0, pad)) + text;
 }
@@ -116,7 +117,7 @@ export function createProfessionalHeader(): string[] {
     lines.push(
       colors.dim(`  ${v}`) +
         l +
-        " ".repeat(Math.max(0, HEADER_WIDTH - stripAnsi(l).length)) +
+        " ".repeat(Math.max(0, HEADER_WIDTH - getDisplayWidth(l))) +
         colors.dim(v)
     );
   }
@@ -158,7 +159,7 @@ export function createProfessionalHeader(): string[] {
 // Create a box around content
 export function createBox(lines: string[], width: number = 47): string {
   const paddedLines = lines.map((line) => {
-    const visibleLength = stripAnsi(line).length;
+    const visibleLength = getDisplayWidth(line);
     const padding = width - 2 - visibleLength;
     return `${box.vertical} ${line}${" ".repeat(Math.max(0, padding))} ${box.vertical}`;
   });
@@ -172,6 +173,20 @@ export function createBox(lines: string[], width: number = 47): string {
 // Strip ANSI codes for length calculation
 function stripAnsi(str: string): string {
   return str.replace(/\x1B\[[0-9;]*[a-zA-Z]/g, "");
+}
+
+// Get display width with flag emoji correction
+// Flag emojis (regional indicators) may display differently across terminals
+function getDisplayWidth(str: string): number {
+  let width = stringWidth(str);
+  // Count flag emojis (pairs of regional indicator symbols U+1F1E6-U+1F1FF)
+  // Some terminals display flags as 1 char width instead of 2
+  const flagRegex = /[🇦-🇿][🇦-🇿]/gu;
+  const flags = str.match(flagRegex);
+  if (flags) {
+    width += flags.length * 2 * 2;
+  }
+  return width;
 }
 
 // Create a divider line
@@ -351,14 +366,11 @@ export function createWelcomeBox(user: {
   return createBox(lines);
 }
 
-// Convert country code to flag emoji
+// Convert country code to display format
+// Using text code instead of flag emoji for consistent terminal width
 export function countryCodeToFlag(countryCode: string): string {
   if (!countryCode || countryCode.length !== 2) return "🌐";
-  const codePoints = countryCode
-    .toUpperCase()
-    .split("")
-    .map((char) => 0x1f1e6 + char.charCodeAt(0) - 65);
-  return String.fromCodePoint(...codePoints);
+  return countryCode.toUpperCase();
 }
 
 // Create stats display
@@ -683,7 +695,7 @@ export async function printAnimatedWelcomeBox(user: {
   }
 
   // Calculate box width
-  const maxVisibleLength = Math.max(...lines.map((l) => stripAnsi(l).length));
+  const maxVisibleLength = Math.max(...lines.map((l) => getDisplayWidth(l)));
   const boxWidth = Math.max(maxVisibleLength + 4, 47);
 
   // Print box with animation
@@ -696,7 +708,7 @@ export async function printAnimatedWelcomeBox(user: {
   await sleep(20);
 
   for (const line of lines) {
-    const visibleLength = stripAnsi(line).length;
+    const visibleLength = getDisplayWidth(line);
     const padding = boxWidth - 2 - visibleLength;
     const paddedLine = `${box.vertical} ${line}${" ".repeat(Math.max(0, padding))} ${box.vertical}`;
     console.log(colors.dim("  ") + paddedLine);

@@ -8,16 +8,9 @@ import { GlobeParticles } from "@/components/ui/globe-particles";
 import { formatNumber, formatCost } from "@/lib/utils/format";
 import type { GlobalStats } from "@/lib/data/global-stats";
 
-// Globe 플레이스홀더 - 로딩 중 표시
+// Globe 플레이스홀더 - 레이아웃 시프트 방지용 빈 공간
 function GlobePlaceholder({ size }: { size: number }) {
-  return (
-    <div
-      className="rounded-full bg-gradient-to-br from-white/5 to-transparent animate-pulse"
-      style={{ width: size, height: size }}
-    >
-      <div className="w-full h-full rounded-full border border-white/10" />
-    </div>
-  );
+  return <div style={{ width: size, height: size }} />;
 }
 
 // Lazy load Globe for performance - with placeholder
