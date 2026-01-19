@@ -146,10 +146,49 @@ function extractProjectName(filePath: string): string {
 }
 
 /**
- * Get Claude Code projects directory
+ * Get all possible Claude Code projects directories
+ * Supports:
+ * - CLAUDE_CONFIG_DIR environment variable
+ * - XDG path (~/.config/claude/projects) - Claude Code v1.0.30+
+ * - Legacy path (~/.claude/projects) - Claude Code < v1.0.30
+ */
+function getClaudeProjectsDirs(): string[] {
+  const dirs: string[] = [];
+  const home = os.homedir();
+
+  // 1. CLAUDE_CONFIG_DIR environment variable (highest priority)
+  const configDir = process.env.CLAUDE_CONFIG_DIR;
+  if (configDir) {
+    dirs.push(path.join(configDir, "projects"));
+  }
+
+  // 2. XDG path (Claude Code v1.0.30+)
+  // Windows: %APPDATA%/claude/projects or ~/.config/claude/projects
+  // macOS/Linux: ~/.config/claude/projects
+  if (process.platform === "win32") {
+    const appData = process.env.APPDATA;
+    if (appData) {
+      dirs.push(path.join(appData, "claude", "projects"));
+    }
+  }
+  dirs.push(path.join(home, ".config", "claude", "projects"));
+
+  // 3. Legacy path (Claude Code < v1.0.30)
+  dirs.push(path.join(home, ".claude", "projects"));
+
+  // Return only unique paths that exist
+  const uniqueDirs = [...new Set(dirs)];
+  return uniqueDirs.filter((dir) => fs.existsSync(dir));
+}
+
+/**
+ * Get Claude Code projects directory (legacy function for compatibility)
+ * @deprecated Use getClaudeProjectsDirs() instead
  */
 function getClaudeProjectsDir(): string {
-  return path.join(os.homedir(), ".claude", "projects");
+  const dirs = getClaudeProjectsDirs();
+  // Return first existing dir, or fallback to legacy path
+  return dirs[0] || path.join(os.homedir(), ".claude", "projects");
 }
 
 /**
@@ -182,35 +221,45 @@ function encodePathLikeClaude(inputPath: string): string {
 
 /**
  * Get the current project's session directory
- * Claude Code encodes project paths and stores them in ~/.claude/projects/{encoded-path}/
+ * Claude Code encodes project paths and stores them in various locations:
+ * - CLAUDE_CONFIG_DIR/projects/{encoded-path}/
+ * - ~/.config/claude/projects/{encoded-path}/ (v1.0.30+)
+ * - ~/.claude/projects/{encoded-path}/ (legacy)
+ *
+ * Checks all possible locations and returns the first match found.
  */
 function getCurrentProjectDir(): string | null {
-  const projectsDir = getClaudeProjectsDir();
-  if (!fs.existsSync(projectsDir)) {
+  const projectsDirs = getClaudeProjectsDirs();
+
+  if (projectsDirs.length === 0) {
     return null;
   }
 
   const cwd = process.cwd();
   const encodedCwd = encodePathLikeClaude(cwd);
 
-  try {
-    const entries = fs.readdirSync(projectsDir, { withFileTypes: true });
+  // Search through all possible project directories
+  for (const projectsDir of projectsDirs) {
+    try {
+      const entries = fs.readdirSync(projectsDir, { withFileTypes: true });
 
-    for (const entry of entries) {
-      if (!entry.isDirectory()) continue;
+      for (const entry of entries) {
+        if (!entry.isDirectory()) continue;
 
-      // Direct match with encoded path
-      if (entry.name === encodedCwd) {
-        return path.join(projectsDir, entry.name);
+        // Direct match with encoded path
+        if (entry.name === encodedCwd) {
+          return path.join(projectsDir, entry.name);
+        }
+
+        // Case-insensitive match (Windows paths)
+        if (entry.name.toLowerCase() === encodedCwd.toLowerCase()) {
+          return path.join(projectsDir, entry.name);
+        }
       }
-
-      // Case-insensitive match (Windows paths)
-      if (entry.name.toLowerCase() === encodedCwd.toLowerCase()) {
-        return path.join(projectsDir, entry.name);
-      }
+    } catch {
+      // Continue to next directory on error
+      continue;
     }
-  } catch {
-    return null;
   }
 
   return null;
