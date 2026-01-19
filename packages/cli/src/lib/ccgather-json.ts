@@ -253,42 +253,77 @@ function encodePathLikeClaude(inputPath: string): string {
  * - ~/.config/claude/projects/{encoded-path}/ (v1.0.30+)
  * - ~/.claude/projects/{encoded-path}/ (legacy)
  *
- * Checks all possible locations and returns the first match found.
+ * Uses multiple matching strategies:
+ * 1. Exact encoded path match
+ * 2. Project name contained in folder name (encoding-agnostic)
+ * 3. Case-insensitive matching
  */
 function getCurrentProjectDir(): string | null {
   const projectsDirs = getClaudeProjectsDirs();
 
   if (projectsDirs.length === 0) {
+    debugLog("No project directories found");
     return null;
   }
 
   const cwd = process.cwd();
+  const projectName = path.basename(cwd);
   const encodedCwd = encodePathLikeClaude(cwd);
+
+  debugLog("Looking for project:", projectName);
+  debugLog("Encoded CWD:", encodedCwd);
 
   // Search through all possible project directories
   for (const projectsDir of projectsDirs) {
     try {
       const entries = fs.readdirSync(projectsDir, { withFileTypes: true });
+      debugLog(`Scanning ${projectsDir}: ${entries.length} entries`);
 
       for (const entry of entries) {
         if (!entry.isDirectory()) continue;
 
-        // Direct match with encoded path
-        if (entry.name === encodedCwd) {
+        const folderName = entry.name;
+        const folderNameLower = folderName.toLowerCase();
+        const projectNameLower = projectName.toLowerCase();
+        const encodedCwdLower = encodedCwd.toLowerCase();
+
+        // Strategy 1: Exact encoded path match
+        if (folderName === encodedCwd || folderNameLower === encodedCwdLower) {
+          debugLog("Match found (exact):", folderName);
           return path.join(projectsDir, entry.name);
         }
 
-        // Case-insensitive match (Windows paths)
-        if (entry.name.toLowerCase() === encodedCwd.toLowerCase()) {
+        // Strategy 2: Project name contained in folder name
+        // This handles different encoding schemes
+        if (folderNameLower.includes(projectNameLower)) {
+          debugLog("Match found (contains project name):", folderName);
+          return path.join(projectsDir, entry.name);
+        }
+
+        // Strategy 2b: Project name with underscores converted to hyphens
+        // Claude Code converts underscores to hyphens in folder names
+        const projectNameHyphenated = projectNameLower.replace(/_/g, "-");
+        if (folderNameLower.includes(projectNameHyphenated)) {
+          debugLog("Match found (hyphenated project name):", folderName);
+          return path.join(projectsDir, entry.name);
+        }
+
+        // Strategy 3: Folder name ends with project name pattern
+        // e.g., "-orchestratoion_skill_generator" or "_orchestratoion_skill_generator"
+        const projectNamePattern = projectNameLower.replace(/[^a-z0-9]/g, "");
+        const folderNamePattern = folderNameLower.replace(/[^a-z0-9]/g, "");
+        if (folderNamePattern.endsWith(projectNamePattern) && projectNamePattern.length > 3) {
+          debugLog("Match found (ends with pattern):", folderName);
           return path.join(projectsDir, entry.name);
         }
       }
-    } catch {
-      // Continue to next directory on error
+    } catch (err) {
+      debugLog("Error scanning directory:", err);
       continue;
     }
   }
 
+  debugLog("No matching project directory found");
   return null;
 }
 
