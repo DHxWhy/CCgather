@@ -1,6 +1,6 @@
-import * as fs from 'fs';
-import * as path from 'path';
-import * as os from 'os';
+import * as fs from "fs";
+import * as path from "path";
+import * as os from "os";
 
 export interface ClaudeUsageData {
   totalTokens: number;
@@ -32,12 +32,12 @@ interface ClaudeConfig {
 export function getClaudeConfigDir(): string {
   const platform = os.platform();
 
-  if (platform === 'win32') {
-    return path.join(os.homedir(), 'AppData', 'Roaming', 'claude-code');
-  } else if (platform === 'darwin') {
-    return path.join(os.homedir(), 'Library', 'Application Support', 'claude-code');
+  if (platform === "win32") {
+    return path.join(os.homedir(), "AppData", "Roaming", "claude-code");
+  } else if (platform === "darwin") {
+    return path.join(os.homedir(), "Library", "Application Support", "claude-code");
   } else {
-    return path.join(os.homedir(), '.config', 'claude-code');
+    return path.join(os.homedir(), ".config", "claude-code");
   }
 }
 
@@ -47,11 +47,11 @@ export function getClaudeConfigDir(): string {
 function getUsageFilePaths(): string[] {
   const configDir = getClaudeConfigDir();
   return [
-    path.join(configDir, 'usage.json'),
-    path.join(configDir, 'stats.json'),
-    path.join(configDir, 'data', 'usage.json'),
-    path.join(os.homedir(), '.claude', 'usage.json'),
-    path.join(os.homedir(), '.claude-code', 'usage.json'),
+    path.join(configDir, "usage.json"),
+    path.join(configDir, "stats.json"),
+    path.join(configDir, "data", "usage.json"),
+    path.join(os.homedir(), ".claude", "usage.json"),
+    path.join(os.homedir(), ".claude-code", "usage.json"),
   ];
 }
 
@@ -64,7 +64,7 @@ export function readClaudeUsage(): ClaudeUsageData | null {
   for (const filePath of possiblePaths) {
     try {
       if (fs.existsSync(filePath)) {
-        const content = fs.readFileSync(filePath, 'utf-8');
+        const content = fs.readFileSync(filePath, "utf-8");
         const data: ClaudeConfig = JSON.parse(content);
 
         if (data.usage) {
@@ -96,7 +96,7 @@ export function readClaudeUsage(): ClaudeUsageData | null {
           };
         }
       }
-    } catch (error) {
+    } catch {
       // Continue to next path
     }
   }
@@ -117,11 +117,11 @@ export function isClaudeCodeInstalled(): boolean {
  */
 export function getClaudeCodeVersion(): string | null {
   const configDir = getClaudeConfigDir();
-  const versionFile = path.join(configDir, 'version');
+  const versionFile = path.join(configDir, "version");
 
   try {
     if (fs.existsSync(versionFile)) {
-      return fs.readFileSync(versionFile, 'utf-8').trim();
+      return fs.readFileSync(versionFile, "utf-8").trim();
     }
   } catch {
     // Ignore errors
@@ -138,9 +138,9 @@ export function getMockUsageData(): ClaudeUsageData {
     totalTokens: Math.floor(Math.random() * 1000000) + 10000,
     totalSpent: Math.random() * 50 + 5,
     modelBreakdown: {
-      'claude-3-5-sonnet-20241022': Math.floor(Math.random() * 500000),
-      'claude-3-opus-20240229': Math.floor(Math.random() * 100000),
-      'claude-3-haiku-20240307': Math.floor(Math.random() * 200000),
+      "claude-3-5-sonnet-20241022": Math.floor(Math.random() * 500000),
+      "claude-3-opus-20240229": Math.floor(Math.random() * 100000),
+      "claude-3-haiku-20240307": Math.floor(Math.random() * 200000),
     },
     lastUpdated: new Date().toISOString(),
   };

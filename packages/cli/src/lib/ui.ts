@@ -93,7 +93,7 @@ function centerText(text: string, width: number): string {
 }
 
 // Right-align text within width
-function rightAlignText(text: string, width: number): string {
+function _rightAlignText(text: string, width: number): string {
   const len = getDisplayWidth(text);
   const pad = width - len;
   return " ".repeat(Math.max(0, pad)) + text;
@@ -107,19 +107,14 @@ export function createProfessionalHeader(): string[] {
 
   lines.push(colors.dim(`  ${boxRound.topLeft}${h.repeat(HEADER_WIDTH)}${boxRound.topRight}`));
 
-  // CCGATHER logo (3 rows, same height)
+  // CCGATHER logo (3 rows, same height) - centered
   const logoLines = [
-    `  ${colors.primary("▄█▀▀ ▄█▀▀")} ${colors.secondary("▄█▀▀  ▄█▀█▄ ▀█▀ █  █ █▀▀ █▀█")}  `,
-    `  ${colors.primary("█    █   ")} ${colors.secondary("█  ▀█ █▀▀█▀  █  █▀▀█ █▀▀ ██▀")}  `,
-    `  ${colors.primary("▀█▄▄ ▀█▄▄")} ${colors.secondary("▀█▄▄▀ █  █   █  █  █ █▄▄ █ █")}  `,
+    `${colors.primary("▄█▀▀ ▄█▀▀")} ${colors.secondary("▄█▀▀  ▄█▀█▄ ▀█▀ █  █ █▀▀ █▀█")}`,
+    `${colors.primary("█    █   ")} ${colors.secondary("█  ▀█ █▀▀█▀  █  █▀▀█ █▀▀ ██▀")}`,
+    `${colors.primary("▀█▄▄ ▀█▄▄")} ${colors.secondary("▀█▄▄▀ █  █   █  █  █ █▄▄ █ █")}`,
   ];
   for (const l of logoLines) {
-    lines.push(
-      colors.dim(`  ${v}`) +
-        l +
-        " ".repeat(Math.max(0, HEADER_WIDTH - getDisplayWidth(l))) +
-        colors.dim(v)
-    );
+    lines.push(colors.dim(`  ${v}`) + centerText(l, HEADER_WIDTH) + colors.dim(v));
   }
 
   // Version right-aligned (2-space padding)
@@ -171,7 +166,7 @@ export function createBox(lines: string[], width: number = 47): string {
 }
 
 // Strip ANSI codes for length calculation
-function stripAnsi(str: string): string {
+function _stripAnsi(str: string): string {
   return str.replace(/\x1B\[[0-9;]*[a-zA-Z]/g, "");
 }
 

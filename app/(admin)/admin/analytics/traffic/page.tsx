@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { useTrafficSources } from "@/hooks/useAdminAnalytics";
-import { InfoPopover } from "@/components/admin/InfoPopover";
 
 const DATE_RANGES = [
   { label: "7일", value: "-7d" },
@@ -54,26 +53,22 @@ function SourceCard({
   const labels = SOURCE_LABELS[type];
 
   return (
-    <div className={`${colors.bg} rounded-lg p-4 border border-white/[0.06]`}>
-      <div className="flex items-start justify-between mb-2">
-        <div className="flex items-center gap-2">
-          <span className="text-lg">{icon}</span>
-          <span className={`text-[12px] font-medium ${colors.text}`}>{labels.label}</span>
+    <div className={`${colors.bg} rounded-lg px-3 py-2 border border-white/[0.06]`}>
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-1.5 min-w-0">
+          <span className="text-sm shrink-0">{icon}</span>
+          <span className={`text-[11px] font-medium ${colors.text} truncate`}>{labels.label}</span>
         </div>
-        <InfoPopover title={labels.label} description={labels.description} />
-      </div>
-      <div className="flex items-baseline gap-2">
-        <span className="text-2xl font-bold text-white">{count.toLocaleString()}</span>
-        <span className="text-[11px] text-white/40">명</span>
-      </div>
-      <div className="mt-2 flex items-center gap-2">
-        <div className="flex-1 h-1.5 bg-white/5 rounded-full overflow-hidden">
-          <div
-            className={`h-full ${colors.bar} transition-all duration-500`}
-            style={{ width: `${Math.min(percent, 100)}%` }}
-          />
+        <div className="flex items-center gap-2 shrink-0">
+          <span className="text-base font-bold text-white">{count.toLocaleString()}</span>
+          <span className="text-[10px] text-white/40 font-mono">{percent}%</span>
         </div>
-        <span className="text-[11px] text-white/50 font-mono">{percent}%</span>
+      </div>
+      <div className="mt-1.5 h-1 bg-white/5 rounded-full overflow-hidden">
+        <div
+          className={`h-full ${colors.bar} transition-all duration-500`}
+          style={{ width: `${Math.min(percent, 100)}%` }}
+        />
       </div>
     </div>
   );
@@ -176,91 +171,199 @@ function TrendChart({
   );
 }
 
-function TopDomainsTable({
-  domains,
-}: {
-  domains: Array<{
-    domain: string;
-    count: number;
-    percent: number;
-    type: SourceType;
-    icon: string;
-  }>;
-}) {
+interface DomainDetail {
+  url: string;
+  count: number;
+  percent: number;
+}
+
+interface DomainData {
+  domain: string;
+  count: number;
+  percent: number;
+  type: SourceType;
+  icon: string;
+  details?: DomainDetail[];
+}
+
+type SortType = "count" | "percent" | "domain";
+
+function TopDomainsTable({ domains }: { domains: DomainData[] }) {
+  const [expandedDomains, setExpandedDomains] = useState<Set<string>>(new Set());
+  const [sortBy, setSortBy] = useState<SortType>("count");
+  const [sortDesc, setSortDesc] = useState(true);
+
+  const toggleExpand = (domain: string) => {
+    setExpandedDomains((prev) => {
+      const next = new Set(prev);
+      if (next.has(domain)) {
+        next.delete(domain);
+      } else {
+        next.add(domain);
+      }
+      return next;
+    });
+  };
+
+  const handleSort = (type: SortType) => {
+    if (sortBy === type) {
+      setSortDesc(!sortDesc);
+    } else {
+      setSortBy(type);
+      setSortDesc(true);
+    }
+  };
+
+  const sortedDomains = [...domains].sort((a, b) => {
+    let cmp = 0;
+    switch (sortBy) {
+      case "count":
+        cmp = a.count - b.count;
+        break;
+      case "percent":
+        cmp = a.percent - b.percent;
+        break;
+      case "domain":
+        cmp = a.domain.localeCompare(b.domain);
+        break;
+    }
+    return sortDesc ? -cmp : cmp;
+  });
+
   if (!domains?.length) {
     return (
       <div className="text-center py-8 text-[12px] text-white/30">도메인 데이터가 없습니다</div>
     );
   }
 
+  const SortIcon = ({ active, desc }: { active: boolean; desc: boolean }) => (
+    <span className={`ml-1 text-[8px] ${active ? "text-white/60" : "text-white/20"}`}>
+      {active ? (desc ? "▼" : "▲") : "▼"}
+    </span>
+  );
+
   return (
     <div className="overflow-x-auto">
       <table className="w-full">
         <thead>
           <tr className="border-b border-white/[0.06]">
-            <th className="px-3 py-2.5 text-left text-[10px] font-medium text-white/40 uppercase">
+            <th
+              className="px-3 py-2 text-left text-[10px] font-medium text-white/40 uppercase cursor-pointer hover:text-white/60 transition-colors"
+              onClick={() => handleSort("domain")}
+            >
               도메인
+              <SortIcon active={sortBy === "domain"} desc={sortDesc} />
             </th>
-            <th className="px-3 py-2.5 text-left text-[10px] font-medium text-white/40 uppercase">
+            <th className="px-3 py-2 text-left text-[10px] font-medium text-white/40 uppercase">
               유형
             </th>
-            <th className="px-3 py-2.5 text-right text-[10px] font-medium text-white/40 uppercase">
+            <th
+              className="px-3 py-2 text-right text-[10px] font-medium text-white/40 uppercase cursor-pointer hover:text-white/60 transition-colors"
+              onClick={() => handleSort("count")}
+            >
               방문자
+              <SortIcon active={sortBy === "count"} desc={sortDesc} />
             </th>
-            <th className="px-3 py-2.5 text-right text-[10px] font-medium text-white/40 uppercase">
+            <th
+              className="px-3 py-2 text-right text-[10px] font-medium text-white/40 uppercase cursor-pointer hover:text-white/60 transition-colors"
+              onClick={() => handleSort("percent")}
+            >
               비율
+              <SortIcon active={sortBy === "percent"} desc={sortDesc} />
             </th>
           </tr>
         </thead>
         <tbody>
-          {domains.map((domain, index) => {
+          {sortedDomains.map((domain, index) => {
             const colors = SOURCE_COLORS[domain.type];
             const labels = SOURCE_LABELS[domain.type];
+            const isExpanded = expandedDomains.has(domain.domain);
+            const hasDetails = domain.details && domain.details.length > 0;
 
             return (
-              <tr
-                key={domain.domain}
-                className={`border-b border-white/[0.03] hover:bg-white/[0.02] transition-colors ${
-                  index === 0 ? "bg-white/[0.02]" : ""
-                }`}
-              >
-                <td className="px-3 py-2.5">
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm">{domain.icon}</span>
-                    <span className="text-[12px] text-white font-medium truncate max-w-[200px]">
-                      {domain.domain}
-                    </span>
-                    {index === 0 && (
-                      <span className="text-[9px] bg-[var(--color-claude-coral)]/20 text-[var(--color-claude-coral)] px-1.5 py-0.5 rounded">
-                        TOP
+              <>
+                <tr
+                  key={domain.domain}
+                  className={`border-b border-white/[0.03] hover:bg-white/[0.02] transition-colors ${
+                    index === 0 ? "bg-white/[0.02]" : ""
+                  } ${hasDetails ? "cursor-pointer" : ""}`}
+                  onClick={() => hasDetails && toggleExpand(domain.domain)}
+                >
+                  <td className="px-3 py-2">
+                    <div className="flex items-center gap-2">
+                      {hasDetails && (
+                        <span
+                          className={`text-[10px] text-white/40 transition-transform ${isExpanded ? "rotate-90" : ""}`}
+                        >
+                          ▶
+                        </span>
+                      )}
+                      <span className="text-sm">{domain.icon}</span>
+                      <span className="text-[12px] text-white font-medium truncate max-w-[180px]">
+                        {domain.domain}
                       </span>
-                    )}
-                  </div>
-                </td>
-                <td className="px-3 py-2.5">
-                  <span
-                    className={`text-[10px] px-2 py-0.5 rounded-full ${colors.bg} ${colors.text}`}
-                  >
-                    {labels.label}
-                  </span>
-                </td>
-                <td className="px-3 py-2.5 text-right text-[12px] text-white font-mono">
-                  {domain.count.toLocaleString()}
-                </td>
-                <td className="px-3 py-2.5 text-right">
-                  <div className="flex items-center justify-end gap-2">
-                    <div className="w-16 h-1 bg-white/5 rounded-full overflow-hidden">
-                      <div
-                        className={`h-full ${colors.bar}`}
-                        style={{ width: `${Math.min(domain.percent * 2, 100)}%` }}
-                      />
+                      {index === 0 && (
+                        <span className="text-[9px] bg-[var(--color-claude-coral)]/20 text-[var(--color-claude-coral)] px-1.5 py-0.5 rounded">
+                          TOP
+                        </span>
+                      )}
+                      {hasDetails && (
+                        <span className="text-[9px] text-white/30">({domain.details!.length})</span>
+                      )}
                     </div>
-                    <span className="text-[11px] text-white/50 font-mono w-12 text-right">
-                      {domain.percent}%
+                  </td>
+                  <td className="px-3 py-2">
+                    <span
+                      className={`text-[10px] px-2 py-0.5 rounded-full ${colors.bg} ${colors.text}`}
+                    >
+                      {labels.label}
                     </span>
-                  </div>
-                </td>
-              </tr>
+                  </td>
+                  <td className="px-3 py-2 text-right text-[12px] text-white font-mono">
+                    {domain.count.toLocaleString()}
+                  </td>
+                  <td className="px-3 py-2 text-right">
+                    <div className="flex items-center justify-end gap-2">
+                      <div className="w-12 h-1 bg-white/5 rounded-full overflow-hidden">
+                        <div
+                          className={`h-full ${colors.bar}`}
+                          style={{ width: `${Math.min(domain.percent * 2, 100)}%` }}
+                        />
+                      </div>
+                      <span className="text-[11px] text-white/50 font-mono w-10 text-right">
+                        {domain.percent}%
+                      </span>
+                    </div>
+                  </td>
+                </tr>
+                {/* Expanded details */}
+                {isExpanded && hasDetails && (
+                  <tr key={`${domain.domain}-details`}>
+                    <td colSpan={4} className="px-0 py-0">
+                      <div className="bg-white/[0.02] border-b border-white/[0.03]">
+                        {domain.details!.map((detail) => (
+                          <div
+                            key={detail.url}
+                            className="flex items-center justify-between px-6 py-1.5 border-b border-white/[0.02] last:border-b-0 hover:bg-white/[0.02]"
+                          >
+                            <span className="text-[11px] text-white/60 truncate max-w-[350px] font-mono">
+                              {detail.url}
+                            </span>
+                            <div className="flex items-center gap-3 shrink-0">
+                              <span className="text-[11px] text-white/50 font-mono">
+                                {detail.count.toLocaleString()}
+                              </span>
+                              <span className="text-[10px] text-white/30 font-mono w-10 text-right">
+                                {detail.percent}%
+                              </span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </td>
+                  </tr>
+                )}
+              </>
             );
           })}
         </tbody>
@@ -443,10 +546,10 @@ export default function TrafficSourcesPage() {
           </div>
 
           {/* Top Domains Table */}
-          <div className="bg-[#161616] rounded-lg p-5 border border-white/[0.06]">
-            <div className="flex items-center justify-between mb-4">
+          <div className="bg-[#161616] rounded-lg p-4 border border-white/[0.06]">
+            <div className="flex items-center justify-between mb-3">
               <span className="text-[12px] text-white/50">상위 유입 도메인</span>
-              <span className="text-[10px] text-white/30">최대 15개</span>
+              <span className="text-[10px] text-white/30">최대 30개</span>
             </div>
             <TopDomainsTable domains={data.topDomains} />
           </div>

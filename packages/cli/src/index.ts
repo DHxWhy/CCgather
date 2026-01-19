@@ -3,9 +3,7 @@
 import { Command } from "commander";
 import inquirer from "inquirer";
 import chalk from "chalk";
-import updateNotifier from "update-notifier";
 import { submit } from "./commands/submit.js";
-import { status } from "./commands/status.js";
 import {
   printAnimatedHeader,
   printAnimatedWelcomeBox,
@@ -16,76 +14,6 @@ import {
 } from "./lib/ui.js";
 import { getConfig, isAuthenticated } from "./lib/config.js";
 import { getStatus } from "./lib/api.js";
-
-// Simple semver comparison: returns true if v1 > v2
-function isNewerVersion(v1: string, v2: string): boolean {
-  const parts1 = v1.split(".").map(Number);
-  const parts2 = v2.split(".").map(Number);
-  for (let i = 0; i < 3; i++) {
-    const p1 = parts1[i] || 0;
-    const p2 = parts2[i] || 0;
-    if (p1 > p2) return true;
-    if (p1 < p2) return false;
-  }
-  return false;
-}
-
-// Check for updates (real-time npm registry check)
-async function checkLatestVersion(): Promise<string | null> {
-  try {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 2000);
-
-    const response = await fetch("https://registry.npmjs.org/ccgather/latest", {
-      signal: controller.signal,
-    });
-    clearTimeout(timeout);
-
-    if (!response.ok) return null;
-    const data = (await response.json()) as { version: string };
-    return data.version;
-  } catch {
-    return null;
-  }
-}
-
-async function promptForUpdate(latestVersion: string): Promise<boolean> {
-  console.log();
-  console.log(
-    `  ${chalk.yellow("⚠")}  ${chalk.yellow("New version")} ${chalk.green(latestVersion)} ${chalk.yellow("available!")} ${chalk.dim(`(current: ${VERSION})`)}`
-  );
-  console.log();
-
-  const { shouldUpdate } = await inquirer.prompt([
-    {
-      type: "confirm",
-      name: "shouldUpdate",
-      message: `Update to ${chalk.green(latestVersion)} now?`,
-      default: true,
-    },
-  ]);
-
-  if (shouldUpdate) {
-    console.log();
-    console.log(`  ${chalk.cyan("→")} Updating to ${chalk.green(`ccgather@${latestVersion}`)}...`);
-    console.log();
-
-    const { spawn } = await import("child_process");
-    // Use npx with exact version to bypass cache
-    const child = spawn("npx", [`ccgather@${latestVersion}`], {
-      stdio: "inherit",
-      shell: true,
-    });
-
-    child.on("close", (code) => {
-      process.exit(code || 0);
-    });
-
-    return true; // Will exit via child process
-  }
-
-  return false; // Continue with current version
-}
 
 const program = new Command();
 
@@ -98,16 +26,6 @@ program
 async function showMainMenu(): Promise<void> {
   // Animated logo display
   await printAnimatedHeader();
-
-  // Check for newer version and prompt for update
-  const latestVersion = await checkLatestVersion();
-  if (latestVersion && isNewerVersion(latestVersion, VERSION)) {
-    const willUpdate = await promptForUpdate(latestVersion);
-    if (willUpdate) {
-      // Wait for child process to take over
-      await new Promise(() => {});
-    }
-  }
 
   // Check authentication - if not authenticated, start auth flow
   if (!isAuthenticated()) {

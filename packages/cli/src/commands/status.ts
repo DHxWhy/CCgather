@@ -19,7 +19,7 @@ interface StatusOptions {
   // Reserved for future use
 }
 
-export async function status(options: StatusOptions): Promise<void> {
+export async function status(_options: StatusOptions): Promise<void> {
   // Check authentication
   if (!isAuthenticated()) {
     console.log(`\n  ${error("Not authenticated.")}`);

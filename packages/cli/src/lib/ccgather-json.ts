@@ -185,7 +185,7 @@ function getClaudeProjectsDirs(): string[] {
  * Get Claude Code projects directory (legacy function for compatibility)
  * @deprecated Use getClaudeProjectsDirs() instead
  */
-function getClaudeProjectsDir(): string {
+function _getClaudeProjectsDir(): string {
   const dirs = getClaudeProjectsDirs();
   // Return first existing dir, or fallback to legacy path
   return dirs[0] || path.join(os.homedir(), ".claude", "projects");

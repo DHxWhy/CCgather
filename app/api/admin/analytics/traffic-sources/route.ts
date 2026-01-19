@@ -108,13 +108,49 @@ export async function GET(request: Request) {
       );
     }
 
-    // Fetch pageviews with referring_domain breakdown
-    const breakdownData = await posthogApi.getTrends(["$pageview"], {
-      dateRange: { date_from: dateFrom, date_to: dateTo },
-      interval: "day",
-      breakdown: "$referring_domain",
-      math: "dau",
-    });
+    // Fetch pageviews with referring_domain breakdown AND detailed referrer URLs
+    const [breakdownData, referrerData] = await Promise.all([
+      posthogApi.getTrends(["$pageview"], {
+        dateRange: { date_from: dateFrom, date_to: dateTo },
+        interval: "day",
+        breakdown: "$referring_domain",
+        math: "dau",
+      }),
+      posthogApi.getTrends(["$pageview"], {
+        dateRange: { date_from: dateFrom, date_to: dateTo },
+        breakdown: "$referrer", // Full referrer URL
+        math: "dau",
+      }),
+    ]);
+
+    // Build URL details map grouped by domain
+    const urlsByDomain = new Map<string, Map<string, number>>();
+    for (const series of referrerData.results || []) {
+      const fullUrl = series.label || "";
+      const count = series.count || 0;
+      if (!fullUrl || count === 0) continue;
+
+      // Extract domain from URL
+      let domain = "(direct)";
+      try {
+        if (fullUrl.startsWith("http")) {
+          const urlObj = new URL(fullUrl);
+          domain = urlObj.hostname.replace(/^www\./, "");
+        } else if (fullUrl !== "$direct" && fullUrl !== "") {
+          const firstPart = fullUrl.split("/")[0];
+          domain = firstPart ? firstPart.replace(/^www\./, "") : "(direct)";
+        }
+      } catch {
+        const firstPart = fullUrl.split("/")[0];
+        domain = firstPart ? firstPart.replace(/^www\./, "") : "(direct)";
+      }
+
+      if (!urlsByDomain.has(domain)) {
+        urlsByDomain.set(domain, new Map());
+      }
+      const domainUrls = urlsByDomain.get(domain)!;
+      domainUrls.set(fullUrl, (domainUrls.get(fullUrl) || 0) + count);
+    }
 
     // Process breakdown results
     const domainCounts = new Map<string, number>();
@@ -208,17 +244,36 @@ export async function GET(request: Request) {
         referral: sourceMap.get("referral") || 0,
       }));
 
-    // Build top domains list
+    // Build top domains list with detailed URLs
     const topDomains = Array.from(domainCounts.entries())
       .sort(([, a], [, b]) => b - a)
-      .slice(0, 15)
-      .map(([domain, count]) => ({
-        domain: domain === "" || domain === "$direct" ? "(direct)" : domain,
-        count,
-        percent: totalVisitors > 0 ? Math.round((count / totalVisitors) * 1000) / 10 : 0,
-        type: classifySource(domain),
-        icon: getDomainIcon(domain),
-      }));
+      .slice(0, 30)
+      .map(([domain, count]) => {
+        const normalizedDomain = domain === "" || domain === "$direct" ? "(direct)" : domain;
+        const domainKey = domain.replace(/^www\./, "").toLowerCase();
+
+        // Get detailed URLs for this domain
+        const domainUrlMap = urlsByDomain.get(domainKey) || urlsByDomain.get(normalizedDomain);
+        const details = domainUrlMap
+          ? Array.from(domainUrlMap.entries())
+              .sort(([, a], [, b]) => b - a)
+              .slice(0, 10) // Top 10 URLs per domain
+              .map(([url, urlCount]) => ({
+                url,
+                count: urlCount,
+                percent: count > 0 ? Math.round((urlCount / count) * 1000) / 10 : 0,
+              }))
+          : [];
+
+        return {
+          domain: normalizedDomain,
+          count,
+          percent: totalVisitors > 0 ? Math.round((count / totalVisitors) * 1000) / 10 : 0,
+          type: classifySource(domain),
+          icon: getDomainIcon(domain),
+          details, // Array of { url, count, percent }
+        };
+      });
 
     return NextResponse.json({
       summary,

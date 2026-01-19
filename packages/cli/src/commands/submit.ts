@@ -1,6 +1,6 @@
 import ora from "ora";
 import inquirer from "inquirer";
-import { getApiUrl, getConfig, isAuthenticated } from "../lib/config.js";
+import { getApiUrl, getConfig } from "../lib/config.js";
 import {
   scanUsageData,
   getSessionFileCount,
@@ -19,7 +19,6 @@ import {
   header,
   success,
   error,
-  warning,
   link,
   createBox,
   progressBar,
