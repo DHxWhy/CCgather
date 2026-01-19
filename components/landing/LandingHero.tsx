@@ -8,10 +8,25 @@ import { GlobeParticles } from "@/components/ui/globe-particles";
 import { formatNumber, formatCost } from "@/lib/utils/format";
 import type { GlobalStats } from "@/lib/data/global-stats";
 
-// Lazy load Globe for performance - no skeleton, just fade in
+// Globe 플레이스홀더 - 로딩 중 표시
+function GlobePlaceholder({ size }: { size: number }) {
+  return (
+    <div
+      className="rounded-full bg-gradient-to-br from-white/5 to-transparent animate-pulse"
+      style={{ width: size, height: size }}
+    >
+      <div className="w-full h-full rounded-full border border-white/10" />
+    </div>
+  );
+}
+
+// Lazy load Globe for performance - with placeholder
 const Globe = dynamic(
   () => import("@/components/globe/Globe").then((mod) => ({ default: mod.Globe })),
-  { ssr: false }
+  {
+    ssr: false,
+    loading: () => <GlobePlaceholder size={400} />,
+  }
 );
 
 // All onboarding countries for globe visualization
@@ -158,12 +173,15 @@ export function LandingHero({ initialStats }: LandingHeroProps) {
           {/* Fixed dimensions to prevent CLS */}
           <div className="flex-shrink-0 flex items-center justify-center w-full max-w-[260px] aspect-square md:max-w-[280px] lg:max-w-[400px]">
             <div className="relative" style={{ width: globeSize, height: globeSize }}>
-              {mounted && (
-                <>
-                  <GlobeParticles size={globeSize} />
-                  <Globe markers={GLOBE_STATS} size={globeSize} />
-                </>
-              )}
+              {/* 플레이스홀더 - 항상 표시, Globe 로드 후 숨김 */}
+              {!mounted && <GlobePlaceholder size={globeSize} />}
+              {/* Globe + Particles - 마운트 후 페이드인 */}
+              <div
+                className={`absolute inset-0 transition-opacity duration-500 ${mounted ? "opacity-100" : "opacity-0"}`}
+              >
+                <GlobeParticles size={globeSize} />
+                <Globe markers={GLOBE_STATS} size={globeSize} />
+              </div>
             </div>
           </div>
 

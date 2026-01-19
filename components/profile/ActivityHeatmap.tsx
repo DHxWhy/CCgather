@@ -85,12 +85,11 @@ export function ActivityHeatmap({ data, periodDays = 90 }: ActivityHeatmapProps)
   }, [data]);
 
   // Process data into a grid structure
+  // Always generate the grid structure, even with no data (for consistent layout)
   const gridData = useMemo(() => {
-    if (data.length === 0) return { cells: [], weeks: 0, maxTokens: 0, monthLabels: [] };
-
     // Create a map of date -> tokens
     const dataMap = new Map(data.map((d) => [d.date, d.tokens]));
-    const maxTokens = Math.max(...data.map((d) => d.tokens), 1);
+    const maxTokens = data.length > 0 ? Math.max(...data.map((d) => d.tokens), 1) : 1;
 
     // Calculate date range
     const endDate = new Date();
@@ -158,13 +157,7 @@ export function ActivityHeatmap({ data, periodDays = 90 }: ActivityHeatmapProps)
     };
   }, [data, periodDays]);
 
-  if (data.length === 0) {
-    return (
-      <div className="flex items-center justify-center h-24 text-text-muted text-sm">
-        No activity data available
-      </div>
-    );
-  }
+  // Always render the grid - just with empty cells if no data
 
   // Group cells by week
   const cellsByWeek = gridData.cells.reduce(
