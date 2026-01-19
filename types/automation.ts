@@ -20,11 +20,11 @@ export interface AutomationTarget {
   priority: number;
   is_active: boolean;
   last_crawled_at?: string;
-  crawl_count: number;
-  success_count: number;
-  fail_count: number;
-  success_rate: number;
-  metadata: Record<string, unknown>;
+  crawl_count?: number;
+  success_count?: number;
+  fail_count?: number;
+  success_rate?: number;
+  metadata?: Record<string, unknown>;
   created_at: string;
   updated_at: string;
 }
