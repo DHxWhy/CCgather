@@ -28,19 +28,8 @@ const nextConfig: NextConfig = {
       "tailwind-merge",
     ],
   },
-  // PostHog 프록시 설정 - AdBlocker 우회 및 CORS 문제 해결
-  async rewrites() {
-    return [
-      {
-        source: "/ingest/static/:path*",
-        destination: "https://us-assets.i.posthog.com/static/:path*",
-      },
-      {
-        source: "/ingest/:path*",
-        destination: "https://us.i.posthog.com/:path*",
-      },
-    ];
-  },
+  // PostHog 프록시는 API route로 처리 (app/ingest/[[...path]]/route.ts)
+  // rewrites는 POST 요청에서 405 에러 발생하여 API route로 대체됨
 };
 
 export default nextConfig;
