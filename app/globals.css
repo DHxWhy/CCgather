@@ -555,20 +555,23 @@ body {
     box-shadow: 0 0 2px rgba(255, 255, 255, 0.8);
   }
   50% {
-    background: rgba(218, 119, 86, 0.8);
-    box-shadow: 0 0 4px rgba(218, 119, 86, 0.6);
+    background: var(--particle-color, #da7756);
+    box-shadow: 0 0 4px var(--particle-color, #da7756);
+    opacity: 0.8;
   }
   100% {
-    background: rgba(218, 119, 86, 0.3);
-    box-shadow: 0 0 2px rgba(218, 119, 86, 0.2);
+    background: var(--particle-color, #da7756);
+    box-shadow: 0 0 2px var(--particle-color, #da7756);
+    opacity: 0.3;
   }
 }
 
 .globe-particle {
+  --particle-color: #da7756;
   background: rgba(255, 255, 255, 0.8);
   box-shadow:
     0 0 3px rgba(255, 255, 255, 0.6),
-    0 0 6px rgba(218, 119, 86, 0.4);
+    0 0 6px var(--particle-color);
   animation:
     globe-particle-travel 15s ease-out infinite,
     globe-particle-glow 15s ease-out infinite;
@@ -1376,4 +1379,38 @@ body {
 
 .animate-subtle-pulse {
   animation: subtle-pulse 2s ease-in-out infinite;
+}
+
+/* ============================================
+   React Day Picker Custom Styles
+   ============================================ */
+.date-range-picker {
+  --rdp-accent-color: var(--color-claude-coral);
+  --rdp-accent-background-color: rgba(218, 119, 86, 0.2);
+}
+
+.date-range-picker .rdp-day {
+  color: var(--color-text-secondary);
+}
+
+.date-range-picker .rdp-day:hover:not(.rdp-day_selected):not(.rdp-day_disabled) {
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+.date-range-picker .rdp-day_selected {
+  background-color: var(--color-claude-coral) !important;
+  color: white !important;
+}
+
+.date-range-picker .rdp-day_range_middle {
+  background-color: rgba(218, 119, 86, 0.2) !important;
+  color: var(--color-text-primary) !important;
+}
+
+.date-range-picker .rdp-chevron {
+  fill: var(--color-text-muted);
+}
+
+.date-range-picker .rdp-button:hover .rdp-chevron {
+  fill: var(--color-text-primary);
 }

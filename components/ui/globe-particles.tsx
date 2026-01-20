@@ -8,8 +8,17 @@ interface GlobeParticlesProps {
   className?: string;
 }
 
+// Leaderboard signature colors
+const PARTICLE_COLORS = [
+  "#FBBF24", // Yellow/Gold (1st place)
+  "#DA7756", // Claude Coral (signature)
+  "#10b981", // Emerald Green
+  "#3B82F6", // Blue
+];
+
 export const GlobeParticles: React.FC<GlobeParticlesProps> = ({ size, className }) => {
   const random = (min: number, max: number) => Math.random() * (max - min) + min;
+  const randomColor = () => PARTICLE_COLORS[Math.floor(Math.random() * PARTICLE_COLORS.length)];
 
   // Generate particles that emanate from the globe's outline
   // Reduce particle count for smaller globes to improve performance
@@ -49,6 +58,7 @@ export const GlobeParticles: React.FC<GlobeParticlesProps> = ({ size, className 
         duration,
         delay: random(-duration, 0), // Negative delay = already mid-animation on load
         particleSize: random(1.5, 2), // Subtle particle size
+        color: randomColor(), // Random leaderboard color
       };
     });
   }, [size]);
@@ -56,7 +66,7 @@ export const GlobeParticles: React.FC<GlobeParticlesProps> = ({ size, className 
   return (
     <div className={cn("absolute inset-0 pointer-events-none", className)}>
       {particles.map(
-        ({ index, startX, startY, distanceX, distanceY, duration, delay, particleSize }) => (
+        ({ index, startX, startY, distanceX, distanceY, duration, delay, particleSize, color }) => (
           <div
             key={`particle-${index}`}
             className="globe-particle absolute rounded-full"
@@ -67,6 +77,7 @@ export const GlobeParticles: React.FC<GlobeParticlesProps> = ({ size, className 
               top: `calc(50% + ${startY}px)`,
               ["--distance-x" as string]: distanceX,
               ["--distance-y" as string]: distanceY,
+              ["--particle-color" as string]: color,
               animationDuration: `${duration}s, ${duration}s`,
               animationDelay: `${delay}s, ${delay}s`,
             }}
