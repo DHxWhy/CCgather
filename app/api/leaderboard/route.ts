@@ -1,10 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 
-type Period = "today" | "7d" | "30d" | "all";
+type Period = "today" | "7d" | "30d" | "all" | "custom";
 
-function getPeriodDateRange(period: Period): { startDate: string; endDate: string } | null {
+function getPeriodDateRange(
+  period: Period,
+  customStart?: string | null,
+  customEnd?: string | null
+): { startDate: string; endDate: string } | null {
   if (period === "all") return null;
+
+  // Custom date range
+  if (period === "custom" && customStart && customEnd) {
+    return { startDate: customStart, endDate: customEnd };
+  }
 
   const now = new Date();
   const endDate = now.toISOString().split("T")[0] ?? "";
@@ -42,9 +51,12 @@ export async function GET(request: NextRequest) {
   const limit = parseInt(searchParams.get("limit") || "50", 10);
   const offset = (page - 1) * limit;
   const findUser = searchParams.get("findUser") || null;
+  // Custom date range parameters
+  const customStart = searchParams.get("startDate");
+  const customEnd = searchParams.get("endDate");
 
   const supabase = await createClient();
-  const dateRange = getPeriodDateRange(period);
+  const dateRange = getPeriodDateRange(period, customStart, customEnd);
 
   // If findUser is provided, return the user's rank info
   if (findUser && !dateRange) {

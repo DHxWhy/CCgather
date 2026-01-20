@@ -1059,7 +1059,7 @@ export function ProfileSidePanel({
                     <ReactCountryFlag
                       countryCode={currentUser.country_code}
                       svg
-                      style={{ width: "12px", height: "12px" }}
+                      style={{ width: "11px", height: "11px" }}
                     />
                   )}
                   <span>@{currentUser.username.toLowerCase().replace(/\s+/g, "")}</span>
@@ -1097,7 +1097,7 @@ export function ProfileSidePanel({
                     <ReactCountryFlag
                       countryCode={currentUser.country_code}
                       svg
-                      style={{ width: "12px", height: "12px" }}
+                      style={{ width: "11px", height: "11px" }}
                     />
                   )}
                   <span className="font-medium text-[var(--color-text-primary)]">

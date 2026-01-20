@@ -10,6 +10,7 @@ import { ProfileSidePanel } from "@/components/leaderboard/ProfileSidePanel";
 import { GlobeStatsSection } from "@/components/leaderboard/GlobeStatsSection";
 import { TopCountriesSection } from "@/components/leaderboard/TopCountriesSection";
 import { DateRangePicker, DateRangeButton } from "@/components/leaderboard/DateRangePicker";
+import { MobileGlobePanel } from "@/components/leaderboard/MobileGlobePanel";
 import { LEVELS, getLevelByTokens } from "@/lib/constants/levels";
 import { Info } from "lucide-react";
 import { format } from "date-fns";
@@ -146,6 +147,7 @@ export default function LeaderboardPage() {
   const highlightUsername = searchParams.get("u");
   const [selectedUser, setSelectedUser] = useState<DisplayUser | null>(null);
   const [isPanelOpen, setIsPanelOpen] = useState(false);
+  const [isGlobePanelOpen, setIsGlobePanelOpen] = useState(false);
   const [periodFilter, setPeriodFilter] = useState<PeriodFilter>("all");
   const [scopeFilter, setScopeFilter] = useState<ScopeFilter>("global");
   const [sortBy, setSortBy] = useState<SortByFilter>("tokens");
@@ -658,6 +660,15 @@ export default function LeaderboardPage() {
               {/* Filters - Above Table */}
               <div className="flex items-center justify-between gap-1.5 sm:gap-2 md:gap-3 mb-4">
                 <div className="flex items-center gap-1.5 sm:gap-2 md:gap-3 flex-shrink-0">
+                  {/* Mini Globe Button - Mobile only */}
+                  <button
+                    onClick={() => setIsGlobePanelOpen(true)}
+                    className="flex md:hidden w-9 h-9 rounded-lg glass items-center justify-center hover:ring-2 hover:ring-[var(--color-claude-coral)]/50 transition-all active:scale-95 flex-shrink-0"
+                    title="View Global Stats"
+                  >
+                    <span className="text-lg">🌐</span>
+                  </button>
+
                   {/* Scope Filter - Mobile only (md+ shows in Globe area) */}
                   <div className="flex md:hidden p-0.5 glass rounded-lg gap-0.5 flex-shrink-0">
                     <button
@@ -703,9 +714,9 @@ export default function LeaderboardPage() {
                             setCustomDateRange(null);
                           }
                         }}
-                        className={`h-7 px-2.5 rounded-md text-xs font-medium transition-colors ${
+                        className={`h-6 px-2 rounded-md text-xs font-medium transition-colors ${
                           periodFilter === period.value
-                            ? "bg-[var(--color-filter-active)] text-[var(--color-text-primary)]"
+                            ? "bg-[var(--color-claude-coral)]/50 text-[var(--color-claude-coral)]"
                             : "text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-filter-hover)]"
                         }`}
                       >
@@ -793,7 +804,7 @@ export default function LeaderboardPage() {
                     <button
                       onClick={() => setSortBy("cost")}
                       title="Sort by Cost"
-                      className={`h-7 w-7 rounded-md text-xs font-medium transition-colors flex items-center justify-center ${
+                      className={`h-6 w-6 rounded-md text-xs font-medium transition-colors flex items-center justify-center ${
                         sortBy === "cost"
                           ? "bg-[var(--color-cost)]/50 text-[var(--color-cost)]"
                           : "text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-filter-hover)]"
@@ -804,7 +815,7 @@ export default function LeaderboardPage() {
                     <button
                       onClick={() => setSortBy("tokens")}
                       title="Sort by Tokens"
-                      className={`h-7 w-7 rounded-md text-xs font-medium transition-colors flex items-center justify-center ${
+                      className={`h-6 w-6 rounded-md text-xs font-medium transition-colors flex items-center justify-center ${
                         sortBy === "tokens"
                           ? "bg-[var(--color-claude-coral)]/50 text-[var(--color-claude-coral)]"
                           : "text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-filter-hover)]"
@@ -931,20 +942,16 @@ export default function LeaderboardPage() {
                           {users.map((user, index) => {
                             const isFirst = user.rank === 1;
                             const isTopThree = user.rank <= 3;
-                            const rowPadding = isFirst
-                              ? "py-2 lg:py-3"
-                              : isTopThree
-                                ? "py-2 lg:py-2.5"
-                                : "py-2";
+                            const rowPadding = "py-2";
                             const avatarSize = isFirst
-                              ? "w-8 h-8 lg:w-10 lg:h-10"
+                              ? "w-6 h-6 lg:w-8 lg:h-8"
                               : isTopThree
-                                ? "w-7 h-7 lg:w-8 lg:h-8"
+                                ? "w-6 h-6 lg:w-7 lg:h-7"
                                 : "w-6 h-6";
                             const avatarText = isFirst
-                              ? "text-sm lg:text-base"
+                              ? "text-xs lg:text-sm"
                               : isTopThree
-                                ? "text-xs lg:text-sm"
+                                ? "text-xs"
                                 : "text-xs";
                             const nameSize = "text-xs";
                             const rankSize = isFirst
@@ -1193,6 +1200,18 @@ export default function LeaderboardPage() {
         isOpen={isPanelOpen}
         onClose={handleClosePanel}
         periodFilter={periodFilter}
+        scopeFilter={scopeFilter}
+      />
+
+      {/* Mobile Globe Panel - Left Slide */}
+      <MobileGlobePanel
+        isOpen={isGlobePanelOpen}
+        onClose={() => setIsGlobePanelOpen(false)}
+        countryStats={countryStats}
+        totalTokens={totalGlobalTokens}
+        totalCost={totalGlobalCost}
+        sortBy={sortBy}
+        userCountryCode={currentUserCountry}
         scopeFilter={scopeFilter}
       />
 
