@@ -66,12 +66,6 @@ export default function SignInPage() {
   const handleGitHubSignIn = async () => {
     setError(null);
 
-    // Show warning for in-app browsers
-    if (isInAppBrowser()) {
-      setShowInAppWarning(true);
-      return;
-    }
-
     if (!isLoaded) {
       setError("Loading... Please wait.");
       return;
@@ -155,19 +149,13 @@ export default function SignInPage() {
               </p>
             </div>
 
-            {/* In-App Browser Warning */}
+            {/* In-App Browser Tip */}
             {showInAppWarning && (
-              <div className="mb-4 p-4 rounded-xl bg-amber-500/10 border border-amber-500/30">
-                <p className="text-amber-400 text-sm font-medium mb-2">⚠️ Open in Browser</p>
-                <p className="text-amber-400/80 text-xs mb-3">Login may not work here.</p>
-                <div className="flex items-center gap-2 text-amber-400/90 text-xs">
-                  <span>📋</span>
-                  <span className="font-mono text-[11px] select-all bg-amber-500/20 px-2 py-1 rounded">
-                    ccgather.com/sign-in
-                  </span>
-                </div>
-                <p className="text-amber-400/60 text-[10px] mt-2">
-                  Copy → Open Safari or Chrome → Paste
+              <div className="mb-4 p-3 rounded-xl bg-white/5 border border-white/10">
+                <p className="text-[var(--color-text-secondary)] text-xs">
+                  💡 Having trouble? Try opening in{" "}
+                  <span className="font-semibold text-white">Safari</span> or{" "}
+                  <span className="font-semibold text-white">Chrome</span>
                 </p>
               </div>
             )}

@@ -399,22 +399,37 @@ export async function submit(options: SubmitOptions): Promise<void> {
   const totalSessions = getAllSessionsCount();
   console.log(`  ${colors.dim(`Found ${totalSessions} session file(s)`)}`);
 
+  let lastProgress = 0;
   const scannedData = scanAllProjects({
     onProgress: (current, total) => {
       progressBar(current, total, "Scanning");
+      lastProgress = current;
     },
   });
 
-  await sleep(200);
+  // Clear progress bar line
+  if (lastProgress > 0) {
+    process.stdout.write("\r" + " ".repeat(60) + "\r");
+  }
+
+  // Show processing spinner during data preparation
+  const processSpinner = ora({
+    text: "Processing scan data...",
+    color: "cyan",
+  }).start();
 
   if (!scannedData) {
-    console.log(`\n  ${error("No usage data found.")}`);
+    processSpinner.fail(colors.error("No usage data found."));
     console.log(`  ${colors.muted("Make sure you have used Claude Code at least once.")}\n`);
     process.exit(1);
   }
 
   const usageData = ccgatherToUsageData(scannedData);
-  console.log(`  ${success("Scan complete!")}`);
+
+  // Brief delay to show spinner animation
+  await sleep(350);
+
+  processSpinner.succeed(colors.success("Scan complete!"));
 
   // ═══════════════════════════════════════════════════════════════════════════
   // DISPLAY SUMMARY
