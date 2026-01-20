@@ -9,18 +9,70 @@ export type ScopeFilter = "global" | "country";
 export type SortByFilter = "tokens" | "cost";
 
 // CCplan (subscription tier) - Now used for BADGE display only, not league placement
-export type CCPlanFilter = "all" | "free" | "pro" | "max" | "team";
+// Known plans for filter dropdown
+export type CCPlanFilter = "all" | "free" | "pro" | "max" | "team" | "enterprise" | "api";
 
-// CCplan configuration - For badge display only (v2.0)
-export const CCPLAN_CONFIG: Record<
-  Exclude<CCPlanFilter, "all">,
-  { name: string; icon: string; color: string }
-> = {
-  max: { name: "Max", icon: "🚀", color: "#F59E0B" },
-  pro: { name: "Pro", icon: "⚡", color: "#3B82F6" },
-  team: { name: "Team", icon: "👥", color: "#8B5CF6" },
+// CCplan badge configuration
+interface CCPlanBadgeConfig {
+  name: string;
+  icon: string;
+  color: string;
+}
+
+// Known CCplan configurations - For badge display only (v2.0)
+// Supports both base plans and variants (e.g., max_20x, team_5x)
+export const CCPLAN_CONFIG: Record<string, CCPlanBadgeConfig> = {
+  // Individual plans
   free: { name: "Free", icon: "⚪", color: "#6B7280" },
+  pro: { name: "Pro", icon: "⚡", color: "#3B82F6" },
+  max: { name: "Max", icon: "🚀", color: "#F59E0B" },
+  max_20x: { name: "Max 20x", icon: "🚀", color: "#F59E0B" },
+  // Organization plans
+  team: { name: "Team", icon: "👥", color: "#8B5CF6" },
+  team_5x: { name: "Team 5x", icon: "👥", color: "#8B5CF6" },
+  enterprise: { name: "Enterprise", icon: "🏢", color: "#10B981" },
+  enterprise_10x: { name: "Enterprise 10x", icon: "🏢", color: "#10B981" },
+  // API key auth (when plan can't be determined)
+  api: { name: "API", icon: "🔑", color: "#EC4899" },
+  api_key_auth: { name: "API", icon: "🔑", color: "#EC4899" },
 };
+
+// Fallback config for unknown plans
+export const CCPLAN_FALLBACK: CCPlanBadgeConfig = {
+  name: "Unknown",
+  icon: "❓",
+  color: "#9CA3AF",
+};
+
+/**
+ * Get CCplan badge config with fallback for unknown plans
+ * Supports variants like "max_20x" → falls back to "max" if exact match not found
+ */
+export function getCCPlanConfig(ccplan: string | null | undefined): CCPlanBadgeConfig | null {
+  if (!ccplan) return null;
+
+  const normalized = ccplan.toLowerCase();
+
+  // Exact match
+  if (CCPLAN_CONFIG[normalized]) {
+    return CCPLAN_CONFIG[normalized];
+  }
+
+  // Try base plan (e.g., "max_20x" → "max")
+  const basePlan = normalized.split("_")[0] as string;
+  if (basePlan && CCPLAN_CONFIG[basePlan]) {
+    return {
+      ...CCPLAN_CONFIG[basePlan],
+      name: ccplan.toUpperCase(), // Show original value
+    };
+  }
+
+  // Return fallback for truly unknown plans
+  return {
+    ...CCPLAN_FALLBACK,
+    name: ccplan.toUpperCase(),
+  };
+}
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Level System (V2.0)
@@ -84,8 +136,8 @@ export interface LeaderboardUser {
   period_tokens?: number;
   period_cost?: number;
   period_rank?: number;
-  // CCplan fields (for badge display only)
-  ccplan?: CCPlanFilter | null;
+  // CCplan fields (for badge display only) - TEXT type, any value allowed
+  ccplan?: string | null;
   // Opus badge
   has_opus_usage?: boolean;
   // Social links

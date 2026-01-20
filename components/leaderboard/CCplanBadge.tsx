@@ -1,19 +1,17 @@
 "use client";
 
 import { useState } from "react";
-import { CCPLAN_CONFIG, type CCPlanFilter } from "@/lib/types/leaderboard";
+import { getCCPlanConfig } from "@/lib/types/leaderboard";
 
 interface CCplanBadgeProps {
-  ccplan: Exclude<CCPlanFilter, "all"> | null | undefined;
+  ccplan: string | null | undefined;
   size?: "sm" | "md" | "lg";
 }
 
 export function CCplanBadge({ ccplan, size = "md" }: CCplanBadgeProps) {
   const [isHovered, setIsHovered] = useState(false);
 
-  if (!ccplan) return null;
-
-  const config = CCPLAN_CONFIG[ccplan];
+  const config = getCCPlanConfig(ccplan);
   if (!config) return null;
 
   const sizeClasses = {
