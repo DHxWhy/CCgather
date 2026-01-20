@@ -419,6 +419,11 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Update rate_limit_tier if provided
+    if (body.rateLimitTier) {
+      updateData.rate_limit_tier = body.rateLimitTier;
+    }
+
     // Log API key auth users for Team/Enterprise discovery
     if (body.authMethod === "api_key") {
       console.log(

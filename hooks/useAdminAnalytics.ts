@@ -267,6 +267,7 @@ export interface SubmitLogItem {
   username: string;
   avatar_url: string | null;
   ccplan: string | null;
+  rate_limit_tier: string | null;
   days_count: number;
   date_from: string;
   date_to: string;

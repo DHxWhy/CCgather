@@ -13,6 +13,7 @@ interface SubmitLogRow {
   username: string;
   avatar_url: string | null;
   ccplan: string | null;
+  rate_limit_tier: string | null;
   days_count: number;
   date_from: string;
   date_to: string;
@@ -82,7 +83,8 @@ export async function GET(request: NextRequest) {
           users!inner (
             username,
             avatar_url,
-            ccplan
+            ccplan,
+            rate_limit_tier
           )
         `
         )
@@ -104,6 +106,7 @@ export async function GET(request: NextRequest) {
           username: string;
           avatar_url: string | null;
           ccplan: string | null;
+          rate_limit_tier: string | null;
           dates: Set<string>;
           total_tokens: number;
           total_cost: number;
@@ -128,6 +131,7 @@ export async function GET(request: NextRequest) {
           username: string;
           avatar_url: string | null;
           ccplan: string | null;
+          rate_limit_tier: string | null;
         };
       };
 
@@ -141,6 +145,7 @@ export async function GET(request: NextRequest) {
             username: row.users.username,
             avatar_url: row.users.avatar_url,
             ccplan: row.users.ccplan,
+            rate_limit_tier: row.users.rate_limit_tier,
             dates: new Set([row.date]),
             total_tokens: row.total_tokens,
             total_cost: row.cost_usd,
@@ -198,6 +203,7 @@ export async function GET(request: NextRequest) {
           username: log.username,
           avatar_url: log.avatar_url,
           ccplan: log.ccplan,
+          rate_limit_tier: log.rate_limit_tier,
           days_count: log.dates.size,
           date_from: firstDate,
           date_to: lastDate,

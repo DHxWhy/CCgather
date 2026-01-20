@@ -50,16 +50,7 @@ export function getCCPlanConfig(ccplan: string | null | undefined): CCPlanBadgeC
     return CCPLAN_CONFIG[normalized];
   }
 
-  // Try base plan (e.g., "max_20x" → "max")
-  const basePlan = normalized.split("_")[0] as string;
-  if (basePlan && CCPLAN_CONFIG[basePlan]) {
-    return {
-      ...CCPLAN_CONFIG[basePlan],
-      name: ccplan.toUpperCase(), // Show original value
-    };
-  }
-
-  // Return fallback for truly unknown plans
+  // Return fallback for unknown plans
   return {
     ...CCPLAN_FALLBACK,
     name: ccplan.toUpperCase(),

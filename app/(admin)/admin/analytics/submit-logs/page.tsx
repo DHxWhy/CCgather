@@ -62,7 +62,13 @@ function SourceBadge({ source }: { source: string }) {
   );
 }
 
-function PlanBadge({ plan }: { plan: string | null }) {
+function PlanBadge({
+  plan,
+  rateLimitTier,
+}: {
+  plan: string | null;
+  rateLimitTier?: string | null;
+}) {
   if (!plan) return null;
 
   const config: Record<string, { bg: string; text: string }> = {
@@ -71,13 +77,16 @@ function PlanBadge({ plan }: { plan: string | null }) {
     max: { bg: "bg-purple-500/20", text: "text-purple-400" },
     team: { bg: "bg-orange-500/20", text: "text-orange-400" },
     enterprise: { bg: "bg-yellow-500/20", text: "text-yellow-400" },
+    api: { bg: "bg-pink-500/20", text: "text-pink-400" },
   };
 
   const style = config[plan.toLowerCase()] || { bg: "bg-white/10", text: "text-white/50" };
+  const tooltipText = rateLimitTier ? `Rate Limit: ${rateLimitTier}` : plan;
 
   return (
     <span
-      className={`px-1.5 py-0.5 rounded text-[9px] font-medium uppercase ${style.bg} ${style.text}`}
+      className={`px-1.5 py-0.5 rounded text-[9px] font-medium uppercase ${style.bg} ${style.text} cursor-help`}
+      title={tooltipText}
     >
       {plan}
     </span>
@@ -141,7 +150,7 @@ function LogRow({ log }: { log: SubmitLogItem }) {
       {/* 플랜 + 근거 */}
       <td className="px-3 py-3">
         <div className="flex items-center gap-2">
-          <PlanBadge plan={log.ccplan} />
+          <PlanBadge plan={log.ccplan} rateLimitTier={log.rate_limit_tier} />
           <LeagueReasonBadge reason={log.league_reason} details={log.league_reason_details} />
         </div>
       </td>
