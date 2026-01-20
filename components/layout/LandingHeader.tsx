@@ -2,100 +2,18 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import dynamic from "next/dynamic";
-import { usePathname } from "next/navigation";
 import { Menu } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { ThemeSwitcher } from "@/components/ui/theme-switcher";
 import { MobileDrawer } from "./MobileDrawer";
 
-// Lazy load CLI modal - AuthModal 제거 (Sign In은 /sign-in 페이지로 이동)
-const CLIModal = dynamic(() => import("@/components/cli/CLIModal").then((mod) => mod.CLIModal), {
-  ssr: false,
-});
-
 // ============================================
-// Navigation Links
-// ============================================
-
-const navLinks = [
-  { href: "/leaderboard", label: "Leaderboard" },
-  { href: "/news", label: "News" },
-  { href: "/tools", label: "Tools" },
-];
-
-// ============================================
-// NavLink Component
-// ============================================
-
-interface NavLinkProps {
-  href: string;
-  label: string;
-  isActive: boolean;
-  onClick?: () => void;
-  className?: string;
-}
-
-function NavLink({ href, label, isActive, onClick, className }: NavLinkProps) {
-  return (
-    <Link
-      href={href}
-      onClick={onClick}
-      className={cn(
-        "relative text-sm font-medium transition-colors duration-200",
-        "group",
-        isActive
-          ? "text-[var(--color-text-primary)]"
-          : "text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]",
-        className
-      )}
-    >
-      {label}
-      {/* Underline animation */}
-      <span
-        className={cn(
-          "absolute -bottom-1 left-0 h-0.5 rounded-full",
-          "bg-gradient-to-r from-[var(--color-claude-coral)] to-[var(--color-claude-rust)]",
-          "transition-all duration-300",
-          isActive ? "w-full" : "w-0 group-hover:w-full"
-        )}
-      />
-    </Link>
-  );
-}
-
-// ============================================
-// Mobile NavLink Component
-// ============================================
-
-function MobileNavLink({ href, label, isActive, onClick }: NavLinkProps) {
-  return (
-    <Link
-      href={href}
-      onClick={onClick}
-      className={cn(
-        "flex items-center px-4 py-3 rounded-xl",
-        "text-base font-medium transition-all duration-200",
-        "touch-target",
-        isActive
-          ? "text-[var(--color-text-primary)] bg-[var(--glass-bg)]"
-          : "text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--glass-bg)]"
-      )}
-    >
-      {label}
-    </Link>
-  );
-}
-
-// ============================================
-// Landing Header Component (No Clerk)
+// Landing Header Component (Minimal - Focus on CTA)
 // ============================================
 
 export function LandingHeader() {
-  const pathname = usePathname();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [cliModalOpen, setCLIModalOpen] = useState(false);
 
   const closeMobileMenu = () => setMobileMenuOpen(false);
 
@@ -116,7 +34,6 @@ export function LandingHeader() {
         <nav className="relative mx-auto flex h-14 md:h-16 max-w-[1000px] items-center justify-between px-4">
           {/* Logo */}
           <Link href="/" className="flex items-center gap-2 md:gap-2.5 group">
-            {/* Logo Image */}
             <Image
               src="/logo.png"
               alt="CCgather Logo"
@@ -125,52 +42,14 @@ export function LandingHeader() {
               priority
               className="w-7 h-7 md:w-8 md:h-8 rounded-md transition-all duration-300 group-hover:shadow-[var(--glow-primary)]"
             />
-            {/* Logo Text */}
             <span className="text-base md:text-lg font-semibold text-[var(--color-text-primary)]">
               CCgather
             </span>
           </Link>
 
-          {/* Desktop Navigation */}
-          <div className="hidden md:flex items-center gap-6 xl:gap-8">
-            {navLinks.map((link) => (
-              <NavLink
-                key={link.href}
-                href={link.href}
-                label={link.label}
-                isActive={pathname === link.href}
-              />
-            ))}
-            {/* CLI Button */}
-            <button
-              onClick={() => setCLIModalOpen(true)}
-              className={cn(
-                "relative text-sm font-medium transition-colors duration-200",
-                "text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]",
-                "group"
-              )}
-            >
-              CLI
-              <span
-                className={cn(
-                  "absolute -bottom-1 left-0 h-0.5 rounded-full",
-                  "bg-gradient-to-r from-[var(--color-claude-coral)] to-[var(--color-claude-rust)]",
-                  "transition-all duration-300",
-                  "w-0 group-hover:w-full"
-                )}
-              />
-            </button>
-          </div>
-
-          {/* Desktop Right Section */}
-          <div className="hidden md:flex items-center gap-3">
+          {/* Desktop Right Section - Theme Only */}
+          <div className="hidden md:flex items-center">
             <ThemeSwitcher size="sm" />
-            <Link
-              href="/sign-in"
-              className="px-5 py-2.5 rounded-xl bg-[var(--color-claude-coral)] text-white text-sm font-semibold hover:opacity-90 transition-all"
-            >
-              Sign In
-            </Link>
           </div>
 
           {/* Mobile Menu Button */}
@@ -190,59 +69,15 @@ export function LandingHeader() {
         </nav>
       </header>
 
-      {/* Mobile Drawer */}
-      <MobileDrawer open={mobileMenuOpen} onClose={closeMobileMenu} title="Menu">
-        <div className="flex flex-col p-4 gap-2">
-          {/* Navigation Links */}
-          {navLinks.map((link) => (
-            <MobileNavLink
-              key={link.href}
-              href={link.href}
-              label={link.label}
-              isActive={pathname === link.href}
-              onClick={closeMobileMenu}
-            />
-          ))}
-
-          {/* CLI Button */}
-          <button
-            onClick={() => {
-              closeMobileMenu();
-              setCLIModalOpen(true);
-            }}
-            className={cn(
-              "flex items-center px-4 py-3 rounded-xl",
-              "text-base font-medium transition-all duration-200",
-              "text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--glass-bg)]"
-            )}
-          >
-            CLI
-          </button>
-
-          {/* Divider */}
-          <div className="my-4 border-t border-[var(--border-default)]" />
-
-          {/* Theme Switcher */}
+      {/* Mobile Drawer - Theme Only */}
+      <MobileDrawer open={mobileMenuOpen} onClose={closeMobileMenu} title="Settings">
+        <div className="flex flex-col p-4">
           <div className="flex items-center justify-between px-4 py-2">
             <span className="text-sm text-[var(--color-text-secondary)]">Theme</span>
             <ThemeSwitcher size="sm" />
           </div>
-
-          {/* Auth Section */}
-          <div className="px-4 pt-4">
-            <Link
-              href="/sign-in"
-              onClick={closeMobileMenu}
-              className="block w-full px-5 py-2.5 rounded-xl bg-[var(--color-claude-coral)] text-white text-base font-semibold text-center hover:opacity-90 transition-all"
-            >
-              Sign In
-            </Link>
-          </div>
         </div>
       </MobileDrawer>
-
-      {/* CLI Modal */}
-      <CLIModal isOpen={cliModalOpen} onClose={() => setCLIModalOpen(false)} />
     </>
   );
 }
