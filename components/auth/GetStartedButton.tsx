@@ -1,4 +1,9 @@
+"use client";
+
 import Link from "next/link";
+import { useState } from "react";
+import { useAuth } from "@clerk/nextjs";
+import { CLIModal } from "@/components/cli/CLIModal";
 
 interface GetStartedButtonProps {
   className?: string;
@@ -6,8 +11,24 @@ interface GetStartedButtonProps {
 }
 
 export function GetStartedButton({ className, children }: GetStartedButtonProps) {
+  const { isSignedIn } = useAuth();
+  const [isModalOpen, setIsModalOpen] = useState(false);
+
+  // Logged in: show CLI modal
+  if (isSignedIn) {
+    return (
+      <>
+        <button onClick={() => setIsModalOpen(true)} className={className}>
+          {children || "Get Started"}
+        </button>
+        <CLIModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} />
+      </>
+    );
+  }
+
+  // Not logged in: go to sign-up
   return (
-    <Link href="/sign-in" className={className}>
+    <Link href="/sign-up" className={className}>
       {children || "Get Started"}
     </Link>
   );

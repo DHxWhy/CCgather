@@ -3,6 +3,7 @@
 import { motion } from "framer-motion";
 import { FlagIcon } from "@/components/ui/FlagIcon";
 import { formatNumber, formatCost } from "@/lib/utils/format";
+import { GetStartedButton } from "@/components/auth/GetStartedButton";
 
 export interface CountryStat {
   code: string;
@@ -194,6 +195,9 @@ export function TopCountriesSection({
       <p className="text-center text-[11px] text-[var(--color-text-muted)]/60 mt-4">
         More developers = stronger country ranking
       </p>
+      <div className="flex justify-center mt-2">
+        <GetStartedButton className="text-[11px] text-[var(--color-claude-coral)] hover:underline" />
+      </div>
     </div>
   );
 }

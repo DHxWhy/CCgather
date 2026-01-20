@@ -8,6 +8,7 @@ import ReactCountryFlag from "react-country-flag";
 import { useUser } from "@clerk/nextjs";
 import { GlobeStatsSection } from "@/components/leaderboard/GlobeStatsSection";
 import { TopCountriesSection } from "@/components/leaderboard/TopCountriesSection";
+import { GetStartedButton } from "@/components/auth/GetStartedButton";
 import { DateRangeButton } from "@/components/leaderboard/DateRangePicker";
 import { PeriodDropdown } from "@/components/leaderboard/PeriodDropdown";
 import { TimezoneClock } from "@/components/ui/timezone-clock";
@@ -1173,14 +1174,7 @@ export default function LeaderboardPage() {
                   {/* Onboarding Copy */}
                   <p className="text-center text-[11px] text-[var(--color-text-muted)]/60 mt-6">
                     Sync your Claude Code usage to climb the leaderboard →{" "}
-                    <a
-                      href="https://github.com/anthropics/claude-code"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="underline hover:text-[var(--color-text-muted)]"
-                    >
-                      Get Started
-                    </a>
+                    <GetStartedButton className="underline hover:text-[var(--color-text-muted)]" />
                   </p>
                 </div>
               )}
