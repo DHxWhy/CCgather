@@ -83,6 +83,9 @@ interface AuthenticatedUser {
   total_cost: number | null;
   country_code?: string;
   last_submission_at?: string | null;
+  global_rank?: number | null;
+  country_rank?: number | null;
+  current_level?: number | null;
 }
 
 // Rate limit settings: 10 submissions per hour
@@ -129,7 +132,9 @@ export async function POST(request: NextRequest) {
     // Find user by API token
     const { data: user, error: tokenError } = await supabase
       .from("users")
-      .select("id, username, total_tokens, total_cost, country_code, last_submission_at")
+      .select(
+        "id, username, total_tokens, total_cost, country_code, last_submission_at, global_rank, country_rank, current_level"
+      )
       .eq("api_key", token)
       .maybeSingle();
 
@@ -259,82 +264,11 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Update user stats (use max values to prevent lowering)
+    // ═══════════════════════════════════════════════════════════════════════════
+    // STEP 1: Insert/Update daily usage records FIRST
+    // ═══════════════════════════════════════════════════════════════════════════
     const overallPrimaryModel = getPrimaryModel(body.dailyUsage);
-    const finalTotalTokens = Math.max(authenticatedUser.total_tokens || 0, body.totalTokens);
 
-    // Calculate level from total tokens
-    const level = calculateLevel(finalTotalTokens);
-
-    const updateData: Record<string, unknown> = {
-      total_tokens: finalTotalTokens,
-      total_cost: Math.max(authenticatedUser.total_cost || 0, body.totalSpent),
-      last_submission_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-      current_level: level,
-    };
-
-    // V2.0: Store Opus usage for badge display
-    if (body.hasOpusUsage) {
-      updateData.has_opus_usage = true;
-      if (body.opusModels && body.opusModels.length > 0) {
-        updateData.opus_models = body.opusModels;
-      }
-    }
-
-    // Update primary_model if detected
-    if (overallPrimaryModel) {
-      updateData.primary_model = overallPrimaryModel;
-      updateData.primary_model_updated_at = new Date().toISOString();
-    }
-
-    // Update ccplan if provided
-    if (body.ccplan) {
-      const normalizedCcplan = body.ccplan.toLowerCase();
-      updateData.ccplan = normalizedCcplan;
-      updateData.ccplan_updated_at = new Date().toISOString();
-
-      // Log unknown ccplan values for discovery (Team/Enterprise patterns)
-      if (!KNOWN_CCPLANS.includes(normalizedCcplan)) {
-        console.log(
-          `[CLI Submit] Unknown ccplan discovered: "${body.ccplan}" (raw: "${body.rawSubscriptionType}", auth: "${body.authMethod}") for user ${authenticatedUser.username}`
-        );
-
-        // Store alert for admin review
-        await supabase.from("admin_alerts").insert({
-          type: "unknown_ccplan",
-          message: `Unknown ccplan "${body.ccplan}" discovered`,
-          metadata: {
-            user_id: authenticatedUser.id,
-            username: authenticatedUser.username,
-            ccplan: body.ccplan,
-            rawSubscriptionType: body.rawSubscriptionType,
-            authMethod: body.authMethod,
-            rateLimitTier: body.rateLimitTier,
-            timestamp: new Date().toISOString(),
-          },
-        });
-      }
-    }
-
-    // Log API key auth users for Team/Enterprise discovery
-    if (body.authMethod === "api_key") {
-      console.log(
-        `[CLI Submit] API Key auth user: ${authenticatedUser.username} (ccplan: ${body.ccplan || "unknown"}, raw: ${body.rawSubscriptionType || "none"})`
-      );
-    }
-
-    const { error: updateError } = await supabase
-      .from("users")
-      .update(updateData)
-      .eq("id", authenticatedUser.id);
-
-    if (updateError) {
-      console.error("[CLI Submit] Update error:", updateError);
-      return NextResponse.json({ error: "Failed to update stats" }, { status: 500 });
-    }
-
-    // Insert usage_stats records
     if (body.dailyUsage && body.dailyUsage.length > 0) {
       // Bulk insert daily usage data
       const usageRecords = body.dailyUsage.map((day) => {
@@ -403,6 +337,105 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // ═══════════════════════════════════════════════════════════════════════════
+    // STEP 2: Calculate cumulative totals from ALL daily usage records
+    // ═══════════════════════════════════════════════════════════════════════════
+    const { data: allDailyUsage, error: sumError } = await supabase
+      .from("usage_stats")
+      .select("total_tokens, cost_usd")
+      .eq("user_id", authenticatedUser.id);
+
+    if (sumError) {
+      console.error("[CLI Submit] Failed to calculate cumulative totals:", sumError);
+    }
+
+    // Sum all daily usage for true cumulative totals
+    let finalTotalTokens = 0;
+    let finalTotalCost = 0;
+    if (allDailyUsage) {
+      for (const day of allDailyUsage) {
+        finalTotalTokens += day.total_tokens || 0;
+        finalTotalCost += day.cost_usd || 0;
+      }
+    }
+
+    console.log(
+      `[CLI Submit] Cumulative totals for ${authenticatedUser.username}: ${finalTotalTokens} tokens, $${finalTotalCost.toFixed(2)}`
+    );
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // STEP 3: Update user stats with cumulative totals
+    // ═══════════════════════════════════════════════════════════════════════════
+    const level = calculateLevel(finalTotalTokens);
+
+    const updateData: Record<string, unknown> = {
+      total_tokens: finalTotalTokens,
+      total_cost: finalTotalCost,
+      last_submission_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      current_level: level,
+    };
+
+    // V2.0: Store Opus usage for badge display
+    if (body.hasOpusUsage) {
+      updateData.has_opus_usage = true;
+      if (body.opusModels && body.opusModels.length > 0) {
+        updateData.opus_models = body.opusModels;
+      }
+    }
+
+    // Update primary_model if detected
+    if (overallPrimaryModel) {
+      updateData.primary_model = overallPrimaryModel;
+      updateData.primary_model_updated_at = new Date().toISOString();
+    }
+
+    // Update ccplan if provided
+    if (body.ccplan) {
+      const normalizedCcplan = body.ccplan.toLowerCase();
+      updateData.ccplan = normalizedCcplan;
+      updateData.ccplan_updated_at = new Date().toISOString();
+
+      // Log unknown ccplan values for discovery (Team/Enterprise patterns)
+      if (!KNOWN_CCPLANS.includes(normalizedCcplan)) {
+        console.log(
+          `[CLI Submit] Unknown ccplan discovered: "${body.ccplan}" (raw: "${body.rawSubscriptionType}", auth: "${body.authMethod}") for user ${authenticatedUser.username}`
+        );
+
+        // Store alert for admin review
+        await supabase.from("admin_alerts").insert({
+          type: "unknown_ccplan",
+          message: `Unknown ccplan "${body.ccplan}" discovered`,
+          metadata: {
+            user_id: authenticatedUser.id,
+            username: authenticatedUser.username,
+            ccplan: body.ccplan,
+            rawSubscriptionType: body.rawSubscriptionType,
+            authMethod: body.authMethod,
+            rateLimitTier: body.rateLimitTier,
+            timestamp: new Date().toISOString(),
+          },
+        });
+      }
+    }
+
+    // Log API key auth users for Team/Enterprise discovery
+    if (body.authMethod === "api_key") {
+      console.log(
+        `[CLI Submit] API Key auth user: ${authenticatedUser.username} (ccplan: ${body.ccplan || "unknown"}, raw: ${body.rawSubscriptionType || "none"})`
+      );
+    }
+
+    const { error: updateError } = await supabase
+      .from("users")
+      .update(updateData)
+      .eq("id", authenticatedUser.id);
+
+    if (updateError) {
+      console.error("[CLI Submit] Update error:", updateError);
+      return NextResponse.json({ error: "Failed to update stats" }, { status: 500 });
+    }
+
     // Calculate rank
     const { data: rankData } = await supabase
       .from("users")
@@ -462,6 +495,7 @@ export async function POST(request: NextRequest) {
       profileUrl: `https://ccgather.com/u/${authenticatedUser.username}`,
       rank: rank || undefined,
       countryRank: countryRank || undefined,
+      currentLevel: level,
       // Badge information
       newBadges: newBadges.map((b) => ({
         id: b.id,
@@ -491,6 +525,11 @@ export async function POST(request: NextRequest) {
         sessionCount: body.sessionFingerprint?.sessionCount || 0,
         previousDates,
         previousDaily,
+        // Previous ranks for rank change display
+        previousGlobalRank: authenticatedUser.global_rank || null,
+        previousCountryRank: authenticatedUser.country_rank || null,
+        // Previous level for level change display (null if not set)
+        previousLevel: authenticatedUser.current_level || null,
       };
     }
 

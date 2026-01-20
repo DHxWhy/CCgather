@@ -165,22 +165,67 @@ export function createBox(lines: string[], width: number = 47): string {
   return [top, ...paddedLines.map((l) => colors.dim("  ") + l), bottom].join("\n");
 }
 
+// Animated box - prints line by line with delay
+export async function printAnimatedBox(
+  lines: string[],
+  width: number = 47,
+  lineDelay: number = 60
+): Promise<void> {
+  const top = colors.dim(`  ${box.topLeft}${box.horizontal.repeat(width)}${box.topRight}`);
+  const bottom = colors.dim(`  ${box.bottomLeft}${box.horizontal.repeat(width)}${box.bottomRight}`);
+
+  console.log(top);
+  await sleep(lineDelay / 2);
+
+  for (const line of lines) {
+    const visibleLength = getDisplayWidth(line);
+    const padding = width - 2 - visibleLength;
+    const paddedLine = `${box.vertical} ${line}${" ".repeat(Math.max(0, padding))} ${box.vertical}`;
+    console.log(colors.dim("  ") + paddedLine);
+    await sleep(lineDelay);
+  }
+
+  console.log(bottom);
+}
+
+// Print lines with animation delay
+export async function printAnimatedLines(
+  lines: string[],
+  lineDelay: number = 50,
+  indent: string = "     "
+): Promise<void> {
+  for (const line of lines) {
+    console.log(`${indent}${line}`);
+    await sleep(lineDelay);
+  }
+}
+
 // Strip ANSI codes for length calculation
 function _stripAnsi(str: string): string {
   return str.replace(/\x1B\[[0-9;]*[a-zA-Z]/g, "");
 }
 
-// Get display width with flag emoji correction
-// Flag emojis (regional indicators) may display differently across terminals
+// Get display width with emoji correction
+// Emojis may display differently across terminals
 function getDisplayWidth(str: string): number {
-  let width = stringWidth(str);
-  // Count flag emojis (pairs of regional indicator symbols U+1F1E6-U+1F1FF)
-  // Some terminals display flags as 1 char width instead of 2
-  const flagRegex = /[🇦-🇿][🇦-🇿]/gu;
-  const flags = str.match(flagRegex);
-  if (flags) {
-    width += flags.length * 2 * 2;
+  // Strip ANSI codes for accurate measurement
+  const stripped = _stripAnsi(str);
+  let width = stringWidth(stripped);
+
+  // Count common emojis that may need width correction
+  // These emojis are typically displayed as 2 chars width in terminals
+  const emojiRegex = /[\u{1F300}-\u{1F9FF}]|[\u{2600}-\u{26FF}]|[\u{2700}-\u{27BF}]|✦/gu;
+  const emojis = stripped.match(emojiRegex);
+  if (emojis) {
+    // Adjust width: string-width may count as 1, but terminal shows as 2
+    for (const emoji of emojis) {
+      const emojiWidth = stringWidth(emoji);
+      if (emojiWidth === 1) {
+        width += 1; // Add 1 to make it 2
+      }
+    }
   }
+
   return width;
 }
 
@@ -208,9 +253,12 @@ export function formatNumber(num: number): string {
   return num.toLocaleString();
 }
 
-// Format cost
+// Format cost with K/M/B abbreviations
 export function formatCost(cost: number): string {
-  return `$${cost.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  if (cost >= 1_000_000_000) return `$${(cost / 1_000_000_000).toFixed(2)}B`;
+  if (cost >= 1_000_000) return `$${(cost / 1_000_000).toFixed(2)}M`;
+  if (cost >= 1_000) return `$${(cost / 1_000).toFixed(2)}K`;
+  return `$${cost.toFixed(2)}`;
 }
 
 // Get rank medal/emoji
@@ -325,7 +373,7 @@ export function getLevelProgress(tokens: number): {
   };
 }
 
-// Create welcome box for authenticated user
+// Create welcome message (no box - simplified)
 export function createWelcomeBox(user: {
   username: string;
   level?: number;
@@ -336,29 +384,8 @@ export function createWelcomeBox(user: {
   countryCode?: string;
   ccplan?: string;
 }): string {
-  const levelInfo =
-    user.level && user.levelName && user.levelIcon
-      ? `${user.levelIcon} Level ${user.level} • ${user.levelName}`
-      : "";
-
-  const ccplanBadge = user.ccplan ? getCCplanBadge(user.ccplan) : "";
-
-  const lines = [`👋 ${colors.white.bold(`Welcome back, ${user.username}!`)}`];
-
-  if (levelInfo || ccplanBadge) {
-    lines.push(`${levelInfo}${ccplanBadge ? `  ${ccplanBadge}` : ""}`);
-  }
-
-  if (user.globalRank) {
-    lines.push(`🌍 Global Rank: ${colors.primary(`#${user.globalRank}`)}`);
-  }
-
-  if (user.countryRank && user.countryCode) {
-    const flag = countryCodeToFlag(user.countryCode);
-    lines.push(`${flag} Country Rank: ${colors.primary(`#${user.countryRank}`)}`);
-  }
-
-  return createBox(lines);
+  // Simple welcome message only - no box, detailed stats shown after scan
+  return `  👋 ${colors.white.bold(`Welcome back, ${user.username}!`)}`;
 }
 
 // Convert country code to display format
@@ -594,7 +621,8 @@ export async function slotMachineRank(
   finalRank: number,
   label: string,
   medal: string,
-  iterations: number = 12
+  iterations: number = 12,
+  previousRank?: number | null
 ): Promise<void> {
   const maxRank = Math.max(finalRank * 3, 100);
 
@@ -607,9 +635,20 @@ export async function slotMachineRank(
     await sleep(speed);
   }
 
-  // Final reveal with color
+  // Calculate rank change
+  let changeText = "";
+  if (previousRank && previousRank !== finalRank) {
+    const change = previousRank - finalRank; // positive = improved
+    if (change > 0) {
+      changeText = ` ${colors.success(`↑${change}`)}`;
+    } else if (change < 0) {
+      changeText = ` ${colors.error(`↓${Math.abs(change)}`)}`;
+    }
+  }
+
+  // Final reveal with color and rank change
   process.stdout.write(
-    `\r     ${medal} ${colors.muted(label)} ${colors.primary.bold(`#${finalRank}`)}    \n`
+    `\r     ${medal} ${colors.muted(label)} ${colors.primary.bold(`#${finalRank}`)}${changeText}    \n`
   );
 }
 
@@ -653,7 +692,7 @@ export async function suspenseDots(message: string, durationMs: number = 600): P
   process.stdout.write("\r" + " ".repeat(50) + "\r");
 }
 
-// Animated welcome box (typewriter style for username)
+// Welcome message (no box - simplified)
 export async function printAnimatedWelcomeBox(user: {
   username: string;
   level?: number;
@@ -664,51 +703,7 @@ export async function printAnimatedWelcomeBox(user: {
   countryCode?: string;
   ccplan?: string;
 }): Promise<void> {
-  const lines: string[] = [];
-
-  // Build lines
-  const welcomeLine = `👋 ${colors.white.bold(`Welcome back, ${user.username}!`)}`;
-  lines.push(welcomeLine);
-
-  const levelInfo =
-    user.level && user.levelName && user.levelIcon
-      ? `${user.levelIcon} Level ${user.level} • ${user.levelName}`
-      : "";
-  const ccplanBadge = user.ccplan ? getCCplanBadge(user.ccplan) : "";
-
-  if (levelInfo || ccplanBadge) {
-    lines.push(`${levelInfo}${ccplanBadge ? `  ${ccplanBadge}` : ""}`);
-  }
-
-  if (user.globalRank) {
-    lines.push(`🌍 Global Rank: ${colors.primary(`#${user.globalRank}`)}`);
-  }
-
-  if (user.countryRank && user.countryCode) {
-    const flag = countryCodeToFlag(user.countryCode);
-    lines.push(`${flag} Country Rank: ${colors.primary(`#${user.countryRank}`)}`);
-  }
-
-  // Calculate box width
-  const maxVisibleLength = Math.max(...lines.map((l) => getDisplayWidth(l)));
-  const boxWidth = Math.max(maxVisibleLength + 4, 47);
-
-  // Print box with animation
-  const top = colors.dim(`  ${box.topLeft}${box.horizontal.repeat(boxWidth)}${box.topRight}`);
-  const bottom = colors.dim(
-    `  ${box.bottomLeft}${box.horizontal.repeat(boxWidth)}${box.bottomRight}`
-  );
-
-  console.log(top);
-  await sleep(20);
-
-  for (const line of lines) {
-    const visibleLength = getDisplayWidth(line);
-    const padding = boxWidth - 2 - visibleLength;
-    const paddedLine = `${box.vertical} ${line}${" ".repeat(Math.max(0, padding))} ${box.vertical}`;
-    console.log(colors.dim("  ") + paddedLine);
-    await sleep(25);
-  }
-
-  console.log(bottom);
+  // Simple welcome message only - no box, detailed stats shown after scan
+  console.log(`  👋 ${colors.white.bold(`Welcome back, ${user.username}!`)}`);
+  await sleep(50);
 }

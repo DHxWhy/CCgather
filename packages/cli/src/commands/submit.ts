@@ -19,13 +19,14 @@ import {
   success,
   error,
   link,
-  createBox,
   progressBar,
   sleep,
   getLevelProgress,
   slotMachineRank,
   animatedProgressBar,
   suspenseDots,
+  printAnimatedBox,
+  printAnimatedLines,
 } from "../lib/ui.js";
 
 interface UsageData {
@@ -78,6 +79,9 @@ interface PreviousSubmission {
   sessionCount?: number;
   previousDates?: string[];
   previousDaily?: PreviousDailyData[];
+  previousGlobalRank?: number | null;
+  previousCountryRank?: number | null;
+  previousLevel?: number;
 }
 
 interface SubmitResponse {
@@ -85,6 +89,7 @@ interface SubmitResponse {
   profileUrl?: string;
   rank?: number;
   countryRank?: number;
+  currentLevel?: number;
   newBadges?: BadgeInfo[];
   totalBadges?: number;
   error?: string;
@@ -407,18 +412,20 @@ export async function submit(options: SubmitOptions): Promise<void> {
     },
   });
 
-  // Clear progress bar line
+  // Clear progress bar line and immediately show processing spinner
   if (lastProgress > 0) {
     process.stdout.write("\r" + " ".repeat(60) + "\r");
   }
 
-  // Show processing spinner during data preparation
+  // Show processing spinner during data preparation (visible for 800ms minimum)
   const processSpinner = ora({
     text: "Processing scan data...",
     color: "cyan",
+    indent: 2,
   }).start();
 
   if (!scannedData) {
+    await sleep(400);
     processSpinner.fail(colors.error("No usage data found."));
     console.log(`  ${colors.muted("Make sure you have used Claude Code at least once.")}\n`);
     process.exit(1);
@@ -426,8 +433,8 @@ export async function submit(options: SubmitOptions): Promise<void> {
 
   const usageData = ccgatherToUsageData(scannedData);
 
-  // Brief delay to show spinner animation
-  await sleep(350);
+  // Smooth UX - spinner visible for 800ms total
+  await sleep(800);
 
   processSpinner.succeed(colors.success("Scan complete!"));
 
@@ -462,28 +469,27 @@ export async function submit(options: SubmitOptions): Promise<void> {
   const currentLevel = levelProgress.current;
 
   const summaryLines = [
-    `${colors.muted("Total Cost")}     ${colors.success(formatCost(usageData.totalCost))}`,
-    `${colors.muted("Total Tokens")}   ${colors.primary(formatNumber(usageData.totalTokens))}`,
-    `${colors.muted("Period")}         ${colors.warning(daysTrackedDisplay)}`,
+    `${colors.muted("Total Cost")}     💰 ${colors.warning(formatCost(usageData.totalCost))}`,
+    `${colors.muted("Total Tokens")}   ⚡ ${colors.primary(formatNumber(usageData.totalTokens))}`,
+    `${colors.muted("Period")}         📅 ${colors.white(daysTrackedDisplay)}`,
     `${colors.muted("Level")}          ${currentLevel.icon} ${currentLevel.color(`${currentLevel.name}`)}`,
   ];
 
-  // Show plan as badge (display only, not for ranking)
+  // Show plan if detected
   if (usageData.ccplan) {
     const planColor = getPlanColor(usageData.ccplan);
+    const planIcon = usageData.ccplan.toLowerCase() === "max" ? "🚀 " : "";
     summaryLines.push(
-      `${colors.muted("Plan")}           ${planColor(usageData.ccplan.toUpperCase())} ${colors.dim("(badge)")}`
+      `${colors.muted("Plan")}           ${planIcon}${planColor(usageData.ccplan.toUpperCase())}`
     );
   }
 
   // Show Opus badge if detected
   if (usageData.hasOpusUsage) {
-    summaryLines.push(
-      `${colors.muted("Models")}         ${colors.max("✦")} ${colors.max("Opus User")}`
-    );
+    summaryLines.push(`${colors.muted("Models")}         ${colors.max("✦ Opus User")}`);
   }
 
-  console.log(createBox(summaryLines));
+  await printAnimatedBox(summaryLines, 52, 60);
   console.log();
 
   // Show project count
@@ -572,8 +578,10 @@ export async function submit(options: SubmitOptions): Promise<void> {
         daysDiff > 0 ? `${daysDiff}d ago` : hoursDiff > 0 ? `${hoursDiff}h ago` : "just now";
 
       console.log(sectionHeader("📈", "Since Last Submit"));
+      await sleep(40);
       console.log();
       console.log(`     ${colors.muted("Last submitted:")} ${colors.dim(timeSince)}`);
+      await sleep(50);
       console.log();
 
       // Summary line
@@ -596,35 +604,42 @@ export async function submit(options: SubmitOptions): Promise<void> {
           );
         }
         console.log(`     ${parts.join("   ")}`);
+        await sleep(50);
       }
 
       // Show expired data warning if any
       if (expiredDates.length > 0) {
         console.log();
+        await sleep(40);
         console.log(
           `     ${colors.warning("⚠")} ${colors.dim(`${expiredDates.length} day${expiredDates.length > 1 ? "s" : ""} expired (30-day limit): -${formatNumber(expiredTokens)}`)}`
         );
+        await sleep(50);
       }
 
       // Show new days detail (max 5)
       if (newDates.length > 0) {
         console.log();
+        await sleep(40);
         const displayDates = newDates.slice(-5); // Show last 5 new days
         if (newDates.length > 5) {
           console.log(`     ${colors.dim(`... and ${newDates.length - 5} more days`)}`);
+          await sleep(40);
         }
-        displayDates.forEach((d) => {
+        for (const d of displayDates) {
           const dateStr = d.date.slice(5).replace("-", "/"); // MM/DD format
           console.log(
             `     ${colors.dim("•")} ${colors.white(dateStr)}: ${colors.success(`+${formatNumber(d.tokens)}`)} ${colors.dim(`(${formatCost(d.cost)})`)}`
           );
-        });
+          await sleep(40);
+        }
       }
 
       // Show updated today if applicable
       if (updatedDates.length > 0 && newDates.length === 0) {
         console.log();
-        updatedDates.slice(-3).forEach((d) => {
+        await sleep(40);
+        for (const d of updatedDates.slice(-3)) {
           const prevData = previousDailyMap.get(d.date);
           if (prevData) {
             const dateStr = d.date.slice(5).replace("-", "/");
@@ -632,16 +647,19 @@ export async function submit(options: SubmitOptions): Promise<void> {
             console.log(
               `     ${colors.dim("•")} ${colors.white(dateStr)}: ${formatNumber(prevData.tokens)} → ${formatNumber(d.tokens)} ${colors.success(`(+${formatNumber(tokenIncrease)})`)}`
             );
+            await sleep(40);
           }
-        });
+        }
       }
 
       // No changes case
       if (newTokens === 0 && updatedDates.length === 0 && expiredDates.length === 0) {
         console.log(`     ${colors.dim("No changes since last submission")}`);
+        await sleep(50);
       }
 
       console.log();
+      await sleep(60);
 
       // Quick loading animation before ranking
       const rankSpinner = ora({
@@ -660,6 +678,10 @@ export async function submit(options: SubmitOptions): Promise<void> {
       console.log(sectionHeader("📊", "Your Ranking"));
       console.log();
 
+      // Get previous ranks for change display
+      const prevGlobalRank = result.previous?.previousGlobalRank;
+      const prevCountryRank = result.previous?.previousCountryRank;
+
       if (result.rank) {
         const medal =
           result.rank === 1
@@ -671,12 +693,12 @@ export async function submit(options: SubmitOptions): Promise<void> {
                 : result.rank <= 10
                   ? "🏅"
                   : "🌍";
-        await slotMachineRank(result.rank, "Global:", medal);
+        await slotMachineRank(result.rank, "Global:", medal, 12, prevGlobalRank);
       }
       if (result.countryRank) {
         const countryMedal =
           result.countryRank === 1 ? "🥇" : result.countryRank <= 3 ? "🏆" : "🏠";
-        await slotMachineRank(result.countryRank, "Country:", countryMedal, 10);
+        await slotMachineRank(result.countryRank, "Country:", countryMedal, 10, prevCountryRank);
       }
     }
 
@@ -687,10 +709,23 @@ export async function submit(options: SubmitOptions): Promise<void> {
     console.log(sectionHeader("⬆️", "Level Progress"));
     console.log();
 
-    // Show level with slight delay
+    // Calculate level change using server data (accurate with 30-day sliding window)
+    // previousTokens = server DB's previous max tokens
+    // serverLevel = server's calculated level (uses max of DB and current submission)
+    const previousTokens = result.previous?.totalTokens || 0;
+    const previousLevelInfo = getLevelProgress(previousTokens);
+    const previousLevelNum = previousLevelInfo.current.level;
+    const serverLevel = result.currentLevel || currentLevel.level;
+    let levelChangeText = "";
+    if (previousTokens > 0 && serverLevel > previousLevelNum) {
+      const levelChange = serverLevel - previousLevelNum;
+      levelChangeText = ` ${colors.success(`↑${levelChange}`)}`;
+    }
+
+    // Show level with slight delay: Lv.6 👑 Grandmaster ↑2
     await sleep(200);
     console.log(
-      `     ${currentLevel.icon} ${currentLevel.color(`Level ${currentLevel.level}`)} ${colors.muted("•")} ${colors.white(currentLevel.name)}`
+      `     ${colors.muted("Lv.")}${colors.white(String(currentLevel.level))} ${currentLevel.icon} ${currentLevel.color(currentLevel.name)}${levelChangeText}`
     );
 
     if (!levelProgress.isMaxLevel && levelProgress.next) {
