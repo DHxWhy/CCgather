@@ -27,6 +27,8 @@ interface GlobeStatsSectionProps {
   className?: string;
   size?: "default" | "large";
   scopeFilter?: "global" | "country";
+  sortBy?: "tokens" | "cost";
+  compact?: boolean; // Tighter spacing for tablet
 }
 
 // Hook for responsive globe size
@@ -39,11 +41,11 @@ function useResponsiveGlobeSize(sizeMode: "default" | "large") {
 
       if (sizeMode === "large") {
         // Large mode: Maximize globe for 50% column width
-        // 1000px container / 2 = 500px column - padding ~40px = ~460px available
+        // Keep globe size consistent from md+ (768px) onwards
         if (width >= 1536) return 380; // 2xl+
         if (width >= 1280) return 350; // xl+
-        if (width >= 1024) return 320; // lg+
-        return 280; // fallback
+        if (width >= 768) return 320;  // md+ (tablet & lg) - same size
+        return 240; // fallback (mobile, but globe is hidden anyway)
       }
 
       // Default mode: Compact
@@ -73,6 +75,8 @@ export function GlobeStatsSection({
   className = "",
   size = "default",
   scopeFilter = "global",
+  sortBy = "tokens",
+  compact = false,
 }: GlobeStatsSectionProps) {
   const [stats, setStats] = useState<CountryStat[]>([]);
   const [totalTokens, setTotalTokens] = useState(0);
@@ -159,7 +163,11 @@ export function GlobeStatsSection({
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: loading ? 0 : 1, y: loading ? 10 : 0 }}
         transition={{ duration: 0.5, delay: 0.3 }}
-        className={`flex items-center justify-center ${isLarge ? "gap-3 mt-4 text-sm" : "gap-2 mt-3 text-xs"}`}
+        className={`flex items-center justify-center ${
+          isLarge
+            ? compact ? "gap-2 mt-2 text-xs" : "gap-3 mt-4 text-sm"
+            : "gap-2 mt-3 text-xs"
+        }`}
       >
         {scopeFilter === "global" ? (
           <>
@@ -167,14 +175,14 @@ export function GlobeStatsSection({
               <span>🌍</span>
             </span>
             <span className="text-[var(--color-text-muted)]">·</span>
-            <span className="flex items-center gap-1 text-[var(--color-cost)]">
+            <span className={`flex items-center gap-1 ${sortBy === "tokens" ? "text-[var(--color-text-muted)]" : "text-[var(--color-cost)]"}`}>
               <span>💰</span>
               <span className="font-semibold">
                 ${totalCost.toLocaleString(undefined, { maximumFractionDigits: 0 })}
               </span>
             </span>
             <span className="text-[var(--color-text-muted)]">·</span>
-            <span className="flex items-center gap-1 text-[var(--color-claude-coral)]">
+            <span className={`flex items-center gap-1 ${sortBy === "cost" ? "text-[var(--color-text-muted)]" : "text-[var(--color-claude-coral)]"}`}>
               <span>⚡</span>
               <span className="font-semibold">{totalTokens.toLocaleString()}</span>
             </span>
@@ -191,7 +199,7 @@ export function GlobeStatsSection({
               )}
             </span>
             <span className="text-[var(--color-text-muted)]">·</span>
-            <span className="flex items-center gap-1 text-[var(--color-cost)]">
+            <span className={`flex items-center gap-1 ${sortBy === "tokens" ? "text-[var(--color-text-muted)]" : "text-[var(--color-cost)]"}`}>
               <span>💰</span>
               <span className="font-semibold">
                 $
@@ -201,7 +209,7 @@ export function GlobeStatsSection({
               </span>
             </span>
             <span className="text-[var(--color-text-muted)]">·</span>
-            <span className="flex items-center gap-1 text-[var(--color-claude-coral)]">
+            <span className={`flex items-center gap-1 ${sortBy === "cost" ? "text-[var(--color-text-muted)]" : "text-[var(--color-claude-coral)]"}`}>
               <span>⚡</span>
               <span className="font-semibold">
                 {(userCountryData?.tokens || 0).toLocaleString()}
