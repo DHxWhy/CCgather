@@ -726,14 +726,16 @@ export function ProfileSidePanel({
             setIsVerticalScroll(true);
             return;
           } else {
-            // Horizontal movement - start dragging
+            // Horizontal movement - start dragging, prevent page scroll
             setIsDragging(true);
+            e.preventDefault();
           }
         }
       }
 
       // Only update horizontal position if we're in drag mode
       if (isDragging && !isVerticalScroll) {
+        e.preventDefault(); // Prevent page from scrolling horizontally
         setTouchCurrentX(touch.clientX);
       }
     },
@@ -981,6 +983,7 @@ export function ProfileSidePanel({
           maxWidth: isMobile ? "calc(100% - 56px)" : isTabletPortrait ? "320px" : "440px",
           height: isMobile ? "calc(100% - 56px)" : "calc(100% - 64px)",
           transform: isOpen ? `translateX(${swipeOffset}px)` : "translateX(100%)",
+          touchAction: isOverlayPanel ? "pan-y" : "auto",
         }}
         onTouchStart={isOverlayPanel ? handleTouchStart : undefined}
         onTouchMove={isOverlayPanel ? handleTouchMove : undefined}

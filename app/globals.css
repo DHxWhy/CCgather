@@ -293,11 +293,13 @@
    ======================================== */
 html {
   scroll-behavior: smooth;
+  overflow-x: hidden;
 }
 
 body {
   background: var(--color-bg-primary);
   color: var(--color-text-primary);
+  overflow-x: hidden;
   transition:
     background-color 0.3s ease,
     color 0.3s ease;
