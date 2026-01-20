@@ -4,7 +4,7 @@
  * Types for leaderboard page and related components
  */
 
-export type PeriodFilter = "today" | "7d" | "30d" | "all";
+export type PeriodFilter = "today" | "7d" | "30d" | "all" | "custom";
 export type ScopeFilter = "global" | "country";
 export type SortByFilter = "tokens" | "cost";
 
