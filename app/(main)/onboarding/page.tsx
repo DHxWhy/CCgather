@@ -79,6 +79,22 @@ export default function OnboardingPage() {
           return;
         }
 
+        // Claim referral if exists in localStorage
+        const storedReferralCode = localStorage.getItem("ccgather_referral_code");
+        if (storedReferralCode) {
+          try {
+            await fetch("/api/referral/claim", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ referral_code: storedReferralCode }),
+            });
+            // Remove from localStorage after claiming
+            localStorage.removeItem("ccgather_referral_code");
+          } catch (e) {
+            console.error("Failed to claim referral:", e);
+          }
+        }
+
         // Mark onboarding just completed (prevents race condition redirect)
         sessionStorage.setItem("onboarding_just_completed", "true");
 

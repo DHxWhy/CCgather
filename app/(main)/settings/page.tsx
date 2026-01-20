@@ -11,6 +11,7 @@ import {
   JourneySection,
   DangerZone,
   AccountDeleteModal,
+  InviteFriendsSection,
 } from "@/components/settings";
 
 // X (formerly Twitter) icon
@@ -40,6 +41,9 @@ export default function SettingsProfilePage() {
   const [errors, setErrors] = useState<Partial<SocialLinks>>({});
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [isDataLoaded, setIsDataLoaded] = useState(false);
+  const [referralCode, setReferralCode] = useState<string | null>(null);
+  const [referralCount, setReferralCount] = useState<number>(0);
+  const [hideProfileOnInvite, setHideProfileOnInvite] = useState<boolean>(false);
   const socialLinksRef = useRef<SocialLinks>({});
 
   // Fetch user data from DB
@@ -52,6 +56,9 @@ export default function SettingsProfilePage() {
           setDbCountryCode(data.user?.country_code || "");
           setSocialLinks(data.user?.social_links || {});
           setEditedLinks(data.user?.social_links || {});
+          setReferralCode(data.user?.referral_code || null);
+          setReferralCount(data.user?.referral_count || 0);
+          setHideProfileOnInvite(data.user?.hide_profile_on_invite || false);
         }
       } catch (error) {
         console.error("Failed to fetch user data:", error);
@@ -186,6 +193,20 @@ export default function SettingsProfilePage() {
     }
   };
 
+  const handleToggleHideProfile = async (value: boolean) => {
+    setHideProfileOnInvite(value);
+    try {
+      await fetch("/api/me", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ hide_profile_on_invite: value }),
+      });
+    } catch (error) {
+      console.error("Failed to update hide profile setting:", error);
+      setHideProfileOnInvite(!value); // Revert on error
+    }
+  };
+
   const handleDeleteAccount = async () => {
     const res = await fetch("/api/me", { method: "DELETE" });
     if (!res.ok) {
@@ -278,6 +299,16 @@ export default function SettingsProfilePage() {
           />
         </div>
       </section>
+
+      {/* Invite Friends */}
+      {referralCode && (
+        <InviteFriendsSection
+          referralCode={referralCode}
+          referralCount={referralCount}
+          hideProfileOnInvite={hideProfileOnInvite}
+          onToggleHideProfile={handleToggleHideProfile}
+        />
+      )}
 
       {/* League Info */}
       {currentCountry && currentCountryCode && (

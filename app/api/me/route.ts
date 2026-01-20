@@ -38,6 +38,7 @@ const UpdateProfileSchema = z.object({
   profile_visibility_consent: z.boolean().optional(),
   community_updates_consent: z.boolean().optional(),
   social_links: SocialLinksSchema,
+  hide_profile_on_invite: z.boolean().optional(),
 });
 
 export async function GET() {
@@ -67,6 +68,8 @@ export async function GET() {
       onboarding_completed,
       is_admin,
       social_links,
+      referral_code,
+      hide_profile_on_invite,
       created_at
     `
     )
@@ -342,9 +345,15 @@ export async function GET() {
     }
   }
 
+  // Get referral count
+  const { count: referralCount } = await supabase
+    .from("users")
+    .select("*", { count: "exact", head: true })
+    .eq("referred_by", user.id);
+
   // Add cache control headers to prevent stale data
   return NextResponse.json(
-    { user },
+    { user: { ...user, referral_count: referralCount || 0 } },
     {
       headers: {
         "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
