@@ -441,7 +441,7 @@ export default function SettingsUsagePage() {
                                 <div
                                   className={cn(
                                     "h-5 mx-0.5 px-1.5 rounded flex items-center justify-between transition-transform hover:scale-[1.02] cursor-default",
-                                    "bg-[var(--color-claude-coral)]/10",
+                                    "bg-[var(--color-claude-coral)]/20",
                                     isToday &&
                                       "ring-2 ring-[var(--color-claude-coral)] ring-offset-1 ring-offset-[var(--color-bg-primary)]"
                                   )}
