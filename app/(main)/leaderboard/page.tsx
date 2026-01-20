@@ -649,12 +649,13 @@ export default function LeaderboardPage() {
             </div>
 
             {/* Right Column: User Table */}
-            {/* Tablet (<1040px): 55% width, PC (>=1040px): 50% width */}
+            {/* Mobile (<768px): 100% width */}
+            {/* Tablet (768-1039px): 55% width, PC (>=1040px): 50% width */}
             {/* When panel opens on narrow viewport: expands to full width */}
             <div
-              className="transition-all duration-300"
+              className="w-full md:w-auto transition-all duration-300"
               style={{
-                width: useCompactRatio ? "100%" : isTablet ? "55%" : "50%",
+                width: viewportWidth < 768 ? "100%" : useCompactRatio ? "100%" : isTablet ? "55%" : "50%",
               }}
             >
               {/* Filters - Above Table */}
@@ -942,23 +943,11 @@ export default function LeaderboardPage() {
                           {users.map((user, index) => {
                             const isFirst = user.rank === 1;
                             const isTopThree = user.rank <= 3;
-                            const rowPadding = "py-2";
-                            const avatarSize = isFirst
-                              ? "w-6 h-6 lg:w-8 lg:h-8"
-                              : isTopThree
-                                ? "w-6 h-6 lg:w-7 lg:h-7"
-                                : "w-6 h-6";
-                            const avatarText = isFirst
-                              ? "text-xs lg:text-sm"
-                              : isTopThree
-                                ? "text-xs"
-                                : "text-xs";
+                            const rowPadding = isFirst ? "py-2 lg:py-3" : isTopThree ? "py-2 lg:py-2.5" : "py-2";
+                            const avatarSize = isFirst ? "w-8 h-8 lg:w-10 lg:h-10" : isTopThree ? "w-7 h-7 lg:w-8 lg:h-8" : "w-6 h-6";
+                            const avatarText = isFirst ? "text-sm lg:text-base" : isTopThree ? "text-xs lg:text-sm" : "text-xs";
                             const nameSize = "text-xs";
-                            const rankSize = isFirst
-                              ? "text-base lg:text-lg"
-                              : isTopThree
-                                ? "text-base"
-                                : "text-xs";
+                            const rankSize = "text-xs";
                             const flagSize = 16;
                             const valueSize = "text-xs";
 
@@ -1178,19 +1167,7 @@ export default function LeaderboardPage() {
             </div>
           </div>
 
-          {/* Top Countries Section - Only show below md (md+ has it in left column) */}
-          {countryStats.length > 0 && (
-            <div className="mt-8 md:hidden glass rounded-2xl p-4 border border-[var(--border-default)]">
-              <TopCountriesSection
-                stats={countryStats}
-                totalTokens={totalGlobalTokens}
-                totalCost={totalGlobalCost}
-                sortBy={sortBy}
-                userCountryCode={currentUserCountry}
-                maxItems={10}
-              />
-            </div>
-          )}
+          {/* Top Countries Section moved to MobileGlobePanel for mobile */}
         </div>
       </div>
 

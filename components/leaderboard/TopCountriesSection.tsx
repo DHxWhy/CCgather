@@ -4,7 +4,7 @@ import { motion } from "framer-motion";
 import { FlagIcon } from "@/components/ui/FlagIcon";
 import { formatNumber, formatCost } from "@/lib/utils/format";
 
-interface CountryStat {
+export interface CountryStat {
   code: string;
   name: string;
   tokens: number;

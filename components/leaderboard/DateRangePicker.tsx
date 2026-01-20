@@ -1,12 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { DayPicker, DateRange } from "react-day-picker";
+import { DateRange } from "react-day-picker";
 import { format } from "date-fns";
 import { ko } from "date-fns/locale";
 import { motion, AnimatePresence } from "framer-motion";
-import { Calendar, X } from "lucide-react";
-import "react-day-picker/style.css";
+import { Calendar as CalendarIcon, X } from "lucide-react";
+import { Calendar } from "@/components/ui/calendar";
 
 interface DateRangePickerProps {
   isOpen: boolean;
@@ -67,7 +67,7 @@ export function DateRangePicker({
             {/* Header */}
             <div className="flex items-center justify-between px-4 py-3 border-b border-white/10">
               <div className="flex items-center gap-2">
-                <Calendar className="w-4 h-4 text-[var(--color-claude-coral)]" />
+                <CalendarIcon className="w-4 h-4 text-[var(--color-claude-coral)]" />
                 <span className="text-sm font-medium text-[var(--color-text-primary)]">
                   Custom Date Range
                 </span>
@@ -80,38 +80,16 @@ export function DateRangePicker({
               </button>
             </div>
 
-            {/* Calendar */}
+            {/* Calendar - Single Month */}
             <div className="p-4">
-              <DayPicker
+              <Calendar
                 mode="range"
                 selected={range}
                 onSelect={setRange}
                 locale={ko}
-                numberOfMonths={2}
+                numberOfMonths={1}
                 disabled={{ after: new Date() }}
-                classNames={{
-                  root: "date-range-picker",
-                  months: "flex gap-4",
-                  month: "space-y-2",
-                  caption: "flex justify-center py-1 relative items-center",
-                  caption_label: "text-sm font-medium text-[var(--color-text-primary)]",
-                  nav: "space-x-1 flex items-center",
-                  button_previous: "absolute left-1 p-1 rounded hover:bg-white/10 transition-colors",
-                  button_next: "absolute right-1 p-1 rounded hover:bg-white/10 transition-colors",
-                  table: "w-full border-collapse",
-                  head_row: "flex",
-                  head_cell: "text-[var(--color-text-muted)] rounded-md w-8 font-normal text-[11px]",
-                  row: "flex w-full mt-1",
-                  cell: "text-center text-xs p-0 relative focus-within:relative focus-within:z-20",
-                  day: "h-8 w-8 p-0 font-normal rounded-md hover:bg-white/10 transition-colors text-[var(--color-text-secondary)]",
-                  day_selected: "bg-[var(--color-claude-coral)] text-white hover:bg-[var(--color-claude-coral)]",
-                  day_today: "ring-1 ring-[var(--color-claude-coral)] ring-inset",
-                  day_outside: "text-[var(--color-text-muted)]/30",
-                  day_disabled: "text-[var(--color-text-muted)]/30 cursor-not-allowed",
-                  day_range_middle: "bg-[var(--color-claude-coral)]/20 rounded-none",
-                  day_range_start: "rounded-l-md",
-                  day_range_end: "rounded-r-md",
-                }}
+                defaultMonth={range?.from || new Date()}
               />
 
               {/* Selected Range Display */}
@@ -182,7 +160,7 @@ export function DateRangeButton({ onClick, isActive, dateLabel }: DateRangeButto
           : "text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-filter-hover)]"
       }`}
     >
-      <Calendar className="w-3.5 h-3.5" />
+      <CalendarIcon className="w-3.5 h-3.5" />
       {dateLabel && <span className="hidden sm:inline">{dateLabel}</span>}
     </button>
   );
