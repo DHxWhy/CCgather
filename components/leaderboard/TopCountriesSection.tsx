@@ -79,7 +79,7 @@ export function TopCountriesSection({
               transition={{ delay: index * 0.03 }}
               className={`group relative flex items-center gap-2 px-3 py-2 rounded-lg transition-colors ${
                 isUserCountry
-                  ? "bg-emerald-500/10 ring-1 ring-emerald-500/30 ring-inset"
+                  ? "bg-[var(--color-claude-coral)]/10 ring-1 ring-[var(--color-claude-coral)]/30 ring-inset"
                   : "hover:bg-[var(--glass-bg)]"
               }`}
             >
@@ -98,30 +98,50 @@ export function TopCountriesSection({
                   {/* Country name */}
                   <span
                     className={`text-sm font-medium flex-1 truncate ${
-                      isUserCountry ? "text-emerald-400" : "text-[var(--color-text-primary)]"
+                      isUserCountry
+                        ? "text-[var(--color-claude-coral)]"
+                        : "text-[var(--color-text-primary)]"
                     }`}
                   >
                     {stat.name}
-                    {isUserCountry && <span className="ml-1 text-[10px]">🟢</span>}
+                    {isUserCountry && <span className="ml-1 text-[10px]">🔸</span>}
                   </span>
 
                   {/* Cost & Tokens (right aligned) - dimmed based on sortBy */}
                   {/* Compact: only show unselected value, Default: show both */}
-                  <div className={`flex items-center gap-2 font-mono ${compact ? "text-[10px] pr-2" : "text-xs"}`}>
+                  <div
+                    className={`flex items-center gap-2 font-mono ${compact ? "text-[10px] pr-2" : "text-xs"}`}
+                  >
                     {compact ? (
                       /* Compact: only unselected value */
                       sortBy === "tokens" ? (
-                        <span className="text-[var(--color-text-muted)]">{formatCost(stat.cost)}</span>
+                        <span className="text-[var(--color-text-muted)]">
+                          {formatCost(stat.cost)}
+                        </span>
                       ) : (
-                        <span className="text-[var(--color-text-muted)]">{formatNumber(stat.tokens)}</span>
+                        <span className="text-[var(--color-text-muted)]">
+                          {formatNumber(stat.tokens)}
+                        </span>
                       )
                     ) : (
                       /* Default: both values */
                       <>
-                        <span className={sortBy === "tokens" ? "text-[var(--color-text-muted)]" : "text-[var(--color-cost)]"}>
+                        <span
+                          className={
+                            sortBy === "tokens"
+                              ? "text-[var(--color-text-muted)]"
+                              : "text-[var(--color-cost)]"
+                          }
+                        >
                           {formatCost(stat.cost)}
                         </span>
-                        <span className={sortBy === "cost" ? "text-[var(--color-text-muted)]" : "text-[var(--color-claude-coral)]"}>
+                        <span
+                          className={
+                            sortBy === "cost"
+                              ? "text-[var(--color-text-muted)]"
+                              : "text-[var(--color-claude-coral)]"
+                          }
+                        >
                           {formatNumber(stat.tokens)}
                         </span>
                       </>
@@ -153,9 +173,13 @@ export function TopCountriesSection({
                   </span>
                   {/* Compact: Selected value right */}
                   {compact && (
-                    <span className={`absolute inset-0 flex items-center justify-end pr-2 text-[10px] font-mono ${
-                      sortBy === "tokens" ? "text-[var(--color-claude-coral)]" : "text-[var(--color-cost)]"
-                    }`}>
+                    <span
+                      className={`absolute inset-0 flex items-center justify-end pr-2 text-[10px] font-mono ${
+                        sortBy === "tokens"
+                          ? "text-[var(--color-claude-coral)]"
+                          : "text-[var(--color-cost)]"
+                      }`}
+                    >
                       {sortBy === "tokens" ? formatNumber(stat.tokens) : formatCost(stat.cost)}
                     </span>
                   )}
