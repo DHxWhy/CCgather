@@ -2,7 +2,6 @@
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useState, type ReactNode } from "react";
-import { CursorProvider, CustomCursor } from "@/components/ui/cursor";
 import { ToastProvider } from "@/components/ui/ToastProvider";
 import { PostHogProvider } from "@/components/providers/PostHogProvider";
 
@@ -28,13 +27,7 @@ export function Providers({ children }: ProvidersProps) {
   return (
     <PostHogProvider>
       <QueryClientProvider client={queryClient}>
-        <ToastProvider>
-          <CursorProvider enabled>
-            {children}
-            {/* Custom cursor - only renders on mouse devices */}
-            <CustomCursor enableTrail={false} />
-          </CursorProvider>
-        </ToastProvider>
+        <ToastProvider>{children}</ToastProvider>
       </QueryClientProvider>
     </PostHogProvider>
   );

@@ -1,10 +1,19 @@
 "use client";
 
 import { useEffect, useState, useMemo } from "react";
-import { motion } from "framer-motion";
-import { Globe } from "@/components/globe/Globe";
-import { GlobeParticles } from "@/components/ui/globe-particles";
+import dynamic from "next/dynamic";
 import { getCountryName } from "@/lib/constants/countries";
+
+// Dynamic imports for heavy components - reduces initial bundle
+const Globe = dynamic(() => import("@/components/globe/Globe").then((mod) => mod.Globe), {
+  ssr: false,
+  loading: () => null,
+});
+
+const GlobeParticles = dynamic(
+  () => import("@/components/ui/globe-particles").then((mod) => mod.GlobeParticles),
+  { ssr: false, loading: () => null }
+);
 
 interface CountryStat {
   code: string;
@@ -158,13 +167,10 @@ export function GlobeStatsSection({
       </div>
 
       {/* Stats summary below globe - single line with emojis */}
-      <motion.div
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: loading ? 0 : 1, y: loading ? 10 : 0 }}
-        transition={{ duration: 0.5, delay: 0.3 }}
-        className={`flex items-center justify-center ${
-          isLarge ? (compact ? "gap-2 mt-2 text-xs" : "gap-3 mt-4 text-sm") : "gap-2 mt-3 text-xs"
-        }`}
+      <div
+        className={`flex items-center justify-center transition-all duration-500 ${
+          loading ? "opacity-0 translate-y-2" : "opacity-100 translate-y-0"
+        } ${isLarge ? (compact ? "gap-2 mt-2 text-xs" : "gap-3 mt-4 text-sm") : "gap-2 mt-3 text-xs"}`}
       >
         {scopeFilter === "global" ? (
           <>
@@ -216,7 +222,7 @@ export function GlobeStatsSection({
             </span>
           </>
         )}
-      </motion.div>
+      </div>
     </div>
   );
 }

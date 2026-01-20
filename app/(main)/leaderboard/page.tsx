@@ -2,22 +2,40 @@
 
 import { useState, useMemo, useEffect, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
+import dynamic from "next/dynamic";
 import Image from "next/image";
 import ReactCountryFlag from "react-country-flag";
-import { motion } from "framer-motion";
 import { useUser } from "@clerk/nextjs";
-import { ProfileSidePanel } from "@/components/leaderboard/ProfileSidePanel";
 import { GlobeStatsSection } from "@/components/leaderboard/GlobeStatsSection";
 import { TopCountriesSection } from "@/components/leaderboard/TopCountriesSection";
-import { DateRangePicker, DateRangeButton } from "@/components/leaderboard/DateRangePicker";
-import { MobileGlobePanel } from "@/components/leaderboard/MobileGlobePanel";
+import { DateRangeButton } from "@/components/leaderboard/DateRangePicker";
 import { PeriodDropdown } from "@/components/leaderboard/PeriodDropdown";
-import { GlobeParticles } from "@/components/ui/globe-particles";
 import { TimezoneClock } from "@/components/ui/timezone-clock";
 import { LEVELS, getLevelByTokens } from "@/lib/constants/levels";
 import { Info } from "lucide-react";
 import { format } from "date-fns";
 import type { LeaderboardUser, PeriodFilter, ScopeFilter, SortByFilter } from "@/lib/types";
+
+// Dynamic imports for heavy components - reduces initial bundle significantly
+const ProfileSidePanel = dynamic(
+  () => import("@/components/leaderboard/ProfileSidePanel").then((mod) => mod.ProfileSidePanel),
+  { ssr: false }
+);
+
+const MobileGlobePanel = dynamic(
+  () => import("@/components/leaderboard/MobileGlobePanel").then((mod) => mod.MobileGlobePanel),
+  { ssr: false }
+);
+
+const DateRangePicker = dynamic(
+  () => import("@/components/leaderboard/DateRangePicker").then((mod) => mod.DateRangePicker),
+  { ssr: false }
+);
+
+const GlobeParticles = dynamic(
+  () => import("@/components/ui/globe-particles").then((mod) => mod.GlobeParticles),
+  { ssr: false }
+);
 
 interface CountryStat {
   code: string;
@@ -884,11 +902,9 @@ export default function LeaderboardPage() {
 
               {/* Leaderboard Table - Keep showing while loading new data */}
               {users.length > 0 && (
-                <motion.div
+                <div
                   key={`${scopeFilter}-${periodFilter}-${sortBy}-${currentPage}`}
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: loading ? 0.5 : 1 }}
-                  transition={{ duration: 0.2, ease: "easeOut" }}
+                  className={`transition-opacity duration-200 ease-out ${loading ? "opacity-50" : "opacity-100"}`}
                 >
                   <div className="glass rounded-2xl overflow-visible border border-[var(--border-default)]">
                     <div className="overflow-x-auto rounded-2xl">
@@ -1169,7 +1185,7 @@ export default function LeaderboardPage() {
                       Get Started
                     </a>
                   </p>
-                </motion.div>
+                </div>
               )}
             </div>
           </div>
