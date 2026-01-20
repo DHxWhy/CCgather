@@ -519,56 +519,33 @@ export default function LeaderboardPage() {
     <div className="min-h-screen overflow-x-hidden">
       <div className="transition-all duration-300 ease-out">
         <div
-          className={`px-4 md:px-10 py-8 transition-all duration-300 ${
+          className={`px-4 py-8 transition-all duration-300 ${
             shouldConstrainWidth ? "max-w-[1000px] mx-auto" : "max-w-none"
           }`}
           style={{
             marginRight: isPanelOpen && panelWidth > 0 ? `${panelWidth}px` : undefined,
           }}
         >
-          {/* Header - Simplified */}
-          <div className="mb-6">
-            <div className="flex items-start justify-between gap-3 mb-2">
-              <div className="flex-1 min-w-0">
-                <h1 className="text-2xl md:text-3xl font-semibold text-[var(--color-text-primary)]">
-                  <span className="sm:hidden flex items-center gap-2">
-                    {scopeFilter === "global" ? (
-                      <>🌍 Global</>
-                    ) : (
-                      <>
-                        <ReactCountryFlag
-                          countryCode={currentUserCountry}
-                          svg
-                          style={{ width: "20px", height: "20px" }}
-                        />
-                        {currentUserCountry}
-                      </>
-                    )}{" "}
-                    Leaderboard
-                  </span>
-                  <span className="hidden sm:flex items-center gap-2">
-                    {scopeFilter === "global" ? (
-                      <>🌍 Global</>
-                    ) : (
-                      <>
-                        <ReactCountryFlag
-                          countryCode={currentUserCountry}
-                          svg
-                          style={{ width: "24px", height: "24px" }}
-                        />
-                        Country
-                      </>
-                    )}{" "}
-                    Leaderboard
-                  </span>
-                </h1>
-                <p className="text-xs sm:text-sm text-[var(--color-text-muted)] mt-1 whitespace-nowrap">
-                  Top Claude Code developers ranked by{" "}
-                  {sortBy === "tokens" ? "token usage" : "spending"}
-                </p>
-              </div>
-            </div>
-          </div>
+          {/* Header */}
+          <header className="mb-8">
+            <h1 className="text-2xl font-bold text-[var(--color-text-primary)] flex items-center gap-2">
+              {scopeFilter === "global" ? (
+                <>🌍 Global Leaderboard</>
+              ) : (
+                <>
+                  <ReactCountryFlag
+                    countryCode={currentUserCountry}
+                    svg
+                    style={{ width: "20px", height: "20px" }}
+                  />
+                  Country Leaderboard
+                </>
+              )}
+            </h1>
+            <p className="text-sm text-[var(--color-text-secondary)] mt-1">
+              Top Claude Code developers ranked by {sortBy === "tokens" ? "token usage" : "spending"}
+            </p>
+          </header>
 
           {/* 2-Column Layout: Globe+Countries (left) + Users (right) */}
           {/* Wide viewport (>=1440): always 50%|50%+panel */}
@@ -724,7 +701,9 @@ export default function LeaderboardPage() {
                         {period.label}
                       </button>
                     ))}
-                    {/* Custom Date Range Button */}
+                  </div>
+                  {/* Custom Date Range Button - Desktop */}
+                  <div className="hidden lg:block">
                     <DateRangeButton
                       onClick={() => setShowDatePicker(true)}
                       isActive={periodFilter === "custom"}
