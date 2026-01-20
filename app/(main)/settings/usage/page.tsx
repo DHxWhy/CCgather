@@ -234,13 +234,59 @@ export default function SettingsUsagePage() {
   const currentYear = today.getFullYear();
 
   return (
-    <div className="p-4 sm:p-6 space-y-4">
-      {/* Header */}
-      <div className="flex items-start justify-between gap-2">
-        <h2 className="text-sm font-medium text-[var(--color-text-secondary)] pt-1">Heatmap</h2>
-        <div className="flex flex-col items-end gap-1.5">
+    <div className="p-4 sm:p-6 space-y-2">
+      {/* Header - Single Row: Stats + Avatar | Filter */}
+      <div className="flex items-center justify-between gap-2">
+        {/* Left: Stats Pills + Avatar */}
+        <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
           {userStats && (
-            <div className="flex items-center gap-2 min-w-0">
+            <>
+              <div className="flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 py-1 sm:py-1.5 rounded-lg bg-[var(--color-filter-bg)] border border-[var(--border-default)]">
+                <Zap className="w-3 sm:w-3.5 h-3 sm:h-3.5 text-[var(--color-claude-coral)]" />
+                <span className="text-[11px] sm:text-xs font-semibold text-[var(--color-claude-coral)]">
+                  {formatNumber(userStats.total_tokens)}
+                </span>
+                <span className="hidden sm:inline text-[10px] text-[var(--color-text-muted)]">
+                  tokens
+                </span>
+              </div>
+              <div className="flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 py-1 sm:py-1.5 rounded-lg bg-[var(--color-filter-bg)] border border-[var(--border-default)]">
+                <Coins className="w-3 sm:w-3.5 h-3 sm:h-3.5 text-[var(--color-cost)]" />
+                <span className="text-[11px] sm:text-xs font-semibold text-[var(--color-cost)]">
+                  ${userStats.total_cost.toFixed(2)}
+                </span>
+                <span className="hidden sm:inline text-[10px] text-[var(--color-text-muted)]">
+                  cost
+                </span>
+              </div>
+              <div className="flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 py-1 sm:py-1.5 rounded-lg bg-[var(--color-filter-bg)] border border-[var(--border-default)]">
+                <Trophy className="w-3 sm:w-3.5 h-3 sm:h-3.5 text-[var(--color-cost)]" />
+                <span className="text-[11px] sm:text-xs font-semibold text-[var(--color-text-primary)]">
+                  Lv.{userStats.current_level}
+                </span>
+              </div>
+              <div className="flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 py-1 sm:py-1.5 rounded-lg bg-[var(--color-filter-bg)] border border-[var(--border-default)]">
+                <Globe className="w-3 sm:w-3.5 h-3 sm:h-3.5 text-[var(--color-text-muted)]" />
+                <span className="text-[11px] sm:text-xs font-medium text-[var(--color-text-primary)]">
+                  #{userStats.global_rank || "-"}
+                </span>
+              </div>
+              {userStats.country_code && (
+                <div className="flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 py-1 sm:py-1.5 rounded-lg bg-[var(--color-filter-bg)] border border-[var(--border-default)]">
+                  <FlagIcon countryCode={userStats.country_code} size="sm" />
+                  <span className="text-[11px] sm:text-xs font-medium text-[var(--color-text-primary)]">
+                    #{userStats.country_rank || "-"}
+                  </span>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+
+        {/* Right: Avatar + Filter */}
+        <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
+          {userStats && (
+            <div className="flex items-center gap-1.5 min-w-0">
               {userStats.avatar_url ? (
                 <Image
                   src={userStats.avatar_url}
@@ -254,12 +300,12 @@ export default function SettingsUsagePage() {
                   {userStats.username.charAt(0).toUpperCase()}
                 </div>
               )}
-              <span className="text-sm font-medium text-text-primary truncate">
+              <span className="hidden sm:inline text-sm font-medium text-text-primary truncate max-w-[100px]">
                 {userStats.display_name || userStats.username}
               </span>
             </div>
           )}
-          {/* Period Filter - moved here */}
+          {/* Period Filter */}
           <div className="relative" ref={dropdownRef}>
             <button
               onClick={() => setIsPeriodDropdownOpen(!isPeriodDropdownOpen)}
@@ -298,50 +344,6 @@ export default function SettingsUsagePage() {
           </div>
         </div>
       </div>
-
-      {/* Stats Pills */}
-      {userStats && (
-        <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
-          <div className="flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 py-1 sm:py-1.5 rounded-lg bg-[var(--color-filter-bg)] border border-[var(--border-default)]">
-            <Zap className="w-3 sm:w-3.5 h-3 sm:h-3.5 text-[var(--color-claude-coral)]" />
-            <span className="text-[11px] sm:text-xs font-semibold text-[var(--color-claude-coral)]">
-              {formatNumber(userStats.total_tokens)}
-            </span>
-            <span className="hidden sm:inline text-[10px] text-[var(--color-text-muted)]">
-              tokens
-            </span>
-          </div>
-          <div className="flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 py-1 sm:py-1.5 rounded-lg bg-[var(--color-filter-bg)] border border-[var(--border-default)]">
-            <Coins className="w-3 sm:w-3.5 h-3 sm:h-3.5 text-[var(--color-cost)]" />
-            <span className="text-[11px] sm:text-xs font-semibold text-[var(--color-cost)]">
-              ${userStats.total_cost.toFixed(2)}
-            </span>
-            <span className="hidden sm:inline text-[10px] text-[var(--color-text-muted)]">
-              cost
-            </span>
-          </div>
-          <div className="flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 py-1 sm:py-1.5 rounded-lg bg-[var(--color-filter-bg)] border border-[var(--border-default)]">
-            <Trophy className="w-3 sm:w-3.5 h-3 sm:h-3.5 text-[var(--color-cost)]" />
-            <span className="text-[11px] sm:text-xs font-semibold text-[var(--color-text-primary)]">
-              Lv.{userStats.current_level}
-            </span>
-          </div>
-          <div className="flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 py-1 sm:py-1.5 rounded-lg bg-[var(--color-filter-bg)] border border-[var(--border-default)]">
-            <Globe className="w-3 sm:w-3.5 h-3 sm:h-3.5 text-[var(--color-text-muted)]" />
-            <span className="text-[11px] sm:text-xs font-medium text-[var(--color-text-primary)]">
-              #{userStats.global_rank || "-"}
-            </span>
-          </div>
-          {userStats.country_code && (
-            <div className="flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 py-1 sm:py-1.5 rounded-lg bg-[var(--color-filter-bg)] border border-[var(--border-default)]">
-              <FlagIcon countryCode={userStats.country_code} size="sm" />
-              <span className="text-[11px] sm:text-xs font-medium text-[var(--color-text-primary)]">
-                #{userStats.country_rank || "-"}
-              </span>
-            </div>
-          )}
-        </div>
-      )}
 
       {isLoading ? (
         <div className="flex items-center justify-center h-64">
@@ -390,7 +392,7 @@ export default function SettingsUsagePage() {
                         <th
                           key={`${year}-${month}`}
                           className={cn(
-                            "px-1 py-1.5 sm:py-2 text-[9px] sm:text-[10px] font-semibold text-center border-b border-r border-[var(--border-default)] min-w-[70px] sm:min-w-[90px] max-w-[100px] sm:max-w-[120px]",
+                            "px-1 py-1.5 sm:py-2 text-[9px] sm:text-[10px] font-semibold text-center border-b border-r border-[var(--border-default)] min-w-[90px] sm:min-w-[110px] max-w-[120px] sm:max-w-[140px]",
                             isCurrentMonth
                               ? "text-[var(--color-text-primary)] bg-[var(--color-claude-coral)]/10"
                               : "text-[var(--color-text-muted)]"
@@ -429,7 +431,7 @@ export default function SettingsUsagePage() {
                           return (
                             <td
                               key={`${year}-${month}-${day}`}
-                              className="px-1 py-0.5 border-r border-[var(--border-default)] min-w-[70px] sm:min-w-[90px] max-w-[100px] sm:max-w-[120px]"
+                              className="px-1 py-0.5 border-r border-[var(--border-default)] min-w-[90px] sm:min-w-[110px] max-w-[120px] sm:max-w-[140px]"
                             >
                               {!isValidDay ? (
                                 <div className="h-5" />
@@ -492,7 +494,7 @@ export default function SettingsUsagePage() {
                         <td
                           key={monthKey}
                           className={cn(
-                            "px-1.5 py-2 border-r border-[var(--border-default)] min-w-[70px] sm:min-w-[90px] max-w-[100px] sm:max-w-[120px]",
+                            "px-1.5 py-2 border-r border-[var(--border-default)] min-w-[90px] sm:min-w-[110px] max-w-[120px] sm:max-w-[140px]",
                             isCurrentMonth && "bg-[var(--color-claude-coral)]/5"
                           )}
                         >
