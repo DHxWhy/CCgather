@@ -40,13 +40,13 @@ function formatDate(dateStr: string): string {
   });
 }
 
-// Intensity color classes (Claude coral theme)
+// Intensity color classes (CSS variables for light/dark mode support)
 const INTENSITY_COLORS = [
-  "bg-white/5", // 0: No activity
-  "bg-[#DA7756]/20", // 1: Low
-  "bg-[#DA7756]/40", // 2: Medium-Low
-  "bg-[#DA7756]/60", // 3: Medium-High
-  "bg-[#DA7756]/90", // 4: High
+  "bg-[var(--heatmap-empty)]", // 0: No activity
+  "bg-[var(--heatmap-level-1)]", // 1: Low
+  "bg-[var(--heatmap-level-2)]", // 2: Medium-Low
+  "bg-[var(--heatmap-level-3)]", // 3: Medium-High
+  "bg-[var(--heatmap-level-4)]", // 4: High
 ];
 
 // Tooltip position calculation

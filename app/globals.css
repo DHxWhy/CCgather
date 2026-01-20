@@ -143,6 +143,14 @@
   /* Cursor Colors */
   --cursor-color: var(--color-claude-coral);
   --cursor-glow: rgba(218, 119, 86, 0.5);
+
+  /* Heatmap Colors - Dark Mode */
+  --heatmap-empty: rgba(255, 255, 255, 0.05);
+  --heatmap-level-1: rgba(218, 119, 86, 0.25);
+  --heatmap-level-2: rgba(218, 119, 86, 0.45);
+  --heatmap-level-3: rgba(218, 119, 86, 0.65);
+  --heatmap-level-4: rgba(218, 119, 86, 0.9);
+
   --radius: 0.625rem;
   --background: oklch(1 0 0);
   --foreground: oklch(0.145 0 0);
@@ -261,6 +269,13 @@
 
   /* Cursor Colors */
   --cursor-glow: rgba(218, 119, 86, 0.3);
+
+  /* Heatmap Colors - Light Mode (더 진한 색상) */
+  --heatmap-empty: rgba(0, 0, 0, 0.06);
+  --heatmap-level-1: rgba(218, 119, 86, 0.35);
+  --heatmap-level-2: rgba(218, 119, 86, 0.5);
+  --heatmap-level-3: rgba(218, 119, 86, 0.7);
+  --heatmap-level-4: rgba(218, 119, 86, 0.95);
 }
 
 /* ========================================
