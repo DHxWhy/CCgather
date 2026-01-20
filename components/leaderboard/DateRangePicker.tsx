@@ -15,12 +15,7 @@ interface DateRangePickerProps {
   initialRange?: { start: string; end: string } | null;
 }
 
-export function DateRangePicker({
-  isOpen,
-  onClose,
-  onApply,
-  initialRange,
-}: DateRangePickerProps) {
+export function DateRangePicker({ isOpen, onClose, onApply, initialRange }: DateRangePickerProps) {
   const [range, setRange] = useState<DateRange | undefined>(() => {
     if (initialRange) {
       return {
@@ -154,14 +149,15 @@ export function DateRangeButton({ onClick, isActive, dateLabel }: DateRangeButto
     <button
       onClick={onClick}
       title="Custom date range"
-      className={`h-6 px-1.5 rounded-md text-xs font-medium transition-colors flex items-center gap-1 ${
+      className={`w-[28px] lg:w-auto lg:px-1.5 rounded-lg text-[10px] leading-none font-medium transition-colors flex items-center justify-center gap-0.5 glass ${
         isActive
           ? "bg-[var(--color-claude-coral)]/50 text-[var(--color-claude-coral)]"
           : "text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-filter-hover)]"
       }`}
+      style={{ height: 28 }}
     >
-      <CalendarIcon className="w-3.5 h-3.5" />
-      {dateLabel && <span className="hidden sm:inline">{dateLabel}</span>}
+      <CalendarIcon className="w-3 h-3" />
+      {dateLabel && <span className="hidden lg:inline">{dateLabel}</span>}
     </button>
   );
 }

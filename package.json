@@ -57,6 +57,7 @@
     "cobe": "^0.6.5",
     "country-flag-icons": "^1.6.4",
     "date-fns": "^4.1.0",
+    "date-fns-tz": "^3.2.0",
     "framer-motion": "^12.23.27",
     "lucide-react": "^0.562.0",
     "next": "^16.1.1",

@@ -36,7 +36,7 @@ export default function SignUpPage() {
   return (
     <div className="flex min-h-screen bg-[var(--color-bg-primary)] relative overflow-hidden">
       {/* Stars Background */}
-      <StarsCanvas starCount={150} />
+      <StarsCanvas starCount={400} />
 
       {/* Left Panel - Brand & Visual (hidden on mobile/tablet) */}
       <div className="hidden lg:flex lg:w-1/2 relative z-10">

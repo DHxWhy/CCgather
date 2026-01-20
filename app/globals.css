@@ -522,6 +522,21 @@ body {
   will-change: box-shadow;
 }
 
+/* Clock colon blink animation */
+@keyframes blink {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.2;
+  }
+}
+
+.animate-blink {
+  animation: blink 1.5s ease-in-out infinite;
+}
+
 /* Globe Particle Emanation Effect */
 @keyframes globe-stream-rotate {
   from {
@@ -607,7 +622,7 @@ body {
    ======================================== */
 
 @media (max-width: 767px) {
-  /* Minimum touch target size */
+  /* Minimum touch target size - apply to specific class only */
   .touch-target {
     min-height: 44px;
     min-width: 44px;
@@ -620,11 +635,8 @@ body {
     font-size: 16px !important;
   }
 
-  /* Larger tap areas */
-  button,
-  a {
-    min-height: 44px;
-  }
+  /* Larger tap areas - only for main interactive elements, not compact UI */
+  /* Use .touch-target class for buttons that need 44px minimum */
 }
 
 /* Disable hover effects on touch devices */

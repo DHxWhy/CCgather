@@ -973,12 +973,13 @@ export function ProfileSidePanel({
 
       <div
         ref={panelRef}
-        className={`fixed top-0 right-0 h-full flex flex-col bg-[var(--color-bg-primary)] border-l border-[var(--border-default)] z-50 shadow-2xl will-change-transform ${
+        className={`fixed top-14 md:top-16 right-0 flex flex-col bg-[var(--color-bg-primary)] border-l border-[var(--border-default)] z-50 shadow-2xl will-change-transform ${
           isDragging ? "" : "transition-transform duration-200 ease-out"
         } ${isOpen ? "translate-x-0" : "translate-x-full"}`}
         style={{
           width: isMobile ? "calc(100% - 56px)" : isTabletPortrait ? "320px" : "440px",
           maxWidth: isMobile ? "calc(100% - 56px)" : isTabletPortrait ? "320px" : "440px",
+          height: isMobile ? "calc(100% - 56px)" : "calc(100% - 64px)",
           transform: isOpen ? `translateX(${swipeOffset}px)` : "translateX(100%)",
         }}
         onTouchStart={isOverlayPanel ? handleTouchStart : undefined}

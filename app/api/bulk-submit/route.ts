@@ -1,11 +1,7 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
-import { z } from 'zod';
-import {
-  rateLimiters,
-  createRateLimitHeaders,
-  getClientIdentifier,
-} from '@/lib/rate-limit';
+import { NextRequest, NextResponse } from "next/server";
+import { createClient } from "@supabase/supabase-js";
+import { z } from "zod";
+import { rateLimiters, createRateLimitHeaders, getClientIdentifier } from "@/lib/rate-limit";
 
 function getSupabaseAdmin() {
   return createClient(
@@ -29,6 +25,12 @@ const BulkSubmitSchema = z.object({
   api_key: z.string().min(1),
   projects: z.array(ProjectUsageSchema).min(1).max(50),
   timestamp: z.string().datetime().optional(),
+  // User's local date (YYYY-MM-DD) - if provided, used instead of server UTC date
+  // This ensures data is recorded according to user's timezone
+  local_date: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .optional(),
 });
 
 export async function POST(request: NextRequest) {
@@ -38,12 +40,12 @@ export async function POST(request: NextRequest) {
 
     if (!parsed.success) {
       return NextResponse.json(
-        { error: 'Invalid request body', details: parsed.error.issues },
+        { error: "Invalid request body", details: parsed.error.issues },
         { status: 400 }
       );
     }
 
-    const { api_key, projects } = parsed.data;
+    const { api_key, projects, local_date } = parsed.data;
 
     // Rate limiting check (stricter for bulk operations)
     const clientId = getClientIdentifier(request, api_key);
@@ -52,11 +54,9 @@ export async function POST(request: NextRequest) {
     if (!rateLimitResult.success) {
       return NextResponse.json(
         {
-          error: 'Rate limit exceeded',
-          message: 'Too many bulk submissions. Please try again later.',
-          retryAfter: Math.ceil(
-            (rateLimitResult.resetTime - Date.now()) / 1000
-          ),
+          error: "Rate limit exceeded",
+          message: "Too many bulk submissions. Please try again later.",
+          retryAfter: Math.ceil((rateLimitResult.resetTime - Date.now()) / 1000),
         },
         {
           status: 429,
@@ -69,19 +69,18 @@ export async function POST(request: NextRequest) {
 
     // Verify API key and get user
     const { data: user, error: userError } = await supabaseAdmin
-      .from('users')
-      .select('id, clerk_id')
-      .eq('api_key', api_key)
+      .from("users")
+      .select("id, clerk_id")
+      .eq("api_key", api_key)
       .single();
 
     if (userError || !user) {
-      return NextResponse.json(
-        { error: 'Invalid API key' },
-        { status: 401 }
-      );
+      return NextResponse.json({ error: "Invalid API key" }, { status: 401 });
     }
 
-    const today = new Date().toISOString().split('T')[0];
+    // Use user's local date if provided, otherwise fall back to UTC
+    // This ensures data is recorded according to user's timezone
+    const today = local_date || new Date().toISOString().split("T")[0];
 
     // Aggregate tokens across all projects
     const totalUsage = projects.reduce(
@@ -100,26 +99,21 @@ export async function POST(request: NextRequest) {
     );
 
     // Upsert aggregated usage stats for today
-    const { error: upsertError } = await supabaseAdmin
-      .from('usage_stats')
-      .upsert(
-        {
-          user_id: user.id,
-          date: today,
-          ...totalUsage,
-        },
-        {
-          onConflict: 'user_id,date',
-          ignoreDuplicates: false,
-        }
-      );
+    const { error: upsertError } = await supabaseAdmin.from("usage_stats").upsert(
+      {
+        user_id: user.id,
+        date: today,
+        ...totalUsage,
+      },
+      {
+        onConflict: "user_id,date",
+        ignoreDuplicates: false,
+      }
+    );
 
     if (upsertError) {
-      console.error('Failed to upsert usage stats:', upsertError);
-      return NextResponse.json(
-        { error: 'Failed to save usage data' },
-        { status: 500 }
-      );
+      console.error("Failed to upsert usage stats:", upsertError);
+      return NextResponse.json({ error: "Failed to save usage data" }, { status: 500 });
     }
 
     // Store individual project breakdown (optional - for future analytics)
@@ -144,19 +138,19 @@ export async function POST(request: NextRequest) {
     */
 
     // Trigger user stats update
-    const { error: updateError } = await supabaseAdmin.rpc('update_user_stats', {
+    const { error: updateError } = await supabaseAdmin.rpc("update_user_stats", {
       p_user_id: user.id,
     });
 
     if (updateError) {
-      console.error('Failed to update user stats:', updateError);
+      console.error("Failed to update user stats:", updateError);
       // Non-fatal, continue
     }
 
     return NextResponse.json(
       {
         success: true,
-        message: 'Bulk usage data submitted successfully',
+        message: "Bulk usage data submitted successfully",
         summary: {
           projects_count: projects.length,
           total_input_tokens: totalUsage.input_tokens,
@@ -175,10 +169,7 @@ export async function POST(request: NextRequest) {
       }
     );
   } catch (error) {
-    console.error('Bulk submit error:', error);
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    );
+    console.error("Bulk submit error:", error);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }

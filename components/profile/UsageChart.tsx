@@ -13,9 +13,22 @@ interface UsageChartProps {
   height?: number;
 }
 
+/**
+ * Format date string (YYYY-MM-DD) for display
+ * Parses as UTC to avoid timezone offset issues
+ * e.g., "2025-01-20" should always show "Jan 20" regardless of user's timezone
+ */
 function formatDate(dateStr: string): string {
-  const date = new Date(dateStr);
-  return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  // Parse as UTC by appending T00:00:00Z or using UTC methods
+  const parts = dateStr.split("-").map(Number);
+  const [year = 0, month = 1, day = 1] = parts;
+  const date = new Date(Date.UTC(year, month - 1, day));
+
+  return date.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    timeZone: "UTC", // Ensure formatting in UTC
+  });
 }
 
 export function UsageChart({ data, height = 200 }: UsageChartProps) {

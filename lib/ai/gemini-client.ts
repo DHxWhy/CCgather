@@ -19,6 +19,12 @@
  */
 
 import { GoogleGenerativeAI, GenerativeModel, GenerationConfig } from "@google/generative-ai";
+import { performHardCheck } from "./fact-hard-check";
+import {
+  verifyFactsWithWebSearch,
+  extractKeyFactsForVerification,
+  type WebVerifyResult,
+} from "./fact-web-verify";
 
 // ===========================================
 // Configuration
@@ -134,6 +140,24 @@ export interface FactVerification {
     toneAppropriateness: boolean;
     noExaggeration: boolean;
     structureAppropriateness: boolean; // NEW: Hybrid structure check
+  };
+  // Hard check results (deterministic date/number verification)
+  hardCheck?: {
+    passed: boolean;
+    score: number;
+    criticalIssues: string[];
+    warnings: string[];
+    dateMismatches: number;
+    numberMismatches: number;
+  };
+  // Web verification results (Google Search grounding)
+  webVerify?: {
+    passed: boolean;
+    score: number;
+    verifiedFacts: number;
+    unverifiedFacts: number;
+    sources: string[];
+    costUsd: number;
   };
 }
 
@@ -1365,14 +1389,90 @@ ${content}`;
 
   /**
    * Stage 3: Verify facts with enhanced checklist (includes original content)
+   *
+   * NEW: Now includes deterministic hard check for dates and numbers
+   * to catch AI hallucinations that AI self-verification cannot detect.
+   *
+   * NEW: Optional web verification using Google Search Grounding
+   * to cross-check facts against real-time web sources.
+   *
+   * @param facts - Extracted facts from Stage 1
+   * @param article - Rewritten article from Stage 2
+   * @param originalContent - Original article content
+   * @param options - Additional options
+   * @param options.sourceUrl - Original source URL (required for web verification)
+   * @param options.enableWebVerify - Enable web search verification (default: false, costs ~$0.01-0.05)
    */
   async verifyFacts(
     facts: ExtractedFacts,
     article: RewrittenArticle,
-    originalContent: string
+    originalContent: string,
+    options: { sourceUrl?: string; enableWebVerify?: boolean } = {}
   ): Promise<{ verification: FactVerification; usage: GeminiUsage }> {
+    const { sourceUrl = "", enableWebVerify = false } = options;
     if (this.debug) console.log("[GeminiClient] Stage 3: Verifying with enhanced checklist...");
 
+    // ========================================
+    // Step 1: Deterministic Hard Check (dates & numbers)
+    // ========================================
+    const rewrittenContent = `${article.title.text} ${article.oneLiner} ${article.summary} ${article.bodyHtml} ${article.insightHtml}`;
+    const hardCheckResult = performHardCheck(originalContent, rewrittenContent);
+
+    if (this.debug) {
+      console.log(
+        `[GeminiClient] Hard check result: passed=${hardCheckResult.passed}, score=${hardCheckResult.score}`
+      );
+      if (hardCheckResult.criticalIssues.length > 0) {
+        console.log(`[GeminiClient] Critical issues found:`, hardCheckResult.criticalIssues);
+      }
+    }
+
+    // If hard check finds critical issues, we can skip AI verification and fail immediately
+    // This saves tokens and ensures hallucinations are caught
+    if (!hardCheckResult.passed) {
+      console.warn(
+        `[GeminiClient] Hard check FAILED with critical issues. Bypassing AI verification.`
+      );
+
+      const failedVerification: FactVerification = {
+        score: Math.min(hardCheckResult.score, 50), // Cap at 50 for critical failures
+        passed: false,
+        issues: [...hardCheckResult.criticalIssues, ...hardCheckResult.warnings],
+        suggestions: [
+          "재작성된 기사의 날짜/숫자가 원본과 일치하지 않습니다.",
+          "원본 기사의 정확한 날짜와 수치를 확인하고 수정하세요.",
+        ],
+        checklist: {
+          factualAccuracy: false,
+          completeness: true,
+          toneAppropriateness: true,
+          noExaggeration: true,
+          structureAppropriateness: true,
+        },
+        hardCheck: {
+          passed: hardCheckResult.passed,
+          score: hardCheckResult.score,
+          criticalIssues: hardCheckResult.criticalIssues,
+          warnings: hardCheckResult.warnings,
+          dateMismatches: hardCheckResult.dateCheck.mismatches.length,
+          numberMismatches: hardCheckResult.numberCheck.mismatches.length,
+        },
+      };
+
+      return {
+        verification: failedVerification,
+        usage: {
+          model: GEMINI_MODEL,
+          inputTokens: 0,
+          outputTokens: 0,
+          costUsd: 0, // No AI call made
+        },
+      };
+    }
+
+    // ========================================
+    // Step 2: AI Verification (if hard check passes)
+    // ========================================
     const config: GenerationConfig = {
       temperature: 0.1,
       maxOutputTokens: 2048,
@@ -1396,7 +1496,7 @@ ${JSON.stringify(facts, null, 2)}
 
     try {
       const {
-        result: verification,
+        result: aiVerification,
         inputTokens,
         outputTokens,
       } = await this.executeWithRetry<FactVerification>(async () => {
@@ -1414,19 +1514,121 @@ ${JSON.stringify(facts, null, 2)}
 
       const costUsd = this.calculateCost(inputTokens, outputTokens);
 
+      // ========================================
+      // Step 3: Combine AI verification with hard check results
+      // ========================================
+      const combinedVerification: FactVerification = {
+        ...aiVerification,
+        // Add hard check warnings to issues (even if passed)
+        issues: [...aiVerification.issues, ...hardCheckResult.warnings],
+        // Include hard check results
+        hardCheck: {
+          passed: hardCheckResult.passed,
+          score: hardCheckResult.score,
+          criticalIssues: hardCheckResult.criticalIssues,
+          warnings: hardCheckResult.warnings,
+          dateMismatches: hardCheckResult.dateCheck.mismatches.length,
+          numberMismatches: hardCheckResult.numberCheck.mismatches.length,
+        },
+      };
+
       if (this.debug) {
         console.log(
-          `[GeminiClient] Verification complete. Score: ${verification.score}. Cost: $${costUsd.toFixed(4)}`
+          `[GeminiClient] AI Verification complete. Score: ${aiVerification.score}, Hard Check: PASSED. Cost: $${costUsd.toFixed(4)}`
+        );
+      }
+
+      // ========================================
+      // Step 4: Web Verification (Optional - Real-time fact checking)
+      // ========================================
+      let webVerifyResult: WebVerifyResult | null = null;
+      let webVerifyCostUsd = 0;
+
+      if (enableWebVerify && sourceUrl) {
+        if (this.debug) {
+          console.log("[GeminiClient] Step 4: Running web verification with Google Search...");
+        }
+
+        try {
+          // Extract key facts for verification
+          const keyFacts = extractKeyFactsForVerification(article.title.text, article.bodyHtml, {
+            version: facts.version || undefined,
+            releaseDate: facts.releaseDate || undefined,
+            metrics: facts.metrics,
+          });
+
+          if (keyFacts.length > 0) {
+            webVerifyResult = await verifyFactsWithWebSearch(
+              article.title.text,
+              keyFacts,
+              sourceUrl
+            );
+            webVerifyCostUsd = webVerifyResult.costUsd;
+
+            if (this.debug) {
+              console.log(
+                `[GeminiClient] Web verification complete. Score: ${webVerifyResult.score}, ` +
+                  `Verified: ${webVerifyResult.verifiedFacts.length}, Unverified: ${webVerifyResult.unverifiedFacts.length}, ` +
+                  `Cost: $${webVerifyCostUsd.toFixed(4)}`
+              );
+            }
+          }
+        } catch (webError) {
+          console.error("[GeminiClient] Web verification error (non-fatal):", webError);
+          // Web verification is optional, so we continue even if it fails
+        }
+      }
+
+      // ========================================
+      // Step 5: Combine all verification results
+      // ========================================
+      const finalVerification: FactVerification = {
+        ...combinedVerification,
+        // Add web verification issues if found
+        issues: [
+          ...combinedVerification.issues,
+          ...(webVerifyResult?.unverifiedFacts.map(
+            (f) => `웹 검증 실패: ${f.claim} - ${f.issue}`
+          ) || []),
+        ],
+        // Add web verification suggestions
+        suggestions: [
+          ...combinedVerification.suggestions,
+          ...((webVerifyResult?.unverifiedFacts
+            .map((f) => f.suggestion)
+            .filter(Boolean) as string[]) || []),
+        ],
+        // Update pass status if web verification found critical issues
+        passed: combinedVerification.passed && (webVerifyResult ? webVerifyResult.passed : true),
+        // Include web verification results
+        webVerify: webVerifyResult
+          ? {
+              passed: webVerifyResult.passed,
+              score: webVerifyResult.score,
+              verifiedFacts: webVerifyResult.verifiedFacts.length,
+              unverifiedFacts: webVerifyResult.unverifiedFacts.length,
+              sources: webVerifyResult.sources.map((s) => s.url),
+              costUsd: webVerifyResult.costUsd,
+            }
+          : undefined,
+      };
+
+      const totalCostUsd = costUsd + webVerifyCostUsd;
+
+      if (this.debug) {
+        console.log(
+          `[GeminiClient] Final verification: Passed=${finalVerification.passed}, ` +
+            `Score=${finalVerification.score}, Total Cost: $${totalCostUsd.toFixed(4)}`
         );
       }
 
       return {
-        verification,
+        verification: finalVerification,
         usage: {
           model: GEMINI_MODEL,
           inputTokens,
           outputTokens,
-          costUsd,
+          costUsd: totalCostUsd,
         },
       };
     } catch (error) {

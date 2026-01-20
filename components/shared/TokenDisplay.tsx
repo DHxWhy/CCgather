@@ -1,11 +1,11 @@
-'use client';
+"use client";
 
-import { Zap } from 'lucide-react';
-import clsx from 'clsx';
+import { Zap } from "lucide-react";
+import clsx from "clsx";
 
 interface TokenDisplayProps {
   tokens: number;
-  size?: 'sm' | 'md' | 'lg';
+  size?: "sm" | "md" | "lg";
   showIcon?: boolean;
   showLabel?: boolean;
   animated?: boolean;
@@ -13,10 +13,10 @@ interface TokenDisplayProps {
 }
 
 function formatTokens(num: number): string {
-  if (num >= 1_000_000_000) return `${(num / 1_000_000_000).toFixed(2)}B`;
-  if (num >= 1_000_000) return `${(num / 1_000_000).toFixed(2)}M`;
-  if (num >= 1_000) return `${(num / 1_000).toFixed(2)}K`;
-  return num.toLocaleString();
+  if (num >= 1_000_000_000) return `${(num / 1_000_000_000).toFixed(1)}B`;
+  if (num >= 1_000_000) return `${(num / 1_000_000).toFixed(1)}M`;
+  if (num >= 1_000) return `${(num / 1_000).toFixed(1)}K`;
+  return num.toString();
 }
 
 function getTokenTier(tokens: number): {
@@ -24,41 +24,41 @@ function getTokenTier(tokens: number): {
   label: string;
 } {
   if (tokens >= 10_000_000) {
-    return { color: 'text-yellow-400', label: 'Legendary' };
+    return { color: "text-yellow-400", label: "Legendary" };
   }
   if (tokens >= 1_000_000) {
-    return { color: 'text-accent-purple', label: 'Elite' };
+    return { color: "text-accent-purple", label: "Elite" };
   }
   if (tokens >= 100_000) {
-    return { color: 'text-accent-blue', label: 'Power User' };
+    return { color: "text-accent-blue", label: "Power User" };
   }
   if (tokens >= 10_000) {
-    return { color: 'text-accent-green', label: 'Active' };
+    return { color: "text-accent-green", label: "Active" };
   }
-  return { color: 'text-text-secondary', label: 'Starter' };
+  return { color: "text-text-secondary", label: "Starter" };
 }
 
 const sizeStyles = {
   sm: {
-    container: 'text-xs',
-    icon: 'w-3 h-3',
-    value: 'text-sm font-medium',
+    container: "text-xs",
+    icon: "w-3 h-3",
+    value: "text-sm font-medium",
   },
   md: {
-    container: 'text-sm',
-    icon: 'w-4 h-4',
-    value: 'text-lg font-semibold',
+    container: "text-sm",
+    icon: "w-4 h-4",
+    value: "text-lg font-semibold",
   },
   lg: {
-    container: 'text-base',
-    icon: 'w-5 h-5',
-    value: 'text-2xl font-bold',
+    container: "text-base",
+    icon: "w-5 h-5",
+    value: "text-2xl font-bold",
   },
 };
 
 export function TokenDisplay({
   tokens,
-  size = 'md',
+  size = "md",
   showIcon = true,
   showLabel = false,
   animated = false,
@@ -68,28 +68,10 @@ export function TokenDisplay({
   const styles = sizeStyles[size];
 
   return (
-    <div
-      className={clsx(
-        'inline-flex items-center gap-1.5',
-        styles.container,
-        className
-      )}
-    >
-      {showIcon && (
-        <Zap
-          className={clsx(
-            styles.icon,
-            tier.color,
-            animated && 'animate-pulse'
-          )}
-        />
-      )}
-      <span className={clsx(styles.value, tier.color)}>
-        {formatTokens(tokens)}
-      </span>
-      {showLabel && (
-        <span className="text-text-muted">tokens</span>
-      )}
+    <div className={clsx("inline-flex items-center gap-1.5", styles.container, className)}>
+      {showIcon && <Zap className={clsx(styles.icon, tier.color, animated && "animate-pulse")} />}
+      <span className={clsx(styles.value, tier.color)}>{formatTokens(tokens)}</span>
+      {showLabel && <span className="text-text-muted">tokens</span>}
     </div>
   );
 }
@@ -97,26 +79,21 @@ export function TokenDisplay({
 export function TokenComparison({
   current,
   previous,
-  size = 'md',
+  size = "md",
 }: {
   current: number;
   previous: number;
-  size?: 'sm' | 'md' | 'lg';
+  size?: "sm" | "md" | "lg";
 }) {
   const diff = current - previous;
-  const percentage = previous > 0 ? ((diff / previous) * 100).toFixed(1) : '0';
+  const percentage = previous > 0 ? ((diff / previous) * 100).toFixed(1) : "0";
   const isPositive = diff >= 0;
 
   return (
     <div className="inline-flex items-center gap-2">
       <TokenDisplay tokens={current} size={size} />
-      <span
-        className={clsx(
-          'text-xs',
-          isPositive ? 'text-accent-green' : 'text-accent-red'
-        )}
-      >
-        {isPositive ? '↑' : '↓'} {Math.abs(diff).toLocaleString()} ({percentage}%)
+      <span className={clsx("text-xs", isPositive ? "text-accent-green" : "text-accent-red")}>
+        {isPositive ? "↑" : "↓"} {Math.abs(diff).toLocaleString()} ({percentage}%)
       </span>
     </div>
   );

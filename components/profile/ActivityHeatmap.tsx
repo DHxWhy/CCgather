@@ -22,11 +22,12 @@ function getIntensityLevel(tokens: number, maxTokens: number): number {
   return 4;
 }
 
-// Format number for display
+// Format number for display - compact (K/M/B for 1000+, plain for <1000)
 function formatTokens(num: number): string {
+  if (num >= 1_000_000_000) return `${(num / 1_000_000_000).toFixed(1)}B`;
   if (num >= 1_000_000) return `${(num / 1_000_000).toFixed(1)}M`;
   if (num >= 1_000) return `${(num / 1_000).toFixed(1)}K`;
-  return num.toLocaleString();
+  return num.toString();
 }
 
 // Format date for display
@@ -77,12 +78,12 @@ export function ActivityHeatmap({ data, periodDays = 90 }: ActivityHeatmapProps)
   const [hoveredCell, setHoveredCell] = useState<string | null>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
-  // Scroll to right (current date) on mount
+  // Scroll to right end (current date) on mount
   useEffect(() => {
     if (scrollContainerRef.current) {
       scrollContainerRef.current.scrollLeft = scrollContainerRef.current.scrollWidth;
     }
-  }, [data]);
+  }, []);
 
   // Process data into a grid structure
   // Always generate the grid structure, even with no data (for consistent layout)
@@ -110,7 +111,9 @@ export function ActivityHeatmap({ data, periodDays = 90 }: ActivityHeatmapProps)
     }[] = [];
 
     const monthLabels: { month: string; week: number }[] = [];
+    const yearChanges: { week: number; year: number }[] = [];
     let lastMonth = -1;
+    let lastYear = -1;
 
     const currentDate = new Date(startDate);
     let week = 0;
@@ -121,6 +124,17 @@ export function ActivityHeatmap({ data, periodDays = 90 }: ActivityHeatmapProps)
 
       // Track month labels
       const month = currentDate.getMonth();
+      const year = currentDate.getFullYear();
+
+      // Track year changes (first occurrence of new year in a week)
+      if (year !== lastYear && lastYear !== -1) {
+        // Only add if we haven't already recorded this year change
+        if (!yearChanges.find((yc) => yc.year === year)) {
+          yearChanges.push({ week, year });
+        }
+      }
+      lastYear = year;
+
       if (month !== lastMonth && dayOfWeek === 0) {
         monthLabels.push({
           month: currentDate.toLocaleDateString("en-US", { month: "short" }),
@@ -154,6 +168,7 @@ export function ActivityHeatmap({ data, periodDays = 90 }: ActivityHeatmapProps)
       weeks: week + 1,
       maxTokens,
       monthLabels,
+      yearChanges,
     };
   }, [data, periodDays]);
 
@@ -173,138 +188,175 @@ export function ActivityHeatmap({ data, periodDays = 90 }: ActivityHeatmapProps)
   const totalWeeks = gridData.weeks;
 
   return (
-    <div className="space-y-2">
-      {/* Scrollable container - scrolls to right (current date) on mount */}
-      <div ref={scrollContainerRef} className="overflow-x-auto pb-2">
-        <div className="inline-block min-w-max">
-          {/* Month labels */}
-          <div className="flex text-[9px] text-[var(--color-text-muted)] pl-8 relative h-4">
-            {gridData.monthLabels.map((label, i) => (
-              <div
-                key={i}
-                className="absolute"
-                style={{
-                  left: `${label.week * 14 + 32}px`,
-                }}
-              >
-                {label.month}
-              </div>
-            ))}
+    <div className="space-y-1 w-full max-w-[390px]">
+      {/* Container - scroll on mobile/tablet, visible on desktop for tooltips */}
+      <div ref={scrollContainerRef} className="overflow-x-auto lg:overflow-visible">
+        <div className="w-fit">
+          {/* Top month labels (even indices - Jan, Mar, May...) */}
+          <div className="flex text-[7px] text-[var(--color-text-muted)] ml-3 relative h-2.5">
+            {gridData.monthLabels.map(
+              (label, i) =>
+                i % 2 === 0 && (
+                  <div
+                    key={i}
+                    className="absolute"
+                    style={{
+                      left: `${label.week * 6.7}px`,
+                    }}
+                  >
+                    {label.month}
+                  </div>
+                )
+            )}
           </div>
 
           {/* Heatmap grid */}
-          <div className="flex gap-[3px]">
+          <div className="flex gap-[1px]">
             {/* Day labels */}
-            <div className="flex flex-col gap-[3px] text-[8px] text-[var(--color-text-muted)] pr-1 flex-shrink-0 overflow-visible">
+            <div className="flex flex-col gap-[1px] text-[5px] text-[var(--color-text-muted)] flex-shrink-0 w-3 pr-0.5">
               {weekDays.map((day, i) => (
                 <div
                   key={day}
-                  className="h-[11px] leading-[11px]"
+                  className="h-[5.7px] leading-[5.7px] flex items-center"
                   style={{ visibility: i % 2 === 1 ? "visible" : "hidden" }}
                 >
-                  {day}
+                  {day.charAt(0)}
                 </div>
               ))}
             </div>
 
             {/* Grid */}
-            <div className="flex gap-[3px] overflow-visible">
+            <div className="flex gap-[1px] overflow-visible">
               {Object.entries(cellsByWeek).map(([week, cells]) => {
                 const weekIndex = parseInt(week);
+                const yearChange = gridData.yearChanges.find((yc) => yc.week === weekIndex);
 
                 return (
-                  <div key={week} className="flex flex-col gap-[3px]">
-                    {Array.from({ length: 7 }, (_, dayIndex) => {
-                      const cell = cells.find((c) => c.dayOfWeek === dayIndex);
-                      if (!cell) {
+                  <div key={week} className="flex">
+                    {/* Year divider */}
+                    {yearChange && (
+                      <div className="relative flex items-center ml-[1.2px] mr-[2.8px]">
+                        <div
+                          className="absolute bottom-0 w-[1px] bg-[var(--color-text-muted)]/40"
+                          style={{ height: "calc(100% + 12px)" }}
+                        >
+                          <div className="absolute -top-3 left-1/2 -translate-x-1/2 text-[7px] text-[var(--color-text-muted)] whitespace-nowrap">
+                            {yearChange.year}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                    <div className="flex flex-col gap-[1px]">
+                      {Array.from({ length: 7 }, (_, dayIndex) => {
+                        const cell = cells.find((c) => c.dayOfWeek === dayIndex);
+                        if (!cell) {
+                          return (
+                            <div
+                              key={`${week}-${dayIndex}`}
+                              className="w-[5.7px] h-[5.7px] rounded-[1px] bg-transparent"
+                            />
+                          );
+                        }
+
+                        const isHovered = hoveredCell === cell.date;
+                        const isToday = cell.date === new Date().toISOString().split("T")[0];
+                        const tooltipPos = getTooltipPosition(weekIndex, totalWeeks, dayIndex);
+
+                        // Tooltip position classes
+                        const verticalClass =
+                          tooltipPos.vertical === "top" ? "bottom-full mb-2" : "top-full mt-2";
+                        const horizontalClass =
+                          tooltipPos.horizontal === "left"
+                            ? "left-0"
+                            : tooltipPos.horizontal === "right"
+                              ? "right-0"
+                              : "left-1/2 -translate-x-1/2";
+
+                        // Arrow position classes
+                        const arrowVerticalClass =
+                          tooltipPos.vertical === "top" ? "top-full -mt-px" : "bottom-full -mb-px";
+                        const arrowHorizontalClass =
+                          tooltipPos.horizontal === "left"
+                            ? "left-[6px]"
+                            : tooltipPos.horizontal === "right"
+                              ? "right-[6px]"
+                              : "left-1/2 -translate-x-1/2";
+                        const arrowBorderClass =
+                          tooltipPos.vertical === "top"
+                            ? "border-t-[var(--color-bg-secondary)] border-b-transparent"
+                            : "border-b-[var(--color-bg-secondary)] border-t-transparent";
+
                         return (
                           <div
-                            key={`${week}-${dayIndex}`}
-                            className="w-[11px] h-[11px] rounded-sm bg-transparent"
-                          />
-                        );
-                      }
-
-                      const isHovered = hoveredCell === cell.date;
-                      const isToday = cell.date === new Date().toISOString().split("T")[0];
-                      const tooltipPos = getTooltipPosition(weekIndex, totalWeeks, dayIndex);
-
-                      // Tooltip position classes
-                      const verticalClass =
-                        tooltipPos.vertical === "top" ? "bottom-full mb-2" : "top-full mt-2";
-                      const horizontalClass =
-                        tooltipPos.horizontal === "left"
-                          ? "left-0"
-                          : tooltipPos.horizontal === "right"
-                            ? "right-0"
-                            : "left-1/2 -translate-x-1/2";
-
-                      // Arrow position classes
-                      const arrowVerticalClass =
-                        tooltipPos.vertical === "top" ? "top-full -mt-px" : "bottom-full -mb-px";
-                      const arrowHorizontalClass =
-                        tooltipPos.horizontal === "left"
-                          ? "left-[6px]"
-                          : tooltipPos.horizontal === "right"
-                            ? "right-[6px]"
-                            : "left-1/2 -translate-x-1/2";
-                      const arrowBorderClass =
-                        tooltipPos.vertical === "top"
-                          ? "border-t-[var(--color-bg-secondary)] border-b-transparent"
-                          : "border-b-[var(--color-bg-secondary)] border-t-transparent";
-
-                      return (
-                        <div
-                          key={cell.date}
-                          className="relative"
-                          onMouseEnter={() => setHoveredCell(cell.date)}
-                          onMouseLeave={() => setHoveredCell(null)}
-                        >
-                          <div
-                            className={`w-[11px] h-[11px] rounded-sm cursor-pointer transition-all ${
-                              INTENSITY_COLORS[cell.intensity]
-                            } ${isToday ? "ring-1 ring-[var(--color-claude-coral)]" : ""} ${
-                              isHovered ? "ring-1 ring-white/50" : ""
-                            }`}
-                          />
-
-                          {/* Tooltip */}
-                          {isHovered && (
+                            key={cell.date}
+                            className="relative"
+                            onMouseEnter={() => setHoveredCell(cell.date)}
+                            onMouseLeave={() => setHoveredCell(null)}
+                          >
                             <div
-                              className={`absolute ${verticalClass} ${horizontalClass} z-50 px-2 py-1.5 bg-[var(--color-bg-secondary)] border border-[var(--border-default)] rounded-lg shadow-xl whitespace-nowrap`}
-                            >
-                              <div className="text-[10px] text-[var(--color-text-muted)]">
-                                {formatDate(cell.date)}
-                              </div>
-                              <div className="text-xs font-medium text-[var(--color-claude-coral)]">
-                                {formatTokens(cell.tokens)} tokens
-                              </div>
-                              {/* Tooltip arrow */}
+                              className={`w-[5.7px] h-[5.7px] rounded-[1px] cursor-pointer transition-all ${
+                                INTENSITY_COLORS[cell.intensity]
+                              } ${isToday ? "ring-1 ring-[var(--color-claude-coral)]" : ""} ${
+                                isHovered ? "ring-1 ring-white/50" : ""
+                              }`}
+                            />
+
+                            {/* Tooltip */}
+                            {isHovered && (
                               <div
-                                className={`absolute ${arrowVerticalClass} ${arrowHorizontalClass}`}
+                                className={`absolute ${verticalClass} ${horizontalClass} z-50 px-2 py-1.5 bg-[var(--color-bg-secondary)] border border-[var(--border-default)] rounded-lg shadow-xl whitespace-nowrap`}
                               >
+                                <div className="text-[10px] text-[var(--color-text-muted)]">
+                                  {formatDate(cell.date)}
+                                </div>
+                                <div className="text-xs font-medium text-[var(--color-claude-coral)]">
+                                  {formatTokens(cell.tokens)} tokens
+                                </div>
+                                {/* Tooltip arrow */}
                                 <div
-                                  className={`border-4 border-transparent ${arrowBorderClass}`}
-                                />
+                                  className={`absolute ${arrowVerticalClass} ${arrowHorizontalClass}`}
+                                >
+                                  <div
+                                    className={`border-4 border-transparent ${arrowBorderClass}`}
+                                  />
+                                </div>
                               </div>
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
                 );
               })}
             </div>
           </div>
+
+          {/* Bottom month labels (odd indices - Feb, Apr, Jun...) */}
+          <div className="flex text-[7px] text-[var(--color-text-muted)] ml-3 relative h-2.5">
+            {gridData.monthLabels.map(
+              (label, i) =>
+                i % 2 === 1 && (
+                  <div
+                    key={i}
+                    className="absolute"
+                    style={{
+                      left: `${label.week * 6.7}px`,
+                    }}
+                  >
+                    {label.month}
+                  </div>
+                )
+            )}
+          </div>
         </div>
       </div>
 
       {/* Legend */}
-      <div className="flex items-center justify-end gap-1.5 text-[9px] text-[var(--color-text-muted)]">
+      <div className="flex items-center justify-end gap-1 text-[7px] text-[var(--color-text-muted)]">
         <span>Less</span>
         {INTENSITY_COLORS.map((color, i) => (
-          <div key={i} className={`w-[11px] h-[11px] rounded-sm ${color}`} />
+          <div key={i} className={`w-[5.7px] h-[5.7px] rounded-[1px] ${color}`} />
         ))}
         <span>More</span>
       </div>

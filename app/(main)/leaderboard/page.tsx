@@ -11,6 +11,9 @@ import { GlobeStatsSection } from "@/components/leaderboard/GlobeStatsSection";
 import { TopCountriesSection } from "@/components/leaderboard/TopCountriesSection";
 import { DateRangePicker, DateRangeButton } from "@/components/leaderboard/DateRangePicker";
 import { MobileGlobePanel } from "@/components/leaderboard/MobileGlobePanel";
+import { PeriodDropdown } from "@/components/leaderboard/PeriodDropdown";
+import { GlobeParticles } from "@/components/ui/globe-particles";
+import { TimezoneClock } from "@/components/ui/timezone-clock";
 import { LEVELS, getLevelByTokens } from "@/lib/constants/levels";
 import { Info } from "lucide-react";
 import { format } from "date-fns";
@@ -203,6 +206,12 @@ export default function LeaderboardPage() {
       params.set("limit", String(ITEMS_PER_PAGE));
       params.set("period", periodFilter);
 
+      // Send user's timezone for accurate period filtering (handles DST)
+      try {
+        params.set("tz", Intl.DateTimeFormat().resolvedOptions().timeZone);
+      } catch {
+        params.set("tz", "UTC");
+      }
       // Add custom date range parameters
       if (periodFilter === "custom" && customDateRange) {
         params.set("startDate", customDateRange.start);
@@ -502,10 +511,6 @@ export default function LeaderboardPage() {
     setHighlightMyRank(false);
   };
 
-  // Calculate if we should use max-width constraint
-  // Apply max-width when viewport >= 1440px (regardless of panel state)
-  const shouldConstrainWidth = viewportWidth >= 1440;
-
   // Use 3:5 ratio only when: viewport < 1440px AND panel is open
   const useCompactRatio = isPanelOpen && viewportWidth < 1440;
 
@@ -517,35 +522,56 @@ export default function LeaderboardPage() {
 
   return (
     <div className="min-h-screen overflow-x-hidden">
+      {/* Persistent Globe Particles - fades in when Globe slides out */}
+      {viewportWidth >= 768 && (
+        <div
+          className="fixed top-32 left-4 pointer-events-none z-0 transition-opacity duration-500"
+          style={{
+            width: "320px",
+            height: "320px",
+            opacity: useCompactRatio ? 1 : 0,
+          }}
+        >
+          <GlobeParticles size={320} />
+        </div>
+      )}
       <div className="transition-all duration-300 ease-out">
         <div
-          className={`px-4 py-8 transition-all duration-300 ${
-            shouldConstrainWidth ? "max-w-[1000px] mx-auto" : "max-w-none"
-          }`}
+          className="px-4 py-8 transition-all duration-300 max-w-[1000px] mx-auto"
           style={{
             marginRight: isPanelOpen && panelWidth > 0 ? `${panelWidth}px` : undefined,
           }}
         >
           {/* Header */}
-          <header className="mb-8">
-            <h1 className="text-2xl font-bold text-[var(--color-text-primary)] flex items-center gap-2">
-              {scopeFilter === "global" ? (
-                <>🌍 Global Leaderboard</>
-              ) : (
-                <>
-                  <ReactCountryFlag
-                    countryCode={currentUserCountry}
-                    svg
-                    style={{ width: "20px", height: "20px" }}
-                  />
-                  Country Leaderboard
-                </>
-              )}
-            </h1>
+          <header className="mb-4 md:mb-8">
+            <div className="flex items-center justify-between">
+              <h1 className="text-2xl font-bold text-[var(--color-text-primary)] flex items-center gap-2">
+                {scopeFilter === "global" ? (
+                  <>🌍 Global Leaderboard</>
+                ) : (
+                  <>
+                    <ReactCountryFlag
+                      countryCode={currentUserCountry}
+                      svg
+                      style={{ width: "20px", height: "20px" }}
+                    />
+                    Country Leaderboard
+                  </>
+                )}
+              </h1>
+              {/* Live timezone clock - tablet and desktop only (768px+) */}
+              <TimezoneClock className="hidden md:inline-flex" />
+            </div>
             <p className="text-sm text-[var(--color-text-secondary)] mt-1">
-              Top Claude Code developers ranked by {sortBy === "tokens" ? "token usage" : "spending"}
+              Top Claude Code developers ranked by{" "}
+              {sortBy === "tokens" ? "token usage" : "spending"}
             </p>
           </header>
+
+          {/* Mobile timezone clock - centered between title and filters (below 768px) */}
+          <div className="flex md:hidden justify-center mb-4">
+            <TimezoneClock />
+          </div>
 
           {/* 2-Column Layout: Globe+Countries (left) + Users (right) */}
           {/* Wide viewport (>=1440): always 50%|50%+panel */}
@@ -566,10 +592,10 @@ export default function LeaderboardPage() {
                 {/* Globe Section - Large, centered in left column */}
                 <div className={`relative ${isTablet ? "p-2" : "p-4"}`}>
                   {/* Scope Filter - Top Right of Globe Area */}
-                  <div className="absolute top-0 right-0 flex p-0.5 glass rounded-lg gap-0.5 z-10">
+                  <div className="absolute top-0 right-0 flex h-7 glass rounded-lg overflow-hidden z-10">
                     <button
                       onClick={() => setScopeFilter("global")}
-                      className={`px-2 py-1 rounded-md text-xs font-medium transition-colors flex items-center justify-center ${
+                      className={`h-7 w-7 text-[10px] leading-none font-medium transition-colors flex items-center justify-center ${
                         scopeFilter === "global"
                           ? "bg-[var(--color-claude-coral)]/50 text-[var(--color-claude-coral)]"
                           : "text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-filter-hover)]"
@@ -579,7 +605,7 @@ export default function LeaderboardPage() {
                     </button>
                     <button
                       onClick={() => setScopeFilter("country")}
-                      className={`px-2 py-1 rounded-md text-xs font-medium transition-colors flex items-center justify-center ${
+                      className={`h-7 w-7 text-[10px] leading-none font-medium transition-colors flex items-center justify-center ${
                         scopeFilter === "country"
                           ? "bg-emerald-500/50 text-emerald-400"
                           : "text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-filter-hover)]"
@@ -589,7 +615,7 @@ export default function LeaderboardPage() {
                         <ReactCountryFlag
                           countryCode={currentUserCountry}
                           svg
-                          style={{ width: "16px", height: "16px" }}
+                          style={{ width: "12px", height: "12px" }}
                           className="flex-shrink-0"
                         />
                       )}
@@ -632,52 +658,69 @@ export default function LeaderboardPage() {
             <div
               className="w-full md:w-auto transition-all duration-300"
               style={{
-                width: viewportWidth < 768 ? "100%" : useCompactRatio ? "100%" : isTablet ? "55%" : "50%",
+                width:
+                  viewportWidth < 768
+                    ? "100%"
+                    : useCompactRatio
+                      ? "100%"
+                      : isTablet
+                        ? "55%"
+                        : "50%",
               }}
             >
               {/* Filters - Above Table */}
               <div className="flex items-center justify-between gap-2 mb-4">
-                <div className="flex items-center gap-2 flex-shrink-0">
-                  {/* Mini Globe Button - Mobile only */}
+                <div className="flex items-center gap-1.5 flex-shrink-0">
+                  {/* Mini Globe Button - Mobile or when Globe is hidden */}
                   <button
                     onClick={() => setIsGlobePanelOpen(true)}
-                    className="flex md:hidden h-8 w-8 rounded-lg glass items-center justify-center hover:ring-2 hover:ring-[var(--color-claude-coral)]/50 transition-all active:scale-95 flex-shrink-0"
+                    className={`rounded-lg glass text-[10px] leading-none font-medium transition-colors items-center justify-center text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] hover:bg-white/10 flex-shrink-0 ${
+                      useCompactRatio ? "flex" : "flex md:hidden"
+                    }`}
+                    style={{ width: 28, height: 28 }}
                     title="View Global Stats"
                   >
-                    <span className="text-base">🌐</span>
+                    🌐
                   </button>
 
-                  {/* Scope Filter - Mobile only (md+ shows in Globe area) */}
-                  <div className="flex md:hidden h-8 p-0.5 glass rounded-lg gap-0.5 flex-shrink-0">
+                  {/* Scope Filter - Mobile or when Globe is hidden */}
+                  <div
+                    className={`glass rounded-lg overflow-hidden flex-shrink-0 ${
+                      useCompactRatio ? "flex" : "flex md:hidden"
+                    }`}
+                    style={{ height: 28 }}
+                  >
                     <button
                       onClick={() => setScopeFilter("global")}
-                      className={`h-7 w-7 rounded-md text-xs transition-colors flex items-center justify-center ${
+                      className={`text-[10px] leading-none font-medium transition-colors flex items-center justify-center ${
                         scopeFilter === "global"
                           ? "bg-[var(--color-claude-coral)]/50 text-[var(--color-claude-coral)]"
                           : "text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-filter-hover)]"
                       }`}
+                      style={{ width: 28, height: 28 }}
                     >
                       🌍
                     </button>
                     <button
                       onClick={() => setScopeFilter("country")}
-                      className={`h-7 w-7 rounded-md text-xs transition-colors flex items-center justify-center ${
+                      className={`text-[10px] leading-none font-medium transition-colors flex items-center justify-center ${
                         scopeFilter === "country"
                           ? "bg-emerald-500/50 text-emerald-400"
                           : "text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-filter-hover)]"
                       }`}
+                      style={{ width: 28, height: 28 }}
                     >
                       <ReactCountryFlag
                         countryCode={currentUserCountry}
                         svg
-                        style={{ width: "14px", height: "14px" }}
+                        style={{ width: "12px", height: "12px" }}
                         className="flex-shrink-0"
                       />
                     </button>
                   </div>
 
                   {/* Period Filter - Desktop: buttons, Tablet/Mobile: dropdown */}
-                  <div className="hidden lg:flex items-center h-8 p-0.5 glass rounded-lg gap-0.5">
+                  <div className="hidden lg:flex items-center h-7 glass rounded-lg overflow-hidden">
                     {[
                       { value: "all", label: "All D" },
                       { value: "today", label: "1D" },
@@ -692,7 +735,7 @@ export default function LeaderboardPage() {
                             setCustomDateRange(null);
                           }
                         }}
-                        className={`h-6 px-2 rounded-md text-xs font-medium transition-colors ${
+                        className={`h-7 px-2 text-xs font-medium transition-colors ${
                           periodFilter === period.value
                             ? "bg-[var(--color-claude-coral)]/50 text-[var(--color-claude-coral)]"
                             : "text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-filter-hover)]"
@@ -716,35 +759,28 @@ export default function LeaderboardPage() {
                   </div>
                   {/* Tablet/Mobile: Dropdown + Calendar */}
                   <div className="flex items-center gap-1 lg:hidden">
-                    <div className="relative">
-                      <select
-                        value={periodFilter === "custom" ? "custom" : periodFilter}
-                        onChange={(e) => {
-                          const value = e.target.value;
-                          if (value === "custom") {
-                            setShowDatePicker(true);
-                          } else {
-                            setPeriodFilter(value as PeriodFilter);
-                            setCustomDateRange(null);
-                          }
-                        }}
-                        className="appearance-none h-8 px-2.5 pr-6 glass rounded-lg text-xs font-medium text-[var(--color-text-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--color-claude-coral)] cursor-pointer"
-                      >
-                        <option value="all">All D</option>
-                        <option value="today">1D</option>
-                        <option value="7d">7D</option>
-                        <option value="30d">30D</option>
-                        {periodFilter === "custom" && customDateRange && (
-                          <option value="custom">
-                            {format(new Date(customDateRange.start), "MM.dd")}~
-                            {format(new Date(customDateRange.end), "MM.dd")}
-                          </option>
-                        )}
-                      </select>
-                      <span className="absolute right-1.5 top-1/2 -translate-y-1/2 pointer-events-none text-[var(--color-text-muted)] text-[8px]">
-                        ▼
-                      </span>
-                    </div>
+                    <PeriodDropdown
+                      value={periodFilter}
+                      onChange={(value) => {
+                        if (value === "custom") {
+                          setShowDatePicker(true);
+                        } else {
+                          setPeriodFilter(value as PeriodFilter);
+                          setCustomDateRange(null);
+                        }
+                      }}
+                      options={[
+                        { value: "all", label: "All D" },
+                        { value: "today", label: "1D" },
+                        { value: "7d", label: "7D" },
+                        { value: "30d", label: "30D" },
+                      ]}
+                      customLabel={
+                        customDateRange
+                          ? `${format(new Date(customDateRange.start), "MM.dd")}~${format(new Date(customDateRange.end), "MM.dd")}`
+                          : undefined
+                      }
+                    />
                     {/* Calendar button for mobile */}
                     <DateRangeButton
                       onClick={() => setShowDatePicker(true)}
@@ -754,11 +790,11 @@ export default function LeaderboardPage() {
                 </div>
 
                 {/* Right side - My Rank, Level Info & Sort */}
-                <div className="flex items-center gap-1.5 flex-shrink-0">
+                <div className="flex items-center gap-1 flex-shrink-0">
                   {(myRankInfo || currentUserData) && (
                     <button
                       onClick={goToMyRank}
-                      className="flex items-center h-8 gap-1 px-2 glass hover:bg-white/15 rounded-lg text-xs font-medium text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] transition-colors flex-shrink-0"
+                      className="flex items-center h-7 gap-0.5 px-1.5 glass hover:bg-white/15 rounded-lg text-[10px] leading-none font-medium text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] transition-colors flex-shrink-0"
                     >
                       <span>📍</span>
                       <span className="hidden sm:inline">My</span>
@@ -774,17 +810,17 @@ export default function LeaderboardPage() {
                     onMouseEnter={() => setShowLevelInfo(true)}
                     onMouseLeave={() => setShowLevelInfo(false)}
                   >
-                    <div className="h-8 w-8 rounded-md text-xs font-medium transition-colors flex items-center justify-center text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] cursor-help">
-                      <Info className="w-4 h-4" />
+                    <div className="h-7 w-7 rounded-md text-[10px] font-medium transition-colors flex items-center justify-center text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] cursor-help">
+                      <Info className="w-3 h-3" />
                     </div>
                     <LevelInfoPopover isOpen={showLevelInfo} />
                   </div>
 
-                  <div className="flex items-center h-8 p-0.5 glass rounded-lg gap-0.5 flex-shrink-0">
+                  <div className="flex items-center h-7 glass rounded-lg overflow-hidden flex-shrink-0">
                     <button
                       onClick={() => setSortBy("cost")}
                       title="Sort by Cost"
-                      className={`h-7 w-7 rounded-md text-xs font-medium transition-colors flex items-center justify-center ${
+                      className={`h-7 w-7 text-[10px] leading-none font-medium transition-colors flex items-center justify-center ${
                         sortBy === "cost"
                           ? "bg-[var(--color-cost)]/50 text-[var(--color-cost)]"
                           : "text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-filter-hover)]"
@@ -795,7 +831,7 @@ export default function LeaderboardPage() {
                     <button
                       onClick={() => setSortBy("tokens")}
                       title="Sort by Tokens"
-                      className={`h-7 w-7 rounded-md text-xs font-medium transition-colors flex items-center justify-center ${
+                      className={`h-7 w-7 text-[10px] leading-none font-medium transition-colors flex items-center justify-center ${
                         sortBy === "tokens"
                           ? "bg-[var(--color-claude-coral)]/50 text-[var(--color-claude-coral)]"
                           : "text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-filter-hover)]"
@@ -918,7 +954,11 @@ export default function LeaderboardPage() {
                           {users.map((user, index) => {
                             const isFirst = user.rank === 1;
                             const isTopThree = user.rank <= 3;
-                            const rowPadding = isFirst ? "py-2 lg:py-3" : isTopThree ? "py-2 lg:py-2.5" : "py-2";
+                            const rowPadding = isFirst
+                              ? "py-2 lg:py-3"
+                              : isTopThree
+                                ? "py-2 lg:py-2.5"
+                                : "py-2";
                             const avatarSize = "w-6 h-6";
                             const avatarText = "text-xs";
                             const nameSize = "text-xs";
@@ -1155,6 +1195,7 @@ export default function LeaderboardPage() {
         totalTokens={totalGlobalTokens}
         totalCost={totalGlobalCost}
         sortBy={sortBy}
+        onSortByChange={setSortBy}
         userCountryCode={currentUserCountry}
         scopeFilter={scopeFilter}
       />

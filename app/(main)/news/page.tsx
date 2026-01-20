@@ -232,7 +232,7 @@ export default async function NewsPage({ searchParams }: NewsPageProps) {
   const safeTag = validTags.includes(currentTag) ? currentTag : "all";
 
   return (
-    <div className="mx-auto max-w-[1000px] px-4 py-8 md:py-10">
+    <div className="max-w-[1000px] mx-auto px-4 py-8">
       {/* Header */}
       <header className="mb-8">
         <h1 className="text-2xl font-bold text-[var(--color-text-primary)] flex items-center gap-2">

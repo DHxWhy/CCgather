@@ -2,7 +2,6 @@
 
 import { useEffect, useState, useMemo } from "react";
 import { motion } from "framer-motion";
-import ReactCountryFlag from "react-country-flag";
 import { Globe } from "@/components/globe/Globe";
 import { GlobeParticles } from "@/components/ui/globe-particles";
 import { getCountryName } from "@/lib/constants/countries";
@@ -44,7 +43,7 @@ function useResponsiveGlobeSize(sizeMode: "default" | "large") {
         // Keep globe size consistent from md+ (768px) onwards
         if (width >= 1536) return 380; // 2xl+
         if (width >= 1280) return 350; // xl+
-        if (width >= 768) return 320;  // md+ (tablet & lg) - same size
+        if (width >= 768) return 320; // md+ (tablet & lg) - same size
         return 240; // fallback (mobile, but globe is hidden anyway)
       }
 
@@ -164,9 +163,7 @@ export function GlobeStatsSection({
         animate={{ opacity: loading ? 0 : 1, y: loading ? 10 : 0 }}
         transition={{ duration: 0.5, delay: 0.3 }}
         className={`flex items-center justify-center ${
-          isLarge
-            ? compact ? "gap-2 mt-2 text-xs" : "gap-3 mt-4 text-sm"
-            : "gap-2 mt-3 text-xs"
+          isLarge ? (compact ? "gap-2 mt-2 text-xs" : "gap-3 mt-4 text-sm") : "gap-2 mt-3 text-xs"
         }`}
       >
         {scopeFilter === "global" ? (
@@ -175,14 +172,18 @@ export function GlobeStatsSection({
               <span>🌍</span>
             </span>
             <span className="text-[var(--color-text-muted)]">·</span>
-            <span className={`flex items-center gap-1 ${sortBy === "tokens" ? "text-[var(--color-text-muted)]" : "text-[var(--color-cost)]"}`}>
+            <span
+              className={`flex items-center gap-1 ${sortBy === "tokens" ? "text-[var(--color-text-muted)]" : "text-[var(--color-cost)]"}`}
+            >
               <span>💰</span>
               <span className="font-semibold">
                 ${totalCost.toLocaleString(undefined, { maximumFractionDigits: 0 })}
               </span>
             </span>
             <span className="text-[var(--color-text-muted)]">·</span>
-            <span className={`flex items-center gap-1 ${sortBy === "cost" ? "text-[var(--color-text-muted)]" : "text-[var(--color-claude-coral)]"}`}>
+            <span
+              className={`flex items-center gap-1 ${sortBy === "cost" ? "text-[var(--color-text-muted)]" : "text-[var(--color-claude-coral)]"}`}
+            >
               <span>⚡</span>
               <span className="font-semibold">{totalTokens.toLocaleString()}</span>
             </span>
@@ -190,16 +191,12 @@ export function GlobeStatsSection({
         ) : (
           <>
             <span className="flex items-center gap-1 text-[var(--color-text-primary)]">
-              {userCountryCode && (
-                <ReactCountryFlag
-                  countryCode={userCountryCode}
-                  svg
-                  style={{ width: "16px", height: "16px" }}
-                />
-              )}
+              <span>🌍</span>
             </span>
             <span className="text-[var(--color-text-muted)]">·</span>
-            <span className={`flex items-center gap-1 ${sortBy === "tokens" ? "text-[var(--color-text-muted)]" : "text-[var(--color-cost)]"}`}>
+            <span
+              className={`flex items-center gap-1 ${sortBy === "tokens" ? "text-[var(--color-text-muted)]" : "text-[var(--color-cost)]"}`}
+            >
               <span>💰</span>
               <span className="font-semibold">
                 $
@@ -209,7 +206,9 @@ export function GlobeStatsSection({
               </span>
             </span>
             <span className="text-[var(--color-text-muted)]">·</span>
-            <span className={`flex items-center gap-1 ${sortBy === "cost" ? "text-[var(--color-text-muted)]" : "text-[var(--color-claude-coral)]"}`}>
+            <span
+              className={`flex items-center gap-1 ${sortBy === "cost" ? "text-[var(--color-text-muted)]" : "text-[var(--color-claude-coral)]"}`}
+            >
               <span>⚡</span>
               <span className="font-semibold">
                 {(userCountryData?.tokens || 0).toLocaleString()}

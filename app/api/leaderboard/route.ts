@@ -1,43 +1,68 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { formatInTimeZone } from "date-fns-tz";
+import { subDays } from "date-fns";
 
 type Period = "today" | "7d" | "30d" | "all" | "custom";
 
+/**
+ * Get date range for period filter, respecting user's timezone
+ * - Handles DST automatically via date-fns-tz
+ * - Falls back to UTC if invalid timezone
+ */
 function getPeriodDateRange(
   period: Period,
   customStart?: string | null,
-  customEnd?: string | null
+  customEnd?: string | null,
+  timezone?: string | null
 ): { startDate: string; endDate: string } | null {
   if (period === "all") return null;
 
-  // Custom date range
+  // Custom date range (already in user's intended dates)
   if (period === "custom" && customStart && customEnd) {
     return { startDate: customStart, endDate: customEnd };
   }
 
+  // Validate and use timezone, fallback to UTC
+  const tz = timezone || "UTC";
   const now = new Date();
-  const endDate = now.toISOString().split("T")[0] ?? "";
 
+  let endDate: string;
   let startDate: string;
 
-  switch (period) {
-    case "today":
-      startDate = endDate;
-      break;
-    case "7d": {
-      const weekAgo = new Date(now);
-      weekAgo.setDate(weekAgo.getDate() - 7);
-      startDate = weekAgo.toISOString().split("T")[0] ?? "";
-      break;
+  try {
+    // Get today's date in user's timezone (handles DST)
+    endDate = formatInTimeZone(now, tz, "yyyy-MM-dd");
+
+    switch (period) {
+      case "today":
+        startDate = endDate;
+        break;
+      case "7d":
+        startDate = formatInTimeZone(subDays(now, 7), tz, "yyyy-MM-dd");
+        break;
+      case "30d":
+        startDate = formatInTimeZone(subDays(now, 30), tz, "yyyy-MM-dd");
+        break;
+      default:
+        return null;
     }
-    case "30d": {
-      const monthAgo = new Date(now);
-      monthAgo.setDate(monthAgo.getDate() - 30);
-      startDate = monthAgo.toISOString().split("T")[0] ?? "";
-      break;
+  } catch {
+    // Invalid timezone - fall back to UTC
+    endDate = formatInTimeZone(now, "UTC", "yyyy-MM-dd");
+    switch (period) {
+      case "today":
+        startDate = endDate;
+        break;
+      case "7d":
+        startDate = formatInTimeZone(subDays(now, 7), "UTC", "yyyy-MM-dd");
+        break;
+      case "30d":
+        startDate = formatInTimeZone(subDays(now, 30), "UTC", "yyyy-MM-dd");
+        break;
+      default:
+        return null;
     }
-    default:
-      return null;
   }
 
   return { startDate, endDate };
@@ -54,9 +79,11 @@ export async function GET(request: NextRequest) {
   // Custom date range parameters
   const customStart = searchParams.get("startDate");
   const customEnd = searchParams.get("endDate");
+  // User's timezone (e.g., "Asia/Seoul", "America/Los_Angeles")
+  const timezone = searchParams.get("tz");
 
   const supabase = await createClient();
-  const dateRange = getPeriodDateRange(period, customStart, customEnd);
+  const dateRange = getPeriodDateRange(period, customStart, customEnd, timezone);
 
   // If findUser is provided, return the user's rank info
   if (findUser && !dateRange) {

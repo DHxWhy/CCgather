@@ -16,10 +16,10 @@ export default function TermsPage() {
         <p className="text-xs text-[var(--color-claude-coral)] font-medium tracking-wide uppercase mb-3">
           Legal
         </p>
-        <h1 className="text-2xl md:text-3xl font-semibold text-[var(--color-text-primary)] mb-2">
+        <h1 className="text-2xl font-bold text-[var(--color-text-primary)] mb-2">
           Terms of Service
         </h1>
-        <p className="text-sm text-[var(--color-text-muted)]">Last updated: {lastUpdated}</p>
+        <p className="text-sm text-[var(--color-text-secondary)]">Last updated: {lastUpdated}</p>
       </div>
 
       {/* Content */}

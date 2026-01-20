@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo } from "react";
+import React, { useMemo, useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
 
 interface GlobeParticlesProps {
@@ -16,14 +16,31 @@ const PARTICLE_COLORS = [
   "#3B82F6", // Blue
 ];
 
-export const GlobeParticles: React.FC<GlobeParticlesProps> = ({ size, className }) => {
-  const random = (min: number, max: number) => Math.random() * (max - min) + min;
-  const randomColor = () => PARTICLE_COLORS[Math.floor(Math.random() * PARTICLE_COLORS.length)];
+// Seeded random number generator for consistent SSR/client rendering
+function createSeededRandom(seed: number) {
+  return () => {
+    seed = (seed * 1103515245 + 12345) & 0x7fffffff;
+    return seed / 0x7fffffff;
+  };
+}
 
-  // Generate particles that emanate from the globe's outline
-  // Reduce particle count for smaller globes to improve performance
-  // Bias towards right side to match globe's rightward rotation
+export const GlobeParticles: React.FC<GlobeParticlesProps> = ({ size, className }) => {
+  // Use mounted state to prevent hydration mismatch
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  // Generate particles with seeded random for consistency
   const particles = useMemo(() => {
+    if (!mounted) return [];
+
+    // Use size as seed for deterministic but varied results per globe size
+    const seededRandom = createSeededRandom(size * 1000 + 42);
+    const random = (min: number, max: number) => seededRandom() * (max - min) + min;
+    const randomColor = () => PARTICLE_COLORS[Math.floor(seededRandom() * PARTICLE_COLORS.length)];
+
     const particleCount = size >= 300 ? 150 : size >= 250 ? 100 : 60;
     return [...Array(particleCount)].map((_, index) => {
       // Start from globe edge (radius = size/2), go outward
@@ -61,7 +78,12 @@ export const GlobeParticles: React.FC<GlobeParticlesProps> = ({ size, className 
         color: randomColor(), // Random leaderboard color
       };
     });
-  }, [size]);
+  }, [size, mounted]);
+
+  // Don't render particles until mounted to prevent hydration mismatch
+  if (!mounted) {
+    return <div className={cn("absolute inset-0 pointer-events-none", className)} />;
+  }
 
   return (
     <div className={cn("absolute inset-0 pointer-events-none", className)}>

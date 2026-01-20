@@ -12,7 +12,20 @@ interface LeagueSectionProps {
 
 export default function LeagueSection({ countryCode, country, username }: LeagueSectionProps) {
   const mailSubject = encodeURIComponent("[CCgather] Country Change Request");
-  const mailBody = encodeURIComponent(`Username: ${username || ""}\nFrom: ${country.name}\nTo: `);
+  const mailBody = encodeURIComponent(
+    `Hi CCgather Team,
+
+I would like to request a country change for my account.
+
+Username: ${username || "(your username)"}
+Current Country: ${country.name}
+New Country: (please fill in)
+
+Reason for change:
+(e.g., moved to a new country, selected wrong country during signup, etc.)
+
+Thank you!`
+  );
 
   return (
     <section>
@@ -23,7 +36,7 @@ export default function LeagueSection({ countryCode, country, username }: League
           {country.name}
         </span>
         <a
-          href={`mailto:ybro0225@gmail.com?subject=${mailSubject}&body=${mailBody}`}
+          href={`mailto:contact@ccgather.com?subject=${mailSubject}&body=${mailBody}`}
           className="p-1.5 rounded-md hover:bg-[var(--color-bg-secondary)] text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] transition-colors"
           title="Request country change"
         >
