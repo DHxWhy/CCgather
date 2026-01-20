@@ -442,37 +442,29 @@ export function Globe({
         style={{
           contain: "layout paint size",
           cursor: "grab",
+          touchAction: "none", // Prevent browser gestures (back/forward swipe)
         }}
         onPointerDown={(e) => {
+          e.preventDefault(); // Prevent browser navigation gestures
           pointerInteracting.current = e.clientX - pointerInteractionMovement.current;
+          // Capture pointer to continue receiving events even outside canvas
+          (e.target as HTMLElement).setPointerCapture(e.pointerId);
           if (canvasRef.current) {
             canvasRef.current.style.cursor = "grabbing";
           }
         }}
-        onPointerUp={() => {
+        onPointerUp={(e) => {
           pointerInteracting.current = null;
+          (e.target as HTMLElement).releasePointerCapture(e.pointerId);
           if (canvasRef.current) {
             canvasRef.current.style.cursor = "grab";
           }
         }}
-        onPointerOut={() => {
-          pointerInteracting.current = null;
-          if (canvasRef.current) {
-            canvasRef.current.style.cursor = "grab";
-          }
-        }}
-        onMouseMove={(e) => {
+        onPointerMove={(e) => {
           if (pointerInteracting.current !== null) {
             const delta = e.clientX - pointerInteracting.current;
             pointerInteractionMovement.current = delta;
             rotationRef.current = delta / 200;
-          }
-        }}
-        onTouchMove={(e) => {
-          if (pointerInteracting.current !== null && e.touches[0]) {
-            const delta = e.touches[0].clientX - pointerInteracting.current;
-            pointerInteractionMovement.current = delta;
-            rotationRef.current = delta / 100;
           }
         }}
       />

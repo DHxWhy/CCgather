@@ -11,13 +11,13 @@ export const revalidate = 300;
 
 // Page-specific SEO metadata
 export const metadata: Metadata = {
-  title: "CCgather - Document Your AI Development Journey",
+  title: "CCgather - Global Claude Code Leaderboard",
   description:
-    "Track your Claude Code investment. Every token tells a story of learning, building, and growing. Show the world you're serious about AI-first development.",
+    "Proof of your Claude Code dedication. Track your tokens, prove your commitment, and rise through the global rankings!",
   openGraph: {
-    title: "CCgather - Your AI Journey, Documented",
+    title: "CCgather - Global Claude Code Leaderboard",
     description:
-      "Track your dedication to AI development. See how your investment compares with developers worldwide.",
+      "Proof of your Claude Code dedication. Track your tokens and rise through the global rankings!",
   },
 };
 
