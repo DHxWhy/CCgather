@@ -5,17 +5,10 @@ import { CCPLAN_CONFIG, type CCPlanFilter } from "@/lib/types/leaderboard";
 
 interface CCplanBadgeProps {
   ccplan: Exclude<CCPlanFilter, "all"> | null | undefined;
-  ccplanRank?: number | null;
   size?: "sm" | "md" | "lg";
-  showRank?: boolean;
 }
 
-export function CCplanBadge({
-  ccplan,
-  ccplanRank,
-  size = "md",
-  showRank = false,
-}: CCplanBadgeProps) {
+export function CCplanBadge({ ccplan, size = "md" }: CCplanBadgeProps) {
   const [isHovered, setIsHovered] = useState(false);
 
   if (!ccplan) return null;
@@ -50,7 +43,6 @@ export function CCplanBadge({
       >
         <span className={iconSizes[size]}>{config.icon}</span>
         <span className="uppercase">{ccplan}</span>
-        {showRank && ccplanRank && <span className="opacity-70">#{ccplanRank}</span>}
       </span>
 
       {/* Tooltip popover */}
@@ -62,11 +54,6 @@ export function CCplanBadge({
               {config.name}
             </span>
           </div>
-          {ccplanRank && (
-            <div className="text-[10px] text-[var(--color-text-muted)] mt-0.5">
-              Rank #{ccplanRank} in {ccplan} league
-            </div>
-          )}
         </div>
       )}
     </div>

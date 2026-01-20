@@ -1040,7 +1040,6 @@ export function ProfileSidePanel({
                     {currentUser.ccplan && (
                       <CCplanBadge
                         ccplan={currentUser.ccplan as Exclude<CCPlanFilter, "all">}
-                        ccplanRank={currentUser.ccplan_rank}
                         size="sm"
                       />
                     )}
@@ -1141,23 +1140,6 @@ export function ProfileSidePanel({
             className="grid grid-cols-2 gap-2 mb-4"
             key={`stats-${currentUser.id}`}
           >
-            {/* CCplan Rank - show when filtering by a specific tier */}
-            {ccplanFilter !== "all" && currentUser.ccplan && currentUser.ccplan_rank && (
-              <div className="p-3 rounded-lg bg-primary/10 ring-1 ring-primary/30 border border-[var(--border-default)] col-span-2">
-                <div className="text-[10px] text-[var(--color-text-muted)] mb-0.5 flex items-center gap-1">
-                  <CCplanBadge
-                    ccplan={currentUser.ccplan as Exclude<CCPlanFilter, "all">}
-                    size="sm"
-                  />
-                  League Rank
-                </div>
-                <div
-                  className={`font-semibold text-[var(--color-text-primary)] ${isNarrow ? "text-base" : "text-lg"}`}
-                >
-                  #{currentUser.ccplan_rank?.toLocaleString()}
-                </div>
-              </div>
-            )}
             {/* Global Rank */}
             <div
               className={`p-3 rounded-lg transition-all ${
