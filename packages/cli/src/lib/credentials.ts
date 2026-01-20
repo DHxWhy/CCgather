@@ -75,42 +75,29 @@ function readFromFile(): ClaudeCredentials | null {
 
 /**
  * Map subscription type to CCPlan
- * - Known values (free, pro, max) are normalized
- * - Unknown values (team, enterprise, etc.) are passed through for server logging
+ * - Pass through as-is for badge display (no normalization)
+ * - This allows distinguishing max vs max_20x, and discovering new plan types
  */
 function mapSubscriptionToCCPlan(subscriptionType: string | undefined): CCPlan | null {
   if (!subscriptionType) {
     return null;
   }
 
-  const type = subscriptionType.toLowerCase();
-
-  // Known subscription types - normalize
-  if (type === "max" || type.includes("max")) {
-    return "max";
-  }
-
-  if (type === "pro") {
-    return "pro";
-  }
-
-  if (type === "free") {
-    return "free";
-  }
-
-  // Unknown types (team, enterprise, etc.) - pass through for server logging
-  // This helps us discover actual values from Team/Enterprise users
-  return type;
+  // Return as-is (lowercase) for badge display
+  // Examples: "free", "pro", "max", "max_20x", "team", "enterprise", etc.
+  return subscriptionType.toLowerCase();
 }
 
 /**
  * Infer CCPlan from rateLimitTier
+ * Extracts the most specific plan identifier from tier string
  * Examples:
- * - "default_claude_max_20x" → "max"
+ * - "default_claude_max_20x" → "max_20x"
+ * - "default_claude_max" → "max"
  * - "default_claude_pro" → "pro"
  * - "free" → "free"
- * - "default_claude_team_*" → "team"
- * - "default_claude_enterprise_*" → "enterprise"
+ * - "default_claude_team_5x" → "team_5x"
+ * - "default_claude_enterprise_10x" → "enterprise_10x"
  */
 function inferPlanFromRateLimitTier(rateLimitTier: string | undefined): CCPlan | null {
   if (!rateLimitTier) {
@@ -119,28 +106,28 @@ function inferPlanFromRateLimitTier(rateLimitTier: string | undefined): CCPlan |
 
   const tier = rateLimitTier.toLowerCase();
 
-  // Order matters: check more specific patterns first
-  if (tier.includes("enterprise")) {
-    return "enterprise";
+  // Try to extract plan with multiplier (e.g., "max_20x", "team_5x")
+  // Pattern: default_claude_{plan}_{multiplier} or default_claude_{plan}
+  const match = tier.match(/(?:default_claude_)?(\w+?)(?:_(\d+x))?$/);
+  if (match) {
+    const plan = match[1];
+    const multiplier = match[2];
+
+    // Known plan types
+    if (["max", "pro", "free", "team", "enterprise"].includes(plan)) {
+      return multiplier ? `${plan}_${multiplier}` : plan;
+    }
   }
 
-  if (tier.includes("team")) {
-    return "team";
-  }
+  // Fallback: check for known keywords anywhere in string
+  if (tier.includes("enterprise")) return "enterprise";
+  if (tier.includes("team")) return "team";
+  if (tier.includes("max")) return tier.includes("20x") ? "max_20x" : "max";
+  if (tier.includes("pro")) return "pro";
+  if (tier.includes("free")) return "free";
 
-  if (tier.includes("max")) {
-    return "max";
-  }
-
-  if (tier.includes("pro")) {
-    return "pro";
-  }
-
-  if (tier.includes("free")) {
-    return "free";
-  }
-
-  return null;
+  // Unknown tier - return as-is
+  return tier;
 }
 
 /**
