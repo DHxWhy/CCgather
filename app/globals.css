@@ -271,7 +271,7 @@
   --cursor-glow: rgba(218, 119, 86, 0.3);
 
   /* Heatmap Colors - Light Mode (더 진한 색상) */
-  --heatmap-empty: rgba(0, 0, 0, 0.06);
+  --heatmap-empty: #e0e0da;
   --heatmap-level-1: rgba(218, 119, 86, 0.35);
   --heatmap-level-2: rgba(218, 119, 86, 0.5);
   --heatmap-level-3: rgba(218, 119, 86, 0.7);

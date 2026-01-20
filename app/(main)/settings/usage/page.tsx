@@ -263,7 +263,7 @@ export default function SettingsUsagePage() {
           <div className="relative" ref={dropdownRef}>
             <button
               onClick={() => setIsPeriodDropdownOpen(!isPeriodDropdownOpen)}
-              className="flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg bg-white/5 border border-white/10 text-[11px] sm:text-xs text-zinc-300 hover:bg-white/10 transition-colors"
+              className="flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg bg-[var(--color-filter-bg)] border border-[var(--border-default)] text-[11px] sm:text-xs text-[var(--color-text-secondary)] hover:bg-[var(--color-filter-hover)] transition-colors"
             >
               <span>{PERIOD_OPTIONS.find((o) => o.value === periodFilter)?.label}</span>
               <ChevronDown
@@ -275,7 +275,7 @@ export default function SettingsUsagePage() {
             </button>
 
             {isPeriodDropdownOpen && (
-              <div className="absolute right-0 top-full mt-1 z-30 bg-[#18181b] border border-white/10 rounded-lg shadow-xl overflow-hidden">
+              <div className="absolute right-0 top-full mt-1 z-30 bg-[var(--color-bg-secondary)] border border-[var(--border-default)] rounded-lg shadow-xl overflow-hidden">
                 {PERIOD_OPTIONS.map((option) => (
                   <button
                     key={option.value}
@@ -284,10 +284,10 @@ export default function SettingsUsagePage() {
                       setIsPeriodDropdownOpen(false);
                     }}
                     className={cn(
-                      "w-full px-3 sm:px-4 py-1.5 sm:py-2 text-[11px] sm:text-xs text-left hover:bg-white/10 transition-colors",
+                      "w-full px-3 sm:px-4 py-1.5 sm:py-2 text-[11px] sm:text-xs text-left hover:bg-[var(--color-filter-hover)] transition-colors",
                       periodFilter === option.value
-                        ? "text-orange-400 bg-orange-400/10"
-                        : "text-zinc-300"
+                        ? "text-[var(--color-claude-coral)] bg-[var(--color-claude-coral)]/10"
+                        : "text-[var(--color-text-secondary)]"
                     )}
                   >
                     {option.label}
@@ -302,36 +302,40 @@ export default function SettingsUsagePage() {
       {/* Stats Pills */}
       {userStats && (
         <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
-          <div className="flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 py-1 sm:py-1.5 rounded-lg bg-white/5 border border-white/10">
-            <Zap className="w-3 sm:w-3.5 h-3 sm:h-3.5 text-orange-400" />
-            <span className="text-[11px] sm:text-xs font-semibold text-orange-400">
+          <div className="flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 py-1 sm:py-1.5 rounded-lg bg-[var(--color-filter-bg)] border border-[var(--border-default)]">
+            <Zap className="w-3 sm:w-3.5 h-3 sm:h-3.5 text-[var(--color-claude-coral)]" />
+            <span className="text-[11px] sm:text-xs font-semibold text-[var(--color-claude-coral)]">
               {formatNumber(userStats.total_tokens)}
             </span>
-            <span className="hidden sm:inline text-[10px] text-text-muted">tokens</span>
+            <span className="hidden sm:inline text-[10px] text-[var(--color-text-muted)]">
+              tokens
+            </span>
           </div>
-          <div className="flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 py-1 sm:py-1.5 rounded-lg bg-white/5 border border-white/10">
-            <Coins className="w-3 sm:w-3.5 h-3 sm:h-3.5 text-amber-400" />
-            <span className="text-[11px] sm:text-xs font-semibold text-amber-400">
+          <div className="flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 py-1 sm:py-1.5 rounded-lg bg-[var(--color-filter-bg)] border border-[var(--border-default)]">
+            <Coins className="w-3 sm:w-3.5 h-3 sm:h-3.5 text-[var(--color-cost)]" />
+            <span className="text-[11px] sm:text-xs font-semibold text-[var(--color-cost)]">
               ${userStats.total_cost.toFixed(2)}
             </span>
-            <span className="hidden sm:inline text-[10px] text-text-muted">cost</span>
+            <span className="hidden sm:inline text-[10px] text-[var(--color-text-muted)]">
+              cost
+            </span>
           </div>
-          <div className="flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 py-1 sm:py-1.5 rounded-lg bg-white/5 border border-white/10">
-            <Trophy className="w-3 sm:w-3.5 h-3 sm:h-3.5 text-amber-400" />
-            <span className="text-[11px] sm:text-xs font-semibold text-white">
+          <div className="flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 py-1 sm:py-1.5 rounded-lg bg-[var(--color-filter-bg)] border border-[var(--border-default)]">
+            <Trophy className="w-3 sm:w-3.5 h-3 sm:h-3.5 text-[var(--color-cost)]" />
+            <span className="text-[11px] sm:text-xs font-semibold text-[var(--color-text-primary)]">
               Lv.{userStats.current_level}
             </span>
           </div>
-          <div className="flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 py-1 sm:py-1.5 rounded-lg bg-white/5 border border-white/10">
-            <Globe className="w-3 sm:w-3.5 h-3 sm:h-3.5 text-zinc-400" />
-            <span className="text-[11px] sm:text-xs font-medium text-white">
+          <div className="flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 py-1 sm:py-1.5 rounded-lg bg-[var(--color-filter-bg)] border border-[var(--border-default)]">
+            <Globe className="w-3 sm:w-3.5 h-3 sm:h-3.5 text-[var(--color-text-muted)]" />
+            <span className="text-[11px] sm:text-xs font-medium text-[var(--color-text-primary)]">
               #{userStats.global_rank || "-"}
             </span>
           </div>
           {userStats.country_code && (
-            <div className="flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 py-1 sm:py-1.5 rounded-lg bg-white/5 border border-white/10">
+            <div className="flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 py-1 sm:py-1.5 rounded-lg bg-[var(--color-filter-bg)] border border-[var(--border-default)]">
               <FlagIcon countryCode={userStats.country_code} size="sm" />
-              <span className="text-[11px] sm:text-xs font-medium text-white">
+              <span className="text-[11px] sm:text-xs font-medium text-[var(--color-text-primary)]">
                 #{userStats.country_rank || "-"}
               </span>
             </div>
@@ -348,15 +352,15 @@ export default function SettingsUsagePage() {
           {/* Heatmap Table */}
           <div className="relative">
             {/* Mobile scroll hint */}
-            <div className="sm:hidden absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l from-[#0a0a0d] to-transparent pointer-events-none z-10 rounded-r-xl" />
+            <div className="sm:hidden absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l from-[var(--color-bg-primary)] to-transparent pointer-events-none z-10 rounded-r-xl" />
             <div
               ref={tableRef}
-              className="overflow-x-auto rounded-xl border border-white/10 bg-white/[0.02]"
+              className="overflow-x-auto rounded-xl border border-[var(--border-default)] bg-[var(--color-section-bg)]"
             >
               <table className="w-full border-collapse min-w-[600px] sm:min-w-[900px]">
                 <thead>
                   <tr>
-                    <th className="sticky left-0 z-20 bg-[#0a0a0d] w-10" />
+                    <th className="sticky left-0 z-20 bg-[var(--color-bg-primary)] w-10" />
                     {yearGroups.map((group) => {
                       const isCurrentYear = group.year === currentYear;
                       return (
@@ -364,10 +368,10 @@ export default function SettingsUsagePage() {
                           key={group.year}
                           colSpan={group.count}
                           className={cn(
-                            "px-2 py-1.5 text-[11px] font-bold text-center border-b border-white/5",
+                            "px-2 py-1.5 text-[11px] font-bold text-center border-b border-[var(--border-default)]",
                             isCurrentYear
-                              ? "text-white bg-orange-400/20"
-                              : "text-zinc-500 bg-white/[0.03]"
+                              ? "text-[var(--color-text-primary)] bg-[var(--color-claude-coral)]/20"
+                              : "text-[var(--color-text-muted)] bg-[var(--color-section-bg)]"
                           )}
                         >
                           {group.year}
@@ -376,7 +380,7 @@ export default function SettingsUsagePage() {
                     })}
                   </tr>
                   <tr>
-                    <th className="sticky left-0 z-20 bg-[#0a0a0d] px-2 py-2 text-[10px] font-semibold text-zinc-500 text-center border-b border-r border-white/10 w-10">
+                    <th className="sticky left-0 z-20 bg-[var(--color-bg-primary)] px-2 py-2 text-[10px] font-semibold text-[var(--color-text-muted)] text-center border-b border-r border-[var(--border-default)] w-10">
                       Day
                     </th>
                     {monthRange.map(({ year, month }) => {
@@ -386,8 +390,10 @@ export default function SettingsUsagePage() {
                         <th
                           key={`${year}-${month}`}
                           className={cn(
-                            "px-1 py-1.5 sm:py-2 text-[9px] sm:text-[10px] font-semibold text-center border-b border-r border-white/10 min-w-[50px] sm:min-w-[80px]",
-                            isCurrentMonth ? "text-white bg-orange-400/10" : "text-zinc-500"
+                            "px-1 py-1.5 sm:py-2 text-[9px] sm:text-[10px] font-semibold text-center border-b border-r border-[var(--border-default)] min-w-[50px] sm:min-w-[80px]",
+                            isCurrentMonth
+                              ? "text-[var(--color-text-primary)] bg-[var(--color-claude-coral)]/10"
+                              : "text-[var(--color-text-muted)]"
                           )}
                         >
                           {MONTHS_SHORT[month]}
@@ -401,8 +407,8 @@ export default function SettingsUsagePage() {
                     const day = dayIndex + 1;
 
                     return (
-                      <tr key={day} className="hover:bg-white/[0.015]">
-                        <td className="sticky left-0 z-10 bg-[#0a0a0d] px-2 py-0.5 text-[10px] font-medium text-zinc-600 text-center border-r border-white/10">
+                      <tr key={day} className="hover:bg-[var(--color-table-row-hover)]">
+                        <td className="sticky left-0 z-10 bg-[var(--color-bg-primary)] px-2 py-0.5 text-[10px] font-medium text-[var(--color-text-muted)] text-center border-r border-[var(--border-default)]">
                           {day}
                         </td>
                         {monthRange.map(({ year, month }) => {
@@ -423,7 +429,7 @@ export default function SettingsUsagePage() {
                           return (
                             <td
                               key={`${year}-${month}-${day}`}
-                              className="px-1 py-0.5 border-r border-white/5"
+                              className="px-1 py-0.5 border-r border-[var(--border-default)]"
                             >
                               {!isValidDay ? (
                                 <div className="h-6" />
@@ -434,21 +440,21 @@ export default function SettingsUsagePage() {
                                   className={cn(
                                     "h-6 mx-0.5 px-1.5 rounded flex items-center justify-between transition-transform hover:scale-[1.02] cursor-default",
                                     isToday &&
-                                      "ring-2 ring-orange-400 ring-offset-1 ring-offset-[#0a0a0d]"
+                                      "ring-2 ring-[var(--color-claude-coral)] ring-offset-1 ring-offset-[var(--color-bg-primary)]"
                                   )}
                                   title={`${entry.date}\nTokens: ${formatNumber(entry.tokens)}\nCost: $${entry.cost.toFixed(2)}`}
                                 >
-                                  <span className="text-[10px] font-medium text-amber-400 text-left">
+                                  <span className="text-[10px] font-medium text-[var(--color-cost)] text-left">
                                     {formatCost(entry.cost)}
                                   </span>
                                   <div className="flex items-center gap-1">
-                                    <span className="text-[10px] font-medium text-orange-400 text-right">
+                                    <span className="text-[10px] font-medium text-[var(--color-claude-coral)] text-right">
                                       {formatNumber(entry.tokens)}
                                     </span>
                                     <span
                                       className="w-1.5 h-1.5 rounded-full flex-shrink-0"
                                       style={{
-                                        backgroundColor: `rgba(251, 146, 60, ${0.2 + intensity * 0.8})`,
+                                        backgroundColor: `rgba(218, 119, 86, ${0.3 + intensity * 0.7})`,
                                       }}
                                     />
                                   </div>
@@ -456,8 +462,8 @@ export default function SettingsUsagePage() {
                               ) : (
                                 <div
                                   className={cn(
-                                    "h-6 mx-0.5 rounded flex items-center justify-center text-[10px] text-zinc-700",
-                                    isToday && "ring-1 ring-orange-400/50"
+                                    "h-6 mx-0.5 rounded flex items-center justify-center text-[10px] text-[var(--color-text-disabled)]",
+                                    isToday && "ring-1 ring-[var(--color-claude-coral)]/50"
                                   )}
                                 >
                                   -
@@ -471,8 +477,8 @@ export default function SettingsUsagePage() {
                   })}
 
                   {/* Monthly Summary Row */}
-                  <tr className="bg-white/[0.03] border-t border-white/10">
-                    <td className="sticky left-0 z-10 bg-[#0f0f14] px-2 py-2 text-[10px] font-semibold text-zinc-500 text-center border-r border-white/10">
+                  <tr className="bg-[var(--color-section-bg)] border-t border-[var(--border-default)]">
+                    <td className="sticky left-0 z-10 bg-[var(--color-bg-secondary)] px-2 py-2 text-[10px] font-semibold text-[var(--color-text-muted)] text-center border-r border-[var(--border-default)]">
                       Sum
                     </td>
                     {monthRange.map(({ year, month }) => {
@@ -485,21 +491,23 @@ export default function SettingsUsagePage() {
                         <td
                           key={monthKey}
                           className={cn(
-                            "px-1.5 py-2 border-r border-white/5",
-                            isCurrentMonth && "bg-orange-400/5"
+                            "px-1.5 py-2 border-r border-[var(--border-default)]",
+                            isCurrentMonth && "bg-[var(--color-claude-coral)]/5"
                           )}
                         >
                           {monthTotal && monthTotal.tokens > 0 ? (
                             <div className="flex items-center justify-between">
-                              <span className="text-[10px] font-semibold text-amber-400 text-left">
+                              <span className="text-[10px] font-semibold text-[var(--color-cost)] text-left">
                                 {formatCost(monthTotal.cost)}
                               </span>
-                              <span className="text-[10px] font-semibold text-orange-400 text-right">
+                              <span className="text-[10px] font-semibold text-[var(--color-claude-coral)] text-right">
                                 {formatNumber(monthTotal.tokens)}
                               </span>
                             </div>
                           ) : (
-                            <span className="text-[10px] text-zinc-700 block text-center">-</span>
+                            <span className="text-[10px] text-[var(--color-text-disabled)] block text-center">
+                              -
+                            </span>
                           )}
                         </td>
                       );
@@ -511,22 +519,22 @@ export default function SettingsUsagePage() {
           </div>
 
           {/* Legend */}
-          <div className="flex items-center justify-between sm:justify-start gap-2 sm:gap-3 text-[10px] text-zinc-600">
+          <div className="flex items-center justify-between sm:justify-start gap-2 sm:gap-3 text-[10px] text-[var(--color-text-muted)]">
             <div className="flex items-center gap-2 sm:gap-3">
               <span className="hidden sm:inline">Tokens:</span>
               <span>Less</span>
               <div className="flex gap-0.5 sm:gap-1">
-                {[0.2, 0.4, 0.6, 0.8, 1.0].map((opacity) => (
+                {[0.3, 0.45, 0.6, 0.8, 1.0].map((opacity) => (
                   <div
                     key={opacity}
                     className="w-2 h-2 rounded-full"
-                    style={{ backgroundColor: `rgba(251, 146, 60, ${opacity})` }}
+                    style={{ backgroundColor: `rgba(218, 119, 86, ${opacity})` }}
                   />
                 ))}
               </div>
               <span>More</span>
             </div>
-            <span className="sm:hidden text-zinc-500">← swipe →</span>
+            <span className="sm:hidden text-[var(--color-text-disabled)]">← swipe →</span>
           </div>
         </>
       )}
