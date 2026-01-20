@@ -476,14 +476,19 @@ export default function LeaderboardPage() {
     setHighlightMyRank(false);
   };
 
+  // Calculate if we should use max-width constraint
+  // Only apply max-width when: panel closed AND viewport >= 1440px
+  const shouldConstrainWidth = !isPanelOpen;
+
   return (
     <div className="min-h-screen overflow-x-hidden">
       <div className="transition-all duration-300 ease-out">
         <div
-          className="max-w-[1000px] px-4 py-8 transition-all duration-300"
+          className={`px-4 md:px-10 py-8 transition-all duration-300 ${
+            shouldConstrainWidth ? "max-w-[1200px] mx-auto 2xl:max-w-[1200px]" : "max-w-none"
+          }`}
           style={{
-            marginLeft: "max(calc((100vw - 1000px) / 2), 16px)",
-            marginRight: isPanelOpen && panelWidth > 0 ? `${panelWidth}px` : "auto",
+            marginRight: isPanelOpen && panelWidth > 0 ? `${panelWidth}px` : undefined,
           }}
         >
           {/* Header - Simplified */}
@@ -532,10 +537,15 @@ export default function LeaderboardPage() {
             </div>
           </div>
 
-          {/* 2-Column Layout: Globe+Countries (left, 50%) + Users (right, 50%) */}
+          {/* 2-Column Layout: Globe+Countries (left) + Users (right) */}
+          {/* Panel closed: 50%|50%, Panel open: 37.5%|62.5% (3:5 ratio) */}
           <div className="flex flex-col lg:flex-row gap-4">
-            {/* Left Column: Globe + Top Countries - 50% width on lg+ */}
-            <div className="hidden lg:block lg:w-1/2">
+            {/* Left Column: Globe + Top Countries */}
+            <div
+              className={`hidden lg:block transition-all duration-300 ${
+                isPanelOpen ? "lg:w-[37.5%]" : "lg:w-1/2"
+              }`}
+            >
               <div className="sticky top-24 space-y-4">
                 {/* Globe Section - Large, centered in left column */}
                 <div className="p-4">
@@ -563,8 +573,10 @@ export default function LeaderboardPage() {
               </div>
             </div>
 
-            {/* Right Column: User Table - 50% width on lg+ */}
-            <div className="lg:w-1/2">
+            {/* Right Column: User Table */}
+            <div
+              className={`transition-all duration-300 ${isPanelOpen ? "lg:w-[62.5%]" : "lg:w-1/2"}`}
+            >
               {/* Filters - Above Table */}
               <div className="flex items-center justify-between gap-1.5 sm:gap-2 md:gap-3 mb-4">
                 <div className="flex items-center gap-1.5 sm:gap-2 md:gap-3 flex-shrink-0">
@@ -645,10 +657,10 @@ export default function LeaderboardPage() {
                   {(myRankInfo || currentUserData) && (
                     <button
                       onClick={goToMyRank}
-                      className="flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 lg:px-3 py-1.5 bg-[var(--color-filter-bg)] border border-[var(--border-default)] hover:bg-[var(--color-filter-hover)] rounded-lg text-xs font-medium text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] transition-colors flex-shrink-0"
+                      className="flex items-center gap-1 px-2 sm:px-2.5 py-1.5 bg-[var(--color-filter-bg)] border border-[var(--border-default)] hover:bg-[var(--color-filter-hover)] rounded-lg text-xs font-medium text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] transition-colors flex-shrink-0"
                     >
                       <span>📍</span>
-                      <span className="hidden lg:inline">My Rank</span>
+                      <span className="hidden sm:inline">My</span>
                       <span className="text-[var(--color-claude-coral)] font-semibold">
                         #{myRankInfo?.rank || currentUserData?.rank}
                       </span>
@@ -743,8 +755,10 @@ export default function LeaderboardPage() {
                           <col className="w-[36px] md:w-[44px]" />
                           <col className="w-[36px] md:w-[44px]" />
                           <col />
-                          <col className="hidden md:table-column w-[70px]" />
-                          <col className="w-[56px] md:w-[80px]" />
+                          <col className="hidden xl:table-column w-[70px]" />
+                          {sortBy === "tokens" && (
+                            <col className="hidden xl:table-column w-[80px]" />
+                          )}
                           <col className="w-[56px] md:w-[70px]" />
                         </colgroup>
                         <thead>
@@ -770,19 +784,25 @@ export default function LeaderboardPage() {
                               </div>
                             </th>
                             <th
-                              className="hidden md:table-cell text-center align-middle text-text-secondary font-medium text-xs py-2.5 px-1"
+                              className="hidden xl:table-cell text-center align-middle text-text-secondary font-medium text-xs py-2.5 px-1"
                               title="Level"
                             >
                               ⭐
                             </th>
+                            {/* Cost column: always show when sortBy=cost, hide on narrow screens when sortBy=tokens */}
                             <th
-                              className="text-center align-middle text-text-secondary font-medium text-xs py-2.5 px-0.5 md:px-1"
+                              className={`text-center align-middle text-text-secondary font-medium text-xs py-2.5 px-0.5 md:px-1 ${
+                                sortBy === "tokens" ? "hidden xl:table-cell" : ""
+                              }`}
                               title="Cost"
                             >
                               💰
                             </th>
+                            {/* Tokens column: always show when sortBy=tokens, hide on narrow screens when sortBy=cost */}
                             <th
-                              className="text-right align-middle text-text-secondary font-medium text-xs py-2.5 pl-0.5 pr-2 md:pr-4"
+                              className={`text-right align-middle text-text-secondary font-medium text-xs py-2.5 pl-0.5 pr-2 md:pr-4 ${
+                                sortBy === "cost" ? "hidden xl:table-cell" : ""
+                              }`}
                               title="Tokens"
                             >
                               ⚡
@@ -899,12 +919,17 @@ export default function LeaderboardPage() {
                                   </div>
                                 </td>
                                 <td
-                                  className={`hidden md:table-cell ${rowPadding} px-1 text-center`}
+                                  className={`hidden xl:table-cell ${rowPadding} px-1 text-center`}
                                   onClick={(e) => e.stopPropagation()}
                                 >
                                   <LevelBadge tokens={user.total_tokens} />
                                 </td>
-                                <td className={`${rowPadding} px-0.5 md:px-2 text-center`}>
+                                {/* Cost cell: always show when sortBy=cost, hide on narrow screens when sortBy=tokens */}
+                                <td
+                                  className={`${rowPadding} px-0.5 md:px-2 text-center ${
+                                    sortBy === "tokens" ? "hidden xl:table-cell" : ""
+                                  }`}
+                                >
                                   <span
                                     className={`text-[var(--color-cost)] font-mono ${valueSize}`}
                                   >
@@ -916,7 +941,12 @@ export default function LeaderboardPage() {
                                         : periodCost.toFixed(0)}
                                   </span>
                                 </td>
-                                <td className={`${rowPadding} pl-0.5 pr-2 md:pr-4 text-right`}>
+                                {/* Tokens cell: always show when sortBy=tokens, hide on narrow screens when sortBy=cost */}
+                                <td
+                                  className={`${rowPadding} pl-0.5 pr-2 md:pr-4 text-right ${
+                                    sortBy === "cost" ? "hidden xl:table-cell" : ""
+                                  }`}
+                                >
                                   <span
                                     className={`text-[var(--color-claude-coral)] font-mono ${valueSize}`}
                                   >
