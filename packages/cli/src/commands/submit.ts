@@ -498,12 +498,55 @@ export async function submit(options: SubmitOptions): Promise<void> {
     };
 
     // ═══════════════════════════════════════
-    // 0. CHANGES SINCE LAST SUBMISSION (if returning user)
+    // 0. CHANGES SINCE LAST SUBMISSION (Hybrid View)
     // ═══════════════════════════════════════
     if (result.previous) {
       const prev = result.previous;
-      const tokenDiff = usageData.totalTokens - prev.totalTokens;
-      const costDiff = usageData.totalCost - prev.totalCost;
+      const previousDates = new Set(prev.previousDates || []);
+      const previousDailyMap = new Map<string, { tokens: number; cost: number }>();
+      prev.previousDaily?.forEach((d) => {
+        previousDailyMap.set(d.date, { tokens: d.tokens, cost: d.cost });
+      });
+
+      // Current dates from this submission
+      const currentDates = new Set(usageData.dailyUsage.map((d) => d.date));
+
+      // Find new dates (in current but not in previous)
+      const newDates = usageData.dailyUsage.filter((d) => !previousDates.has(d.date));
+
+      // Find expired dates (in previous but not in current)
+      const expiredDates = Array.from(previousDates).filter((d) => !currentDates.has(d));
+
+      // Find updated dates (same date but more tokens)
+      const updatedDates = usageData.dailyUsage.filter((d) => {
+        const prevData = previousDailyMap.get(d.date);
+        return prevData && d.tokens > prevData.tokens;
+      });
+
+      // Calculate totals
+      let newTokens = 0;
+      let newCost = 0;
+      newDates.forEach((d) => {
+        newTokens += d.tokens;
+        newCost += d.cost;
+      });
+      updatedDates.forEach((d) => {
+        const prevData = previousDailyMap.get(d.date);
+        if (prevData) {
+          newTokens += d.tokens - prevData.tokens;
+          newCost += d.cost - prevData.cost;
+        }
+      });
+
+      let expiredTokens = 0;
+      let expiredCost = 0;
+      expiredDates.forEach((date) => {
+        const prevData = previousDailyMap.get(date);
+        if (prevData) {
+          expiredTokens += prevData.tokens;
+          expiredCost += prevData.cost;
+        }
+      });
 
       // Format time since last submission
       const lastSubmit = new Date(prev.lastSubmissionAt);
@@ -516,21 +559,82 @@ export async function submit(options: SubmitOptions): Promise<void> {
       console.log(sectionHeader("📈", "Since Last Submit"));
       console.log();
       console.log(`     ${colors.muted("Last submitted:")} ${colors.dim(timeSince)}`);
-
-      if (tokenDiff > 0) {
-        console.log(
-          `     ${colors.muted("New tokens:")}     ${colors.success(`+${formatNumber(tokenDiff)}`)}`
-        );
-      }
-      if (costDiff > 0) {
-        console.log(
-          `     ${colors.muted("New spending:")}   ${colors.success(`+${formatCost(costDiff)}`)}`
-        );
-      }
-      if (tokenDiff === 0 && costDiff === 0) {
-        console.log(`     ${colors.dim("No new usage since last submission")}`);
-      }
       console.log();
+
+      // Summary line
+      if (newTokens > 0 || updatedDates.length > 0) {
+        const parts: string[] = [];
+        if (newTokens > 0) {
+          parts.push(colors.success(`+${formatNumber(newTokens)}`));
+          parts.push(colors.success(`+${formatCost(newCost)}`));
+        }
+        if (newDates.length > 0) {
+          parts.push(
+            colors.primary(`+${newDates.length} new day${newDates.length > 1 ? "s" : ""}`)
+          );
+        }
+        if (updatedDates.length > 0 && newDates.length === 0) {
+          parts.push(
+            colors.primary(
+              `${updatedDates.length} day${updatedDates.length > 1 ? "s" : ""} updated`
+            )
+          );
+        }
+        console.log(`     ${parts.join("   ")}`);
+      }
+
+      // Show expired data warning if any
+      if (expiredDates.length > 0) {
+        console.log();
+        console.log(
+          `     ${colors.warning("⚠")} ${colors.dim(`${expiredDates.length} day${expiredDates.length > 1 ? "s" : ""} expired (30-day limit): -${formatNumber(expiredTokens)}`)}`
+        );
+      }
+
+      // Show new days detail (max 5)
+      if (newDates.length > 0) {
+        console.log();
+        const displayDates = newDates.slice(-5); // Show last 5 new days
+        if (newDates.length > 5) {
+          console.log(`     ${colors.dim(`... and ${newDates.length - 5} more days`)}`);
+        }
+        displayDates.forEach((d) => {
+          const dateStr = d.date.slice(5).replace("-", "/"); // MM/DD format
+          console.log(
+            `     ${colors.dim("•")} ${colors.white(dateStr)}: ${colors.success(`+${formatNumber(d.tokens)}`)} ${colors.dim(`(${formatCost(d.cost)})`)}`
+          );
+        });
+      }
+
+      // Show updated today if applicable
+      if (updatedDates.length > 0 && newDates.length === 0) {
+        console.log();
+        updatedDates.slice(-3).forEach((d) => {
+          const prevData = previousDailyMap.get(d.date);
+          if (prevData) {
+            const dateStr = d.date.slice(5).replace("-", "/");
+            const tokenIncrease = d.tokens - prevData.tokens;
+            console.log(
+              `     ${colors.dim("•")} ${colors.white(dateStr)}: ${formatNumber(prevData.tokens)} → ${formatNumber(d.tokens)} ${colors.success(`(+${formatNumber(tokenIncrease)})`)}`
+            );
+          }
+        });
+      }
+
+      // No changes case
+      if (newTokens === 0 && updatedDates.length === 0 && expiredDates.length === 0) {
+        console.log(`     ${colors.dim("No changes since last submission")}`);
+      }
+
+      console.log();
+
+      // Quick loading animation before ranking
+      const rankSpinner = ora({
+        text: colors.dim("Calculating ranking..."),
+        color: "cyan",
+      }).start();
+      await sleep(400);
+      rankSpinner.stop();
     }
 
     // ═══════════════════════════════════════
