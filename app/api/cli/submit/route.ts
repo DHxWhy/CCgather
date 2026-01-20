@@ -196,14 +196,14 @@ export async function POST(request: NextRequest) {
     // Get previous daily usage dates for comparison (before upsert)
     const { data: previousDailyData } = await supabase
       .from("usage_stats")
-      .select("date, tokens, cost")
+      .select("date, total_tokens, cost_usd")
       .eq("user_id", authenticatedUser.id)
       .order("date", { ascending: true });
 
     const previousDates = previousDailyData?.map((d: { date: string }) => d.date) || [];
     const previousDailyMap = new Map<string, { tokens: number; cost: number }>();
-    previousDailyData?.forEach((d: { date: string; tokens: number; cost: number }) => {
-      previousDailyMap.set(d.date, { tokens: d.tokens, cost: d.cost });
+    previousDailyData?.forEach((d: { date: string; total_tokens: number; cost_usd: number }) => {
+      previousDailyMap.set(d.date, { tokens: d.total_tokens, cost: d.cost_usd });
     });
 
     // Session fingerprint duplicate check (1 Project 1 Person principle)

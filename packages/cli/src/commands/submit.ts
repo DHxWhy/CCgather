@@ -412,31 +412,20 @@ export async function submit(options: SubmitOptions): Promise<void> {
     },
   });
 
-  // Clear progress bar line and immediately show processing spinner
+  // Clear progress bar line
   if (lastProgress > 0) {
     process.stdout.write("\r" + " ".repeat(60) + "\r");
   }
 
-  // Show processing spinner during data preparation (visible for 800ms minimum)
-  const processSpinner = ora({
-    text: "Processing scan data...",
-    color: "cyan",
-    indent: 2,
-  }).start();
-
   if (!scannedData) {
-    await sleep(400);
-    processSpinner.fail(colors.error("No usage data found."));
+    console.log(`  ${colors.error("✗")} ${colors.error("No usage data found.")}`);
     console.log(`  ${colors.muted("Make sure you have used Claude Code at least once.")}\n`);
     process.exit(1);
   }
 
   const usageData = ccgatherToUsageData(scannedData);
 
-  // Smooth UX - spinner visible for 800ms total
-  await sleep(800);
-
-  processSpinner.succeed(colors.success("Scan complete!"));
+  console.log(`  ${colors.success("✔")} ${colors.success("Scan complete!")}`);
 
   // ═══════════════════════════════════════════════════════════════════════════
   // DISPLAY SUMMARY
@@ -519,144 +508,22 @@ export async function submit(options: SubmitOptions): Promise<void> {
     };
 
     // ═══════════════════════════════════════
-    // 0. CHANGES SINCE LAST SUBMISSION (Hybrid View)
+    // 0. SERVER ACCUMULATED STATS
     // ═══════════════════════════════════════
     if (result.previous) {
       const prev = result.previous;
-      const previousDates = new Set(prev.previousDates || []);
-      const previousDailyMap = new Map<string, { tokens: number; cost: number }>();
-      prev.previousDaily?.forEach((d) => {
-        previousDailyMap.set(d.date, { tokens: d.tokens, cost: d.cost });
-      });
 
-      // Current dates from this submission
-      const currentDates = new Set(usageData.dailyUsage.map((d) => d.date));
-
-      // Find new dates (in current but not in previous)
-      const newDates = usageData.dailyUsage.filter((d) => !previousDates.has(d.date));
-
-      // Find expired dates (in previous but not in current)
-      const expiredDates = Array.from(previousDates).filter((d) => !currentDates.has(d));
-
-      // Find updated dates (same date but more tokens)
-      const updatedDates = usageData.dailyUsage.filter((d) => {
-        const prevData = previousDailyMap.get(d.date);
-        return prevData && d.tokens > prevData.tokens;
-      });
-
-      // Calculate totals
-      let newTokens = 0;
-      let newCost = 0;
-      newDates.forEach((d) => {
-        newTokens += d.tokens;
-        newCost += d.cost;
-      });
-      updatedDates.forEach((d) => {
-        const prevData = previousDailyMap.get(d.date);
-        if (prevData) {
-          newTokens += d.tokens - prevData.tokens;
-          newCost += d.cost - prevData.cost;
-        }
-      });
-
-      let expiredTokens = 0;
-      let expiredCost = 0;
-      expiredDates.forEach((date) => {
-        const prevData = previousDailyMap.get(date);
-        if (prevData) {
-          expiredTokens += prevData.tokens;
-          expiredCost += prevData.cost;
-        }
-      });
-
-      // Format time since last submission
-      const lastSubmit = new Date(prev.lastSubmissionAt);
-      const now = new Date();
-      const hoursDiff = Math.floor((now.getTime() - lastSubmit.getTime()) / (1000 * 60 * 60));
-      const daysDiff = Math.floor(hoursDiff / 24);
-      const timeSince =
-        daysDiff > 0 ? `${daysDiff}d ago` : hoursDiff > 0 ? `${hoursDiff}h ago` : "just now";
-
-      console.log(sectionHeader("📈", "Since Last Submit"));
+      console.log(sectionHeader("📦", "Server Records"));
       await sleep(40);
       console.log();
-      console.log(`     ${colors.muted("Last submitted:")} ${colors.dim(timeSince)}`);
+
+      // Server cumulative total (before this submission)
+      const prevTokens = prev.totalTokens || 0;
+      const prevCost = prev.totalCost || 0;
+      console.log(
+        `     ${colors.muted("Accumulated")} ⚡ ${colors.primary(formatNumber(prevTokens))} ${colors.dim("│")} 💰 ${colors.warning(formatCost(prevCost))}`
+      );
       await sleep(50);
-      console.log();
-
-      // Summary line
-      if (newTokens > 0 || updatedDates.length > 0) {
-        const parts: string[] = [];
-        if (newTokens > 0) {
-          parts.push(colors.success(`+${formatNumber(newTokens)}`));
-          parts.push(colors.success(`+${formatCost(newCost)}`));
-        }
-        if (newDates.length > 0) {
-          parts.push(
-            colors.primary(`+${newDates.length} new day${newDates.length > 1 ? "s" : ""}`)
-          );
-        }
-        if (updatedDates.length > 0 && newDates.length === 0) {
-          parts.push(
-            colors.primary(
-              `${updatedDates.length} day${updatedDates.length > 1 ? "s" : ""} updated`
-            )
-          );
-        }
-        console.log(`     ${parts.join("   ")}`);
-        await sleep(50);
-      }
-
-      // Show expired data warning if any
-      if (expiredDates.length > 0) {
-        console.log();
-        await sleep(40);
-        console.log(
-          `     ${colors.warning("⚠")} ${colors.dim(`${expiredDates.length} day${expiredDates.length > 1 ? "s" : ""} expired (30-day limit): -${formatNumber(expiredTokens)}`)}`
-        );
-        await sleep(50);
-      }
-
-      // Show new days detail (max 5)
-      if (newDates.length > 0) {
-        console.log();
-        await sleep(40);
-        const displayDates = newDates.slice(-5); // Show last 5 new days
-        if (newDates.length > 5) {
-          console.log(`     ${colors.dim(`... and ${newDates.length - 5} more days`)}`);
-          await sleep(40);
-        }
-        for (const d of displayDates) {
-          const dateStr = d.date.slice(5).replace("-", "/"); // MM/DD format
-          console.log(
-            `     ${colors.dim("•")} ${colors.white(dateStr)}: ${colors.success(`+${formatNumber(d.tokens)}`)} ${colors.dim(`(${formatCost(d.cost)})`)}`
-          );
-          await sleep(40);
-        }
-      }
-
-      // Show updated today if applicable
-      if (updatedDates.length > 0 && newDates.length === 0) {
-        console.log();
-        await sleep(40);
-        for (const d of updatedDates.slice(-3)) {
-          const prevData = previousDailyMap.get(d.date);
-          if (prevData) {
-            const dateStr = d.date.slice(5).replace("-", "/");
-            const tokenIncrease = d.tokens - prevData.tokens;
-            console.log(
-              `     ${colors.dim("•")} ${colors.white(dateStr)}: ${formatNumber(prevData.tokens)} → ${formatNumber(d.tokens)} ${colors.success(`(+${formatNumber(tokenIncrease)})`)}`
-            );
-            await sleep(40);
-          }
-        }
-      }
-
-      // No changes case
-      if (newTokens === 0 && updatedDates.length === 0 && expiredDates.length === 0) {
-        console.log(`     ${colors.dim("No changes since last submission")}`);
-        await sleep(50);
-      }
 
       console.log();
       await sleep(60);
@@ -709,23 +576,10 @@ export async function submit(options: SubmitOptions): Promise<void> {
     console.log(sectionHeader("⬆️", "Level Progress"));
     console.log();
 
-    // Calculate level change using server data (accurate with 30-day sliding window)
-    // previousTokens = server DB's previous max tokens
-    // serverLevel = server's calculated level (uses max of DB and current submission)
-    const previousTokens = result.previous?.totalTokens || 0;
-    const previousLevelInfo = getLevelProgress(previousTokens);
-    const previousLevelNum = previousLevelInfo.current.level;
-    const serverLevel = result.currentLevel || currentLevel.level;
-    let levelChangeText = "";
-    if (previousTokens > 0 && serverLevel > previousLevelNum) {
-      const levelChange = serverLevel - previousLevelNum;
-      levelChangeText = ` ${colors.success(`↑${levelChange}`)}`;
-    }
-
-    // Show level with slight delay: Lv.6 👑 Grandmaster ↑2
+    // Show current level
     await sleep(200);
     console.log(
-      `     ${colors.muted("Lv.")}${colors.white(String(currentLevel.level))} ${currentLevel.icon} ${currentLevel.color(currentLevel.name)}${levelChangeText}`
+      `     ${colors.muted("Lv.")}${colors.white(String(currentLevel.level))} ${currentLevel.icon} ${currentLevel.color(currentLevel.name)}`
     );
 
     if (!levelProgress.isMaxLevel && levelProgress.next) {
