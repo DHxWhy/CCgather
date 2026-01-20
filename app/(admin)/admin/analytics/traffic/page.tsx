@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, Fragment } from "react";
 import { useTrafficSources } from "@/hooks/useAdminAnalytics";
 
 const DATE_RANGES = [
@@ -281,9 +281,8 @@ function TopDomainsTable({ domains }: { domains: DomainData[] }) {
             const hasDetails = domain.details && domain.details.length > 0;
 
             return (
-              <>
+              <Fragment key={domain.domain}>
                 <tr
-                  key={domain.domain}
                   className={`border-b border-white/[0.03] hover:bg-white/[0.02] transition-colors ${
                     index === 0 ? "bg-white/[0.02]" : ""
                   } ${hasDetails ? "cursor-pointer" : ""}`}
@@ -338,7 +337,7 @@ function TopDomainsTable({ domains }: { domains: DomainData[] }) {
                 </tr>
                 {/* Expanded details */}
                 {isExpanded && hasDetails && (
-                  <tr key={`${domain.domain}-details`}>
+                  <tr>
                     <td colSpan={4} className="px-0 py-0">
                       <div className="bg-white/[0.02] border-b border-white/[0.03]">
                         {domain.details!.map((detail) => (
@@ -363,7 +362,7 @@ function TopDomainsTable({ domains }: { domains: DomainData[] }) {
                     </td>
                   </tr>
                 )}
-              </>
+              </Fragment>
             );
           })}
         </tbody>
