@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Inter, JetBrains_Mono } from "next/font/google";
 import { Providers } from "./providers";
+import { ClerkProviderWrapper } from "@/components/providers/ClerkProviderWrapper";
 import "./globals.css";
 
 const inter = Inter({
@@ -156,7 +157,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <GlobalJsonLd />
       </head>
       <body className="min-h-screen bg-bg-primary font-sans antialiased">
-        <Providers>{children}</Providers>
+        <ClerkProviderWrapper>
+          <Providers>{children}</Providers>
+        </ClerkProviderWrapper>
       </body>
     </html>
   );
