@@ -24,7 +24,7 @@ export const GlobeParticles: React.FC<GlobeParticlesProps> = ({ size, className 
   // Reduce particle count for smaller globes to improve performance
   // Bias towards right side to match globe's rightward rotation
   const particles = useMemo(() => {
-    const particleCount = size >= 300 ? 200 : size >= 250 ? 130 : 80;
+    const particleCount = size >= 300 ? 150 : size >= 250 ? 100 : 60;
     return [...Array(particleCount)].map((_, index) => {
       // Start from globe edge (radius = size/2), go outward
       // Clock direction: 12h=-90°, 3h=0°, 6h=90°, 9h=180°
