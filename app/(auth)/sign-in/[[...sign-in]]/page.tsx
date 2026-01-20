@@ -13,19 +13,39 @@ const StarsCanvas = dynamic(
   { ssr: false, loading: () => null }
 );
 
-// Detect in-app browsers (Instagram, Facebook, KakaoTalk, Line, etc.)
+// Detect in-app browsers (social, messaging, developer platforms)
 function isInAppBrowser(): boolean {
   if (typeof window === "undefined") return false;
   const ua = navigator.userAgent || navigator.vendor;
   const inAppPatterns = [
+    // Social Media
     /FBAN|FBAV/i, // Facebook
     /Instagram/i, // Instagram
+    /Twitter/i, // Twitter/X
+    /Snapchat/i, // Snapchat
+    /TikTok/i, // TikTok
+    /LinkedIn/i, // LinkedIn
+    /Pinterest/i, // Pinterest
+    // Messaging Apps
     /KAKAOTALK/i, // KakaoTalk
     /Line\//i, // Line
-    /Twitter/i, // Twitter
-    /Snapchat/i, // Snapchat
+    /WhatsApp/i, // WhatsApp
+    /Telegram/i, // Telegram
+    /Discord/i, // Discord
+    /Slack/i, // Slack
+    /WeChat|MicroMessenger/i, // WeChat
+    // Developer & Productivity
+    /Notion/i, // Notion
+    /Reddit/i, // Reddit
+    /Medium/i, // Medium
+    // Regional
     /NAVER/i, // Naver
-    /SamsungBrowser\/.*CrossApp/i, // Samsung Internet in-app
+    /Daum/i, // Daum
+    /BAND/i, // Band
+    // Other
+    /SamsungBrowser\/.*CrossApp/i, // Samsung in-app
+    /GSA/i, // Google Search App
+    /\bwv\b/i, // Android WebView
   ];
   return inAppPatterns.some((pattern) => pattern.test(ua));
 }
