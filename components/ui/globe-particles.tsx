@@ -13,13 +13,19 @@ export const GlobeParticles: React.FC<GlobeParticlesProps> = ({ size, className 
 
   // Generate particles that emanate from the globe's outline
   // Reduce particle count for smaller globes to improve performance
+  // Bias towards right side to match globe's rightward rotation
   const particles = useMemo(() => {
     const particleCount = size >= 300 ? 60 : size >= 250 ? 45 : 30;
     return [...Array(particleCount)].map((_, index) => {
       // Start from globe edge (radius = size/2), go outward
-      const startAngle = random(0, Math.PI * 2);
+      // Bias angle towards right: -70° to +70° (right hemisphere) with some variance
+      const angleBase = random(-Math.PI * 0.4, Math.PI * 0.4); // -72° to +72°
+      const startAngle = angleBase + (Math.random() < 0.2 ? random(-Math.PI, Math.PI) : 0); // 20% scatter
       const startRadius = size / 2 - 5; // Start slightly inside globe outline
-      const travelDistance = random(100, 320); // How far to travel outward (extended range)
+
+      // Particles going right travel further (150-400px), others travel less (80-200px)
+      const isRightward = Math.abs(startAngle) < Math.PI / 2;
+      const travelDistance = isRightward ? random(150, 400) : random(80, 200);
 
       // Calculate travel direction
       const distanceX = Math.cos(startAngle) * travelDistance;
