@@ -5,7 +5,7 @@ import Image from "next/image";
 import { useSignIn } from "@clerk/nextjs";
 import { AuthLeftPanel } from "@/components/auth/AuthLeftPanel";
 import dynamic from "next/dynamic";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 // Lazy load StarsCanvas for performance
 const StarsCanvas = dynamic(
@@ -13,12 +13,54 @@ const StarsCanvas = dynamic(
   { ssr: false, loading: () => null }
 );
 
+// Detect in-app browsers (Instagram, Facebook, KakaoTalk, Line, etc.)
+function isInAppBrowser(): boolean {
+  if (typeof window === "undefined") return false;
+  const ua = navigator.userAgent || navigator.vendor;
+  const inAppPatterns = [
+    /FBAN|FBAV/i, // Facebook
+    /Instagram/i, // Instagram
+    /KAKAOTALK/i, // KakaoTalk
+    /Line\//i, // Line
+    /Twitter/i, // Twitter
+    /Snapchat/i, // Snapchat
+    /NAVER/i, // Naver
+    /SamsungBrowser\/.*CrossApp/i, // Samsung Internet in-app
+  ];
+  return inAppPatterns.some((pattern) => pattern.test(ua));
+}
+
 export default function SignInPage() {
   const { signIn, isLoaded } = useSignIn();
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [showInAppWarning, setShowInAppWarning] = useState(false);
+
+  // Check for in-app browser on mount
+  useEffect(() => {
+    if (isInAppBrowser()) {
+      setShowInAppWarning(true);
+    }
+  }, []);
 
   const handleGitHubSignIn = async () => {
-    if (!isLoaded || !signIn) return;
+    setError(null);
+
+    // Show warning for in-app browsers
+    if (isInAppBrowser()) {
+      setShowInAppWarning(true);
+      return;
+    }
+
+    if (!isLoaded) {
+      setError("Loading... Please wait.");
+      return;
+    }
+
+    if (!signIn) {
+      setError("Connection failed. Please refresh the page.");
+      return;
+    }
 
     setIsLoading(true);
     try {
@@ -27,8 +69,9 @@ export default function SignInPage() {
         redirectUrl: "/sso-callback",
         redirectUrlComplete: "/leaderboard",
       });
-    } catch (error) {
-      console.error("GitHub sign in error:", error);
+    } catch (err) {
+      console.error("GitHub sign in error:", err);
+      setError("GitHub connection failed. Please try again.");
       setIsLoading(false);
     }
   };
@@ -92,13 +135,39 @@ export default function SignInPage() {
               </p>
             </div>
 
+            {/* In-App Browser Warning */}
+            {showInAppWarning && (
+              <div className="mb-4 p-4 rounded-xl bg-amber-500/10 border border-amber-500/30">
+                <p className="text-amber-400 text-sm font-medium mb-2">⚠️ Open in Browser</p>
+                <p className="text-amber-400/80 text-xs mb-3">Login may not work here.</p>
+                <div className="flex items-center gap-2 text-amber-400/90 text-xs">
+                  <span>📋</span>
+                  <span className="font-mono text-[11px] select-all bg-amber-500/20 px-2 py-1 rounded">
+                    ccgather.dev/sign-in
+                  </span>
+                </div>
+                <p className="text-amber-400/60 text-[10px] mt-2">
+                  Copy → Open Safari or Chrome → Paste
+                </p>
+              </div>
+            )}
+
+            {/* Error Message */}
+            {error && !showInAppWarning && (
+              <div className="mb-4 p-3 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-sm text-center">
+                {error}
+              </div>
+            )}
+
             {/* Custom GitHub Sign In Button */}
             <button
               onClick={handleGitHubSignIn}
-              disabled={!isLoaded || isLoading}
+              disabled={isLoading}
               className="w-full flex items-center justify-center gap-3 px-4 py-3.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isLoading ? (
+                <div className="w-5 h-5 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+              ) : !isLoaded ? (
                 <div className="w-5 h-5 border-2 border-white/20 border-t-white rounded-full animate-spin" />
               ) : (
                 <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
@@ -106,7 +175,7 @@ export default function SignInPage() {
                 </svg>
               )}
               <span className="text-white font-medium">
-                {isLoading ? "Connecting..." : "Continue with GitHub"}
+                {isLoading ? "Connecting..." : !isLoaded ? "Loading..." : "Continue with GitHub"}
               </span>
             </button>
 
