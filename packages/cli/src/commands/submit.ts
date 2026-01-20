@@ -568,8 +568,11 @@ export async function submit(options: SubmitOptions): Promise<void> {
     console.log(`  ${colors.muted("View full stats:")} ${link(leaderboardUrl)}`);
     console.log();
 
-    // Regular Submission Reminder (single line)
-    console.log(`  ${colors.dim("💡 Tip: Submit weekly — local data expires in ~30 days")}`);
+    // Regular Submission Reminder
+    console.log(
+      `  ${colors.warning("💡")} ${colors.white("Claude Code keeps ~30 days of local data.")}`
+    );
+    console.log(`     ${colors.muted("Submit regularly to preserve your full history!")}`);
     console.log();
   } else {
     submitSpinner.fail(colors.error("Failed to submit"));
