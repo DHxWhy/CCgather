@@ -590,7 +590,7 @@ export type Database = {
         Row: {
           cache_read_tokens: number | null;
           cache_write_tokens: number | null;
-          ccplan_at_submission: Database["public"]["Enums"]["ccplan_type"] | null;
+          ccplan_at_submission: string | null;
           cost_usd: number | null;
           date: string;
           id: string;
@@ -609,7 +609,7 @@ export type Database = {
         Insert: {
           cache_read_tokens?: number | null;
           cache_write_tokens?: number | null;
-          ccplan_at_submission?: Database["public"]["Enums"]["ccplan_type"] | null;
+          ccplan_at_submission?: string | null;
           cost_usd?: number | null;
           date: string;
           id?: string;
@@ -628,7 +628,7 @@ export type Database = {
         Update: {
           cache_read_tokens?: number | null;
           cache_write_tokens?: number | null;
-          ccplan_at_submission?: Database["public"]["Enums"]["ccplan_type"] | null;
+          ccplan_at_submission?: string | null;
           cost_usd?: number | null;
           date?: string;
           id?: string;
@@ -688,7 +688,7 @@ export type Database = {
           api_key: string | null;
           auto_sync_enabled: boolean | null;
           avatar_url: string | null;
-          ccplan: Database["public"]["Enums"]["ccplan_type"] | null;
+          ccplan: string | null;
           ccplan_rank: number | null;
           ccplan_updated_at: string | null;
           clerk_id: string;
@@ -730,7 +730,7 @@ export type Database = {
           api_key?: string | null;
           auto_sync_enabled?: boolean | null;
           avatar_url?: string | null;
-          ccplan?: Database["public"]["Enums"]["ccplan_type"] | null;
+          ccplan?: string | null;
           ccplan_rank?: number | null;
           ccplan_updated_at?: string | null;
           clerk_id: string;
@@ -772,7 +772,7 @@ export type Database = {
           api_key?: string | null;
           auto_sync_enabled?: boolean | null;
           avatar_url?: string | null;
-          ccplan?: Database["public"]["Enums"]["ccplan_type"] | null;
+          ccplan?: string | null;
           ccplan_rank?: number | null;
           ccplan_updated_at?: string | null;
           clerk_id?: string;
@@ -842,7 +842,7 @@ export type Database = {
       update_user_ccplan_rank: { Args: { target_user_id: string }; Returns: undefined };
     };
     Enums: {
-      ccplan_type: "free" | "pro" | "max" | "team";
+      // ccplan_type removed - now TEXT to support any plan (free, pro, max, max_20x, team, enterprise, etc.)
     };
     CompositeTypes: {
       [_ in never]: never;
@@ -870,4 +870,4 @@ export type Content = Database["public"]["Tables"]["contents"]["Row"];
 export type Tool = Database["public"]["Tables"]["tools"]["Row"];
 export type SubmittedSession = Database["public"]["Tables"]["submitted_sessions"]["Row"];
 
-export type CCPlanType = Database["public"]["Enums"]["ccplan_type"];
+export type CCPlanType = string;
