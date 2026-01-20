@@ -15,7 +15,7 @@ export const GlobeParticles: React.FC<GlobeParticlesProps> = ({ size, className 
   // Reduce particle count for smaller globes to improve performance
   // Bias towards right side to match globe's rightward rotation
   const particles = useMemo(() => {
-    const particleCount = size >= 300 ? 60 : size >= 250 ? 45 : 30;
+    const particleCount = size >= 300 ? 120 : size >= 250 ? 80 : 50;
     return [...Array(particleCount)].map((_, index) => {
       // Start from globe edge (radius = size/2), go outward
       // Bias angle towards right: -70° to +70° (right hemisphere) with some variance
