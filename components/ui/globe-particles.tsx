@@ -18,9 +18,12 @@ export const GlobeParticles: React.FC<GlobeParticlesProps> = ({ size, className 
     const particleCount = size >= 300 ? 120 : size >= 250 ? 80 : 50;
     return [...Array(particleCount)].map((_, index) => {
       // Start from globe edge (radius = size/2), go outward
-      // Bias angle towards right: -70° to +70° (right hemisphere) with some variance
-      const angleBase = random(-Math.PI * 0.4, Math.PI * 0.4); // -72° to +72°
-      const startAngle = angleBase + (Math.random() < 0.2 ? random(-Math.PI, Math.PI) : 0); // 20% scatter
+      // Bias angle towards right with balanced distribution
+      // 60% right-biased, 40% full circle for natural look
+      const startAngle =
+        Math.random() < 0.6
+          ? random(-Math.PI * 0.45, Math.PI * 0.45) // 60%: right hemisphere (-81° to +81°)
+          : random(-Math.PI, Math.PI); // 40%: full circle
       const startRadius = size / 2 - 5; // Start slightly inside globe outline
 
       // Particles going right travel further (150-400px), others travel less (80-200px)
