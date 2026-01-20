@@ -15,15 +15,16 @@ export const GlobeParticles: React.FC<GlobeParticlesProps> = ({ size, className 
   // Reduce particle count for smaller globes to improve performance
   // Bias towards right side to match globe's rightward rotation
   const particles = useMemo(() => {
-    const particleCount = size >= 300 ? 120 : size >= 250 ? 80 : 50;
+    const particleCount = size >= 300 ? 200 : size >= 250 ? 130 : 80;
     return [...Array(particleCount)].map((_, index) => {
       // Start from globe edge (radius = size/2), go outward
-      // Bias angle towards right with balanced distribution
-      // 60% right-biased, 40% full circle for natural look
+      // Clock direction: 12h=-90°, 3h=0°, 6h=90°, 9h=180°
+      // 2:30 = -15° (-π/12), 6:30 = 105° (7π/12)
+      // 70% towards 2:30-6:30 direction, 30% all directions
       const startAngle =
-        Math.random() < 0.6
-          ? random(-Math.PI * 0.45, Math.PI * 0.45) // 60%: right hemisphere (-81° to +81°)
-          : random(-Math.PI, Math.PI); // 40%: full circle
+        Math.random() < 0.7
+          ? random(-Math.PI / 12, (7 * Math.PI) / 12) // 70%: 2:30 to 6:30 (-15° to 105°)
+          : random(-Math.PI, Math.PI); // 30%: full circle
       const startRadius = size / 2 - 5; // Start slightly inside globe outline
 
       // Particles going right travel further (150-400px), others travel less (80-200px)
