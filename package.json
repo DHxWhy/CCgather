@@ -52,6 +52,7 @@
     "@types/three": "^0.182.0",
     "autoprefixer": "^10.4.23",
     "cheerio": "^1.0.0",
+    "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cobe": "^0.6.5",
     "country-flag-icons": "^1.6.4",
