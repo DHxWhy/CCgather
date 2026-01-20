@@ -11,25 +11,25 @@ interface GetStartedButtonProps {
 }
 
 export function GetStartedButton({ className, children }: GetStartedButtonProps) {
-  const { isSignedIn } = useAuth();
+  const { isSignedIn, isLoaded } = useAuth();
   const [isModalOpen, setIsModalOpen] = useState(false);
 
-  // Logged in: show CLI modal
-  if (isSignedIn) {
+  // Default to sign-up link while Clerk is loading or during logout transition
+  if (!isLoaded || !isSignedIn) {
     return (
-      <>
-        <button onClick={() => setIsModalOpen(true)} className={className}>
-          {children || "Get Started"}
-        </button>
-        <CLIModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} />
-      </>
+      <Link href="/sign-up" className={className}>
+        {children || "Get Started"}
+      </Link>
     );
   }
 
-  // Not logged in: go to sign-up
+  // Logged in: show CLI modal
   return (
-    <Link href="/sign-up" className={className}>
-      {children || "Get Started"}
-    </Link>
+    <>
+      <button onClick={() => setIsModalOpen(true)} className={className}>
+        {children || "Get Started"}
+      </button>
+      <CLIModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} />
+    </>
   );
 }
