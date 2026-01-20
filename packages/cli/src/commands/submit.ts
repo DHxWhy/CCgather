@@ -65,6 +65,13 @@ interface BadgeInfo {
   earnedAt?: string;
 }
 
+interface PreviousSubmission {
+  totalTokens: number;
+  totalCost: number;
+  lastSubmissionAt: string;
+  sessionCount?: number;
+}
+
 interface SubmitResponse {
   success: boolean;
   profileUrl?: string;
@@ -74,6 +81,7 @@ interface SubmitResponse {
   totalBadges?: number;
   error?: string;
   retryAfterMinutes?: number;
+  previous?: PreviousSubmission;
 }
 
 /**
@@ -494,6 +502,42 @@ export async function submit(options: SubmitOptions): Promise<void> {
       const lineLength = 40 - text.length;
       return `  ${colors.white.bold(text)}${colors.dim("─".repeat(Math.max(0, lineLength)))}`;
     };
+
+    // ═══════════════════════════════════════
+    // 0. CHANGES SINCE LAST SUBMISSION (if returning user)
+    // ═══════════════════════════════════════
+    if (result.previous) {
+      const prev = result.previous;
+      const tokenDiff = usageData.totalTokens - prev.totalTokens;
+      const costDiff = usageData.totalCost - prev.totalCost;
+
+      // Format time since last submission
+      const lastSubmit = new Date(prev.lastSubmissionAt);
+      const now = new Date();
+      const hoursDiff = Math.floor((now.getTime() - lastSubmit.getTime()) / (1000 * 60 * 60));
+      const daysDiff = Math.floor(hoursDiff / 24);
+      const timeSince =
+        daysDiff > 0 ? `${daysDiff}d ago` : hoursDiff > 0 ? `${hoursDiff}h ago` : "just now";
+
+      console.log(sectionHeader("📈", "Since Last Submit"));
+      console.log();
+      console.log(`     ${colors.muted("Last submitted:")} ${colors.dim(timeSince)}`);
+
+      if (tokenDiff > 0) {
+        console.log(
+          `     ${colors.muted("New tokens:")}     ${colors.success(`+${formatNumber(tokenDiff)}`)}`
+        );
+      }
+      if (costDiff > 0) {
+        console.log(
+          `     ${colors.muted("New spending:")}   ${colors.success(`+${formatCost(costDiff)}`)}`
+        );
+      }
+      if (tokenDiff === 0 && costDiff === 0) {
+        console.log(`     ${colors.dim("No new usage since last submission")}`);
+      }
+      console.log();
+    }
 
     // ═══════════════════════════════════════
     // 1. RANK (Most Important) - Slot Machine Animation

@@ -145,15 +145,6 @@ function extractProjectName(filePath: string): string {
   return "unknown";
 }
 
-// Debug mode flag - set via environment variable
-const DEBUG = process.env.CCGATHER_DEBUG === "1" || process.env.CCGATHER_DEBUG === "true";
-
-function debugLog(...args: unknown[]): void {
-  if (DEBUG) {
-    console.log("[DEBUG]", ...args);
-  }
-}
-
 /**
  * Get all possible Claude Code projects directories
  * Supports:
@@ -165,15 +156,11 @@ function getClaudeProjectsDirs(): string[] {
   const dirs: string[] = [];
   const home = os.homedir();
 
-  debugLog("Home directory:", home);
-  debugLog("Platform:", process.platform);
-
   // 1. CLAUDE_CONFIG_DIR environment variable (highest priority)
   const configDir = process.env.CLAUDE_CONFIG_DIR;
   if (configDir) {
     const envPath = path.join(configDir, "projects");
     dirs.push(envPath);
-    debugLog("CLAUDE_CONFIG_DIR path:", envPath);
   }
 
   // 2. XDG path (Claude Code v1.0.30+)
@@ -184,27 +171,21 @@ function getClaudeProjectsDirs(): string[] {
     if (appData) {
       const appDataPath = path.join(appData, "claude", "projects");
       dirs.push(appDataPath);
-      debugLog("APPDATA path:", appDataPath);
     }
   }
   const xdgPath = path.join(home, ".config", "claude", "projects");
   dirs.push(xdgPath);
-  debugLog("XDG path:", xdgPath);
 
   // 3. Legacy path (Claude Code < v1.0.30)
   const legacyPath = path.join(home, ".claude", "projects");
   dirs.push(legacyPath);
-  debugLog("Legacy path:", legacyPath);
 
   // Return only unique paths that exist
   const uniqueDirs = [...new Set(dirs)];
   const existingDirs = uniqueDirs.filter((dir) => {
-    const exists = fs.existsSync(dir);
-    debugLog(`Path ${dir} exists:`, exists);
-    return exists;
+    return fs.existsSync(dir);
   });
 
-  debugLog("Existing project dirs:", existingDirs);
   return existingDirs;
 }
 
@@ -262,7 +243,6 @@ function getCurrentProjectDir(): string | null {
   const projectsDirs = getClaudeProjectsDirs();
 
   if (projectsDirs.length === 0) {
-    debugLog("No project directories found");
     return null;
   }
 
@@ -270,14 +250,10 @@ function getCurrentProjectDir(): string | null {
   const projectName = path.basename(cwd);
   const encodedCwd = encodePathLikeClaude(cwd);
 
-  debugLog("Looking for project:", projectName);
-  debugLog("Encoded CWD:", encodedCwd);
-
   // Search through all possible project directories
   for (const projectsDir of projectsDirs) {
     try {
       const entries = fs.readdirSync(projectsDir, { withFileTypes: true });
-      debugLog(`Scanning ${projectsDir}: ${entries.length} entries`);
 
       for (const entry of entries) {
         if (!entry.isDirectory()) continue;
@@ -289,14 +265,12 @@ function getCurrentProjectDir(): string | null {
 
         // Strategy 1: Exact encoded path match
         if (folderName === encodedCwd || folderNameLower === encodedCwdLower) {
-          debugLog("Match found (exact):", folderName);
           return path.join(projectsDir, entry.name);
         }
 
         // Strategy 2: Project name contained in folder name
         // This handles different encoding schemes
         if (folderNameLower.includes(projectNameLower)) {
-          debugLog("Match found (contains project name):", folderName);
           return path.join(projectsDir, entry.name);
         }
 
@@ -304,7 +278,6 @@ function getCurrentProjectDir(): string | null {
         // Claude Code converts underscores to hyphens in folder names
         const projectNameHyphenated = projectNameLower.replace(/_/g, "-");
         if (folderNameLower.includes(projectNameHyphenated)) {
-          debugLog("Match found (hyphenated project name):", folderName);
           return path.join(projectsDir, entry.name);
         }
 
@@ -313,17 +286,14 @@ function getCurrentProjectDir(): string | null {
         const projectNamePattern = projectNameLower.replace(/[^a-z0-9]/g, "");
         const folderNamePattern = folderNameLower.replace(/[^a-z0-9]/g, "");
         if (folderNamePattern.endsWith(projectNamePattern) && projectNamePattern.length > 3) {
-          debugLog("Match found (ends with pattern):", folderName);
           return path.join(projectsDir, entry.name);
         }
       }
-    } catch (err) {
-      debugLog("Error scanning directory:", err);
+    } catch {
       continue;
     }
   }
 
-  debugLog("No matching project directory found");
   return null;
 }
 
@@ -1159,7 +1129,6 @@ export function scanAllProjects(options: ScanOptions = {}): CCGatherData | null 
   const projectsDirs = getClaudeProjectsDirs();
 
   if (projectsDirs.length === 0) {
-    debugLog("No project directories found");
     return null;
   }
 
@@ -1226,7 +1195,6 @@ export function scanAllProjects(options: ScanOptions = {}): CCGatherData | null 
   }
 
   if (allJsonlFiles.length === 0) {
-    debugLog("No JSONL files found in any project");
     return null;
   }
 

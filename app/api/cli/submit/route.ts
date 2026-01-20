@@ -443,7 +443,8 @@ export async function POST(request: NextRequest) {
       usageHistory
     );
 
-    return NextResponse.json({
+    // Build response with previous submission info (for CLI UX)
+    const response: Record<string, unknown> = {
       success: true,
       profileUrl: `https://ccgather.com/u/${authenticatedUser.username}`,
       rank: rank || undefined,
@@ -460,7 +461,19 @@ export async function POST(request: NextRequest) {
         earnedAt: new Date().toISOString(),
       })),
       totalBadges: allBadges.length,
-    });
+    };
+
+    // Include previous submission info if user has submitted before
+    if (authenticatedUser.last_submission_at) {
+      response.previous = {
+        totalTokens: authenticatedUser.total_tokens || 0,
+        totalCost: authenticatedUser.total_cost || 0,
+        lastSubmissionAt: authenticatedUser.last_submission_at,
+        sessionCount: body.sessionFingerprint?.sessionCount || 0,
+      };
+    }
+
+    return NextResponse.json(response);
   } catch (error) {
     console.error("[CLI Submit] Error:", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
