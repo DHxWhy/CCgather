@@ -48,7 +48,7 @@ export const GlobeParticles: React.FC<GlobeParticlesProps> = ({ size, className 
       const startX = Math.cos(startAngle) * startRadius;
       const startY = Math.sin(startAngle) * startRadius;
 
-      const duration = random(49, 88); // Ultra slow for elegant, dreamy effect (+30% slower)
+      const duration = random(53, 95); // Ultra slow for elegant, dreamy effect (+40% slower)
       return {
         index,
         startX,
