@@ -33,13 +33,11 @@
     "inquirer": "^9.2.23",
     "open": "^10.1.0",
     "ora": "^8.1.0",
-    "string-width": "^7.2.0",
-    "update-notifier": "^7.3.1"
+    "string-width": "^7.2.0"
   },
   "devDependencies": {
     "@types/inquirer": "^9.0.7",
     "@types/node": "^22.10.2",
-    "@types/update-notifier": "^6.0.8",
     "tsup": "^8.3.5",
     "typescript": "^5.7.2",
     "vitest": "^3.0.0"

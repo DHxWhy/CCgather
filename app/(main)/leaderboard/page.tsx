@@ -808,8 +808,20 @@ export default function LeaderboardPage() {
                   </div>
                 </div>
 
-                {/* Right side - My Rank, Level Info & Sort */}
+                {/* Right side - Level Info, My Rank & Sort */}
                 <div className="flex items-center gap-1 flex-shrink-0">
+                  {/* Level Info Hover */}
+                  <div
+                    className="relative"
+                    onMouseEnter={() => setShowLevelInfo(true)}
+                    onMouseLeave={() => setShowLevelInfo(false)}
+                  >
+                    <div className="h-7 w-7 rounded-md text-[10px] font-medium transition-colors flex items-center justify-center text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] cursor-help">
+                      <Info className="w-3 h-3" />
+                    </div>
+                    <LevelInfoPopover isOpen={showLevelInfo} />
+                  </div>
+
                   {(myRankInfo || currentUserData) && (
                     <button
                       onClick={goToMyRank}
@@ -822,18 +834,6 @@ export default function LeaderboardPage() {
                       </span>
                     </button>
                   )}
-
-                  {/* Level Info Hover */}
-                  <div
-                    className="relative"
-                    onMouseEnter={() => setShowLevelInfo(true)}
-                    onMouseLeave={() => setShowLevelInfo(false)}
-                  >
-                    <div className="h-7 w-7 rounded-md text-[10px] font-medium transition-colors flex items-center justify-center text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] cursor-help">
-                      <Info className="w-3 h-3" />
-                    </div>
-                    <LevelInfoPopover isOpen={showLevelInfo} />
-                  </div>
 
                   <div className="flex items-center h-7 glass rounded-lg overflow-hidden flex-shrink-0">
                     <button
