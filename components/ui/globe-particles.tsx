@@ -57,7 +57,7 @@ export const GlobeParticles: React.FC<GlobeParticlesProps> = ({ size, className 
         distanceY,
         duration,
         delay: random(-duration, 0), // Negative delay = already mid-animation on load
-        particleSize: random(1.5, 2), // Subtle particle size
+        particleSize: Math.random() < 0.7 ? random(1.0, 1.3) : random(1.3, 1.5), // 70% small, 30% medium
         color: randomColor(), // Random leaderboard color
       };
     });
