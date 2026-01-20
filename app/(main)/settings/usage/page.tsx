@@ -355,9 +355,9 @@ export default function SettingsUsagePage() {
             <div className="sm:hidden absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l from-[var(--color-bg-primary)] to-transparent pointer-events-none z-10 rounded-r-xl" />
             <div
               ref={tableRef}
-              className="overflow-x-auto rounded-xl border border-[var(--border-default)] bg-[var(--color-section-bg)]"
+              className="overflow-x-auto rounded-xl border border-[var(--border-default)] bg-[var(--color-section-bg)] flex justify-center"
             >
-              <table className="w-full border-collapse min-w-[600px] sm:min-w-[900px]">
+              <table className="border-collapse" style={{ width: "auto" }}>
                 <thead>
                   <tr>
                     <th className="sticky left-0 z-20 bg-[var(--color-bg-primary)] w-10" />
@@ -390,7 +390,7 @@ export default function SettingsUsagePage() {
                         <th
                           key={`${year}-${month}`}
                           className={cn(
-                            "px-1 py-1.5 sm:py-2 text-[9px] sm:text-[10px] font-semibold text-center border-b border-r border-[var(--border-default)] min-w-[50px] sm:min-w-[80px]",
+                            "px-1 py-1.5 sm:py-2 text-[9px] sm:text-[10px] font-semibold text-center border-b border-r border-[var(--border-default)] min-w-[70px] sm:min-w-[90px] max-w-[100px] sm:max-w-[120px]",
                             isCurrentMonth
                               ? "text-[var(--color-text-primary)] bg-[var(--color-claude-coral)]/10"
                               : "text-[var(--color-text-muted)]"
@@ -408,7 +408,7 @@ export default function SettingsUsagePage() {
 
                     return (
                       <tr key={day} className="hover:bg-[var(--color-table-row-hover)]">
-                        <td className="sticky left-0 z-10 bg-[var(--color-bg-primary)] px-2 py-0.5 text-[10px] font-medium text-[var(--color-text-muted)] text-center border-r border-[var(--border-default)]">
+                        <td className="sticky left-0 z-10 bg-[var(--color-bg-primary)] px-2 py-px text-[10px] font-medium text-[var(--color-text-muted)] text-center border-r border-[var(--border-default)]">
                           {day}
                         </td>
                         {monthRange.map(({ year, month }) => {
@@ -429,16 +429,17 @@ export default function SettingsUsagePage() {
                           return (
                             <td
                               key={`${year}-${month}-${day}`}
-                              className="px-1 py-0.5 border-r border-[var(--border-default)]"
+                              className="px-1 py-0.5 border-r border-[var(--border-default)] min-w-[70px] sm:min-w-[90px] max-w-[100px] sm:max-w-[120px]"
                             >
                               {!isValidDay ? (
-                                <div className="h-6" />
+                                <div className="h-5" />
                               ) : isFuture ? (
-                                <div className="h-6 mx-0.5 rounded" />
+                                <div className="h-5 mx-0.5 rounded" />
                               ) : entry && entry.tokens > 0 ? (
                                 <div
                                   className={cn(
-                                    "h-6 mx-0.5 px-1.5 rounded flex items-center justify-between transition-transform hover:scale-[1.02] cursor-default",
+                                    "h-5 mx-0.5 px-1.5 rounded flex items-center justify-between transition-transform hover:scale-[1.02] cursor-default",
+                                    "bg-[var(--color-claude-coral)]/10",
                                     isToday &&
                                       "ring-2 ring-[var(--color-claude-coral)] ring-offset-1 ring-offset-[var(--color-bg-primary)]"
                                   )}
@@ -454,7 +455,7 @@ export default function SettingsUsagePage() {
                                     <span
                                       className="w-1.5 h-1.5 rounded-full flex-shrink-0"
                                       style={{
-                                        backgroundColor: `rgba(218, 119, 86, ${0.3 + intensity * 0.7})`,
+                                        backgroundColor: `rgba(218, 119, 86, ${0.5 + intensity * 0.5})`,
                                       }}
                                     />
                                   </div>
@@ -462,7 +463,7 @@ export default function SettingsUsagePage() {
                               ) : (
                                 <div
                                   className={cn(
-                                    "h-6 mx-0.5 rounded flex items-center justify-center text-[10px] text-[var(--color-text-disabled)]",
+                                    "h-5 mx-0.5 rounded flex items-center justify-center text-[10px] text-[var(--color-text-disabled)]",
                                     isToday && "ring-1 ring-[var(--color-claude-coral)]/50"
                                   )}
                                 >
@@ -491,7 +492,7 @@ export default function SettingsUsagePage() {
                         <td
                           key={monthKey}
                           className={cn(
-                            "px-1.5 py-2 border-r border-[var(--border-default)]",
+                            "px-1.5 py-2 border-r border-[var(--border-default)] min-w-[70px] sm:min-w-[90px] max-w-[100px] sm:max-w-[120px]",
                             isCurrentMonth && "bg-[var(--color-claude-coral)]/5"
                           )}
                         >
