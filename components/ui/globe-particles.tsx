@@ -48,7 +48,7 @@ export const GlobeParticles: React.FC<GlobeParticlesProps> = ({ size, className 
         distanceY,
         duration,
         delay: random(-duration, 0), // Negative delay = already mid-animation on load
-        particleSize: random(1.5, 2.5), // Similar to country dot size
+        particleSize: random(1.5, 2), // Subtle particle size
       };
     });
   }, [size]);
