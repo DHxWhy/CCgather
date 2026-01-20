@@ -1,148 +1,60 @@
-'use client';
+"use client";
 
-import { forwardRef, type ButtonHTMLAttributes, type ReactNode } from 'react';
-import { cn } from '@/lib/utils';
-import { Loader2 } from 'lucide-react';
+import { Slot } from "@radix-ui/react-slot";
+import { cva, type VariantProps } from "class-variance-authority";
+import * as React from "react";
 
-// ============================================
-// Types
-// ============================================
+import { cn } from "@/lib/utils";
 
-export type ButtonVariant =
-  | 'primary'
-  | 'secondary'
-  | 'outline'
-  | 'ghost'
-  | 'link'
-  | 'danger';
-
-export type ButtonSize = 'sm' | 'md' | 'lg' | 'xl';
-
-export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
-  variant?: ButtonVariant;
-  size?: ButtonSize;
-  leftIcon?: ReactNode;
-  rightIcon?: ReactNode;
-  isLoading?: boolean;
-  loadingText?: string;
-  fullWidth?: boolean;
-}
-
-// ============================================
-// Styles
-// ============================================
-
-const baseStyles = cn(
-  'inline-flex items-center justify-center gap-2',
-  'font-medium rounded-full',
-  'transition-all duration-200',
-  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2',
-  'focus-visible:ring-[var(--color-claude-coral)]',
-  'disabled:opacity-50 disabled:pointer-events-none',
-  'active:scale-[0.97]'
-);
-
-const variantStyles: Record<ButtonVariant, string> = {
-  primary: cn(
-    'bg-gradient-to-r from-[var(--color-claude-coral)] to-[var(--color-claude-rust)]',
-    'text-white',
-    'hover:shadow-[var(--glow-primary)]',
-    'hover:brightness-110'
-  ),
-  secondary: cn(
-    'bg-[var(--glass-bg)]',
-    'border border-[var(--border-default)]',
-    'text-[var(--color-text-primary)]',
-    'hover:bg-[var(--color-bg-card-hover)]',
-    'hover:border-[var(--border-hover)]'
-  ),
-  outline: cn(
-    'bg-transparent',
-    'border border-[var(--color-claude-coral)]/50',
-    'text-[var(--color-claude-coral)]',
-    'hover:bg-[var(--color-claude-coral)]/10',
-    'hover:border-[var(--color-claude-coral)]'
-  ),
-  ghost: cn(
-    'bg-transparent',
-    'text-[var(--color-text-secondary)]',
-    'hover:bg-[var(--glass-bg)]',
-    'hover:text-[var(--color-text-primary)]'
-  ),
-  link: cn(
-    'bg-transparent',
-    'text-[var(--color-claude-coral)]',
-    'hover:underline underline-offset-4',
-    'p-0 h-auto'
-  ),
-  danger: cn(
-    'bg-[var(--color-error)]',
-    'text-white',
-    'hover:bg-[var(--color-error)]/90',
-    'hover:shadow-[0_0_20px_rgba(239,68,68,0.3)]'
-  ),
-};
-
-const sizeStyles: Record<ButtonSize, string> = {
-  sm: 'h-8 px-3 text-xs',
-  md: 'h-10 px-4 text-sm',
-  lg: 'h-12 px-6 text-base',
-  xl: 'h-14 px-8 text-lg',
-};
-
-// ============================================
-// Component
-// ============================================
-
-export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
-  (
-    {
-      className,
-      variant = 'primary',
-      size = 'md',
-      leftIcon,
-      rightIcon,
-      isLoading = false,
-      loadingText,
-      fullWidth = false,
-      disabled,
-      children,
-      ...props
+const buttonVariants = cva(
+  "inline-flex items-center justify-center whitespace-nowrap rounded-lg text-sm font-medium transition-colors outline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-claude-coral)]/70 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0",
+  {
+    variants: {
+      variant: {
+        default:
+          "bg-[var(--color-claude-coral)] text-white shadow-sm shadow-black/5 hover:bg-[var(--color-claude-coral)]/90",
+        primary:
+          "bg-[var(--color-claude-coral)] text-white shadow-sm shadow-black/5 hover:bg-[var(--color-claude-coral)]/90",
+        destructive: "bg-red-500 text-white shadow-sm shadow-black/5 hover:bg-red-500/90",
+        outline:
+          "border border-[var(--border-default)] bg-transparent shadow-sm shadow-black/5 hover:bg-white/5 hover:text-[var(--color-text-primary)]",
+        secondary:
+          "bg-white/10 text-[var(--color-text-primary)] shadow-sm shadow-black/5 hover:bg-white/15",
+        ghost: "hover:bg-white/10 hover:text-[var(--color-text-primary)]",
+        link: "text-[var(--color-claude-coral)] underline-offset-4 hover:underline",
+      },
+      size: {
+        default: "h-9 px-4 py-2",
+        sm: "h-8 rounded-lg px-3 text-xs",
+        lg: "h-10 rounded-lg px-8",
+        icon: "h-9 w-9",
+      },
     },
-    ref
-  ) => {
-    return (
-      <button
-        ref={ref}
-        className={cn(
-          baseStyles,
-          variantStyles[variant],
-          sizeStyles[size],
-          fullWidth && 'w-full',
-          className
-        )}
-        disabled={disabled || isLoading}
-        {...props}
-      >
-        {/* Loading spinner or left icon */}
-        {isLoading ? (
-          <Loader2 className="h-4 w-4 animate-spin" />
-        ) : (
-          leftIcon && <span className="shrink-0">{leftIcon}</span>
-        )}
-
-        {/* Button text */}
-        {isLoading && loadingText ? loadingText : children}
-
-        {/* Right icon (hidden when loading) */}
-        {!isLoading && rightIcon && (
-          <span className="shrink-0">{rightIcon}</span>
-        )}
-      </button>
-    );
+    defaultVariants: {
+      variant: "default",
+      size: "default",
+    },
   }
 );
 
-Button.displayName = 'Button';
+export interface ButtonProps
+  extends React.ButtonHTMLAttributes<HTMLButtonElement>, VariantProps<typeof buttonVariants> {
+  asChild?: boolean;
+  fullWidth?: boolean;
+}
 
-export default Button;
+const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
+  ({ className, variant, size, asChild = false, fullWidth = false, ...props }, ref) => {
+    const Comp = asChild ? Slot : "button";
+    return (
+      <Comp
+        className={cn(buttonVariants({ variant, size, className }), fullWidth && "w-full")}
+        ref={ref}
+        {...props}
+      />
+    );
+  }
+);
+Button.displayName = "Button";
+
+export { Button, buttonVariants };
