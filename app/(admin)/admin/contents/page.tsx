@@ -797,23 +797,24 @@ function ContentCard({
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1.5 mb-1 flex-wrap">
             <span
-              className={`px-1.5 py-0.5 rounded text-[9px] ${STATUS_STYLES[item.status].bg} ${STATUS_STYLES[item.status].text}`}
+              className={`px-1.5 py-0.5 rounded text-[9px] ${STATUS_STYLES[item.status]?.bg || "bg-gray-500/20"} ${STATUS_STYLES[item.status]?.text || "text-gray-400"}`}
             >
-              {STATUS_STYLES[item.status].label}
+              {STATUS_STYLES[item.status]?.label || item.status}
             </span>
             {/* AI Article Type Badge */}
-            {item.ai_article_type && (
+            {item.ai_article_type && AI_TYPE_STYLES[item.ai_article_type] && (
               <span
                 className={`px-1.5 py-0.5 rounded text-[9px] ${AI_TYPE_STYLES[item.ai_article_type].bg} ${AI_TYPE_STYLES[item.ai_article_type].text}`}
                 title={`AI 분류: ${item.ai_article_type}${item.ai_article_type_secondary ? ` + ${item.ai_article_type_secondary}` : ""}`}
               >
                 {AI_TYPE_STYLES[item.ai_article_type].emoji}{" "}
                 {AI_TYPE_STYLES[item.ai_article_type].label}
-                {item.ai_article_type_secondary && (
-                  <span className="ml-0.5 opacity-70">
-                    +{AI_TYPE_STYLES[item.ai_article_type_secondary].emoji}
-                  </span>
-                )}
+                {item.ai_article_type_secondary &&
+                  AI_TYPE_STYLES[item.ai_article_type_secondary] && (
+                    <span className="ml-0.5 opacity-70">
+                      +{AI_TYPE_STYLES[item.ai_article_type_secondary].emoji}
+                    </span>
+                  )}
               </span>
             )}
             {/* Confidence indicator */}

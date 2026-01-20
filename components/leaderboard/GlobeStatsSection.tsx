@@ -5,7 +5,6 @@ import { motion } from "framer-motion";
 import ReactCountryFlag from "react-country-flag";
 import { Globe } from "@/components/globe/Globe";
 import { GlobeParticles } from "@/components/ui/globe-particles";
-import { formatNumber, formatCost } from "@/lib/utils/format";
 import { getCountryName } from "@/lib/constants/countries";
 
 interface CountryStat {
