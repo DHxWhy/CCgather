@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { useRouter } from "next/navigation";
 import { useUser, useClerk } from "@clerk/nextjs";
 import { Github, Linkedin, Globe, Loader2 } from "lucide-react";
 import { getCountryByCode } from "@/lib/constants/countries";
@@ -33,7 +32,6 @@ interface SocialLinks {
 export default function SettingsProfilePage() {
   const { user, isLoaded } = useUser();
   const { signOut } = useClerk();
-  const router = useRouter();
 
   const [dbCountryCode, setDbCountryCode] = useState<string>("");
   const [socialLinks, setSocialLinks] = useState<SocialLinks>({});
@@ -194,8 +192,7 @@ export default function SettingsProfilePage() {
       const data = await res.json();
       throw new Error(data.error || "Failed to delete account");
     }
-    await signOut();
-    router.push("/");
+    signOut({ redirectUrl: "/" });
   };
 
   if (!isLoaded || !user) {

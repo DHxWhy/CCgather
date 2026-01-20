@@ -56,9 +56,8 @@ export default function SettingsLayout({ children }: { children: React.ReactNode
     return null;
   }
 
-  const handleSignOut = async () => {
-    await signOut();
-    router.push("/");
+  const handleSignOut = () => {
+    signOut({ redirectUrl: "/" });
   };
 
   return (
