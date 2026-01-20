@@ -19,14 +19,7 @@ interface CustomCursorProps {
 // ============================================
 
 export function CustomCursor({ enableTrail = false, trailCount = 5 }: CustomCursorProps) {
-  const {
-    state,
-    setCursorPosition,
-    setCursorVisible,
-    setCursorClicking,
-    setCursorType,
-    isMouseDevice,
-  } = useCursor();
+  const { state, setCursorVisible, setCursorClicking, setCursorType, isMouseDevice } = useCursor();
 
   const cursorRef = useRef<HTMLDivElement>(null);
   const trailsRef = useRef<HTMLDivElement[]>([]);
