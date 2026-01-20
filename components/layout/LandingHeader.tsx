@@ -167,7 +167,7 @@ export function LandingHeader() {
             <ThemeSwitcher size="sm" />
             <Link
               href="/sign-in"
-              className="px-5 py-2.5 rounded-xl bg-white/5 border border-white/10 text-[var(--color-text-secondary)] text-sm font-medium hover:bg-white/10 hover:text-[var(--color-text-primary)] transition-all"
+              className="px-5 py-2.5 rounded-xl bg-[var(--color-claude-coral)] text-white text-sm font-semibold hover:opacity-90 transition-all"
             >
               Sign In
             </Link>
@@ -233,7 +233,7 @@ export function LandingHeader() {
             <Link
               href="/sign-in"
               onClick={closeMobileMenu}
-              className="block w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-[var(--color-text-secondary)] text-base font-medium text-center hover:bg-white/10 hover:text-[var(--color-text-primary)] transition-all"
+              className="block w-full px-5 py-2.5 rounded-xl bg-[var(--color-claude-coral)] text-white text-base font-semibold text-center hover:opacity-90 transition-all"
             >
               Sign In
             </Link>
