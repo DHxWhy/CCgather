@@ -151,6 +151,11 @@
   --heatmap-level-3: rgba(218, 119, 86, 0.65);
   --heatmap-level-4: rgba(218, 119, 86, 0.9);
 
+  /* User Country Highlight - Dark Mode (Green) */
+  --user-country-bg: rgba(16, 185, 129, 0.1);
+  --user-country-ring: rgba(16, 185, 129, 0.3);
+  --user-country-text: #10b981;
+
   --radius: 0.625rem;
   --background: oklch(1 0 0);
   --foreground: oklch(0.145 0 0);
@@ -276,6 +281,11 @@
   --heatmap-level-2: rgba(218, 119, 86, 0.5);
   --heatmap-level-3: rgba(218, 119, 86, 0.7);
   --heatmap-level-4: rgba(218, 119, 86, 0.95);
+
+  /* User Country Highlight - Light Mode (Coral) */
+  --user-country-bg: rgba(218, 119, 86, 0.1);
+  --user-country-ring: rgba(218, 119, 86, 0.3);
+  --user-country-text: #da7756;
 }
 
 /* ========================================

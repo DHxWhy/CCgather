@@ -80,7 +80,7 @@ export function TopCountriesSection({
               transition={{ delay: index * 0.03 }}
               className={`group relative flex items-center gap-2 px-3 py-2 rounded-lg transition-colors ${
                 isUserCountry
-                  ? "bg-[var(--color-claude-coral)]/10 ring-1 ring-[var(--color-claude-coral)]/30 ring-inset"
+                  ? "bg-[var(--user-country-bg)] ring-1 ring-[var(--user-country-ring)] ring-inset"
                   : "hover:bg-[var(--glass-bg)]"
               }`}
             >
@@ -100,12 +100,12 @@ export function TopCountriesSection({
                   <span
                     className={`text-sm font-medium flex-1 truncate ${
                       isUserCountry
-                        ? "text-[var(--color-claude-coral)]"
+                        ? "text-[var(--user-country-text)]"
                         : "text-[var(--color-text-primary)]"
                     }`}
                   >
                     {stat.name}
-                    {isUserCountry && <span className="ml-1 text-[10px]">🔸</span>}
+                    {isUserCountry && <span className="ml-1 text-[10px]">🟢</span>}
                   </span>
 
                   {/* Cost & Tokens (right aligned) - dimmed based on sortBy */}
