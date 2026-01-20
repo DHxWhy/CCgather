@@ -872,37 +872,14 @@ describe("V2.0: Scan All Projects - Level-Based League", () => {
     expect(getLevel(150_000_000_000).level).toBe(10); // Immortal
   });
 
-  it("should determine level league from level", () => {
-    // 4 leagues based on level groups
-    const getLevelLeague = (level: number): string => {
-      if (level <= 3) return "rookie"; // Lv1-3: 루키 리그
-      if (level <= 6) return "builder"; // Lv4-6: 빌더 리그
-      if (level <= 9) return "master"; // Lv7-9: 마스터 리그
-      return "legend"; // Lv10: 레전드 리그
-    };
-
-    expect(getLevelLeague(1)).toBe("rookie");
-    expect(getLevelLeague(3)).toBe("rookie");
-    expect(getLevelLeague(4)).toBe("builder");
-    expect(getLevelLeague(6)).toBe("builder");
-    expect(getLevelLeague(7)).toBe("master");
-    expect(getLevelLeague(9)).toBe("master");
-    expect(getLevelLeague(10)).toBe("legend");
-  });
-
-  it("should preserve ccplan as badge only (not for league)", () => {
+  it("should preserve ccplan as badge for display", () => {
     const usageData = {
-      totalTokens: 1_500_000_000, // Level 6 (Master)
+      totalTokens: 1_500_000_000,
       ccplan: "max", // Max plan badge
     };
 
-    // Level determines league, not ccplan
-    const level = 6; // Based on tokens
-    const levelLeague = "builder"; // Lv4-6 → builder league
-
-    // ccplan is just a badge for display
+    // ccplan is just a badge for display (not for ranking)
     expect(usageData.ccplan).toBe("max");
-    expect(levelLeague).toBe("builder"); // League is from level, not plan
   });
 
   it("should preserve Opus detection as badge", () => {

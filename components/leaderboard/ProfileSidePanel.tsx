@@ -24,9 +24,9 @@ import type {
   UsageHistoryPoint,
   PeriodFilter,
   ScopeFilter,
-  CCPlanFilter,
   SocialLinks,
 } from "@/lib/types";
+import type { CCPlanFilter } from "@/lib/types/leaderboard";
 
 // Extended user type for panel display
 interface DisplayUser extends LeaderboardUser {
@@ -567,7 +567,6 @@ interface ProfileSidePanelProps {
   onClose: () => void;
   periodFilter: PeriodFilter;
   scopeFilter: ScopeFilter;
-  ccplanFilter?: CCPlanFilter;
 }
 
 // Profile view tracking for non-logged-in users
@@ -609,7 +608,6 @@ export function ProfileSidePanel({
   onClose,
   periodFilter,
   scopeFilter,
-  ccplanFilter = "all",
 }: ProfileSidePanelProps) {
   const { isSignedIn } = useUser();
   const panelRef = useRef<HTMLDivElement>(null);
@@ -1143,7 +1141,7 @@ export function ProfileSidePanel({
             {/* Global Rank */}
             <div
               className={`p-3 rounded-lg transition-all ${
-                scopeFilter === "global" && ccplanFilter === "all"
+                scopeFilter === "global"
                   ? "bg-primary/10 ring-1 ring-primary/30"
                   : "bg-[var(--color-section-bg)]"
               } border border-[var(--border-default)]`}
@@ -1186,7 +1184,7 @@ export function ProfileSidePanel({
             {/* Country Rank */}
             <div
               className={`p-3 rounded-lg transition-all ${
-                scopeFilter === "country" && ccplanFilter === "all"
+                scopeFilter === "country"
                   ? "bg-primary/10 ring-1 ring-primary/30"
                   : "bg-[var(--color-section-bg)]"
               } border border-[var(--border-default)]`}

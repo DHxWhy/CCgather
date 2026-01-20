@@ -6,16 +6,9 @@ import Image from "next/image";
 import ReactCountryFlag from "react-country-flag";
 import { useUser } from "@clerk/nextjs";
 import { ProfileSidePanel } from "@/components/leaderboard/ProfileSidePanel";
-import { CCplanTabs } from "@/components/leaderboard/CCplanTabs";
 import { LiveStatsTicker } from "@/components/stats/LiveStatsTicker";
 import { LEVELS, getLevelByTokens } from "@/lib/constants/levels";
-import type {
-  LeaderboardUser,
-  PeriodFilter,
-  ScopeFilter,
-  SortByFilter,
-  CCPlanFilter,
-} from "@/lib/types";
+import type { LeaderboardUser, PeriodFilter, ScopeFilter, SortByFilter } from "@/lib/types";
 
 // Format numbers properly
 function formatTokens(num: number): string {
@@ -170,7 +163,6 @@ export default function LeaderboardPage() {
   const [periodFilter, setPeriodFilter] = useState<PeriodFilter>("all");
   const [scopeFilter, setScopeFilter] = useState<ScopeFilter>("global");
   const [sortBy, setSortBy] = useState<SortByFilter>("tokens");
-  const [ccplanFilter, setCcplanFilter] = useState<CCPlanFilter>("all");
   const [isAnimating, setIsAnimating] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
   const [panelWidth, setPanelWidth] = useState(0);
@@ -203,10 +195,6 @@ export default function LeaderboardPage() {
 
       if (scopeFilter === "country" && currentUserCountry) {
         params.set("country", currentUserCountry);
-      }
-
-      if (ccplanFilter !== "all") {
-        params.set("ccplan", ccplanFilter);
       }
 
       const response = await fetch(`/api/leaderboard?${params}`);
@@ -256,15 +244,7 @@ export default function LeaderboardPage() {
     } finally {
       setLoading(false);
     }
-  }, [
-    currentPage,
-    periodFilter,
-    scopeFilter,
-    sortBy,
-    ccplanFilter,
-    currentUserCountry,
-    currentUsername,
-  ]);
+  }, [currentPage, periodFilter, scopeFilter, sortBy, currentUserCountry, currentUsername]);
 
   // Fetch current user's country and username
   useEffect(() => {
@@ -301,9 +281,6 @@ export default function LeaderboardPage() {
         const params = new URLSearchParams();
         params.set("findUser", currentUsername);
         params.set("limit", String(ITEMS_PER_PAGE));
-        if (ccplanFilter !== "all") {
-          params.set("ccplan", ccplanFilter);
-        }
         if (scopeFilter === "country" && currentUserCountry) {
           params.set("country", currentUserCountry);
         }
@@ -322,7 +299,7 @@ export default function LeaderboardPage() {
     }
 
     fetchMyRank();
-  }, [currentUsername, ccplanFilter, scopeFilter, currentUserCountry]);
+  }, [currentUsername, scopeFilter, currentUserCountry]);
 
   // Fetch data on filter/page change
   useEffect(() => {
@@ -405,9 +382,6 @@ export default function LeaderboardPage() {
         const params = new URLSearchParams();
         params.set("findUser", highlightUsername);
         params.set("limit", String(ITEMS_PER_PAGE));
-        if (ccplanFilter !== "all") {
-          params.set("ccplan", ccplanFilter);
-        }
         if (scopeFilter === "country" && currentUserCountry) {
           params.set("country", currentUserCountry);
         }
@@ -430,7 +404,7 @@ export default function LeaderboardPage() {
     }
 
     return undefined;
-  }, [highlightUsername, users, ccplanFilter, scopeFilter, currentUserCountry]);
+  }, [highlightUsername, users, scopeFilter, currentUserCountry]);
 
   // Pagination
   const totalPages = Math.ceil(total / ITEMS_PER_PAGE);
@@ -479,14 +453,14 @@ export default function LeaderboardPage() {
   useEffect(() => {
     setCurrentPage(1);
     setHighlightMyRank(false);
-  }, [scopeFilter, periodFilter, sortBy, ccplanFilter]);
+  }, [scopeFilter, periodFilter, sortBy]);
 
   // Animation trigger
   useEffect(() => {
     setIsAnimating(true);
     const timer = setTimeout(() => setIsAnimating(false), 600);
     return () => clearTimeout(timer);
-  }, [scopeFilter, periodFilter, sortBy, ccplanFilter, currentPage]);
+  }, [scopeFilter, periodFilter, sortBy, currentPage]);
 
   const handleRowClick = (user: DisplayUser) => {
     setSelectedUser(user);
@@ -569,11 +543,6 @@ export default function LeaderboardPage() {
                 useRealData={true}
               />
             </div>
-          </div>
-
-          {/* CCplan League Tabs with Info Button */}
-          <div className="mb-4">
-            <CCplanTabs value={ccplanFilter} onChange={setCcplanFilter} />
           </div>
 
           {/* Filters */}
@@ -983,7 +952,6 @@ export default function LeaderboardPage() {
         onClose={handleClosePanel}
         periodFilter={periodFilter}
         scopeFilter={scopeFilter}
-        ccplanFilter={ccplanFilter}
       />
     </div>
   );

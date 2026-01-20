@@ -22,8 +22,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
       total_tokens,
       total_cost,
       social_links,
-      ccplan,
-      ccplan_rank
+      ccplan
     `
     )
     .eq("id", id)
@@ -49,7 +48,6 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
       total_cost: user.total_cost || 0,
       social_links: user.social_links,
       ccplan: user.ccplan,
-      ccplan_rank: user.ccplan_rank,
     },
   });
 }
