@@ -177,7 +177,7 @@ export default function LeaderboardPage() {
   const [customDateRange, setCustomDateRange] = useState<{ start: string; end: string } | null>(
     null
   );
-  const [isAnimating, setIsAnimating] = useState(false);
+  const [isAnimating, setIsAnimating] = useState(true); // Start true for initial animation
   const [isMounted, setIsMounted] = useState(false);
   const [panelWidth, setPanelWidth] = useState(0);
   const [, setIsOverlayMode] = useState(true);
@@ -405,7 +405,6 @@ export default function LeaderboardPage() {
   // Set mounted state
   useEffect(() => {
     setIsMounted(true);
-    setIsAnimating(true);
   }, []);
 
   // Handle ?u=username query parameter for highlighting
@@ -507,12 +506,13 @@ export default function LeaderboardPage() {
     setHighlightMyRank(false);
   }, [scopeFilter, periodFilter, sortBy]);
 
-  // Animation trigger
+  // Animation trigger - only on initial mount, not on filter changes
   useEffect(() => {
-    setIsAnimating(true);
+    if (!isMounted) return;
+    // Only animate on first load
     const timer = setTimeout(() => setIsAnimating(false), 600);
     return () => clearTimeout(timer);
-  }, [scopeFilter, periodFilter, sortBy, currentPage]);
+  }, [isMounted]);
 
   const handleRowClick = (user: DisplayUser) => {
     setSelectedUser(user);
@@ -902,10 +902,7 @@ export default function LeaderboardPage() {
 
               {/* Leaderboard Table - Keep showing while loading new data */}
               {users.length > 0 && (
-                <div
-                  key={`${scopeFilter}-${periodFilter}-${sortBy}-${currentPage}`}
-                  className={`transition-opacity duration-200 ease-out ${loading ? "opacity-50" : "opacity-100"}`}
-                >
+                <div className={loading ? "opacity-70 pointer-events-none" : "opacity-100"}>
                   <div className="glass rounded-2xl overflow-visible border border-[var(--border-default)]">
                     <div className="overflow-x-auto rounded-2xl">
                       <table className="w-full table-fixed">
@@ -1014,10 +1011,10 @@ export default function LeaderboardPage() {
                                     index % 2 === 1
                                       ? "var(--color-table-row-even)"
                                       : undefined,
-                                  animation:
-                                    isMounted && isAnimating
-                                      ? `fadeSlideIn 0.2s ease-out ${Math.pow(index, 0.35) * 0.225}s both`
-                                      : "none",
+                                  // Row animation only on initial page load
+                                  animation: isAnimating
+                                    ? `fadeSlideIn 0.2s ease-out ${Math.pow(index, 0.35) * 0.15}s both`
+                                    : undefined,
                                 }}
                               >
                                 <td
