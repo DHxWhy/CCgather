@@ -412,7 +412,7 @@ export function Globe({
       markers: globeMarkers,
       onRender: (state) => {
         if (!pointerInteracting.current) {
-          phi += 0.00128; // 20% slower than 0.0016
+          phi += 0.00147; // 15% faster rotation
         }
         state.phi = phi + rotationRef.current;
         state.width = size * dpr;
