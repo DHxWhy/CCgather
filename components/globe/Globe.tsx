@@ -269,6 +269,7 @@ interface GlobeProps {
   className?: string;
   userCountryCode?: string;
   forceDark?: boolean;
+  scopeFilter?: "global" | "country";
 }
 
 // Project lat/lng to screen coordinates matching cobe's rendering
@@ -313,6 +314,7 @@ export function Globe({
   className = "",
   userCountryCode,
   forceDark,
+  scopeFilter = "global",
 }: GlobeProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const userDotRef = useRef<HTMLDivElement>(null);
@@ -339,17 +341,15 @@ export function Globe({
     (phi: number, theta: number) => {
       if (!userDotRef.current || !userCoords) return;
 
-      const { x, y, visible } = latLngToScreen(userCoords[0], userCoords[1], phi, theta, size);
+      const { x, y } = latLngToScreen(userCoords[0], userCoords[1], phi, theta, size);
 
       userDotRef.current.style.left = `${x}px`;
       userDotRef.current.style.top = `${y}px`;
-      userDotRef.current.style.opacity = visible ? "1" : "0.15";
 
       // Update pulse ring position
       if (pulseRingRef.current) {
         pulseRingRef.current.style.left = `${x}px`;
         pulseRingRef.current.style.top = `${y}px`;
-        pulseRingRef.current.style.opacity = visible ? "1" : "0";
       }
     },
     [userCoords, size]
@@ -480,28 +480,31 @@ export function Globe({
       {/* User's country green dot overlay with pulse effect */}
       {userCoords && (
         <>
-          {/* Pulse ring - size based on usage */}
+          {/* Pulse ring - size based on usage, opacity based on filter */}
           <div
             ref={pulseRingRef}
-            className="absolute pointer-events-none animate-pulse-ring"
+            className={`absolute pointer-events-none transition-all duration-500 ${scopeFilter === "country" ? "animate-pulse-ring" : ""}`}
             style={{
               width: pulseRingSize,
               height: pulseRingSize,
               borderRadius: "50%",
-              border: "2px solid #10b981",
+              border: `2px solid ${scopeFilter === "country" ? "#10b981" : "rgba(16, 185, 129, 0.3)"}`,
               transform: "translate(-50%, -50%)",
             }}
           />
-          {/* Main dot - size based on usage */}
+          {/* Main dot - size based on usage, glow based on filter */}
           <div
             ref={userDotRef}
-            className="absolute pointer-events-none transition-opacity duration-200 animate-pulse-glow"
+            className={`absolute pointer-events-none transition-all duration-500 ${scopeFilter === "country" ? "animate-pulse-glow" : ""}`}
             style={{
               width: userDotSize,
               height: userDotSize,
               borderRadius: "50%",
-              backgroundColor: "#10b981",
-              boxShadow: "0 0 6px #10b981, 0 0 12px #10b981",
+              backgroundColor: scopeFilter === "country" ? "#10b981" : "rgba(16, 185, 129, 0.4)",
+              boxShadow:
+                scopeFilter === "country"
+                  ? "0 0 8px #10b981, 0 0 16px #10b981, 0 0 24px #10b981"
+                  : "0 0 4px rgba(16, 185, 129, 0.3)",
               transform: "translate(-50%, -50%)",
             }}
           />

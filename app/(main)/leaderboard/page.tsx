@@ -1,21 +1,30 @@
 "use client";
 
-import { useState, useMemo, useEffect, useCallback, useRef } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
 import Image from "next/image";
 import ReactCountryFlag from "react-country-flag";
 import { useUser } from "@clerk/nextjs";
 import { ProfileSidePanel } from "@/components/leaderboard/ProfileSidePanel";
-import { LiveStatsTicker } from "@/components/stats/LiveStatsTicker";
+import { GlobeStatsSection } from "@/components/leaderboard/GlobeStatsSection";
+import { TopCountriesSection } from "@/components/leaderboard/TopCountriesSection";
 import { LEVELS, getLevelByTokens } from "@/lib/constants/levels";
+import { Info } from "lucide-react";
 import type { LeaderboardUser, PeriodFilter, ScopeFilter, SortByFilter } from "@/lib/types";
 
-// Format numbers properly
+interface CountryStat {
+  code: string;
+  name: string;
+  tokens: number;
+  cost: number;
+}
+
+// Format numbers - compact display (K/M/B for 1000+, plain for <1000)
 function formatTokens(num: number): string {
   if (num >= 1_000_000_000) return `${(num / 1_000_000_000).toFixed(1)}B`;
   if (num >= 1_000_000) return `${(num / 1_000_000).toFixed(1)}M`;
   if (num >= 1_000) return `${(num / 1_000).toFixed(1)}K`;
-  return num.toLocaleString();
+  return num.toString();
 }
 
 // Country Flag with Popover
@@ -58,88 +67,62 @@ function formatLevelRange(min: number, max: number): string {
 
 // Level Badge with Popover
 function LevelBadge({ tokens }: { tokens: number }) {
-  const [isHovered, setIsHovered] = useState(false);
-  const [popoverPos, setPopoverPos] = useState({ top: 0, left: 0 });
-  const badgeRef = useRef<HTMLDivElement>(null);
   const currentLevel = getLevelByTokens(tokens);
   const useCssClass = currentLevel.level === 5 || currentLevel.level === 6;
 
-  const handleMouseEnter = () => {
-    if (badgeRef.current) {
-      const rect = badgeRef.current.getBoundingClientRect();
-      // Position to the left of the badge, vertically centered
-      setPopoverPos({
-        top: rect.top + rect.height / 2,
-        left: rect.left - 8, // 8px gap from badge
-      });
-    }
-    setIsHovered(true);
-  };
+  return (
+    <span
+      className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${
+        useCssClass ? `level-badge-${currentLevel.level}` : ""
+      }`}
+      style={
+        useCssClass
+          ? undefined
+          : { backgroundColor: `${currentLevel.color}20`, color: currentLevel.color }
+      }
+    >
+      {currentLevel.icon} Lv.{currentLevel.level}
+    </span>
+  );
+}
+
+// Level Info Popover Component
+function LevelInfoPopover({ isOpen }: { isOpen: boolean }) {
+  if (!isOpen) return null;
 
   return (
-    <div
-      ref={badgeRef}
-      className="relative inline-block"
-      onMouseEnter={handleMouseEnter}
-      onMouseLeave={() => setIsHovered(false)}
-    >
-      <span
-        className={`px-1.5 py-0.5 rounded text-[10px] font-medium cursor-default ${
-          useCssClass ? `level-badge-${currentLevel.level}` : ""
-        }`}
-        style={
-          useCssClass
-            ? undefined
-            : { backgroundColor: `${currentLevel.color}20`, color: currentLevel.color }
-        }
-      >
-        {currentLevel.icon} Lv.{currentLevel.level}
-      </span>
-      {isHovered && (
-        <div
-          className="fixed z-[100] w-56 p-2 bg-black/50 backdrop-blur-xl border border-white/10 rounded-lg"
-          style={{
-            top: popoverPos.top,
-            left: popoverPos.left,
-            transform: "translate(-100%, -50%)",
-          }}
-        >
-          <div className="text-[9px] text-[var(--color-text-muted)] uppercase tracking-wide mb-1.5">
-            Level System
-          </div>
-          <div className="space-y-0.5">
-            {LEVELS.map((level) => {
-              const isCurrentLevel = level.level === currentLevel.level;
-              const levelUseCssClass = level.level === 5 || level.level === 6;
-              return (
-                <div
-                  key={level.level}
-                  className={`flex items-center justify-between px-1.5 py-1 rounded text-[10px] ${
-                    isCurrentLevel ? "font-medium" : ""
-                  } ${isCurrentLevel && levelUseCssClass ? `level-badge-${level.level}` : ""}`}
-                  style={
-                    isCurrentLevel
-                      ? levelUseCssClass
-                        ? undefined
-                        : { backgroundColor: `${level.color}20`, color: level.color }
-                      : { color: "#9CA3AF" }
-                  }
-                >
-                  <div className="flex items-center gap-1.5">
-                    <span>{level.icon}</span>
-                    <span>
-                      Lv.{level.level} {level.name}
-                    </span>
-                  </div>
-                  <span className="text-[8px] opacity-70">
-                    {formatLevelRange(level.minTokens, level.maxTokens)}
-                  </span>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
+    <div className="absolute right-0 top-full mt-2 z-[100] w-56 p-2 bg-black/40 backdrop-blur-xl border border-white/10 rounded-lg">
+      <div className="text-[9px] text-[var(--color-text-muted)] uppercase tracking-wide mb-1.5">
+        Level System
+      </div>
+      <div className="space-y-0.5">
+        {LEVELS.map((level) => {
+          const useCssClass = level.level === 5 || level.level === 6;
+          return (
+            <div
+              key={level.level}
+              className={`flex items-center justify-between px-1.5 py-1 rounded text-[10px] ${
+                useCssClass ? `level-badge-${level.level}` : ""
+              }`}
+              style={
+                useCssClass
+                  ? undefined
+                  : { backgroundColor: `${level.color}20`, color: level.color }
+              }
+            >
+              <div className="flex items-center gap-1.5">
+                <span>{level.icon}</span>
+                <span>
+                  Lv.{level.level} {level.name}
+                </span>
+              </div>
+              <span className="text-[8px] opacity-70">
+                ⚡ {formatLevelRange(level.minTokens, level.maxTokens)}
+              </span>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -163,6 +146,7 @@ export default function LeaderboardPage() {
   const [periodFilter, setPeriodFilter] = useState<PeriodFilter>("all");
   const [scopeFilter, setScopeFilter] = useState<ScopeFilter>("global");
   const [sortBy, setSortBy] = useState<SortByFilter>("tokens");
+  const [showLevelInfo, setShowLevelInfo] = useState(false);
   const [isAnimating, setIsAnimating] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
   const [panelWidth, setPanelWidth] = useState(0);
@@ -181,6 +165,21 @@ export default function LeaderboardPage() {
   const [currentUserCountry, setCurrentUserCountry] = useState<string>("KR");
   const [currentUsername, setCurrentUsername] = useState<string | null>(null);
   const [userInfoLoaded, setUserInfoLoaded] = useState(false);
+
+  // Country stats state for Globe and Top Countries
+  const [countryStats, setCountryStats] = useState<CountryStat[]>([]);
+  const [totalGlobalTokens, setTotalGlobalTokens] = useState(0);
+  const [totalGlobalCost, setTotalGlobalCost] = useState(0);
+
+  // Handle country stats loaded from GlobeStatsSection
+  const handleCountryStatsLoaded = useCallback(
+    (stats: CountryStat[], tokens: number, cost: number) => {
+      setCountryStats(stats);
+      setTotalGlobalTokens(tokens);
+      setTotalGlobalCost(cost);
+    },
+    []
+  );
 
   // Fetch leaderboard data
   const fetchLeaderboard = useCallback(async () => {
@@ -487,14 +486,11 @@ export default function LeaderboardPage() {
             marginRight: isPanelOpen && panelWidth > 0 ? `${panelWidth}px` : "auto",
           }}
         >
-          {/* Header */}
+          {/* Header - Simplified */}
           <div className="mb-6">
-            {/* Mobile: stacked layout with Stats ticker on right */}
             <div className="flex items-start justify-between gap-3 mb-2">
               <div className="flex-1 min-w-0">
-                {/* Title - Mobile: 2 lines, Desktop: 1 line */}
                 <h1 className="text-2xl md:text-3xl font-semibold text-[var(--color-text-primary)]">
-                  {/* Mobile: scope on first line, Leaderboard on second */}
                   <span className="sm:hidden flex flex-col gap-0.5">
                     <span className="flex items-center gap-2">
                       {scopeFilter === "global" ? (
@@ -512,7 +508,6 @@ export default function LeaderboardPage() {
                     </span>
                     <span>Leaderboard</span>
                   </span>
-                  {/* Desktop: single line */}
                   <span className="hidden sm:flex items-center gap-2">
                     {scopeFilter === "global" ? (
                       <>🌍 Global</>
@@ -529,418 +524,500 @@ export default function LeaderboardPage() {
                     Leaderboard
                   </span>
                 </h1>
-                {/* Description */}
                 <p className="text-xs sm:text-sm text-[var(--color-text-muted)] mt-1 whitespace-nowrap">
                   Top Claude Code developers ranked by{" "}
                   {sortBy === "tokens" ? "token usage" : "spending"}
                 </p>
               </div>
-              {/* Live Stats Ticker - aligned right */}
-              <LiveStatsTicker
-                variant="compact"
-                className="px-3 py-2 rounded-lg bg-[var(--color-filter-bg)] border border-[var(--border-default)] min-w-[120px] flex-shrink-0"
-                userCountryCode={currentUserCountry}
-                useRealData={true}
-              />
             </div>
           </div>
 
-          {/* Filters */}
-          <div className="flex items-center justify-between gap-1.5 sm:gap-2 md:gap-3 mb-6">
-            <div className="flex items-center gap-1.5 sm:gap-2 md:gap-3 flex-shrink-0">
-              {/* Scope Filter */}
-              <div className="flex p-0.5 sm:p-1 bg-[var(--color-filter-bg)] border border-[var(--border-default)] rounded-lg gap-0.5 sm:gap-1 flex-shrink-0">
-                <button
-                  onClick={() => setScopeFilter("global")}
-                  className={`min-w-[32px] px-2 sm:px-2.5 py-1.5 rounded-md text-sm md:text-xs font-medium transition-colors flex items-center justify-center ${
-                    scopeFilter === "global"
-                      ? "bg-[var(--color-claude-coral)] text-white"
-                      : "text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-filter-hover)]"
-                  }`}
-                >
-                  🌍
-                </button>
-                <button
-                  onClick={() => setScopeFilter("country")}
-                  className={`min-w-[32px] px-2 sm:px-2.5 py-1.5 rounded-md text-sm md:text-xs font-medium transition-colors flex items-center justify-center ${
-                    scopeFilter === "country"
-                      ? "bg-[var(--color-claude-coral)] text-white"
-                      : "text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-filter-hover)]"
-                  }`}
-                >
-                  <ReactCountryFlag
-                    countryCode={currentUserCountry}
-                    svg
-                    style={{ width: "16px", height: "16px" }}
-                    className="flex-shrink-0"
+          {/* 2-Column Layout: Globe+Countries (left, 50%) + Users (right, 50%) */}
+          <div className="flex flex-col lg:flex-row gap-4">
+            {/* Left Column: Globe + Top Countries - 50% width on lg+ */}
+            <div className="hidden lg:block lg:w-1/2">
+              <div className="sticky top-24 space-y-4">
+                {/* Globe Section - Large, centered in left column */}
+                <div className="p-4">
+                  <GlobeStatsSection
+                    userCountryCode={currentUserCountry}
+                    onStatsLoaded={handleCountryStatsLoaded}
+                    size="large"
+                    scopeFilter={scopeFilter}
                   />
-                </button>
-              </div>
-
-              {/* Divider - hidden on smallest screens */}
-              <div className="hidden sm:block h-6 w-px bg-[var(--border-default)]" />
-
-              {/* Period Filter - Desktop/Tablet: buttons, Mobile: dropdown */}
-              {/* Desktop & Tablet: Button Group */}
-              <div className="hidden sm:flex p-0.5 sm:p-1 bg-[var(--color-filter-bg)] border border-[var(--border-default)] rounded-lg gap-0.5 sm:gap-1">
-                {[
-                  { value: "all", label: "∞", labelFull: "All Time" },
-                  { value: "today", label: "1D", labelFull: "Today" },
-                  { value: "7d", label: "7D" },
-                  { value: "30d", label: "30D" },
-                ].map((period) => (
-                  <button
-                    key={period.value}
-                    onClick={() => setPeriodFilter(period.value as PeriodFilter)}
-                    className={`px-2 lg:px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
-                      periodFilter === period.value
-                        ? "bg-[var(--color-filter-active)] text-[var(--color-text-primary)]"
-                        : "text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-filter-hover)]"
-                    }`}
-                  >
-                    {/* Tablet: icon only, PC: full text */}
-                    <span className="lg:hidden">{period.label}</span>
-                    <span className="hidden lg:inline">{period.labelFull || period.label}</span>
-                  </button>
-                ))}
-              </div>
-              {/* Mobile: Dropdown */}
-              <div className="relative sm:hidden">
-                <select
-                  value={periodFilter}
-                  onChange={(e) => setPeriodFilter(e.target.value as PeriodFilter)}
-                  className="appearance-none px-3 py-1.5 pr-7 bg-[var(--color-filter-bg)] border border-[var(--border-default)] rounded-lg text-xs font-medium text-[var(--color-text-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--color-claude-coral)]"
-                >
-                  <option value="all">All Time</option>
-                  <option value="today">Today</option>
-                  <option value="7d">7D</option>
-                  <option value="30d">30D</option>
-                </select>
-                <span className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-[var(--color-text-muted)] text-[10px]">
-                  ▼
-                </span>
-              </div>
-            </div>
-
-            {/* Right side - My Rank & Sort */}
-            <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
-              {(myRankInfo || currentUserData) && (
-                <button
-                  onClick={goToMyRank}
-                  className="flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 lg:px-3 py-1.5 bg-[var(--color-filter-bg)] border border-[var(--border-default)] hover:bg-[var(--color-filter-hover)] rounded-lg text-xs font-medium text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] transition-colors flex-shrink-0"
-                >
-                  <span>📍</span>
-                  <span className="hidden lg:inline">My Rank</span>
-                  <span className="text-[var(--color-claude-coral)] font-semibold">
-                    #{myRankInfo?.rank || currentUserData?.rank}
-                  </span>
-                </button>
-              )}
-
-              <div className="flex p-0.5 sm:p-1 bg-[var(--color-filter-bg)] border border-[var(--border-default)] rounded-lg gap-0.5 sm:gap-1 flex-shrink-0">
-                <button
-                  onClick={() => setSortBy("cost")}
-                  className={`min-w-[32px] px-2 sm:px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors flex items-center justify-center ${
-                    sortBy === "cost"
-                      ? "bg-[var(--color-cost)] text-white"
-                      : "text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-filter-hover)]"
-                  }`}
-                >
-                  💵
-                </button>
-                <button
-                  onClick={() => setSortBy("tokens")}
-                  className={`min-w-[32px] px-2 sm:px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors flex items-center justify-center ${
-                    sortBy === "tokens"
-                      ? "bg-[var(--color-claude-coral)] text-white"
-                      : "text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-filter-hover)]"
-                  }`}
-                >
-                  🪙
-                </button>
-              </div>
-            </div>
-          </div>
-
-          {/* Loading State */}
-          {loading && (
-            <div className="flex items-center justify-center py-20">
-              <div className="flex flex-col items-center gap-3">
-                <div className="w-8 h-8 border-2 border-[var(--color-claude-coral)] border-t-transparent rounded-full animate-spin" />
-                <p className="text-sm text-[var(--color-text-muted)]">Loading leaderboard...</p>
-              </div>
-            </div>
-          )}
-
-          {/* Error State */}
-          {error && !loading && (
-            <div className="flex items-center justify-center py-20">
-              <div className="flex flex-col items-center gap-3 text-center">
-                <span className="text-4xl">⚠️</span>
-                <p className="text-sm text-[var(--color-text-muted)]">{error}</p>
-                <button
-                  onClick={fetchLeaderboard}
-                  className="px-4 py-2 text-sm bg-[var(--color-claude-coral)] text-white rounded-lg hover:opacity-90 transition-opacity"
-                >
-                  Retry
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* Empty State */}
-          {!loading && !error && users.length === 0 && (
-            <div className="flex items-center justify-center py-20">
-              <div className="flex flex-col items-center gap-3 text-center">
-                <span className="text-4xl">📭</span>
-                <p className="text-sm text-[var(--color-text-muted)]">No users found</p>
-                <p className="text-xs text-[var(--color-text-muted)]">
-                  Be the first to join the leaderboard!
-                </p>
-              </div>
-            </div>
-          )}
-
-          {/* Leaderboard Table */}
-          {!loading && !error && users.length > 0 && (
-            <>
-              <div className="glass rounded-2xl overflow-visible border border-[var(--border-default)]">
-                <div className="overflow-x-auto rounded-2xl">
-                  <table className="w-full table-fixed">
-                    <colgroup>
-                      <col className="w-[40px] md:w-[60px]" />
-                      <col className="w-[28px] md:w-[44px]" />
-                      <col />
-                      <col className="hidden md:table-column w-[70px]" />
-                      <col className="w-[50px] md:w-[90px]" />
-                      <col className="w-[52px] md:w-[70px]" />
-                    </colgroup>
-                    <thead>
-                      <tr className="border-b border-[var(--border-default)]">
-                        <th className="text-center text-text-secondary font-medium text-xs py-2.5 px-0.5 md:px-1">
-                          Rank
-                        </th>
-                        <th className="text-center text-text-secondary font-medium text-xs py-2.5 px-0.5 md:px-1">
-                          C
-                        </th>
-                        <th className="text-left text-text-secondary font-medium text-xs py-2.5 px-1">
-                          User
-                        </th>
-                        <th className="hidden md:table-cell text-center text-text-secondary font-medium text-xs py-2.5 px-1">
-                          Level
-                        </th>
-                        <th className="text-center text-text-secondary font-medium text-xs py-2.5 px-0.5 md:px-1">
-                          <span className="md:hidden">$</span>
-                          <span className="hidden md:inline">Cost</span>
-                        </th>
-                        <th className="text-right text-text-secondary font-medium text-xs py-2.5 pl-0.5 pr-2 md:pr-4">
-                          <span className="md:hidden">🪙</span>
-                          <span className="hidden md:inline">Tokens</span>
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {users.map((user, index) => {
-                        const isFirst = user.rank === 1;
-                        const isTopThree = user.rank <= 3;
-                        const rowPadding = isFirst
-                          ? "py-2 lg:py-3"
-                          : isTopThree
-                            ? "py-2 lg:py-2.5"
-                            : "py-2";
-                        const avatarSize = isFirst
-                          ? "w-6 h-6 lg:w-8 lg:h-8"
-                          : isTopThree
-                            ? "w-6 h-6 lg:w-7 lg:h-7"
-                            : "w-6 h-6";
-                        const avatarText = isFirst ? "text-xs lg:text-sm" : "text-xs";
-                        const nameSize = isFirst ? "text-xs lg:text-sm" : "text-xs";
-                        const rankSize = isFirst
-                          ? "text-base lg:text-lg"
-                          : isTopThree
-                            ? "text-base"
-                            : "text-xs";
-                        const flagSize = 16;
-                        const valueSize = "text-xs";
-
-                        const periodTokens = user.period_tokens ?? user.total_tokens;
-                        const periodCost = user.period_cost ?? user.total_cost;
-
-                        return (
-                          <tr
-                            key={`${scopeFilter}-${periodFilter}-${sortBy}-${user.id}`}
-                            data-user-id={user.id}
-                            onClick={() => handleRowClick(user)}
-                            className={`border-b border-[var(--border-default)] transition-all cursor-pointer hover:!bg-[var(--color-table-row-hover)] ${
-                              user.isCurrentUser ? "bg-primary/5" : ""
-                            } ${selectedUser?.id === user.id && isPanelOpen ? "!bg-[var(--color-table-row-hover)]" : ""} ${
-                              user.isCurrentUser && highlightMyRank
-                                ? "!bg-[var(--color-claude-coral)]/20 ring-2 ring-[var(--color-claude-coral)]"
-                                : ""
-                            } ${
-                              highlightedUsername &&
-                              user.username.toLowerCase() === highlightedUsername
-                                ? "!bg-[var(--color-claude-coral)]/20 ring-2 ring-[var(--color-claude-coral)] animate-pulse"
-                                : ""
-                            }`}
-                            style={{
-                              backgroundColor:
-                                !user.isCurrentUser &&
-                                !(selectedUser?.id === user.id && isPanelOpen) &&
-                                !highlightMyRank &&
-                                !(
-                                  highlightedUsername &&
-                                  user.username.toLowerCase() === highlightedUsername
-                                ) &&
-                                index % 2 === 1
-                                  ? "var(--color-table-row-even)"
-                                  : undefined,
-                              animation:
-                                isMounted && isAnimating
-                                  ? `fadeSlideIn 0.2s ease-out ${Math.pow(index, 0.35) * 0.225}s both`
-                                  : "none",
-                            }}
-                          >
-                            <td className={`${rowPadding} px-1 md:px-2 text-center align-middle`}>
-                              <span
-                                className={`text-text-primary font-mono ${rankSize} leading-none`}
-                              >
-                                {user.rank <= 3
-                                  ? ["🥇", "🥈", "🥉"][user.rank - 1]
-                                  : `#${user.rank}`}
-                              </span>
-                            </td>
-                            <td className={`${rowPadding} px-1 text-center align-middle`}>
-                              {user.country_code && (
-                                <span className="inline-block translate-y-[3px]">
-                                  <CountryFlag countryCode={user.country_code} size={flagSize} />
-                                </span>
-                              )}
-                            </td>
-                            <td className={`${rowPadding} px-1 md:px-2`}>
-                              <div className="flex items-center gap-1.5">
-                                <div className="w-6 lg:w-8 flex items-center justify-center flex-shrink-0">
-                                  {user.avatar_url ? (
-                                    <Image
-                                      src={user.avatar_url}
-                                      alt={user.username}
-                                      width={32}
-                                      height={32}
-                                      className={`${avatarSize} rounded-full object-cover`}
-                                    />
-                                  ) : (
-                                    <div
-                                      className={`${avatarSize} rounded-full bg-gradient-to-br from-primary to-[#F7931E] flex items-center justify-center text-white ${avatarText} font-semibold`}
-                                    >
-                                      {user.username.charAt(0).toUpperCase()}
-                                    </div>
-                                  )}
-                                </div>
-                                <span
-                                  className={`${nameSize} font-medium text-text-primary truncate`}
-                                >
-                                  {user.display_name || user.username}
-                                </span>
-                              </div>
-                            </td>
-                            <td
-                              className={`hidden md:table-cell ${rowPadding} px-1 text-center`}
-                              onClick={(e) => e.stopPropagation()}
-                            >
-                              <LevelBadge tokens={user.total_tokens} />
-                            </td>
-                            <td className={`${rowPadding} px-0.5 md:px-2 text-center`}>
-                              <span className={`text-[var(--color-cost)] font-mono ${valueSize}`}>
-                                <span className="md:hidden">
-                                  $
-                                  {periodCost >= 1_000_000
-                                    ? `${(periodCost / 1_000_000).toFixed(1)}M`
-                                    : periodCost >= 1000
-                                      ? `${(periodCost / 1000).toFixed(1)}k`
-                                      : periodCost.toFixed(0)}
-                                </span>
-                                <span className="hidden md:inline">
-                                  $
-                                  {periodCost.toLocaleString(undefined, {
-                                    minimumFractionDigits: 0,
-                                    maximumFractionDigits: 0,
-                                  })}
-                                </span>
-                              </span>
-                            </td>
-                            <td className={`${rowPadding} pl-0.5 pr-2 md:pr-4 text-right`}>
-                              <span
-                                className={`text-[var(--color-claude-coral)] font-mono ${valueSize}`}
-                              >
-                                {formatTokens(periodTokens)}
-                              </span>
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
                 </div>
+
+                {/* Top Countries - Scrollable */}
+                {countryStats.length > 0 && (
+                  <div className="glass rounded-2xl p-4 border border-[var(--border-default)] max-h-[400px] overflow-y-auto">
+                    <TopCountriesSection
+                      stats={countryStats}
+                      totalTokens={totalGlobalTokens}
+                      totalCost={totalGlobalCost}
+                      sortBy={sortBy}
+                      userCountryCode={currentUserCountry}
+                      maxItems={15}
+                    />
+                  </div>
+                )}
               </div>
+            </div>
 
-              {/* Pagination */}
-              {totalPages > 1 && (
-                <div className="flex items-center justify-center mt-8 gap-2">
-                  <button
-                    onClick={() => handlePageChange(Math.max(1, currentPage - 1))}
-                    disabled={currentPage === 1}
-                    className="w-10 h-10 rounded-lg text-sm font-medium text-text-secondary hover:text-text-primary hover:bg-white/10 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-                  >
-                    ‹
-                  </button>
+            {/* Right Column: User Table - 50% width on lg+ */}
+            <div className="lg:w-1/2">
+              {/* Filters - Above Table */}
+              <div className="flex items-center justify-between gap-1.5 sm:gap-2 md:gap-3 mb-4">
+                <div className="flex items-center gap-1.5 sm:gap-2 md:gap-3 flex-shrink-0">
+                  {/* Scope Filter */}
+                  <div className="flex p-0.5 sm:p-1 bg-[var(--color-filter-bg)] border border-[var(--border-default)] rounded-lg gap-0.5 sm:gap-1 flex-shrink-0">
+                    <button
+                      onClick={() => setScopeFilter("global")}
+                      className={`min-w-[32px] px-2 sm:px-2.5 py-1.5 rounded-md text-sm md:text-xs font-medium transition-colors flex items-center justify-center ${
+                        scopeFilter === "global"
+                          ? "bg-[var(--color-claude-coral)]/50 text-[var(--color-claude-coral)]"
+                          : "text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-filter-hover)]"
+                      }`}
+                    >
+                      🌍
+                    </button>
+                    <button
+                      onClick={() => setScopeFilter("country")}
+                      className={`min-w-[32px] px-2 sm:px-2.5 py-1.5 rounded-md text-sm md:text-xs font-medium transition-colors flex items-center justify-center ${
+                        scopeFilter === "country"
+                          ? "bg-[var(--color-claude-coral)]/50 text-[var(--color-claude-coral)]"
+                          : "text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-filter-hover)]"
+                      }`}
+                    >
+                      <ReactCountryFlag
+                        countryCode={currentUserCountry}
+                        svg
+                        style={{ width: "16px", height: "16px" }}
+                        className="flex-shrink-0"
+                      />
+                    </button>
+                  </div>
 
-                  {(() => {
-                    const pages: (number | string)[] = [];
-                    const showEllipsisStart = currentPage > 3;
-                    const showEllipsisEnd = currentPage < totalPages - 2;
+                  {/* Divider */}
+                  <div className="hidden sm:block h-6 w-px bg-[var(--border-default)]" />
 
-                    if (totalPages <= 7) {
-                      for (let i = 1; i <= totalPages; i++) pages.push(i);
-                    } else {
-                      pages.push(1);
-                      if (showEllipsisStart) pages.push("...");
-                      const start = Math.max(2, currentPage - 1);
-                      const end = Math.min(totalPages - 1, currentPage + 1);
-                      for (let i = start; i <= end; i++) pages.push(i);
-                      if (showEllipsisEnd) pages.push("...");
-                      pages.push(totalPages);
-                    }
-
-                    return pages.map((page, i) => (
+                  {/* Period Filter - Desktop: buttons, Mobile: dropdown */}
+                  <div className="hidden sm:flex p-0.5 sm:p-1 bg-[var(--color-filter-bg)] border border-[var(--border-default)] rounded-lg gap-0.5 sm:gap-1">
+                    {[
+                      { value: "all", label: "∞", labelFull: "All Time" },
+                      { value: "today", label: "1D", labelFull: "Today" },
+                      { value: "7d", label: "7D" },
+                      { value: "30d", label: "30D" },
+                    ].map((period) => (
                       <button
-                        key={i}
-                        onClick={() => typeof page === "number" && handlePageChange(page)}
-                        disabled={page === "..."}
-                        className={`w-10 h-10 rounded-lg text-sm font-medium transition-colors ${
-                          page === currentPage
-                            ? "bg-[var(--color-claude-coral)] text-white"
-                            : page === "..."
-                              ? "text-text-muted cursor-default"
-                              : "text-text-secondary hover:text-text-primary hover:bg-white/10"
+                        key={period.value}
+                        onClick={() => setPeriodFilter(period.value as PeriodFilter)}
+                        className={`px-2 lg:px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                          periodFilter === period.value
+                            ? "bg-[var(--color-filter-active)] text-[var(--color-text-primary)]"
+                            : "text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-filter-hover)]"
                         }`}
                       >
-                        {page}
+                        <span className="lg:hidden">{period.label}</span>
+                        <span className="hidden lg:inline">{period.labelFull || period.label}</span>
                       </button>
-                    ));
-                  })()}
+                    ))}
+                  </div>
+                  {/* Mobile: Dropdown */}
+                  <div className="relative sm:hidden">
+                    <select
+                      value={periodFilter}
+                      onChange={(e) => setPeriodFilter(e.target.value as PeriodFilter)}
+                      className="appearance-none px-3 py-1.5 pr-7 bg-[var(--color-filter-bg)] border border-[var(--border-default)] rounded-lg text-xs font-medium text-[var(--color-text-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--color-claude-coral)]"
+                    >
+                      <option value="all">All Time</option>
+                      <option value="today">Today</option>
+                      <option value="7d">7D</option>
+                      <option value="30d">30D</option>
+                    </select>
+                    <span className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-[var(--color-text-muted)] text-[10px]">
+                      ▼
+                    </span>
+                  </div>
+                </div>
 
-                  <button
-                    onClick={() => handlePageChange(Math.min(totalPages, currentPage + 1))}
-                    disabled={currentPage === totalPages}
-                    className="w-10 h-10 rounded-lg text-sm font-medium text-text-secondary hover:text-text-primary hover:bg-white/10 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                {/* Right side - My Rank, Level Info & Sort */}
+                <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
+                  {(myRankInfo || currentUserData) && (
+                    <button
+                      onClick={goToMyRank}
+                      className="flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 lg:px-3 py-1.5 bg-[var(--color-filter-bg)] border border-[var(--border-default)] hover:bg-[var(--color-filter-hover)] rounded-lg text-xs font-medium text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] transition-colors flex-shrink-0"
+                    >
+                      <span>📍</span>
+                      <span className="hidden lg:inline">My Rank</span>
+                      <span className="text-[var(--color-claude-coral)] font-semibold">
+                        #{myRankInfo?.rank || currentUserData?.rank}
+                      </span>
+                    </button>
+                  )}
+
+                  {/* Level Info Hover */}
+                  <div
+                    className="relative"
+                    onMouseEnter={() => setShowLevelInfo(true)}
+                    onMouseLeave={() => setShowLevelInfo(false)}
                   >
-                    ›
-                  </button>
+                    <div className="min-w-[32px] px-2 sm:px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors flex items-center justify-center text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] cursor-help">
+                      <Info className="w-4 h-4" />
+                    </div>
+                    <LevelInfoPopover isOpen={showLevelInfo} />
+                  </div>
 
-                  <span className="ml-4 text-xs text-text-muted">{total} users</span>
+                  <div className="flex p-0.5 sm:p-1 bg-[var(--color-filter-bg)] border border-[var(--border-default)] rounded-lg gap-0.5 sm:gap-1 flex-shrink-0">
+                    <button
+                      onClick={() => setSortBy("cost")}
+                      title="Sort by Cost"
+                      className={`min-w-[32px] px-2 sm:px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors flex items-center justify-center ${
+                        sortBy === "cost"
+                          ? "bg-[var(--color-cost)]/50 text-[var(--color-cost)]"
+                          : "text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-filter-hover)]"
+                      }`}
+                    >
+                      💰
+                    </button>
+                    <button
+                      onClick={() => setSortBy("tokens")}
+                      title="Sort by Tokens"
+                      className={`min-w-[32px] px-2 sm:px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors flex items-center justify-center ${
+                        sortBy === "tokens"
+                          ? "bg-[var(--color-claude-coral)]/50 text-[var(--color-claude-coral)]"
+                          : "text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-filter-hover)]"
+                      }`}
+                    >
+                      ⚡
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Loading State */}
+              {loading && (
+                <div className="flex items-center justify-center py-20">
+                  <div className="flex flex-col items-center gap-3">
+                    <div className="w-8 h-8 border-2 border-[var(--color-claude-coral)] border-t-transparent rounded-full animate-spin" />
+                    <p className="text-sm text-[var(--color-text-muted)]">Loading leaderboard...</p>
+                  </div>
                 </div>
               )}
-            </>
+
+              {/* Error State */}
+              {error && !loading && (
+                <div className="flex items-center justify-center py-20">
+                  <div className="flex flex-col items-center gap-3 text-center">
+                    <span className="text-4xl">⚠️</span>
+                    <p className="text-sm text-[var(--color-text-muted)]">{error}</p>
+                    <button
+                      onClick={fetchLeaderboard}
+                      className="px-4 py-2 text-sm bg-[var(--color-claude-coral)] text-white rounded-lg hover:opacity-90 transition-opacity"
+                    >
+                      Retry
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Empty State */}
+              {!loading && !error && users.length === 0 && (
+                <div className="flex items-center justify-center py-20">
+                  <div className="flex flex-col items-center gap-3 text-center">
+                    <span className="text-4xl">📭</span>
+                    <p className="text-sm text-[var(--color-text-muted)]">No users found</p>
+                    <p className="text-xs text-[var(--color-text-muted)]">
+                      Be the first to join the leaderboard!
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* Leaderboard Table */}
+              {!loading && !error && users.length > 0 && (
+                <>
+                  <div className="glass rounded-2xl overflow-visible border border-[var(--border-default)]">
+                    <div className="overflow-x-auto rounded-2xl">
+                      <table className="w-full table-fixed">
+                        <colgroup>
+                          <col className="w-[36px] md:w-[44px]" />
+                          <col className="w-[36px] md:w-[44px]" />
+                          <col />
+                          <col className="hidden md:table-column w-[70px]" />
+                          <col className="w-[56px] md:w-[80px]" />
+                          <col className="w-[56px] md:w-[70px]" />
+                        </colgroup>
+                        <thead>
+                          <tr className="border-b border-[var(--border-default)]">
+                            <th
+                              className="text-center align-middle text-text-secondary font-medium text-xs py-2.5 px-0.5 md:px-1"
+                              title="Rank"
+                            >
+                              🏆
+                            </th>
+                            <th
+                              className="text-center align-middle text-text-secondary font-medium text-xs py-2.5 px-0.5 md:px-1"
+                              title="Country"
+                            >
+                              🌍
+                            </th>
+                            <th
+                              className="align-middle text-text-secondary font-medium text-xs py-2.5 px-1 md:px-2"
+                              title="User"
+                            >
+                              <div className="flex items-center">
+                                <div className="w-6 lg:w-8 flex justify-center">👤</div>
+                              </div>
+                            </th>
+                            <th
+                              className="hidden md:table-cell text-center align-middle text-text-secondary font-medium text-xs py-2.5 px-1"
+                              title="Level"
+                            >
+                              ⭐
+                            </th>
+                            <th
+                              className="text-center align-middle text-text-secondary font-medium text-xs py-2.5 px-0.5 md:px-1"
+                              title="Cost"
+                            >
+                              💰
+                            </th>
+                            <th
+                              className="text-right align-middle text-text-secondary font-medium text-xs py-2.5 pl-0.5 pr-2 md:pr-4"
+                              title="Tokens"
+                            >
+                              ⚡
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {users.map((user, index) => {
+                            const isFirst = user.rank === 1;
+                            const isTopThree = user.rank <= 3;
+                            const rowPadding = isFirst
+                              ? "py-2 lg:py-3"
+                              : isTopThree
+                                ? "py-2 lg:py-2.5"
+                                : "py-2";
+                            const avatarSize = isFirst
+                              ? "w-6 h-6 lg:w-8 lg:h-8"
+                              : isTopThree
+                                ? "w-6 h-6 lg:w-7 lg:h-7"
+                                : "w-6 h-6";
+                            const avatarText = isFirst ? "text-xs lg:text-sm" : "text-xs";
+                            const nameSize = "text-xs";
+                            const rankSize = isFirst
+                              ? "text-base lg:text-lg"
+                              : isTopThree
+                                ? "text-base"
+                                : "text-xs";
+                            const flagSize = 16;
+                            const valueSize = "text-xs";
+
+                            const periodTokens = user.period_tokens ?? user.total_tokens;
+                            const periodCost = user.period_cost ?? user.total_cost;
+
+                            return (
+                              <tr
+                                key={`${scopeFilter}-${periodFilter}-${sortBy}-${user.id}`}
+                                data-user-id={user.id}
+                                onClick={() => handleRowClick(user)}
+                                className={`border-b border-[var(--border-default)] transition-all cursor-pointer hover:!bg-[var(--color-table-row-hover)] ${
+                                  user.isCurrentUser ? "bg-primary/5" : ""
+                                } ${selectedUser?.id === user.id && isPanelOpen ? "!bg-[var(--color-table-row-hover)]" : ""} ${
+                                  user.isCurrentUser && highlightMyRank
+                                    ? "!bg-[var(--color-claude-coral)]/50 ring-2 ring-[var(--color-claude-coral)]"
+                                    : ""
+                                } ${
+                                  highlightedUsername &&
+                                  user.username.toLowerCase() === highlightedUsername
+                                    ? "!bg-[var(--color-claude-coral)]/50 ring-2 ring-[var(--color-claude-coral)] animate-pulse"
+                                    : ""
+                                }`}
+                                style={{
+                                  backgroundColor:
+                                    !user.isCurrentUser &&
+                                    !(selectedUser?.id === user.id && isPanelOpen) &&
+                                    !highlightMyRank &&
+                                    !(
+                                      highlightedUsername &&
+                                      user.username.toLowerCase() === highlightedUsername
+                                    ) &&
+                                    index % 2 === 1
+                                      ? "var(--color-table-row-even)"
+                                      : undefined,
+                                  animation:
+                                    isMounted && isAnimating
+                                      ? `fadeSlideIn 0.2s ease-out ${Math.pow(index, 0.35) * 0.225}s both`
+                                      : "none",
+                                }}
+                              >
+                                <td
+                                  className={`${rowPadding} px-1 md:px-2 text-center align-middle`}
+                                >
+                                  <span
+                                    className={`text-text-primary font-mono ${rankSize} leading-none`}
+                                  >
+                                    {user.rank <= 3
+                                      ? ["🥇", "🥈", "🥉"][user.rank - 1]
+                                      : `#${user.rank}`}
+                                  </span>
+                                </td>
+                                <td className={`${rowPadding} px-1 text-center align-middle`}>
+                                  {user.country_code && (
+                                    <span className="inline-block translate-y-[3px]">
+                                      <CountryFlag
+                                        countryCode={user.country_code}
+                                        size={flagSize}
+                                      />
+                                    </span>
+                                  )}
+                                </td>
+                                <td className={`${rowPadding} px-1 md:px-2`}>
+                                  <div className="flex items-center gap-1.5">
+                                    <div className="w-6 lg:w-8 flex items-center justify-center flex-shrink-0">
+                                      {user.avatar_url ? (
+                                        <Image
+                                          src={user.avatar_url}
+                                          alt={user.username}
+                                          width={32}
+                                          height={32}
+                                          className={`${avatarSize} rounded-full object-cover`}
+                                        />
+                                      ) : (
+                                        <div
+                                          className={`${avatarSize} rounded-full bg-gradient-to-br from-primary to-[#F7931E] flex items-center justify-center text-white ${avatarText} font-semibold`}
+                                        >
+                                          {user.username.charAt(0).toUpperCase()}
+                                        </div>
+                                      )}
+                                    </div>
+                                    <span
+                                      className={`${nameSize} font-medium text-text-primary truncate`}
+                                    >
+                                      {user.display_name || user.username}
+                                    </span>
+                                  </div>
+                                </td>
+                                <td
+                                  className={`hidden md:table-cell ${rowPadding} px-1 text-center`}
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  <LevelBadge tokens={user.total_tokens} />
+                                </td>
+                                <td className={`${rowPadding} px-0.5 md:px-2 text-center`}>
+                                  <span
+                                    className={`text-[var(--color-cost)] font-mono ${valueSize}`}
+                                  >
+                                    $
+                                    {periodCost >= 1_000_000
+                                      ? `${(periodCost / 1_000_000).toFixed(1)}M`
+                                      : periodCost >= 1_000
+                                        ? `${(periodCost / 1_000).toFixed(1)}K`
+                                        : periodCost.toFixed(0)}
+                                  </span>
+                                </td>
+                                <td className={`${rowPadding} pl-0.5 pr-2 md:pr-4 text-right`}>
+                                  <span
+                                    className={`text-[var(--color-claude-coral)] font-mono ${valueSize}`}
+                                  >
+                                    {formatTokens(periodTokens)}
+                                  </span>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+
+                  {/* Pagination */}
+                  {totalPages > 1 && (
+                    <div className="flex items-center justify-center mt-8 gap-2">
+                      <button
+                        onClick={() => handlePageChange(Math.max(1, currentPage - 1))}
+                        disabled={currentPage === 1}
+                        className="w-10 h-10 rounded-lg text-sm font-medium text-text-secondary hover:text-text-primary hover:bg-white/10 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                      >
+                        ‹
+                      </button>
+
+                      {(() => {
+                        const pages: (number | string)[] = [];
+                        const showEllipsisStart = currentPage > 3;
+                        const showEllipsisEnd = currentPage < totalPages - 2;
+
+                        if (totalPages <= 7) {
+                          for (let i = 1; i <= totalPages; i++) pages.push(i);
+                        } else {
+                          pages.push(1);
+                          if (showEllipsisStart) pages.push("...");
+                          const start = Math.max(2, currentPage - 1);
+                          const end = Math.min(totalPages - 1, currentPage + 1);
+                          for (let i = start; i <= end; i++) pages.push(i);
+                          if (showEllipsisEnd) pages.push("...");
+                          pages.push(totalPages);
+                        }
+
+                        return pages.map((page, i) => (
+                          <button
+                            key={i}
+                            onClick={() => typeof page === "number" && handlePageChange(page)}
+                            disabled={page === "..."}
+                            className={`w-10 h-10 rounded-lg text-sm font-medium transition-colors ${
+                              page === currentPage
+                                ? "bg-[var(--color-claude-coral)] text-white"
+                                : page === "..."
+                                  ? "text-text-muted cursor-default"
+                                  : "text-text-secondary hover:text-text-primary hover:bg-white/10"
+                            }`}
+                          >
+                            {page}
+                          </button>
+                        ));
+                      })()}
+
+                      <button
+                        onClick={() => handlePageChange(Math.min(totalPages, currentPage + 1))}
+                        disabled={currentPage === totalPages}
+                        className="w-10 h-10 rounded-lg text-sm font-medium text-text-secondary hover:text-text-primary hover:bg-white/10 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                      >
+                        ›
+                      </button>
+
+                      <span className="ml-4 text-xs text-text-muted">{total} users</span>
+                    </div>
+                  )}
+
+                  {/* Onboarding Copy */}
+                  <p className="text-center text-[11px] text-[var(--color-text-muted)]/60 mt-6">
+                    Sync your Claude Code usage to climb the leaderboard →{" "}
+                    <a
+                      href="https://github.com/anthropics/claude-code"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="underline hover:text-[var(--color-text-muted)]"
+                    >
+                      Get Started
+                    </a>
+                  </p>
+                </>
+              )}
+            </div>
+          </div>
+
+          {/* Top Countries Section - Only show below lg (lg+ has it in left column) */}
+          {countryStats.length > 0 && (
+            <div className="mt-8 lg:hidden glass rounded-2xl p-4 border border-[var(--border-default)]">
+              <TopCountriesSection
+                stats={countryStats}
+                totalTokens={totalGlobalTokens}
+                totalCost={totalGlobalCost}
+                sortBy={sortBy}
+                userCountryCode={currentUserCountry}
+                maxItems={10}
+              />
+            </div>
           )}
         </div>
       </div>

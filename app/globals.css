@@ -84,8 +84,8 @@
   --border-focus: rgba(218, 119, 86, 0.5);
 
   /* Glass Effect - Dark */
-  --glass-bg: rgba(255, 255, 255, 0.03);
-  --glass-border: rgba(255, 255, 255, 0.12);
+  --glass-bg: rgba(0, 0, 0, 0.4);
+  --glass-border: rgba(255, 255, 255, 0.092);
   --glass-blur: 12px;
 
   /* Shadows - Dark */
@@ -123,9 +123,9 @@
   --color-table-row-hover: rgba(255, 255, 255, 0.1);
 
   /* Filter Button Group */
-  --color-filter-bg: rgba(255, 255, 255, 0.05);
-  --color-filter-hover: rgba(255, 255, 255, 0.05);
-  --color-filter-active: rgba(255, 255, 255, 0.1);
+  --color-filter-bg: rgba(255, 255, 255, 0.025);
+  --color-filter-hover: rgba(255, 255, 255, 0.04);
+  --color-filter-active: rgba(255, 255, 255, 0.06);
 
   /* Section/Card inside panels */
   --color-section-bg: rgba(255, 255, 255, 0.05);
