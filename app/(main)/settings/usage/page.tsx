@@ -235,10 +235,11 @@ export default function SettingsUsagePage() {
 
   return (
     <div className="p-4 sm:p-6 space-y-2">
-      {/* Header - Single Row: Stats + Avatar | Filter */}
+      {/* Header - Single Row: Title + Stats | Avatar + Filter */}
       <div className="flex items-center justify-between gap-2">
-        {/* Left: Stats Pills + Avatar */}
+        {/* Left: Title + Stats Pills */}
         <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+          <h2 className="text-sm font-medium text-[var(--color-text-secondary)] mr-1">Heatmap</h2>
           {userStats && (
             <>
               <div className="flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 py-1 sm:py-1.5 rounded-lg bg-[var(--color-filter-bg)] border border-[var(--border-default)]">
