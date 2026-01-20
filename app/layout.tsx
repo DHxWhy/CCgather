@@ -82,10 +82,11 @@ export const metadata: Metadata = {
   },
   icons: {
     icon: [
-      { url: "/favicon.png", type: "image/png" },
-      { url: "/logo.png", sizes: "72x72", type: "image/png" },
+      { url: "/favicon.png", sizes: "144x144", type: "image/png" },
+      { url: "/favicon.png", sizes: "48x48", type: "image/png" },
     ],
-    apple: "/logo.png",
+    apple: { url: "/favicon.png", sizes: "144x144" },
+    shortcut: "/favicon.png",
   },
 };
 
