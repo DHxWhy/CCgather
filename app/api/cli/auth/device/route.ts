@@ -35,8 +35,8 @@ export async function POST() {
     return NextResponse.json({
       device_code: deviceCode,
       user_code: userCode,
-      verification_uri: `${process.env.NEXT_PUBLIC_APP_URL || "https://ccgather.dev"}/cli/auth`,
-      verification_uri_complete: `${process.env.NEXT_PUBLIC_APP_URL || "https://ccgather.dev"}/cli/auth?code=${userCode}`,
+      verification_uri: `${process.env.NEXT_PUBLIC_APP_URL || "https://ccgather.com"}/cli/auth`,
+      verification_uri_complete: `${process.env.NEXT_PUBLIC_APP_URL || "https://ccgather.com"}/cli/auth?code=${userCode}`,
       expires_in: 900, // 15 minutes in seconds
       interval: 5, // Poll every 5 seconds
     });

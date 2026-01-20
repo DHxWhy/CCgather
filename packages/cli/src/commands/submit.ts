@@ -65,11 +65,19 @@ interface BadgeInfo {
   earnedAt?: string;
 }
 
+interface PreviousDailyData {
+  date: string;
+  tokens: number;
+  cost: number;
+}
+
 interface PreviousSubmission {
   totalTokens: number;
   totalCost: number;
   lastSubmissionAt: string;
   sessionCount?: number;
+  previousDates?: string[];
+  previousDaily?: PreviousDailyData[];
 }
 
 interface SubmitResponse {
@@ -468,23 +476,9 @@ export async function submit(options: SubmitOptions): Promise<void> {
   console.log(
     `  ${colors.dim(`Scanned ${projectCount} project(s), ${usageData.dailyUsage.length} day(s) of data`)}`
   );
+  console.log();
 
-  // Confirm submission
-  const { confirmSubmit } = await inquirer.prompt([
-    {
-      type: "confirm",
-      name: "confirmSubmit",
-      message: "Submit to CCgather leaderboard?",
-      default: true,
-    },
-  ]);
-
-  if (!confirmSubmit) {
-    console.log(`\n  ${colors.muted("Submission cancelled.")}\n`);
-    return;
-  }
-
-  // Submit to server
+  // Submit to server (no confirmation needed - user already chose "Submit")
   const submitSpinner = ora({
     text: "Submitting to CCgather...",
     color: "cyan",

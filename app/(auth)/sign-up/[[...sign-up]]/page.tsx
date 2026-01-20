@@ -163,7 +163,7 @@ export default function SignUpPage() {
                 <div className="flex items-center gap-2 text-amber-400/90 text-xs">
                   <span>📋</span>
                   <span className="font-mono text-[11px] select-all bg-amber-500/20 px-2 py-1 rounded">
-                    ccgather.dev/sign-up
+                    ccgather.com/sign-up
                   </span>
                 </div>
                 <p className="text-amber-400/60 text-[10px] mt-2">

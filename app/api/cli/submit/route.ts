@@ -188,6 +188,19 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Get previous daily usage dates for comparison (before upsert)
+    const { data: previousDailyData } = await supabase
+      .from("usage_stats")
+      .select("date, tokens, cost")
+      .eq("user_id", authenticatedUser.id)
+      .order("date", { ascending: true });
+
+    const previousDates = previousDailyData?.map((d: { date: string }) => d.date) || [];
+    const previousDailyMap = new Map<string, { tokens: number; cost: number }>();
+    previousDailyData?.forEach((d: { date: string; tokens: number; cost: number }) => {
+      previousDailyMap.set(d.date, { tokens: d.tokens, cost: d.cost });
+    });
+
     // Session fingerprint duplicate check (1 Project 1 Person principle)
     if (body.sessionFingerprint?.sessionHashes?.length) {
       const { sessionHashes } = body.sessionFingerprint;
@@ -465,11 +478,19 @@ export async function POST(request: NextRequest) {
 
     // Include previous submission info if user has submitted before
     if (authenticatedUser.last_submission_at) {
+      // Convert previousDailyMap to array for response
+      const previousDaily: Array<{ date: string; tokens: number; cost: number }> = [];
+      previousDailyMap.forEach((value, key) => {
+        previousDaily.push({ date: key, tokens: value.tokens, cost: value.cost });
+      });
+
       response.previous = {
         totalTokens: authenticatedUser.total_tokens || 0,
         totalCost: authenticatedUser.total_cost || 0,
         lastSubmissionAt: authenticatedUser.last_submission_at,
         sessionCount: body.sessionFingerprint?.sessionCount || 0,
+        previousDates,
+        previousDaily,
       };
     }
 
