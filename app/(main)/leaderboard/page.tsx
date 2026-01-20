@@ -659,22 +659,22 @@ export default function LeaderboardPage() {
               }}
             >
               {/* Filters - Above Table */}
-              <div className="flex items-center justify-between gap-1.5 sm:gap-2 md:gap-3 mb-4">
-                <div className="flex items-center gap-1.5 sm:gap-2 md:gap-3 flex-shrink-0">
+              <div className="flex items-center justify-between gap-2 md:gap-3 mb-4">
+                <div className="flex items-center gap-2 md:gap-3 flex-shrink-0">
                   {/* Mini Globe Button - Mobile only */}
                   <button
                     onClick={() => setIsGlobePanelOpen(true)}
-                    className="flex md:hidden w-9 h-9 rounded-lg glass items-center justify-center hover:ring-2 hover:ring-[var(--color-claude-coral)]/50 transition-all active:scale-95 flex-shrink-0"
+                    className="flex md:hidden w-10 h-10 rounded-lg glass items-center justify-center hover:ring-2 hover:ring-[var(--color-claude-coral)]/50 transition-all active:scale-95 flex-shrink-0"
                     title="View Global Stats"
                   >
-                    <span className="text-lg">🌐</span>
+                    <span className="text-xl">🌐</span>
                   </button>
 
                   {/* Scope Filter - Mobile only (md+ shows in Globe area) */}
-                  <div className="flex md:hidden p-0.5 glass rounded-lg gap-0.5 flex-shrink-0">
+                  <div className="flex md:hidden h-10 p-0.5 glass rounded-lg gap-0.5 flex-shrink-0">
                     <button
                       onClick={() => setScopeFilter("global")}
-                      className={`px-2 py-1 rounded-md text-xs transition-colors flex items-center justify-center ${
+                      className={`h-9 w-9 rounded-md text-sm transition-colors flex items-center justify-center ${
                         scopeFilter === "global"
                           ? "bg-[var(--color-claude-coral)]/50 text-[var(--color-claude-coral)]"
                           : "text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-filter-hover)]"
@@ -684,7 +684,7 @@ export default function LeaderboardPage() {
                     </button>
                     <button
                       onClick={() => setScopeFilter("country")}
-                      className={`px-2 py-1 rounded-md text-xs transition-colors flex items-center justify-center ${
+                      className={`h-9 w-9 rounded-md text-sm transition-colors flex items-center justify-center ${
                         scopeFilter === "country"
                           ? "bg-emerald-500/50 text-emerald-400"
                           : "text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-filter-hover)]"
@@ -693,7 +693,7 @@ export default function LeaderboardPage() {
                       <ReactCountryFlag
                         countryCode={currentUserCountry}
                         svg
-                        style={{ width: "14px", height: "14px" }}
+                        style={{ width: "18px", height: "18px" }}
                         className="flex-shrink-0"
                       />
                     </button>
@@ -736,7 +736,7 @@ export default function LeaderboardPage() {
                     />
                   </div>
                   {/* Tablet/Mobile: Dropdown + Calendar */}
-                  <div className="flex items-center gap-1 lg:hidden">
+                  <div className="flex items-center gap-2 lg:hidden">
                     <div className="relative">
                       <select
                         value={periodFilter === "custom" ? "custom" : periodFilter}
@@ -749,7 +749,7 @@ export default function LeaderboardPage() {
                             setCustomDateRange(null);
                           }
                         }}
-                        className="appearance-none h-8 px-2.5 pr-6 glass rounded-lg text-[11px] font-medium text-[var(--color-text-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--color-claude-coral)] cursor-pointer"
+                        className="appearance-none h-10 px-3 pr-7 glass rounded-lg text-sm font-medium text-[var(--color-text-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--color-claude-coral)] cursor-pointer"
                       >
                         <option value="all">All D</option>
                         <option value="today">1D</option>
@@ -762,7 +762,7 @@ export default function LeaderboardPage() {
                           </option>
                         )}
                       </select>
-                      <span className="absolute right-1.5 top-1/2 -translate-y-1/2 pointer-events-none text-[var(--color-text-muted)] text-[8px]">
+                      <span className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-[var(--color-text-muted)] text-xs">
                         ▼
                       </span>
                     </div>
@@ -775,11 +775,11 @@ export default function LeaderboardPage() {
                 </div>
 
                 {/* Right side - My Rank, Level Info & Sort */}
-                <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
+                <div className="flex items-center gap-2 flex-shrink-0">
                   {(myRankInfo || currentUserData) && (
                     <button
                       onClick={goToMyRank}
-                      className="flex items-center h-8 gap-1 px-2 sm:px-2.5 glass hover:bg-white/15 rounded-lg text-xs font-medium text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] transition-colors flex-shrink-0"
+                      className="flex items-center h-10 gap-1.5 px-3 glass hover:bg-white/15 rounded-lg text-sm font-medium text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] transition-colors flex-shrink-0"
                     >
                       <span>📍</span>
                       <span className="hidden sm:inline">My</span>
@@ -795,17 +795,17 @@ export default function LeaderboardPage() {
                     onMouseEnter={() => setShowLevelInfo(true)}
                     onMouseLeave={() => setShowLevelInfo(false)}
                   >
-                    <div className="h-8 w-8 rounded-md text-xs font-medium transition-colors flex items-center justify-center text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] cursor-help">
-                      <Info className="w-4 h-4" />
+                    <div className="h-10 w-10 rounded-md text-sm font-medium transition-colors flex items-center justify-center text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] cursor-help">
+                      <Info className="w-5 h-5" />
                     </div>
                     <LevelInfoPopover isOpen={showLevelInfo} />
                   </div>
 
-                  <div className="flex items-center h-8 p-0.5 glass rounded-lg gap-0.5 flex-shrink-0">
+                  <div className="flex items-center h-10 p-0.5 glass rounded-lg gap-0.5 flex-shrink-0">
                     <button
                       onClick={() => setSortBy("cost")}
                       title="Sort by Cost"
-                      className={`h-6 w-6 rounded-md text-xs font-medium transition-colors flex items-center justify-center ${
+                      className={`h-9 w-9 rounded-md text-sm font-medium transition-colors flex items-center justify-center ${
                         sortBy === "cost"
                           ? "bg-[var(--color-cost)]/50 text-[var(--color-cost)]"
                           : "text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-filter-hover)]"
@@ -816,7 +816,7 @@ export default function LeaderboardPage() {
                     <button
                       onClick={() => setSortBy("tokens")}
                       title="Sort by Tokens"
-                      className={`h-6 w-6 rounded-md text-xs font-medium transition-colors flex items-center justify-center ${
+                      className={`h-9 w-9 rounded-md text-sm font-medium transition-colors flex items-center justify-center ${
                         sortBy === "tokens"
                           ? "bg-[var(--color-claude-coral)]/50 text-[var(--color-claude-coral)]"
                           : "text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-filter-hover)]"
@@ -919,20 +919,16 @@ export default function LeaderboardPage() {
                             >
                               ⭐
                             </th>
-                            {/* Cost column: always show on md+, hide on mobile when sortBy=tokens */}
+                            {/* Cost column */}
                             <th
-                              className={`text-center align-middle text-text-secondary font-medium text-xs py-2.5 px-0.5 md:px-1 ${
-                                sortBy === "tokens" ? "hidden md:table-cell" : ""
-                              }`}
+                              className="text-right align-middle text-text-secondary font-medium text-xs py-2.5 px-0.5 md:px-1"
                               title="Cost"
                             >
                               💰
                             </th>
-                            {/* Tokens column: always show on md+, hide on mobile when sortBy=cost */}
+                            {/* Tokens column */}
                             <th
-                              className={`text-right align-middle text-text-secondary font-medium text-xs py-2.5 pl-0.5 pr-2 md:pr-4 ${
-                                sortBy === "cost" ? "hidden md:table-cell" : ""
-                              }`}
+                              className="text-right align-middle text-text-secondary font-medium text-xs py-2.5 pl-0.5 pr-2 md:pr-4"
                               title="Tokens"
                             >
                               ⚡
@@ -944,10 +940,10 @@ export default function LeaderboardPage() {
                             const isFirst = user.rank === 1;
                             const isTopThree = user.rank <= 3;
                             const rowPadding = isFirst ? "py-2 lg:py-3" : isTopThree ? "py-2 lg:py-2.5" : "py-2";
-                            const avatarSize = isFirst ? "w-8 h-8 lg:w-10 lg:h-10" : isTopThree ? "w-7 h-7 lg:w-8 lg:h-8" : "w-6 h-6";
-                            const avatarText = isFirst ? "text-sm lg:text-base" : isTopThree ? "text-xs lg:text-sm" : "text-xs";
-                            const nameSize = "text-xs";
-                            const rankSize = "text-xs";
+                            const avatarSize = isFirst ? "w-10 h-10 lg:w-12 lg:h-12" : isTopThree ? "w-8 h-8 lg:w-9 lg:h-9" : "w-6 h-6";
+                            const avatarText = isFirst ? "text-base lg:text-lg" : isTopThree ? "text-sm lg:text-base" : "text-xs";
+                            const nameSize = isFirst ? "text-sm lg:text-base font-semibold" : isTopThree ? "text-xs lg:text-sm font-medium" : "text-xs";
+                            const rankSize = isFirst ? "text-base lg:text-lg font-bold" : isTopThree ? "text-sm font-semibold" : "text-xs";
                             const flagSize = 16;
                             const valueSize = "text-xs";
 
@@ -1047,12 +1043,8 @@ export default function LeaderboardPage() {
                                 >
                                   <LevelBadge tokens={user.total_tokens} />
                                 </td>
-                                {/* Cost cell: always show on md+, hide on mobile when sortBy=tokens */}
-                                <td
-                                  className={`${rowPadding} px-0.5 md:px-1 text-center ${
-                                    sortBy === "tokens" ? "hidden md:table-cell" : ""
-                                  }`}
-                                >
+                                {/* Cost cell */}
+                                <td className={`${rowPadding} px-0.5 md:px-1 text-right`}>
                                   <span
                                     className={`font-mono ${valueSize} ${
                                       sortBy === "tokens"
@@ -1068,12 +1060,8 @@ export default function LeaderboardPage() {
                                         : periodCost.toFixed(0)}
                                   </span>
                                 </td>
-                                {/* Tokens cell: always show on md+, hide on mobile when sortBy=cost */}
-                                <td
-                                  className={`${rowPadding} pl-0.5 pr-2 md:pr-3 text-right ${
-                                    sortBy === "cost" ? "hidden md:table-cell" : ""
-                                  }`}
-                                >
+                                {/* Tokens cell */}
+                                <td className={`${rowPadding} pl-0.5 pr-2 md:pr-3 text-right`}>
                                   <span
                                     className={`font-mono ${valueSize} ${
                                       sortBy === "cost"
