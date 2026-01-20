@@ -3,6 +3,7 @@
 import { Command } from "commander";
 import inquirer from "inquirer";
 import chalk from "chalk";
+import { execSync } from "child_process";
 import { submit } from "./commands/submit.js";
 import {
   printAnimatedHeader,
@@ -17,6 +18,99 @@ import { getStatus } from "./lib/api.js";
 
 const program = new Command();
 
+// ═══════════════════════════════════════════════════════════════════════════
+// Version Check & Auto-Update
+// ═══════════════════════════════════════════════════════════════════════════
+
+interface NpmPackageInfo {
+  version: string;
+}
+
+/**
+ * Check npm registry for latest version
+ */
+async function getLatestVersion(): Promise<string | null> {
+  try {
+    const response = await fetch("https://registry.npmjs.org/ccgather/latest", {
+      headers: { Accept: "application/json" },
+      signal: AbortSignal.timeout(3000), // 3 second timeout
+    });
+
+    if (!response.ok) return null;
+
+    const data = (await response.json()) as NpmPackageInfo;
+    return data.version || null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Compare semantic versions
+ * Returns: 1 if v1 > v2, -1 if v1 < v2, 0 if equal
+ */
+function compareVersions(v1: string, v2: string): number {
+  const parts1 = v1.split(".").map(Number);
+  const parts2 = v2.split(".").map(Number);
+
+  for (let i = 0; i < Math.max(parts1.length, parts2.length); i++) {
+    const p1 = parts1[i] || 0;
+    const p2 = parts2[i] || 0;
+    if (p1 > p2) return 1;
+    if (p1 < p2) return -1;
+  }
+  return 0;
+}
+
+/**
+ * Check for updates and prompt user to upgrade
+ */
+async function checkForUpdates(): Promise<void> {
+  const latestVersion = await getLatestVersion();
+
+  if (!latestVersion) return; // Network error, skip silently
+
+  if (compareVersions(latestVersion, VERSION) > 0) {
+    console.log();
+    console.log(
+      `  ${colors.warning("⬆")}  ${colors.white("New version available!")} ${colors.dim(VERSION)} → ${colors.success(latestVersion)}`
+    );
+    console.log();
+
+    const { shouldUpdate } = await inquirer.prompt([
+      {
+        type: "confirm",
+        name: "shouldUpdate",
+        message: `Update to v${latestVersion}?`,
+        default: true,
+      },
+    ]);
+
+    if (shouldUpdate) {
+      console.log();
+      console.log(`  ${colors.muted("Updating ccgather...")}`);
+
+      try {
+        // Detect package manager and update
+        execSync("npm install -g ccgather@latest", {
+          stdio: "inherit",
+        });
+
+        console.log();
+        console.log(`  ${colors.success("✓")} ${colors.white("Updated successfully!")}`);
+        console.log(`  ${colors.muted("Please restart ccgather to use the new version.")}`);
+        console.log();
+        process.exit(0);
+      } catch {
+        console.log();
+        console.log(`  ${colors.error("✗")} ${colors.muted("Update failed. Try manually:")}`);
+        console.log(`    ${colors.dim("npm install -g ccgather@latest")}`);
+        console.log();
+      }
+    }
+  }
+}
+
 program
   .name("ccgather")
   .description("Submit your Claude Code usage to the CCgather leaderboard")
@@ -26,6 +120,9 @@ program
 async function showMainMenu(): Promise<void> {
   // Animated logo display
   await printAnimatedHeader();
+
+  // Check for updates (non-blocking, runs after header)
+  await checkForUpdates();
 
   // Check authentication - if not authenticated, start auth flow
   if (!isAuthenticated()) {
