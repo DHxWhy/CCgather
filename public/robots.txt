@@ -1,0 +1,24 @@
+# Daum Web Master Tool Verification
+#DaumWebMasterTool:e5a50def7f0c7675667f5b64a664229fc4ba1ef58c797b7ba605523a093a1ccd:MSggptX2nVeG93dYUfM2Ow==
+
+User-agent: *
+Allow: /
+Disallow: /api/
+Disallow: /admin/
+Disallow: /onboarding
+Disallow: /settings
+Disallow: /cli/
+Disallow: /internal/
+
+User-agent: Googlebot
+Allow: /
+Allow: /_next/static/
+Allow: /api/tools
+Allow: /api/news
+Allow: /api/leaderboard
+Disallow: /api/
+Disallow: /admin/
+Disallow: /internal/
+
+Sitemap: https://ccgather.com/sitemap.xml
+Host: https://ccgather.com
