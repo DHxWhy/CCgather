@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useMemo, useCallback } from "react";
 import Image from "next/image";
-import { X as CloseIcon, Github, Linkedin, Globe } from "lucide-react";
+import { Github, Linkedin, Globe } from "lucide-react";
 import ReactCountryFlag from "react-country-flag";
 import { useUser } from "@clerk/nextjs";
 import { LoginPromptModal } from "./LoginPromptModal";
@@ -991,19 +991,6 @@ export function ProfileSidePanel({
       >
         {/* Fixed Header Area */}
         <div className="flex-shrink-0">
-          {/* Title Bar */}
-          <div className="flex items-center justify-between p-4 border-b border-[var(--border-default)]">
-            <span className="text-xs font-medium text-[var(--color-text-muted)] uppercase tracking-wide">
-              Profile Details
-            </span>
-            <button
-              onClick={onClose}
-              className="p-1.5 rounded-md hover:bg-white/10 transition-colors text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]"
-            >
-              <CloseIcon className="w-4 h-4" />
-            </button>
-          </div>
-
           {/* Profile Header */}
           <div className="p-4 pb-3 border-b border-[var(--border-default)] bg-[var(--color-bg-primary)]">
             <div className="flex items-start gap-3">

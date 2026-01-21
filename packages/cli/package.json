@@ -25,7 +25,7 @@
     "cli"
   ],
   "author": "",
-  "license": "MIT",
+  "license": "UNLICENSED",
   "dependencies": {
     "chalk": "^5.3.0",
     "commander": "^12.1.0",

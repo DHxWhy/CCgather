@@ -155,15 +155,15 @@ export function TopCountriesSection({
                   {/* Progress Bar */}
                   <div className="h-4 bg-[var(--color-filter-bg)] rounded overflow-hidden">
                     <motion.div
-                      initial={{ width: 0 }}
-                      animate={{ width: `${barWidth}%` }}
+                      initial={{ scaleX: 0 }}
+                      animate={{ scaleX: barWidth / 100 }}
                       transition={{
                         duration: 0.8,
                         delay: 0.2 + index * 0.03,
                         ease: "easeOut",
                       }}
-                      className="h-full rounded"
-                      style={{ background: barColor }}
+                      className="h-full rounded origin-left will-change-transform"
+                      style={{ background: barColor, width: "100%" }}
                     />
                   </div>
 

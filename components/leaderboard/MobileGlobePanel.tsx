@@ -48,7 +48,7 @@ export function MobileGlobePanel({
   // Dynamic sizing based on screen dimensions (matching ProfileSidePanel behavior)
   const [globeSize, setGlobeSize] = useState(240);
 
-  const SWIPE_THRESHOLD = 80; // px to trigger close
+  const SWIPE_THRESHOLD = 100; // px to trigger close (unified with ProfileSidePanel)
 
   // Update globe size based on screen dimensions
   useEffect(() => {
