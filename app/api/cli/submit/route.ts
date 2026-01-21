@@ -81,6 +81,7 @@ interface AuthenticatedUser {
   username: string;
   total_tokens: number | null;
   total_cost: number | null;
+  total_sessions: number | null;
   country_code?: string;
   last_submission_at?: string | null;
   global_rank?: number | null;
@@ -133,7 +134,7 @@ export async function POST(request: NextRequest) {
     const { data: user, error: tokenError } = await supabase
       .from("users")
       .select(
-        "id, username, total_tokens, total_cost, country_code, last_submission_at, global_rank, country_rank, current_level"
+        "id, username, total_tokens, total_cost, total_sessions, country_code, last_submission_at, global_rank, country_rank, current_level"
       )
       .eq("api_key", token)
       .maybeSingle();
@@ -382,6 +383,13 @@ export async function POST(request: NextRequest) {
       if (body.opusModels && body.opusModels.length > 0) {
         updateData.opus_models = body.opusModels;
       }
+    }
+
+    // Store total session count (keep maximum, as old sessions may be deleted locally)
+    if (body.sessionFingerprint?.sessionCount) {
+      const currentSessions = authenticatedUser.total_sessions || 0;
+      const newSessions = body.sessionFingerprint.sessionCount;
+      updateData.total_sessions = Math.max(currentSessions, newSessions);
     }
 
     // Update primary_model if detected
