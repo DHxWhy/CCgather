@@ -1087,7 +1087,7 @@ export function ProfileSidePanel({
                   </span>
                 </div>
                 <div className="flex-1 flex items-center justify-center gap-1">
-                  <span>🔥</span>
+                  <span>⚡</span>
                   <span className="font-medium text-[var(--color-claude-coral)]">
                     {formatTokens(periodTokens)}
                   </span>
@@ -1178,11 +1178,9 @@ export function ProfileSidePanel({
             </div>
             {/* Tokens */}
             <div className="col-span-3 p-3 bg-[var(--color-section-bg)] rounded-lg border border-[var(--border-default)]">
-              <div className="text-[10px] text-[var(--color-text-muted)] mb-0.5">🔥 Tokens</div>
+              <div className="text-[10px] text-[var(--color-text-muted)] mb-0.5">⚡ Tokens</div>
               <div className="font-medium text-base text-[var(--color-claude-coral)]">
-                {periodTokens >= 1_000_000_000
-                  ? `${(periodTokens / 1_000_000_000).toFixed(2)}B`
-                  : periodTokens.toLocaleString()}
+                {formatTokens(periodTokens)}
               </div>
             </div>
           </div>

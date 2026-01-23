@@ -51,20 +51,36 @@ export async function POST(req: Request) {
         evt.data;
       const email = email_addresses[0]?.email_address;
 
-      // Use GitHub username (preserves case) if available, otherwise fall back to Clerk username
+      // Use GitHub OAuth data if available (preserves case, gets latest profile)
       const githubAccount = external_accounts?.find(
         (acc: { provider: string }) => acc.provider === "oauth_github"
-      );
+      ) as
+        | {
+            provider: string;
+            username?: string;
+            first_name?: string;
+            last_name?: string;
+            avatar_url?: string;
+          }
+        | undefined;
+
       const finalUsername = githubAccount?.username || username || `user_${id.slice(0, 8)}`;
 
-      const displayName =
-        [first_name, last_name].filter(Boolean).join(" ") || finalUsername || "Anonymous";
+      // Prioritize GitHub OAuth name over Clerk profile name
+      const githubDisplayName = githubAccount
+        ? [githubAccount.first_name, githubAccount.last_name].filter(Boolean).join(" ")
+        : null;
+      const clerkDisplayName = [first_name, last_name].filter(Boolean).join(" ");
+      const displayName = githubDisplayName || clerkDisplayName || finalUsername || "Anonymous";
+
+      // Use GitHub avatar if available
+      const avatarUrl = githubAccount?.avatar_url || image_url;
 
       const { error } = await getSupabaseAdmin().from("users").insert({
         clerk_id: id,
         username: finalUsername,
         display_name: displayName,
-        avatar_url: image_url,
+        avatar_url: avatarUrl,
         email: email,
       });
 
@@ -80,21 +96,37 @@ export async function POST(req: Request) {
         evt.data;
       const email = email_addresses[0]?.email_address;
 
-      // Use GitHub username (preserves case) if available
+      // Use GitHub OAuth data if available (preserves case, gets latest profile)
       const githubAccount = external_accounts?.find(
         (acc: { provider: string }) => acc.provider === "oauth_github"
-      );
+      ) as
+        | {
+            provider: string;
+            username?: string;
+            first_name?: string;
+            last_name?: string;
+            avatar_url?: string;
+          }
+        | undefined;
+
       const finalUsername = githubAccount?.username || username;
 
-      const displayName =
-        [first_name, last_name].filter(Boolean).join(" ") || finalUsername || "Anonymous";
+      // Prioritize GitHub OAuth name over Clerk profile name
+      const githubDisplayName = githubAccount
+        ? [githubAccount.first_name, githubAccount.last_name].filter(Boolean).join(" ")
+        : null;
+      const clerkDisplayName = [first_name, last_name].filter(Boolean).join(" ");
+      const displayName = githubDisplayName || clerkDisplayName || finalUsername || "Anonymous";
+
+      // Use GitHub avatar if available
+      const avatarUrl = githubAccount?.avatar_url || image_url;
 
       const { error } = await getSupabaseAdmin()
         .from("users")
         .update({
           username: finalUsername || undefined,
           display_name: displayName,
-          avatar_url: image_url,
+          avatar_url: avatarUrl,
           email: email,
           updated_at: new Date().toISOString(),
         })

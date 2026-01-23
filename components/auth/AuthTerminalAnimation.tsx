@@ -18,7 +18,7 @@ const TERMINAL_LINES: TerminalLine[] = [
 
   // 2. Auth verification
   { text: "Verifying authentication...", type: "muted", delay: 800 },
-  { text: "✓ Authenticated as DHxYoon", type: "success", delay: 1400 },
+  { text: "✓ Authenticated as DHxWhy", type: "success", delay: 1400 },
   { text: "", type: "empty", delay: 1700 },
 
   // 3. Session scan
@@ -46,7 +46,7 @@ const TERMINAL_LINES: TerminalLine[] = [
   { text: "✓ Successfully submitted!", type: "success", delay: 7000 },
   { text: "", type: "empty", delay: 7300 },
   { text: "View your profile:", type: "muted", delay: 7600 },
-  { text: "https://ccgather.com/u/DHxYoon", type: "link", indent: true, delay: 7900 },
+  { text: "https://ccgather.com/u/DHxWhy", type: "link", indent: true, delay: 7900 },
 ];
 
 export function AuthTerminalAnimation() {

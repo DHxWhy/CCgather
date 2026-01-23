@@ -31,6 +31,7 @@ const SocialLinksSchema = z
   .optional();
 
 const UpdateProfileSchema = z.object({
+  display_name: z.string().min(1).max(50).optional(),
   country_code: z.string().length(2).optional(),
   timezone: z.string().optional(),
   onboarding_completed: z.boolean().optional(),
@@ -70,6 +71,7 @@ export async function GET() {
       social_links,
       referral_code,
       hide_profile_on_invite,
+      ccplan,
       created_at
     `
     )
@@ -297,13 +299,20 @@ export async function GET() {
       account.provider.toLowerCase().includes("github")
     );
 
-    // Get latest values from Clerk/GitHub
+    // Get latest values from GitHub OAuth (priority) or Clerk profile
+    // GitHub OAuth provides: username, firstName, lastName, imageUrl
     const latestUsername = githubAccount?.username || clerkUser.username;
+
+    // For display name: prioritize GitHub OAuth name, then Clerk profile, then username
+    const githubDisplayName = githubAccount
+      ? [githubAccount.firstName, githubAccount.lastName].filter(Boolean).join(" ")
+      : null;
+    const clerkDisplayName = [clerkUser.firstName, clerkUser.lastName].filter(Boolean).join(" ");
     const latestDisplayName =
-      [clerkUser.firstName, clerkUser.lastName].filter(Boolean).join(" ") ||
-      latestUsername ||
-      user.display_name;
-    const latestAvatarUrl = clerkUser.imageUrl;
+      githubDisplayName || clerkDisplayName || latestUsername || user.display_name;
+
+    // For avatar: prioritize GitHub OAuth avatar
+    const latestAvatarUrl = githubAccount?.imageUrl || clerkUser.imageUrl;
 
     // Check if any profile info has changed
     const needsUpdate =
