@@ -1,19 +1,28 @@
 "use client";
 
-import { useState, useMemo, useEffect, useCallback } from "react";
+import { useState, useMemo, useEffect, useLayoutEffect, useCallback, useRef } from "react";
 import { useSearchParams } from "next/navigation";
 import dynamic from "next/dynamic";
 import Image from "next/image";
 import ReactCountryFlag from "react-country-flag";
 import { useUser } from "@clerk/nextjs";
 import { GlobeStatsSection } from "@/components/leaderboard/GlobeStatsSection";
-import { TopCountriesSection } from "@/components/leaderboard/TopCountriesSection";
-import { GetStartedButton } from "@/components/auth/GetStartedButton";
+import {
+  TopCountriesSection,
+  CountryStat,
+  TopCountriesSectionRef,
+} from "@/components/leaderboard/TopCountriesSection";
+
+// Dynamic import for GlobeParticles (stars effect)
+const GlobeParticles = dynamic(
+  () => import("@/components/ui/globe-particles").then((mod) => mod.GlobeParticles),
+  { ssr: false, loading: () => null }
+);
 import { DateRangeButton } from "@/components/leaderboard/DateRangePicker";
 import { PeriodDropdown } from "@/components/leaderboard/PeriodDropdown";
 import { TimezoneClock } from "@/components/ui/timezone-clock";
 import { LEVELS, getLevelByTokens } from "@/lib/constants/levels";
-import { Info } from "lucide-react";
+import { Info, ChevronDown } from "lucide-react";
 import { format } from "date-fns";
 import type { LeaderboardUser, PeriodFilter, ScopeFilter, SortByFilter } from "@/lib/types";
 
@@ -32,18 +41,6 @@ const DateRangePicker = dynamic(
   () => import("@/components/leaderboard/DateRangePicker").then((mod) => mod.DateRangePicker),
   { ssr: false }
 );
-
-const GlobeParticles = dynamic(
-  () => import("@/components/ui/globe-particles").then((mod) => mod.GlobeParticles),
-  { ssr: false }
-);
-
-interface CountryStat {
-  code: string;
-  name: string;
-  tokens: number;
-  cost: number;
-}
 
 // Format numbers - compact display (K/M/B for 1000+, plain for <1000)
 function formatTokens(num: number): string {
@@ -178,60 +175,312 @@ export default function LeaderboardPage() {
   const [customDateRange, setCustomDateRange] = useState<{ start: string; end: string } | null>(
     null
   );
-  const [isAnimating, setIsAnimating] = useState(true); // Start true for initial animation
-  const [isMounted, setIsMounted] = useState(false);
-  const [panelWidth, setPanelWidth] = useState(0);
-  const [, setIsOverlayMode] = useState(true);
-  const [currentPage, setCurrentPage] = useState(1);
   const [highlightMyRank, setHighlightMyRank] = useState(false);
   const [highlightedUsername, setHighlightedUsername] = useState<string | null>(null);
-  const [myRankInfo, setMyRankInfo] = useState<{ rank: number; page: number } | null>(null);
   const [pendingMyRankScroll, setPendingMyRankScroll] = useState(false);
   // Initialize with large value to ensure max-width is applied on first render
   const [viewportWidth, setViewportWidth] = useState(1920);
+  // Panel width for push layout - 3-tier breakpoint system
+  const [panelWidth, setPanelWidth] = useState(0);
+  const [, setIsOverlayMode] = useState(true);
 
-  // API state
-  const [users, setUsers] = useState<DisplayUser[]>([]);
+  // API state - Bidirectional infinite scroll with sparse page loading
+  const [pagesData, setPagesData] = useState<Map<number, DisplayUser[]>>(new Map());
+  const [loadedPageRange, setLoadedPageRange] = useState<{ start: number; end: number }>({
+    start: 1,
+    end: 1,
+  });
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [loadingPrevious, setLoadingPrevious] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [total, setTotal] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
+
+  // Derived flat users array from pagesData
+  const users = useMemo(() => {
+    const result: DisplayUser[] = [];
+    for (let page = loadedPageRange.start; page <= loadedPageRange.end; page++) {
+      const pageUsers = pagesData.get(page);
+      if (pageUsers) {
+        result.push(...pageUsers);
+      }
+    }
+    return result;
+  }, [pagesData, loadedPageRange]);
+
+  // Check if there are more pages to load
+  const hasMore = loadedPageRange.end < totalPages;
+  const hasPrevious = loadedPageRange.start > 1;
+
+  // Ref for infinite scroll
+  const tableContainerRef = useRef<HTMLDivElement>(null);
+  const loadMoreTriggerRef = useRef<HTMLDivElement>(null);
+  const loadPreviousTriggerRef = useRef<HTMLDivElement>(null);
+  // Track scroll position for prepend restoration
+  const scrollHeightBeforePrepend = useRef<number>(0);
   const [currentUserCountry, setCurrentUserCountry] = useState<string>("KR");
   const [currentUsername, setCurrentUsername] = useState<string | null>(null);
   const [userInfoLoaded, setUserInfoLoaded] = useState(false);
+
+  // Left column scroll state for Globe fade effect
+  const leftColumnRef = useRef<HTMLDivElement>(null);
+  const [leftColumnScrollProgress, setLeftColumnScrollProgress] = useState(0);
+  // Hybrid sticky: auto-lock when scrolling down, manual unlock via button
+  const [stickyLocked, setStickyLocked] = useState(false);
+  // Prevent re-lock during expand animation
+  const isExpandingRef = useRef(false);
+  // Shake expand button when trying to scroll up at top
+  const [shakeExpandButton, setShakeExpandButton] = useState(false);
+
+  // User country sticky state
+  const [userCountryVisible, setUserCountryVisible] = useState(true);
+  const [userCountryRank, setUserCountryRank] = useState(0);
+  const [userCountryData, setUserCountryData] = useState<CountryStat | null>(null);
+  const [userCountryDirection, setUserCountryDirection] = useState<"above" | "below" | null>(null);
+
+  // Developer leaderboard: My Position sticky state (default false = show sticky initially)
+  const [myPositionVisible, setMyPositionVisible] = useState(false);
+  // Track whether user's position is above or below the viewport
+  const [myPositionDirection, setMyPositionDirection] = useState<"above" | "below" | null>(null);
+  const currentUserRowRef = useRef<HTMLTableRowElement>(null);
+
+  // TopCountriesSection ref for programmatic scroll
+  const topCountriesSectionRef = useRef<TopCountriesSectionRef>(null);
+
+  // Handle left column scroll for Globe fade effect
+  const handleLeftColumnScroll = useCallback(() => {
+    if (!leftColumnRef.current) return;
+    const { scrollTop } = leftColumnRef.current;
+    // Calculate scroll progress (0 to 1) based on first 200px of scroll
+    const fadeThreshold = 200;
+    const progress = Math.min(scrollTop / fadeThreshold, 1);
+    setLeftColumnScrollProgress(progress);
+
+    // Auto-lock sticky when scrolled past threshold (no forced scroll reset)
+    if (progress > 0.3 && !stickyLocked && !isExpandingRef.current) {
+      setStickyLocked(true);
+    }
+  }, [stickyLocked]);
+
+  // Expand Globe: unlock sticky and reset scroll
+  const handleExpandGlobe = useCallback(() => {
+    // Prevent re-lock during expansion
+    isExpandingRef.current = true;
+    setStickyLocked(false);
+    setLeftColumnScrollProgress(0);
+    // Instant scroll to top (no animation to avoid scroll events)
+    if (leftColumnRef.current) {
+      leftColumnRef.current.scrollTop = 0;
+    }
+    // Keep flag active longer to prevent re-lock from any residual events
+    setTimeout(() => {
+      isExpandingRef.current = false;
+    }, 100);
+  }, []);
+
+  // Handle wheel event to shake expand button when trying to scroll up at top
+  const handleLeftColumnWheel = useCallback(
+    (e: React.WheelEvent) => {
+      if (!stickyLocked || !leftColumnRef.current) return;
+
+      const { scrollTop } = leftColumnRef.current;
+      // If at top and trying to scroll up (deltaY < 0)
+      if (scrollTop === 0 && e.deltaY < 0) {
+        setShakeExpandButton(true);
+        // Reset shake after animation completes
+        setTimeout(() => setShakeExpandButton(false), 500);
+      }
+    },
+    [stickyLocked]
+  );
 
   // Country stats state for Globe and Top Countries
   const [countryStats, setCountryStats] = useState<CountryStat[]>([]);
   const [totalGlobalTokens, setTotalGlobalTokens] = useState(0);
   const [totalGlobalCost, setTotalGlobalCost] = useState(0);
 
-  // Handle country stats loaded from GlobeStatsSection
+  // Country name mapping (58 countries for testing)
+  const countryNames: Record<string, string> = {
+    US: "United States",
+    CN: "China",
+    JP: "Japan",
+    DE: "Germany",
+    GB: "United Kingdom",
+    FR: "France",
+    IN: "India",
+    CA: "Canada",
+    AU: "Australia",
+    BR: "Brazil",
+    IT: "Italy",
+    ES: "Spain",
+    MX: "Mexico",
+    NL: "Netherlands",
+    SE: "Sweden",
+    CH: "Switzerland",
+    PL: "Poland",
+    BE: "Belgium",
+    AT: "Austria",
+    NO: "Norway",
+    DK: "Denmark",
+    FI: "Finland",
+    IE: "Ireland",
+    PT: "Portugal",
+    CZ: "Czech Republic",
+    RO: "Romania",
+    HU: "Hungary",
+    IL: "Israel",
+    SG: "Singapore",
+    NZ: "New Zealand",
+    ZA: "South Africa",
+    AR: "Argentina",
+    CL: "Chile",
+    CO: "Colombia",
+    MY: "Malaysia",
+    TH: "Thailand",
+    PH: "Philippines",
+    VN: "Vietnam",
+    ID: "Indonesia",
+    TR: "Turkey",
+    EG: "Egypt",
+    NG: "Nigeria",
+    KE: "Kenya",
+    UA: "Ukraine",
+    GR: "Greece",
+    HR: "Croatia",
+    SK: "Slovakia",
+    BG: "Bulgaria",
+    RS: "Serbia",
+    LT: "Lithuania",
+    LV: "Latvia",
+    EE: "Estonia",
+    SI: "Slovenia",
+    KR: "South Korea",
+    TW: "Taiwan",
+    HK: "Hong Kong",
+    AE: "United Arab Emirates",
+    SA: "Saudi Arabia",
+  };
+
+  // Calculate country stats from users data
+  useEffect(() => {
+    if (users.length === 0) return;
+
+    // Aggregate by country
+    const countryMap = new Map<string, { tokens: number; cost: number }>();
+    users.forEach((user) => {
+      const code = user.country_code || "XX";
+      const existing = countryMap.get(code) || { tokens: 0, cost: 0 };
+      countryMap.set(code, {
+        tokens: existing.tokens + (user.total_tokens || 0),
+        cost: existing.cost + (user.total_cost || 0),
+      });
+    });
+
+    // Convert to array
+    const stats: CountryStat[] = Array.from(countryMap.entries()).map(([code, data]) => ({
+      code,
+      name: countryNames[code] || code,
+      tokens: data.tokens,
+      cost: data.cost,
+    }));
+
+    const totalTokens = stats.reduce((sum, c) => sum + c.tokens, 0);
+    const totalCost = stats.reduce((sum, c) => sum + c.cost, 0);
+
+    setCountryStats(stats);
+    setTotalGlobalTokens(totalTokens);
+    setTotalGlobalCost(totalCost);
+  }, [users]);
+
+  // Handle country stats loaded from GlobeStatsSection (no longer using mock data)
   const handleCountryStatsLoaded = useCallback(
-    (stats: CountryStat[], tokens: number, cost: number) => {
-      setCountryStats(stats);
-      setTotalGlobalTokens(tokens);
-      setTotalGlobalCost(cost);
+    (_stats: CountryStat[], _tokens: number, _cost: number) => {
+      // Country stats are now calculated from users data in useEffect above
     },
     []
   );
 
-  // Fetch leaderboard data
-  const fetchLeaderboard = useCallback(async () => {
-    setLoading(true);
-    setError(null);
+  // Handle user country visibility change from TopCountriesSection
+  const handleUserCountryVisibilityChange = useCallback(
+    (
+      visible: boolean,
+      rank: number,
+      stat: CountryStat | null,
+      direction: "above" | "below" | null
+    ) => {
+      setUserCountryVisible(visible);
+      setUserCountryRank(rank);
+      setUserCountryData(stat);
+      setUserCountryDirection(direction);
+    },
+    []
+  );
+
+  // Jump to user's country in the list
+  const jumpToUserCountry = useCallback(() => {
+    topCountriesSectionRef.current?.scrollToUserCountry();
+  }, []);
+
+  // State for pending jump to user position
+  const [pendingJumpToUser, setPendingJumpToUser] = useState(false);
+  const [userTargetPage, setUserTargetPage] = useState<number | null>(null);
+
+  // Ref to hold latest fetchLeaderboard to avoid dependency issues in effects
+  const fetchLeaderboardRef = useRef<
+    | ((mode?: "initial" | "append" | "prepend" | "jump", targetPage?: number) => Promise<void>)
+    | undefined
+  >(undefined);
+
+  // Jump to current user's row in developer leaderboard (with direct page load)
+  const jumpToMyPosition = useCallback(async () => {
+    // If user row is already loaded, just scroll to it
+    if (currentUserRowRef.current) {
+      currentUserRowRef.current.scrollIntoView({ behavior: "smooth", block: "center" });
+      return;
+    }
+
+    // Otherwise, fetch user's position and load that page directly
+    if (!currentUsername) return;
 
     try {
       const params = new URLSearchParams();
-      params.set("page", String(currentPage));
+      params.set("findUser", currentUsername);
+      params.set("limit", String(ITEMS_PER_PAGE));
+      if (scopeFilter === "country" && currentUserCountry) {
+        params.set("country", currentUserCountry);
+      }
+
+      const response = await fetch(`/api/leaderboard?${params}`);
+      const data = await response.json();
+
+      if (data.found && data.user?.page) {
+        // Set target page and trigger load
+        setUserTargetPage(data.user.page);
+        setPendingJumpToUser(true);
+      }
+    } catch {
+      // Fallback: do nothing
+    }
+  }, [currentUsername, scopeFilter, currentUserCountry]);
+
+  // Fetch a specific page of leaderboard data
+  const fetchPage = useCallback(
+    async (
+      pageNum: number,
+      _mode: "initial" | "append" | "prepend" | "jump"
+    ): Promise<DisplayUser[]> => {
+      const params = new URLSearchParams();
+      params.set("page", String(pageNum));
       params.set("limit", String(ITEMS_PER_PAGE));
       params.set("period", periodFilter);
 
-      // Send user's timezone for accurate period filtering (handles DST)
       try {
         params.set("tz", Intl.DateTimeFormat().resolvedOptions().timeZone);
       } catch {
         params.set("tz", "UTC");
       }
-      // Add custom date range parameters
+
       if (periodFilter === "custom" && customDateRange) {
         params.set("startDate", customDateRange.start);
         params.set("endDate", customDateRange.end);
@@ -242,25 +491,18 @@ export default function LeaderboardPage() {
       }
 
       const response = await fetch(`/api/leaderboard?${params}`);
-
-      if (!response.ok) {
-        throw new Error("Failed to fetch leaderboard");
-      }
+      if (!response.ok) throw new Error("Failed to fetch leaderboard");
 
       const data = await response.json();
+      const startIndex = (pageNum - 1) * ITEMS_PER_PAGE;
 
-      // Transform API response to display format
       const transformedUsers: DisplayUser[] = (data.users || []).map(
         (user: LeaderboardUser, index: number) => {
-          // All filters now use total_tokens sorting from API
-          // Use pagination-based rank for consistent real-time ranking
           let rank: number;
           if (periodFilter !== "all") {
-            // Period queries return period_rank from server-side calculation
-            rank = user.period_rank || (currentPage - 1) * ITEMS_PER_PAGE + index + 1;
+            rank = user.period_rank || startIndex + index + 1;
           } else {
-            // Global, Country, CCplan all use total_tokens sorting
-            rank = (currentPage - 1) * ITEMS_PER_PAGE + index + 1;
+            rank = startIndex + index + 1;
           }
 
           return {
@@ -273,30 +515,125 @@ export default function LeaderboardPage() {
         }
       );
 
-      // Sort by selected metric if needed
-      if (sortBy === "cost") {
-        transformedUsers.sort((a, b) => (b.periodCost ?? 0) - (a.periodCost ?? 0));
-        transformedUsers.forEach((u, i) => {
-          u.rank = (currentPage - 1) * ITEMS_PER_PAGE + i + 1;
-        });
-      }
-
-      setUsers(transformedUsers);
+      // Update pagination info
       setTotal(data.pagination?.total || 0);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "An error occurred");
-    } finally {
-      setLoading(false);
+      setTotalPages(data.pagination?.totalPages || 1);
+
+      return transformedUsers;
+    },
+    [periodFilter, scopeFilter, currentUserCountry, currentUsername, customDateRange]
+  );
+
+  // Fetch leaderboard data (supports initial, append, prepend, and jump modes)
+  const fetchLeaderboard = useCallback(
+    async (mode: "initial" | "append" | "prepend" | "jump" = "initial", targetPage?: number) => {
+      // API calls for bidirectional infinite scroll
+      if (mode === "initial" || mode === "jump") {
+        setLoading(true);
+      } else if (mode === "append") {
+        setLoadingMore(true);
+      } else if (mode === "prepend") {
+        setLoadingPrevious(true);
+        if (tableContainerRef.current) {
+          scrollHeightBeforePrepend.current = tableContainerRef.current.scrollHeight;
+        }
+      }
+      setError(null);
+
+      try {
+        const pageNum =
+          targetPage ||
+          (mode === "append"
+            ? loadedPageRange.end + 1
+            : mode === "prepend"
+              ? loadedPageRange.start - 1
+              : 1);
+        const pageUsers = await fetchPage(pageNum, mode);
+
+        setPagesData((prev) => {
+          const newMap = new Map(prev);
+          if (mode === "initial" || mode === "jump") {
+            newMap.clear();
+          }
+          newMap.set(pageNum, pageUsers);
+          return newMap;
+        });
+
+        if (mode === "initial" || mode === "jump") {
+          setLoadedPageRange({ start: pageNum, end: pageNum });
+        } else if (mode === "append") {
+          setLoadedPageRange((prev) => ({ ...prev, end: pageNum }));
+        } else if (mode === "prepend") {
+          setLoadedPageRange((prev) => ({ ...prev, start: pageNum }));
+        }
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "An error occurred");
+      } finally {
+        setLoading(false);
+        setLoadingMore(false);
+        setLoadingPrevious(false);
+      }
+    },
+    [loadedPageRange, fetchPage]
+  );
+
+  // Keep ref updated to avoid stale closure in effects
+  fetchLeaderboardRef.current = fetchLeaderboard;
+
+  // Load more data for infinite scroll (downward)
+  const loadMore = useCallback(() => {
+    if (loadingMore || !hasMore) return;
+    fetchLeaderboard("append");
+  }, [loadingMore, hasMore, fetchLeaderboard]);
+
+  // Load previous data for infinite scroll (upward)
+  const loadPrevious = useCallback(() => {
+    if (loadingPrevious || !hasPrevious) return;
+    fetchLeaderboard("prepend");
+  }, [loadingPrevious, hasPrevious, fetchLeaderboard]);
+
+  // Handle scroll position restoration after prepending data
+  // Using useLayoutEffect to prevent visual flash - executes before browser paint
+  useLayoutEffect(() => {
+    if (scrollHeightBeforePrepend.current > 0 && tableContainerRef.current && !loadingPrevious) {
+      const newScrollHeight = tableContainerRef.current.scrollHeight;
+      const scrollDiff = newScrollHeight - scrollHeightBeforePrepend.current;
+      if (scrollDiff > 0) {
+        tableContainerRef.current.scrollTop += scrollDiff;
+      }
+      scrollHeightBeforePrepend.current = 0;
     }
-  }, [
-    currentPage,
-    periodFilter,
-    scopeFilter,
-    sortBy,
-    currentUserCountry,
-    currentUsername,
-    customDateRange,
-  ]);
+  }, [loadingPrevious, loadedPageRange.start]);
+
+  // Handle pending jump to user position
+  // Using ref pattern to avoid dependency on fetchLeaderboard which changes frequently
+  useEffect(() => {
+    if (pendingJumpToUser && userTargetPage && !loading) {
+      fetchLeaderboardRef.current?.("jump", userTargetPage);
+      setPendingJumpToUser(false);
+    }
+  }, [pendingJumpToUser, userTargetPage, loading]);
+
+  // Scroll to user row after jump load completes
+  // Using requestAnimationFrame for reliable DOM update timing
+  useEffect(() => {
+    if (userTargetPage && !loading && users.length > 0) {
+      const currentUser = users.find((u) => u.isCurrentUser);
+      if (currentUser) {
+        // Use requestAnimationFrame for more reliable DOM timing
+        const scrollToUser = () => {
+          if (currentUserRowRef.current) {
+            currentUserRowRef.current.scrollIntoView({ behavior: "smooth", block: "center" });
+            setUserTargetPage(null);
+          } else {
+            // DOM not ready yet, try again next frame
+            requestAnimationFrame(scrollToUser);
+          }
+        };
+        requestAnimationFrame(scrollToUser);
+      }
+    }
+  }, [userTargetPage, loading, users]);
 
   // Fetch current user's country and username
   useEffect(() => {
@@ -324,66 +661,51 @@ export default function LeaderboardPage() {
     fetchUserInfo();
   }, [clerkUser?.id]);
 
-  // Fetch current user's rank for "My Rank" button
-  useEffect(() => {
-    async function fetchMyRank() {
-      if (!currentUsername) return;
-
-      try {
-        const params = new URLSearchParams();
-        params.set("findUser", currentUsername);
-        params.set("limit", String(ITEMS_PER_PAGE));
-        if (scopeFilter === "country" && currentUserCountry) {
-          params.set("country", currentUserCountry);
-        }
-
-        const response = await fetch(`/api/leaderboard?${params}`);
-        const data = await response.json();
-
-        if (data.found && data.user) {
-          setMyRankInfo({ rank: data.user.rank, page: data.user.page });
-        } else {
-          setMyRankInfo(null);
-        }
-      } catch {
-        setMyRankInfo(null);
-      }
-    }
-
-    fetchMyRank();
-  }, [currentUsername, scopeFilter, currentUserCountry]);
-
   // Fetch data on filter/page change
+  // Using ref to avoid infinite loop from fetchLeaderboard dependency
   useEffect(() => {
-    fetchLeaderboard();
-  }, [fetchLeaderboard]);
+    fetchLeaderboardRef.current?.();
+  }, [periodFilter, scopeFilter, customDateRange]);
 
   // Refetch leaderboard after user info is loaded (to get updated social_links from OAuth)
   useEffect(() => {
     if (userInfoLoaded) {
-      fetchLeaderboard();
+      fetchLeaderboardRef.current?.();
     }
-  }, [userInfoLoaded, fetchLeaderboard]);
+  }, [userInfoLoaded]);
 
-  // Update selectedUser when users array changes (to reflect updated social_links)
+  // Update selectedUser when users array changes (to reflect updated data including period stats)
+  // Use selectedUser.id as dependency to avoid infinite loop
+  const selectedUserId = selectedUser?.id;
   useEffect(() => {
-    if (selectedUser && users.length > 0) {
-      const updatedUser = users.find((u) => u.id === selectedUser.id);
-      if (
-        updatedUser &&
-        JSON.stringify(updatedUser.social_links) !== JSON.stringify(selectedUser.social_links)
-      ) {
-        setSelectedUser(updatedUser);
+    if (selectedUserId && users.length > 0) {
+      const updatedUser = users.find((u) => u.id === selectedUserId);
+      if (updatedUser) {
+        // Only update if data actually changed (compare key fields to avoid infinite loop)
+        setSelectedUser((prev) => {
+          if (!prev) return updatedUser;
+          // Compare key fields that might change
+          const hasChanged =
+            prev.total_tokens !== updatedUser.total_tokens ||
+            prev.total_cost !== updatedUser.total_cost ||
+            prev.period_tokens !== updatedUser.period_tokens ||
+            prev.period_cost !== updatedUser.period_cost ||
+            prev.global_rank !== updatedUser.global_rank ||
+            prev.country_rank !== updatedUser.country_rank ||
+            JSON.stringify(prev.social_links) !== JSON.stringify(updatedUser.social_links);
+          return hasChanged ? updatedUser : prev;
+        });
       }
     }
-  }, [users, selectedUser]);
+  }, [users, selectedUserId]);
 
-  // Panel width handling - 3-tier breakpoint system
+  // Viewport width and panel width tracking for responsive layout
   // Mobile: < 640px | Tablet: 640-1039px | PC: >= 1040px
   useEffect(() => {
-    const updatePanelWidth = () => {
+    const updateLayout = () => {
       const width = window.innerWidth;
       setViewportWidth(width);
+
       if (width >= 1040) {
         // PC: push 440px
         setPanelWidth(440);
@@ -398,14 +720,9 @@ export default function LeaderboardPage() {
         setIsOverlayMode(true);
       }
     };
-    updatePanelWidth();
-    window.addEventListener("resize", updatePanelWidth);
-    return () => window.removeEventListener("resize", updatePanelWidth);
-  }, []);
-
-  // Set mounted state
-  useEffect(() => {
-    setIsMounted(true);
+    updateLayout();
+    window.addEventListener("resize", updateLayout);
+    return () => window.removeEventListener("resize", updateLayout);
   }, []);
 
   // Handle ?u=username query parameter for highlighting
@@ -442,8 +759,9 @@ export default function LeaderboardPage() {
         const data = await response.json();
 
         if (data.found && data.user?.page) {
-          // Navigate to the user's page
-          setCurrentPage(data.user.page);
+          // Navigate to the user's page using jump mode
+          setUserTargetPage(data.user.page);
+          fetchLeaderboard("jump", data.user.page);
           setHighlightedUsername(highlightUsername.toLowerCase());
         }
       } catch {
@@ -456,29 +774,51 @@ export default function LeaderboardPage() {
     }
 
     return undefined;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [highlightUsername, users, scopeFilter, currentUserCountry]);
-
-  // Pagination
-  const totalPages = Math.ceil(total / ITEMS_PER_PAGE);
 
   // Find current user
   const currentUserData = useMemo(() => {
     return users.find((u) => u.isCurrentUser);
   }, [users]);
 
-  // Go to my rank
-  const goToMyRank = useCallback(() => {
-    if (myRankInfo) {
-      setCurrentPage(myRankInfo.page);
-      setHighlightMyRank(true);
-      setPendingMyRankScroll(true);
-    } else if (currentUserData) {
-      const myPage = Math.ceil(currentUserData.rank / ITEMS_PER_PAGE);
-      setCurrentPage(myPage);
-      setHighlightMyRank(true);
-      setPendingMyRankScroll(true);
-    }
-  }, [myRankInfo, currentUserData]);
+  // IntersectionObserver for current user row visibility in developer leaderboard
+  // Also tracks direction (above/below) when not visible
+  useEffect(() => {
+    const row = currentUserRowRef.current;
+    if (!row || !currentUserData) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const entry = entries[0];
+        if (entry) {
+          setMyPositionVisible(entry.isIntersecting);
+
+          // Determine direction when not visible
+          if (!entry.isIntersecting && entry.rootBounds) {
+            // If the row's bottom is above the viewport top → user is ABOVE
+            // If the row's top is below the viewport bottom → user is BELOW
+            if (entry.boundingClientRect.bottom < entry.rootBounds.top) {
+              setMyPositionDirection("above");
+            } else if (entry.boundingClientRect.top > entry.rootBounds.bottom) {
+              setMyPositionDirection("below");
+            }
+          } else {
+            setMyPositionDirection(null);
+          }
+        }
+      },
+      {
+        root: tableContainerRef.current,
+        rootMargin: "0px",
+        threshold: 0.1,
+      }
+    );
+
+    observer.observe(row);
+    return () => observer.disconnect();
+    // Note: currentUserData is derived from users via useMemo, so only currentUserData is needed
+  }, [currentUserData]);
 
   // Scroll to current user and open panel when My Rank is clicked
   useEffect(() => {
@@ -501,19 +841,60 @@ export default function LeaderboardPage() {
     }
   }, [pendingMyRankScroll, loading, users]);
 
-  // Reset page on filter change
+  // Reset pagination state on filter change
   useEffect(() => {
-    setCurrentPage(1);
+    setPagesData(new Map());
+    setLoadedPageRange({ start: 1, end: 1 });
+    setTotalPages(1);
     setHighlightMyRank(false);
+    setUserTargetPage(null);
   }, [scopeFilter, periodFilter, sortBy]);
 
-  // Animation trigger - only on initial mount, not on filter changes
+  // IntersectionObserver for infinite scroll (downward - load more)
   useEffect(() => {
-    if (!isMounted) return;
-    // Only animate on first load
-    const timer = setTimeout(() => setIsAnimating(false), 600);
-    return () => clearTimeout(timer);
-  }, [isMounted]);
+    const trigger = loadMoreTriggerRef.current;
+    if (!trigger) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const entry = entries[0];
+        if (entry?.isIntersecting && hasMore && !loadingMore && !loading) {
+          loadMore();
+        }
+      },
+      {
+        root: tableContainerRef.current,
+        rootMargin: "100px",
+        threshold: 0,
+      }
+    );
+
+    observer.observe(trigger);
+    return () => observer.disconnect();
+  }, [hasMore, loadingMore, loading, loadMore]);
+
+  // IntersectionObserver for infinite scroll (upward - load previous)
+  useEffect(() => {
+    const trigger = loadPreviousTriggerRef.current;
+    if (!trigger) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const entry = entries[0];
+        if (entry?.isIntersecting && hasPrevious && !loadingPrevious && !loading) {
+          loadPrevious();
+        }
+      },
+      {
+        root: tableContainerRef.current,
+        rootMargin: "50px",
+        threshold: 0,
+      }
+    );
+
+    observer.observe(trigger);
+    return () => observer.disconnect();
+  }, [hasPrevious, loadingPrevious, loading, loadPrevious]);
 
   const handleRowClick = (user: DisplayUser) => {
     setSelectedUser(user);
@@ -525,13 +906,9 @@ export default function LeaderboardPage() {
     setIsPanelOpen(false);
   };
 
-  const handlePageChange = (page: number) => {
-    setCurrentPage(page);
-    setHighlightMyRank(false);
-  };
-
-  // Use 3:5 ratio only when: viewport < 1440px AND panel is open
-  const useCompactRatio = isPanelOpen && viewportWidth < 1440;
+  // Use compact ratio only when: viewport < 1200px AND panel is open
+  // Above 1200px: Globe remains visible alongside panel
+  const useCompactRatio = isPanelOpen && viewportWidth < 1200;
 
   // Tablet: 768px <= width < 1040px → use 45:55 ratio
   const isTablet = viewportWidth >= 768 && viewportWidth < 1040;
@@ -540,25 +917,32 @@ export default function LeaderboardPage() {
   const showLevelColumn = viewportWidth >= 860 || (viewportWidth >= 768 && isPanelOpen);
 
   return (
-    <div className="min-h-screen overflow-x-hidden">
-      {/* Persistent Globe Particles - fades in when Globe slides out */}
+    <div className="min-h-screen overflow-x-hidden md:fixed md:top-16 md:left-0 md:right-0 md:bottom-0 md:z-10 md:bg-[var(--color-bg-primary)] md:overflow-hidden">
+      {/* Full-screen Globe Particles background - spans both columns */}
       {viewportWidth >= 768 && (
-        <div
-          className="fixed top-32 left-4 pointer-events-none z-0 transition-opacity duration-500"
-          style={{
-            width: "320px",
-            height: "320px",
-            opacity: useCompactRatio ? 1 : 0,
-          }}
-        >
-          <GlobeParticles size={320} />
+        <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden">
+          {/* Position particles origin at globe center (left column) */}
+          <div
+            className="absolute"
+            style={{
+              top: "180px",
+              left: `calc(${isTablet ? "22.5%" : "25%"} - 20px)`,
+              width: "800px",
+              height: "800px",
+            }}
+          >
+            <GlobeParticles size={400} />
+          </div>
         </div>
       )}
-      <div className="transition-all duration-300 ease-out">
+      <div className="transition-all duration-300 ease-out h-[calc(100vh-56px)] md:h-auto overflow-hidden md:overflow-visible">
         <div
-          className="px-4 py-8 transition-all duration-300 max-w-[1000px] mx-auto"
+          className="px-4 pt-4 pb-2 max-w-[1000px] mx-auto transition-all duration-300 h-full md:h-auto flex flex-col"
           style={{
-            marginRight: isPanelOpen && panelWidth > 0 ? `${panelWidth}px` : undefined,
+            // 좁은 화면(<1500px)에서만 marginRight 적용 (패널과 겹치지 않도록)
+            // 넓은 화면(>=1500px)에서는 중앙 유지
+            marginRight:
+              isPanelOpen && panelWidth > 0 && viewportWidth < 1500 ? `${panelWidth}px` : undefined,
           }}
         >
           {/* Header */}
@@ -595,76 +979,343 @@ export default function LeaderboardPage() {
           {/* 2-Column Layout: Globe+Countries (left) + Users (right) */}
           {/* Wide viewport (>=1440): always 50%|50%+panel */}
           {/* Narrow viewport (<1440) + panel open: Globe slides out, table expands */}
-          <div className="flex flex-col md:flex-row gap-4 overflow-hidden">
+          <div className="flex flex-col md:flex-row md:justify-start gap-4 overflow-hidden flex-1 min-h-0">
             {/* Left Column: Globe + Top Countries */}
             {/* Tablet (<1040px): 45% width, PC (>=1040px): 50% width */}
-            {/* When panel opens on narrow viewport: slides out */}
+            {/* When panel opens: shrink to 35% to give more space to table */}
+            {/* When panel opens on narrow viewport (<1200px): slides out */}
             <div
-              className={`hidden md:block transition-all duration-300 ${
+              className={`hidden md:flex md:flex-col transition-all duration-300 relative ${
                 useCompactRatio ? "md:w-0 md:opacity-0 md:-translate-x-full md:overflow-hidden" : ""
               }`}
               style={{
-                width: useCompactRatio ? undefined : isTablet ? "45%" : "50%",
+                width: useCompactRatio
+                  ? undefined
+                  : isPanelOpen && viewportWidth < 1500
+                    ? "40%"
+                    : isTablet
+                      ? "45%"
+                      : "50%",
               }}
             >
-              <div className={`sticky top-24 ${isTablet ? "space-y-2" : "space-y-4"}`}>
-                {/* Globe Section - Large, centered in left column */}
-                <div className={`relative ${isTablet ? "p-2" : "p-4"}`}>
-                  {/* Scope Filter - Top Right of Globe Area */}
-                  <div className="absolute top-0 right-0 flex h-7 glass rounded-lg overflow-hidden z-10">
-                    <button
-                      onClick={() => setScopeFilter("global")}
-                      className={`h-7 w-7 text-[10px] leading-none font-medium transition-colors flex items-center justify-center ${
-                        scopeFilter === "global"
-                          ? "bg-[var(--color-claude-coral)]/50 text-[var(--color-claude-coral)]"
-                          : "text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-filter-hover)]"
-                      }`}
-                    >
-                      🌍
-                    </button>
-                    <button
-                      onClick={() => setScopeFilter("country")}
-                      className={`h-7 w-7 text-[10px] leading-none font-medium transition-colors flex items-center justify-center ${
-                        scopeFilter === "country"
-                          ? "bg-emerald-500/50 text-emerald-400"
-                          : "text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-filter-hover)]"
-                      }`}
-                    >
-                      {currentUserCountry && (
-                        <ReactCountryFlag
-                          countryCode={currentUserCountry}
-                          svg
-                          style={{ width: "12px", height: "12px" }}
-                          className="flex-shrink-0"
-                        />
-                      )}
-                    </button>
-                  </div>
-
-                  <GlobeStatsSection
-                    userCountryCode={currentUserCountry}
-                    onStatsLoaded={handleCountryStatsLoaded}
-                    size="large"
-                    scopeFilter={scopeFilter}
-                    sortBy={sortBy}
-                    compact={isTablet}
-                  />
+              {/* Fixed Header: Stats Summary (left) + Scope Filter (right) */}
+              <div className="flex items-center justify-between mb-4" style={{ height: 34 }}>
+                {/* Stats Summary - always visible at top left */}
+                <div
+                  className={`flex items-center gap-1.5 text-xs ${isTablet ? "text-[10px]" : ""}`}
+                >
+                  <span className="flex items-center gap-1 text-[var(--color-text-primary)]">
+                    <span>🌍</span>
+                  </span>
+                  <span className="text-[var(--color-text-muted)]">·</span>
+                  <span
+                    className={`flex items-center gap-1 ${
+                      sortBy === "tokens"
+                        ? "text-[var(--color-text-muted)]"
+                        : "text-[var(--color-cost)]"
+                    }`}
+                  >
+                    <span>💰</span>
+                    <span className="font-semibold">
+                      ${totalGlobalCost.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                    </span>
+                  </span>
+                  <span className="text-[var(--color-text-muted)]">·</span>
+                  <span
+                    className={`flex items-center gap-1 ${
+                      sortBy === "cost"
+                        ? "text-[var(--color-text-muted)]"
+                        : "text-[var(--color-claude-coral)]"
+                    }`}
+                  >
+                    <span>⚡</span>
+                    <span className="font-semibold">{totalGlobalTokens.toLocaleString()}</span>
+                  </span>
                 </div>
 
-                {/* Top Countries - Scrollable */}
-                {countryStats.length > 0 && (
-                  <div
-                    className={`glass rounded-2xl border border-[var(--border-default)] max-h-[400px] overflow-y-auto ${isTablet ? "p-3" : "p-4"}`}
+                {/* Scope Filter - right aligned */}
+                <div className="flex h-[34px] glass rounded-lg overflow-hidden">
+                  <button
+                    onClick={() => setScopeFilter("global")}
+                    className={`h-[34px] w-[34px] text-[11px] leading-none font-medium transition-colors flex items-center justify-center ${
+                      scopeFilter === "global"
+                        ? "bg-[var(--color-claude-coral)]/50 text-[var(--color-claude-coral)]"
+                        : "text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-filter-hover)]"
+                    }`}
                   >
-                    <TopCountriesSection
-                      stats={countryStats}
-                      totalTokens={totalGlobalTokens}
-                      totalCost={totalGlobalCost}
-                      sortBy={sortBy}
-                      userCountryCode={currentUserCountry}
-                      maxItems={15}
-                      compact={viewportWidth < 860}
-                    />
+                    🌍
+                  </button>
+                  <button
+                    onClick={() => setScopeFilter("country")}
+                    className={`h-[34px] w-[34px] text-[11px] leading-none font-medium transition-colors flex items-center justify-center ${
+                      scopeFilter === "country"
+                        ? "bg-emerald-500/50 text-emerald-400"
+                        : "text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-filter-hover)]"
+                    }`}
+                  >
+                    {currentUserCountry && (
+                      <ReactCountryFlag
+                        countryCode={currentUserCountry}
+                        svg
+                        style={{ width: "14px", height: "14px" }}
+                        className="flex-shrink-0"
+                      />
+                    )}
+                  </button>
+                </div>
+              </div>
+
+              {/* Scrollable container - flex column to fill height */}
+              <div
+                ref={leftColumnRef}
+                onScroll={handleLeftColumnScroll}
+                onWheel={handleLeftColumnWheel}
+                className="overflow-y-auto overflow-x-hidden scrollbar-hide relative flex flex-col"
+                style={{
+                  height: "calc(100vh - 64px - 156px)",
+                  maxHeight: "calc(100vh - 64px - 156px)",
+                }}
+              >
+                {/* Globe + Particles - Sticky, stays fixed while scrolling */}
+                <div className="sticky top-0 left-0 right-0 h-0 z-0 pointer-events-none flex justify-center">
+                  <div
+                    className="absolute flex flex-col items-center"
+                    style={{
+                      top: isTablet ? 8 : 16,
+                      width: isTablet ? 280 : 320,
+                    }}
+                  >
+                    {/* GlobeParticles moved to full-screen background layer */}
+                    {/* Globe - fades to 10% when sticky locked or on scroll */}
+                    <div
+                      className="transition-opacity duration-300 pointer-events-auto"
+                      style={{
+                        opacity: stickyLocked
+                          ? 0.1
+                          : Math.max(0.1, 1 - leftColumnScrollProgress * 1.8),
+                      }}
+                    >
+                      <GlobeStatsSection
+                        userCountryCode={currentUserCountry}
+                        onStatsLoaded={handleCountryStatsLoaded}
+                        size="large"
+                        scopeFilter={scopeFilter}
+                        sortBy={sortBy}
+                        compact={isTablet}
+                        hideParticles
+                        hideStats
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Spacer for Globe height - collapses when sticky locked */}
+                <div
+                  className="flex-shrink-0"
+                  style={{ height: stickyLocked ? 0 : isTablet ? 380 : 420 }}
+                />
+
+                {/* Top Countries Section with sticky header - fills remaining space */}
+                <div
+                  className={`glass !border-0 rounded-t-2xl flex-1 flex flex-col ${stickyLocked ? "" : isTablet ? "mt-2" : "mt-4"}`}
+                >
+                  {/* Sticky Header - extends 2px above to cover rounded corner gap */}
+                  <div
+                    className={`sticky top-0 z-20 h-[42px] flex items-center gap-2 bg-[var(--glass-bg)] backdrop-blur-md rounded-t-2xl border-b border-[var(--color-text-muted)]/30 px-3`}
+                    style={{ marginTop: -2, paddingTop: 2 }}
+                  >
+                    {/* Trophy - aligned with rank column */}
+                    <span className="w-6 text-xs text-center flex-shrink-0">🏆</span>
+                    {/* Spacer for flag column */}
+                    <span className="w-4 flex-shrink-0"></span>
+                    {/* Title - aligned with country name */}
+                    <span className="flex-1 text-xs font-medium text-[var(--color-text-secondary)]">
+                      Top Countries
+                    </span>
+                    {/* Right side controls */}
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      <span className="text-[10px] text-[var(--color-text-muted)]">
+                        by {sortBy === "tokens" ? "Token Usage" : "Cost"}
+                      </span>
+                      {stickyLocked && (
+                        <button
+                          onClick={handleExpandGlobe}
+                          className={`w-6 h-6 flex items-center justify-center rounded text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] hover:bg-white/10 transition-all ${
+                            shakeExpandButton
+                              ? "animate-shake bg-[var(--color-claude-coral)]/30 text-[var(--color-claude-coral)] ring-1 ring-[var(--color-claude-coral)]/50"
+                              : ""
+                          }`}
+                          title="Show Globe"
+                        >
+                          <ChevronDown size={16} />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                  {/* Country List - flex-1 to fill remaining space */}
+                  <div className={`${isTablet ? "p-3 pt-2" : "p-4 pt-3"} flex-1`}>
+                    {countryStats.length > 0 && (
+                      <TopCountriesSection
+                        ref={topCountriesSectionRef}
+                        stats={countryStats}
+                        totalTokens={totalGlobalTokens}
+                        totalCost={totalGlobalCost}
+                        sortBy={sortBy}
+                        userCountryCode={currentUserCountry}
+                        compact={viewportWidth < 860}
+                        hideHeader
+                        onUserCountryVisibilityChange={handleUserCountryVisibilityChange}
+                        scrollContainerRef={leftColumnRef}
+                      />
+                    )}
+                  </div>
+                </div>
+
+                {/* 📍 Your Country - Sticky Top (when scrolled below user's country) */}
+                {!userCountryVisible && userCountryData && userCountryDirection === "above" && (
+                  <div
+                    onClick={jumpToUserCountry}
+                    className="sticky top-[42px] z-30 bg-[var(--glass-bg)] backdrop-blur-md cursor-pointer hover:bg-[var(--glass-bg-hover)] active:bg-[var(--glass-bg-hover)] transition-colors"
+                  >
+                    <div className="text-[10px] text-[var(--color-text-muted)] uppercase tracking-wide px-3 pt-2 pb-1 flex items-center gap-1">
+                      <span>📍 Your Country</span>
+                      <span className="text-[var(--color-text-muted)]/50">↑</span>
+                    </div>
+                    <div className="flex items-center gap-2 px-3 h-10 bg-[var(--user-country-bg)] border-b border-[var(--color-text-muted)]/30">
+                      <span className="w-6 text-xs font-mono text-[var(--color-text-muted)] flex-shrink-0">
+                        #{userCountryRank}
+                      </span>
+                      <div className="w-4 flex-shrink-0">
+                        <ReactCountryFlag
+                          countryCode={userCountryData.code}
+                          svg
+                          style={{ width: "16px", height: "16px" }}
+                        />
+                      </div>
+                      <div className="flex-1 min-w-0 flex items-center gap-1.5">
+                        <span className="text-xs font-medium text-[var(--user-country-text)] truncate">
+                          {userCountryData.name}
+                          <span className="ml-1 text-[10px]">🟢</span>
+                        </span>
+                        <span className="text-[10px] font-mono text-[var(--color-text-muted)] flex-shrink-0">
+                          {(
+                            (sortBy === "tokens"
+                              ? userCountryData.tokens / totalGlobalTokens
+                              : userCountryData.cost / totalGlobalCost) * 100
+                          ).toFixed(1)}
+                          %
+                        </span>
+                      </div>
+                      <div
+                        className={`flex items-center font-mono flex-shrink-0 ${viewportWidth < 860 ? "gap-2 text-[10px]" : "gap-3 text-xs"}`}
+                      >
+                        {viewportWidth < 860 ? (
+                          sortBy === "tokens" ? (
+                            <span className="min-w-[40px] text-right text-[var(--color-cost)]">
+                              $
+                              {userCountryData.cost >= 1000
+                                ? `${(userCountryData.cost / 1000).toFixed(1)}K`
+                                : userCountryData.cost.toFixed(0)}
+                            </span>
+                          ) : (
+                            <span className="min-w-[45px] text-right text-[var(--color-claude-coral)]">
+                              {formatTokens(userCountryData.tokens)}
+                            </span>
+                          )
+                        ) : (
+                          <>
+                            <span
+                              className={`min-w-[40px] text-right ${sortBy === "tokens" ? "text-[var(--color-text-muted)]" : "text-[var(--color-cost)]"}`}
+                            >
+                              $
+                              {userCountryData.cost >= 1000
+                                ? `${(userCountryData.cost / 1000).toFixed(1)}K`
+                                : userCountryData.cost.toFixed(0)}
+                            </span>
+                            <span
+                              className={`min-w-[45px] text-right ${sortBy === "cost" ? "text-[var(--color-text-muted)]" : "text-[var(--color-claude-coral)]"}`}
+                            >
+                              {formatTokens(userCountryData.tokens)}
+                            </span>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* 📍 Your Country - Sticky Bottom (when scrolled above user's country) */}
+                {!userCountryVisible && userCountryData && userCountryDirection === "below" && (
+                  <div
+                    onClick={jumpToUserCountry}
+                    className="sticky bottom-0 z-30 bg-[var(--glass-bg)] backdrop-blur-md border-t border-[var(--color-text-muted)]/30 rounded-b-2xl cursor-pointer hover:bg-[var(--glass-bg-hover)] active:bg-[var(--glass-bg-hover)] transition-colors pb-4"
+                  >
+                    <div className="text-[10px] text-[var(--color-text-muted)] uppercase tracking-wide px-3 pt-2 pb-1 flex items-center gap-1">
+                      <span>📍 Your Country</span>
+                      <span className="text-[var(--color-text-muted)]/50">↓</span>
+                    </div>
+                    <div className="flex items-center gap-2 px-3 h-10 bg-[var(--user-country-bg)]">
+                      <span className="w-6 text-xs font-mono text-[var(--color-text-muted)] flex-shrink-0">
+                        #{userCountryRank}
+                      </span>
+                      <div className="w-4 flex-shrink-0">
+                        <ReactCountryFlag
+                          countryCode={userCountryData.code}
+                          svg
+                          style={{ width: "16px", height: "16px" }}
+                        />
+                      </div>
+                      <div className="flex-1 min-w-0 flex items-center gap-1.5">
+                        <span className="text-xs font-medium text-[var(--user-country-text)] truncate">
+                          {userCountryData.name}
+                          <span className="ml-1 text-[10px]">🟢</span>
+                        </span>
+                        <span className="text-[10px] font-mono text-[var(--color-text-muted)] flex-shrink-0">
+                          {(
+                            (sortBy === "tokens"
+                              ? userCountryData.tokens / totalGlobalTokens
+                              : userCountryData.cost / totalGlobalCost) * 100
+                          ).toFixed(1)}
+                          %
+                        </span>
+                      </div>
+                      <div
+                        className={`flex items-center font-mono flex-shrink-0 ${viewportWidth < 860 ? "gap-2 text-[10px]" : "gap-3 text-xs"}`}
+                      >
+                        {viewportWidth < 860 ? (
+                          sortBy === "tokens" ? (
+                            <span className="min-w-[40px] text-right text-[var(--color-cost)]">
+                              $
+                              {userCountryData.cost >= 1000
+                                ? `${(userCountryData.cost / 1000).toFixed(1)}K`
+                                : userCountryData.cost.toFixed(0)}
+                            </span>
+                          ) : (
+                            <span className="min-w-[45px] text-right text-[var(--color-claude-coral)]">
+                              {formatTokens(userCountryData.tokens)}
+                            </span>
+                          )
+                        ) : (
+                          <>
+                            <span
+                              className={`min-w-[40px] text-right ${sortBy === "tokens" ? "text-[var(--color-text-muted)]" : "text-[var(--color-cost)]"}`}
+                            >
+                              $
+                              {userCountryData.cost >= 1000
+                                ? `${(userCountryData.cost / 1000).toFixed(1)}K`
+                                : userCountryData.cost.toFixed(0)}
+                            </span>
+                            <span
+                              className={`min-w-[45px] text-right ${sortBy === "cost" ? "text-[var(--color-text-muted)]" : "text-[var(--color-claude-coral)]"}`}
+                            >
+                              {formatTokens(userCountryData.tokens)}
+                            </span>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                    {/* Safe area padding for mobile */}
+                    <div className="h-[env(safe-area-inset-bottom,0px)]" />
                   </div>
                 )}
               </div>
@@ -673,30 +1324,33 @@ export default function LeaderboardPage() {
             {/* Right Column: User Table */}
             {/* Mobile (<768px): 100% width */}
             {/* Tablet (768-1039px): 55% width, PC (>=1040px): 50% width */}
-            {/* When panel opens on narrow viewport: expands to full width */}
+            {/* When panel opens: expand to 65% (Globe shrinks to 35%) */}
+            {/* When panel opens on narrow viewport (<1200px): expands to full width */}
             <div
-              className="w-full md:w-auto transition-all duration-300"
+              className="w-full md:w-auto transition-all duration-300 flex-1 md:flex-none flex flex-col min-h-0"
               style={{
                 width:
                   viewportWidth < 768
                     ? "100%"
                     : useCompactRatio
                       ? "100%"
-                      : isTablet
-                        ? "55%"
-                        : "50%",
+                      : isPanelOpen && viewportWidth < 1500
+                        ? "60%"
+                        : isTablet
+                          ? "55%"
+                          : "50%",
               }}
             >
-              {/* Filters - Above Table */}
-              <div className="flex items-center justify-between gap-2 mb-4">
+              {/* Filters - Above Table (height: 34px + mb-4 to match left column header) */}
+              <div className="flex items-center justify-between gap-2 mb-4" style={{ height: 34 }}>
                 <div className="flex items-center gap-1.5 flex-shrink-0">
                   {/* Mini Globe Button - Mobile or when Globe is hidden */}
                   <button
                     onClick={() => setIsGlobePanelOpen(true)}
-                    className={`rounded-lg glass text-[10px] leading-none font-medium transition-colors items-center justify-center text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] hover:bg-white/10 flex-shrink-0 ${
+                    className={`rounded-lg glass text-[11px] leading-none font-medium transition-colors items-center justify-center text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] hover:bg-white/10 flex-shrink-0 ${
                       useCompactRatio ? "flex" : "flex md:hidden"
                     }`}
-                    style={{ width: 28, height: 28 }}
+                    style={{ width: 34, height: 34 }}
                     title="View Global Stats"
                   >
                     🌐
@@ -707,39 +1361,39 @@ export default function LeaderboardPage() {
                     className={`glass rounded-lg overflow-hidden flex-shrink-0 ${
                       useCompactRatio ? "flex" : "flex md:hidden"
                     }`}
-                    style={{ height: 28 }}
+                    style={{ height: 34 }}
                   >
                     <button
                       onClick={() => setScopeFilter("global")}
-                      className={`text-[10px] leading-none font-medium transition-colors flex items-center justify-center ${
+                      className={`text-[11px] leading-none font-medium transition-colors flex items-center justify-center ${
                         scopeFilter === "global"
                           ? "bg-[var(--color-claude-coral)]/50 text-[var(--color-claude-coral)]"
                           : "text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-filter-hover)]"
                       }`}
-                      style={{ width: 28, height: 28 }}
+                      style={{ width: 34, height: 34 }}
                     >
                       🌍
                     </button>
                     <button
                       onClick={() => setScopeFilter("country")}
-                      className={`text-[10px] leading-none font-medium transition-colors flex items-center justify-center ${
+                      className={`text-[11px] leading-none font-medium transition-colors flex items-center justify-center ${
                         scopeFilter === "country"
                           ? "bg-emerald-500/50 text-emerald-400"
                           : "text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-filter-hover)]"
                       }`}
-                      style={{ width: 28, height: 28 }}
+                      style={{ width: 34, height: 34 }}
                     >
                       <ReactCountryFlag
                         countryCode={currentUserCountry}
                         svg
-                        style={{ width: "12px", height: "12px" }}
+                        style={{ width: "14px", height: "14px" }}
                         className="flex-shrink-0"
                       />
                     </button>
                   </div>
 
                   {/* Period Filter - Desktop: buttons, Tablet/Mobile: dropdown */}
-                  <div className="hidden lg:flex items-center h-7 glass rounded-lg overflow-hidden">
+                  <div className="hidden lg:flex items-center h-[34px] glass rounded-lg overflow-hidden">
                     {[
                       { value: "all", label: "All D" },
                       { value: "today", label: "1D" },
@@ -754,7 +1408,7 @@ export default function LeaderboardPage() {
                             setCustomDateRange(null);
                           }
                         }}
-                        className={`h-7 px-2 text-xs font-medium transition-colors ${
+                        className={`h-[34px] px-2.5 text-xs font-medium transition-colors ${
                           periodFilter === period.value
                             ? "bg-[var(--color-claude-coral)]/50 text-[var(--color-claude-coral)]"
                             : "text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-filter-hover)]"
@@ -810,36 +1464,23 @@ export default function LeaderboardPage() {
 
                 {/* Right side - Level Info, My Rank & Sort */}
                 <div className="flex items-center gap-1 flex-shrink-0">
-                  {/* Level Info Hover */}
+                  {/* Level Info Hover - Hide on mobile/tablet when custom date is selected */}
                   <div
-                    className="relative"
+                    className={`relative ${customDateRange ? "hidden lg:block" : ""}`}
                     onMouseEnter={() => setShowLevelInfo(true)}
                     onMouseLeave={() => setShowLevelInfo(false)}
                   >
-                    <div className="h-7 w-7 rounded-md text-[10px] font-medium transition-colors flex items-center justify-center text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] cursor-help">
-                      <Info className="w-3 h-3" />
+                    <div className="h-[34px] w-[34px] rounded-md text-[11px] font-medium transition-colors flex items-center justify-center text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] cursor-help">
+                      <Info className="w-3.5 h-3.5" />
                     </div>
                     <LevelInfoPopover isOpen={showLevelInfo} />
                   </div>
 
-                  {(myRankInfo || currentUserData) && (
-                    <button
-                      onClick={goToMyRank}
-                      className="flex items-center h-7 gap-0.5 px-1.5 glass hover:bg-white/15 rounded-lg text-[10px] leading-none font-medium text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] transition-colors flex-shrink-0"
-                    >
-                      <span>📍</span>
-                      <span className="hidden sm:inline">My</span>
-                      <span className="text-[var(--color-claude-coral)] font-semibold">
-                        #{myRankInfo?.rank || currentUserData?.rank}
-                      </span>
-                    </button>
-                  )}
-
-                  <div className="flex items-center h-7 glass rounded-lg overflow-hidden flex-shrink-0">
+                  <div className="flex items-center h-[34px] glass rounded-lg overflow-hidden flex-shrink-0">
                     <button
                       onClick={() => setSortBy("cost")}
                       title="Sort by Cost"
-                      className={`h-7 w-7 text-[10px] leading-none font-medium transition-colors flex items-center justify-center ${
+                      className={`h-[34px] w-[34px] text-[11px] leading-none font-medium transition-colors flex items-center justify-center ${
                         sortBy === "cost"
                           ? "bg-[var(--color-cost)]/50 text-[var(--color-cost)]"
                           : "text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-filter-hover)]"
@@ -850,7 +1491,7 @@ export default function LeaderboardPage() {
                     <button
                       onClick={() => setSortBy("tokens")}
                       title="Sort by Tokens"
-                      className={`h-7 w-7 text-[10px] leading-none font-medium transition-colors flex items-center justify-center ${
+                      className={`h-[34px] w-[34px] text-[11px] leading-none font-medium transition-colors flex items-center justify-center ${
                         sortBy === "tokens"
                           ? "bg-[var(--color-claude-coral)]/50 text-[var(--color-claude-coral)]"
                           : "text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-filter-hover)]"
@@ -879,7 +1520,7 @@ export default function LeaderboardPage() {
                     <span className="text-4xl">⚠️</span>
                     <p className="text-sm text-[var(--color-text-muted)]">{error}</p>
                     <button
-                      onClick={fetchLeaderboard}
+                      onClick={() => fetchLeaderboard()}
                       className="px-4 py-2 text-sm bg-[var(--color-claude-coral)] text-white rounded-lg hover:opacity-90 transition-opacity"
                     >
                       Retry
@@ -903,9 +1544,122 @@ export default function LeaderboardPage() {
 
               {/* Leaderboard Table - Keep showing while loading new data */}
               {users.length > 0 && (
-                <div className={loading ? "opacity-70 pointer-events-none" : "opacity-100"}>
-                  <div className="glass rounded-2xl overflow-visible border border-[var(--border-default)]">
-                    <div className="overflow-x-auto rounded-2xl">
+                <div
+                  className={`flex-1 min-h-0 flex flex-col ${loading && users.length === 0 ? "opacity-70 pointer-events-none" : "opacity-100"}`}
+                >
+                  <div className="glass !border-0 rounded-t-2xl overflow-hidden flex-1 min-h-0 flex flex-col">
+                    {/* Scrollable table container - flex-1 on mobile, fixed height on tablet/PC */}
+                    <div
+                      ref={tableContainerRef}
+                      className="overflow-y-auto overflow-x-hidden scrollbar-hide flex-1 md:flex-none"
+                      style={{
+                        height: viewportWidth >= 768 ? "calc(100vh - 64px - 156px)" : undefined,
+                        minHeight: viewportWidth >= 768 ? "400px" : "200px",
+                        overscrollBehavior: "none",
+                      }}
+                    >
+                      {/* Load previous trigger (for bidirectional infinite scroll) */}
+                      <div ref={loadPreviousTriggerRef} className="py-1">
+                        {loadingPrevious && (
+                          <div className="flex items-center justify-center gap-2 py-2">
+                            <div className="w-4 h-4 border-2 border-[var(--color-claude-coral)] border-t-transparent rounded-full animate-spin" />
+                            <span className="text-xs text-[var(--color-text-muted)]">
+                              Loading previous...
+                            </span>
+                          </div>
+                        )}
+                        {hasPrevious && !loadingPrevious && (
+                          <div className="flex flex-col items-center gap-1 py-2">
+                            <span className="text-[10px] text-[var(--color-text-muted)]/50">
+                              ↑ Page {loadedPageRange.start - 1} available
+                            </span>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* 📍 My Position - Sticky Top (when user's position is above viewport) */}
+                      {!myPositionVisible &&
+                        currentUserData &&
+                        myPositionDirection === "above" &&
+                        (() => {
+                          const user = currentUserData;
+                          const userCost = user.period_cost || user.total_cost;
+                          const userTokens = user.period_tokens || user.total_tokens;
+                          const costDisplay =
+                            userCost >= 1000
+                              ? `$${(userCost / 1000).toFixed(1)}K`
+                              : `$${userCost.toFixed(0)}`;
+                          const tokenDisplay = formatTokens(userTokens);
+
+                          return (
+                            <div
+                              onClick={jumpToMyPosition}
+                              className="sticky top-0 z-20 bg-[var(--color-bg-primary)] backdrop-blur-xl cursor-pointer hover:bg-[var(--color-bg-secondary)] active:bg-[var(--color-bg-secondary)] transition-colors"
+                            >
+                              <div className="text-[10px] text-[var(--color-text-muted)] uppercase tracking-wide px-3 pt-2 pb-1 flex items-center gap-1">
+                                <span>📍 My Position</span>
+                                <span className="text-[var(--color-text-muted)]/50">↑</span>
+                              </div>
+                              <div className="flex items-center h-10 bg-[var(--user-country-bg)] border-b border-[var(--color-text-muted)]/30">
+                                <div className="w-[36px] md:w-[44px] text-center">
+                                  <span className="text-xs font-mono text-[var(--color-text-muted)]">
+                                    #{user.rank}
+                                  </span>
+                                </div>
+                                <div className="w-[36px] md:w-[44px] text-center">
+                                  {user.country_code && (
+                                    <ReactCountryFlag
+                                      countryCode={user.country_code}
+                                      svg
+                                      style={{ width: "16px", height: "16px" }}
+                                    />
+                                  )}
+                                </div>
+                                <div className="flex-1 flex items-center gap-1.5 px-1 md:px-2">
+                                  <div className="w-6 lg:w-8 flex items-center justify-center flex-shrink-0">
+                                    {user.avatar_url ? (
+                                      <Image
+                                        src={user.avatar_url}
+                                        alt={user.username}
+                                        width={24}
+                                        height={24}
+                                        className="w-6 h-6 rounded-full object-cover"
+                                      />
+                                    ) : (
+                                      <div className="w-6 h-6 rounded-full bg-gradient-to-br from-primary to-[#F7931E] flex items-center justify-center text-white text-xs font-semibold">
+                                        {user.username.charAt(0).toUpperCase()}
+                                      </div>
+                                    )}
+                                  </div>
+                                  <span className="text-xs font-medium text-[var(--user-country-text)] truncate">
+                                    {user.display_name || user.username}
+                                    <span className="ml-1 text-[10px]">🟢</span>
+                                  </span>
+                                </div>
+                                {showLevelColumn && (
+                                  <div className="w-[70px] text-center">
+                                    <LevelBadge tokens={user.total_tokens} />
+                                  </div>
+                                )}
+                                <div className="w-[60px] md:w-[70px] text-right px-0.5 md:px-1">
+                                  <span
+                                    className={`font-mono text-xs ${sortBy === "tokens" ? "text-[var(--color-text-muted)]" : "text-[var(--color-cost)]"}`}
+                                  >
+                                    {costDisplay}
+                                  </span>
+                                </div>
+                                <div className="w-[60px] md:w-[70px] text-right pl-0.5 pr-2 md:pr-3">
+                                  <span
+                                    className={`font-mono text-xs ${sortBy === "cost" ? "text-[var(--color-text-muted)]" : "text-[var(--color-claude-coral)]"}`}
+                                  >
+                                    {tokenDisplay}
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })()}
+
                       <table className="w-full table-fixed">
                         <colgroup>
                           <col className="w-[36px] md:w-[44px]" />
@@ -915,22 +1669,28 @@ export default function LeaderboardPage() {
                           <col className="w-[60px] md:w-[70px]" />
                           <col className="w-[60px] md:w-[70px]" />
                         </colgroup>
-                        <thead>
-                          <tr className="border-b border-[var(--border-default)]">
+                        <thead
+                          className="sticky top-0 z-10 bg-[var(--glass-bg)] backdrop-blur-md"
+                          style={{
+                            boxShadow: "inset 0 -1px 0 0 rgba(113, 113, 122, 0.3)",
+                            marginTop: -2,
+                          }}
+                        >
+                          <tr className="h-10">
                             <th
-                              className="text-center align-middle text-text-secondary font-medium text-xs py-2.5 px-0.5 md:px-1"
+                              className="text-center align-middle text-text-secondary font-medium text-xs px-0.5 md:px-1"
                               title="Rank"
                             >
                               🏆
                             </th>
                             <th
-                              className="text-center align-middle text-text-secondary font-medium text-xs py-2.5 px-0.5 md:px-1"
+                              className="text-center align-middle text-text-secondary font-medium text-xs px-0.5 md:px-1"
                               title="Country"
                             >
                               🌍
                             </th>
                             <th
-                              className="align-middle text-text-secondary font-medium text-xs py-2.5 px-1 md:px-2"
+                              className="align-middle text-text-secondary font-medium text-xs px-1 md:px-2"
                               title="User"
                             >
                               <div className="flex items-center">
@@ -938,7 +1698,7 @@ export default function LeaderboardPage() {
                               </div>
                             </th>
                             <th
-                              className="text-center align-middle text-text-secondary font-medium text-xs py-2.5"
+                              className="text-center align-middle text-text-secondary font-medium text-xs"
                               style={{
                                 width: showLevelColumn ? 70 : 0,
                                 padding: showLevelColumn ? undefined : 0,
@@ -950,29 +1710,23 @@ export default function LeaderboardPage() {
                             </th>
                             {/* Cost column */}
                             <th
-                              className="text-right align-middle text-text-secondary font-medium text-xs py-2.5 px-0.5 md:px-1"
+                              className="text-right align-middle text-text-secondary font-medium text-xs px-0.5 md:px-1"
                               title="Cost"
                             >
                               💰
                             </th>
                             {/* Tokens column */}
                             <th
-                              className="text-right align-middle text-text-secondary font-medium text-xs py-2.5 pl-0.5 pr-2 md:pr-4"
+                              className="text-right align-middle text-text-secondary font-medium text-xs pl-0.5 pr-2 md:pr-4"
                               title="Tokens"
                             >
                               ⚡
                             </th>
                           </tr>
                         </thead>
+
                         <tbody>
                           {users.map((user, index) => {
-                            const isFirst = user.rank === 1;
-                            const isTopThree = user.rank <= 3;
-                            const rowPadding = isFirst
-                              ? "py-2 lg:py-3"
-                              : isTopThree
-                                ? "py-2 lg:py-2.5"
-                                : "py-2";
                             const avatarSize = "w-6 h-6";
                             const avatarText = "text-xs";
                             const nameSize = "text-xs";
@@ -986,10 +1740,11 @@ export default function LeaderboardPage() {
                             return (
                               <tr
                                 key={`${scopeFilter}-${periodFilter}-${sortBy}-${user.id}`}
+                                ref={user.isCurrentUser ? currentUserRowRef : undefined}
                                 data-user-id={user.id}
                                 onClick={() => handleRowClick(user)}
-                                className={`border-b border-[var(--border-default)] transition-all cursor-pointer hover:!bg-[var(--color-table-row-hover)] ${
-                                  user.isCurrentUser ? "bg-primary/5" : ""
+                                className={`h-10 transition-all cursor-pointer hover:!bg-[var(--color-table-row-hover)] border-b border-[var(--border-default)]/30 ${
+                                  user.isCurrentUser ? "bg-[var(--user-country-bg)]" : ""
                                 } ${selectedUser?.id === user.id && isPanelOpen ? "!bg-[var(--color-table-row-hover)]" : ""} ${
                                   user.isCurrentUser && highlightMyRank
                                     ? "!bg-[var(--color-claude-coral)]/50 ring-2 ring-[var(--color-claude-coral)]"
@@ -1012,26 +1767,18 @@ export default function LeaderboardPage() {
                                     index % 2 === 1
                                       ? "var(--color-table-row-even)"
                                       : undefined,
-                                  // Row animation only on initial page load
-                                  animation: isAnimating
-                                    ? `fadeSlideIn 0.2s ease-out ${Math.pow(index, 0.35) * 0.15}s both`
-                                    : undefined,
                                 }}
                               >
-                                <td
-                                  className={`${rowPadding} px-1 md:px-2 text-center align-middle`}
-                                >
+                                <td className={`px-1 md:px-2 text-center align-middle`}>
                                   <span
-                                    className={`text-text-primary font-mono ${rankSize} leading-none`}
+                                    className={`text-[var(--color-text-muted)] font-mono ${rankSize} leading-none`}
                                   >
-                                    {user.rank <= 3
-                                      ? ["🥇", "🥈", "🥉"][user.rank - 1]
-                                      : `#${user.rank}`}
+                                    #{user.rank}
                                   </span>
                                 </td>
-                                <td className={`${rowPadding} px-1 text-center align-middle`}>
+                                <td className={`px-1 text-center align-middle`}>
                                   {user.country_code && (
-                                    <span className="inline-block translate-y-[3px]">
+                                    <span className="inline-block translate-y-[3px] dark:brightness-[0.85]">
                                       <CountryFlag
                                         countryCode={user.country_code}
                                         size={flagSize}
@@ -1039,7 +1786,7 @@ export default function LeaderboardPage() {
                                     </span>
                                   )}
                                 </td>
-                                <td className={`${rowPadding} px-1 md:px-2`}>
+                                <td className={`px-1 md:px-2`}>
                                   <div className="flex items-center gap-1.5">
                                     <div className="w-6 lg:w-8 flex items-center justify-center flex-shrink-0">
                                       {user.avatar_url ? (
@@ -1048,7 +1795,7 @@ export default function LeaderboardPage() {
                                           alt={user.username}
                                           width={32}
                                           height={32}
-                                          className={`${avatarSize} rounded-full object-cover`}
+                                          className={`${avatarSize} rounded-full object-cover dark:brightness-90`}
                                         />
                                       ) : (
                                         <div
@@ -1059,14 +1806,14 @@ export default function LeaderboardPage() {
                                       )}
                                     </div>
                                     <span
-                                      className={`${nameSize} font-medium text-text-primary truncate`}
+                                      className={`${nameSize} font-medium text-text-primary dark:text-text-primary/90 truncate`}
                                     >
                                       {user.display_name || user.username}
                                     </span>
                                   </div>
                                 </td>
                                 <td
-                                  className={`${rowPadding} text-center`}
+                                  className={`text-center`}
                                   style={{
                                     width: showLevelColumn ? 70 : 0,
                                     padding: showLevelColumn ? undefined : 0,
@@ -1077,7 +1824,7 @@ export default function LeaderboardPage() {
                                   <LevelBadge tokens={user.total_tokens} />
                                 </td>
                                 {/* Cost cell */}
-                                <td className={`${rowPadding} px-0.5 md:px-1 text-right`}>
+                                <td className={`px-0.5 md:px-1 text-right`}>
                                   <span
                                     className={`font-mono ${valueSize} ${
                                       sortBy === "tokens"
@@ -1094,7 +1841,7 @@ export default function LeaderboardPage() {
                                   </span>
                                 </td>
                                 {/* Tokens cell */}
-                                <td className={`${rowPadding} pl-0.5 pr-2 md:pr-3 text-right`}>
+                                <td className={`pl-0.5 pr-2 md:pr-3 text-right`}>
                                   <span
                                     className={`font-mono ${valueSize} ${
                                       sortBy === "cost"
@@ -1110,72 +1857,116 @@ export default function LeaderboardPage() {
                           })}
                         </tbody>
                       </table>
+
+                      {/* Infinite scroll trigger & indicators */}
+                      <div ref={loadMoreTriggerRef} className="py-2">
+                        {loadingMore && (
+                          <div className="flex items-center justify-center gap-2">
+                            <div className="w-4 h-4 border-2 border-[var(--color-claude-coral)] border-t-transparent rounded-full animate-spin" />
+                            <span className="text-xs text-[var(--color-text-muted)]">
+                              Loading more...
+                            </span>
+                          </div>
+                        )}
+                        {!hasMore && users.length > 0 && (
+                          <div className="flex flex-col items-center gap-2">
+                            <div className="w-16 h-px bg-gradient-to-r from-transparent via-[var(--color-text-muted)]/30 to-transparent" />
+                            <span className="text-[10px] text-[var(--color-text-muted)]/50">
+                              End of list ({total} users)
+                            </span>
+                          </div>
+                        )}
+                        {hasMore && !loadingMore && (
+                          <div className="h-4" /> // Spacer for IntersectionObserver trigger
+                        )}
+                      </div>
+
+                      {/* 📍 My Position - Sticky (position based on scroll direction) */}
+                      {!myPositionVisible &&
+                        currentUserData &&
+                        myPositionDirection === "below" &&
+                        (() => {
+                          const user = currentUserData;
+                          const userCost = user.period_cost || user.total_cost;
+                          const userTokens = user.period_tokens || user.total_tokens;
+                          const costDisplay =
+                            userCost >= 1000
+                              ? `$${(userCost / 1000).toFixed(1)}K`
+                              : `$${userCost.toFixed(0)}`;
+                          const tokenDisplay = formatTokens(userTokens);
+
+                          return (
+                            <div
+                              onClick={jumpToMyPosition}
+                              className="sticky bottom-0 z-30 bg-[var(--color-bg-primary)] backdrop-blur-xl border-t border-[var(--color-text-muted)]/30 cursor-pointer hover:bg-[var(--color-bg-secondary)] active:bg-[var(--color-bg-secondary)] transition-colors pb-4"
+                            >
+                              <div className="text-[10px] text-[var(--color-text-muted)] uppercase tracking-wide px-3 pt-2 pb-1 flex items-center gap-1">
+                                <span>📍 My Position</span>
+                                <span className="text-[var(--color-text-muted)]/50">↓</span>
+                              </div>
+                              <div className="flex items-center h-10 bg-[var(--user-country-bg)]">
+                                <div className="w-[36px] md:w-[44px] text-center">
+                                  <span className="text-xs font-mono text-[var(--color-text-muted)]">
+                                    #{user.rank}
+                                  </span>
+                                </div>
+                                <div className="w-[36px] md:w-[44px] text-center">
+                                  {user.country_code && (
+                                    <ReactCountryFlag
+                                      countryCode={user.country_code}
+                                      svg
+                                      style={{ width: "16px", height: "16px" }}
+                                    />
+                                  )}
+                                </div>
+                                <div className="flex-1 flex items-center gap-1.5 px-1 md:px-2">
+                                  <div className="w-6 lg:w-8 flex items-center justify-center flex-shrink-0">
+                                    {user.avatar_url ? (
+                                      <Image
+                                        src={user.avatar_url}
+                                        alt={user.username}
+                                        width={24}
+                                        height={24}
+                                        className="w-6 h-6 rounded-full object-cover"
+                                      />
+                                    ) : (
+                                      <div className="w-6 h-6 rounded-full bg-gradient-to-br from-primary to-[#F7931E] flex items-center justify-center text-white text-xs font-semibold">
+                                        {user.username.charAt(0).toUpperCase()}
+                                      </div>
+                                    )}
+                                  </div>
+                                  <span className="text-xs font-medium text-[var(--user-country-text)] truncate">
+                                    {user.display_name || user.username}
+                                    <span className="ml-1 text-[10px]">🟢</span>
+                                  </span>
+                                </div>
+                                {showLevelColumn && (
+                                  <div className="w-[70px] text-center">
+                                    <LevelBadge tokens={user.total_tokens} />
+                                  </div>
+                                )}
+                                <div className="w-[60px] md:w-[70px] text-right px-0.5 md:px-1">
+                                  <span
+                                    className={`font-mono text-xs ${sortBy === "tokens" ? "text-[var(--color-text-muted)]" : "text-[var(--color-cost)]"}`}
+                                  >
+                                    {costDisplay}
+                                  </span>
+                                </div>
+                                <div className="w-[60px] md:w-[70px] text-right pl-0.5 pr-2 md:pr-3">
+                                  <span
+                                    className={`font-mono text-xs ${sortBy === "cost" ? "text-[var(--color-text-muted)]" : "text-[var(--color-claude-coral)]"}`}
+                                  >
+                                    {tokenDisplay}
+                                  </span>
+                                </div>
+                              </div>
+                              {/* Safe area padding for mobile */}
+                              <div className="h-[env(safe-area-inset-bottom,0px)]" />
+                            </div>
+                          );
+                        })()}
                     </div>
                   </div>
-
-                  {/* Pagination */}
-                  {totalPages > 1 && (
-                    <div className="flex items-center justify-center mt-8 gap-2">
-                      <button
-                        onClick={() => handlePageChange(Math.max(1, currentPage - 1))}
-                        disabled={currentPage === 1}
-                        className="w-10 h-10 rounded-lg text-sm font-medium text-text-secondary hover:text-text-primary hover:bg-white/10 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-                      >
-                        ‹
-                      </button>
-
-                      {(() => {
-                        const pages: (number | string)[] = [];
-                        const showEllipsisStart = currentPage > 3;
-                        const showEllipsisEnd = currentPage < totalPages - 2;
-
-                        if (totalPages <= 7) {
-                          for (let i = 1; i <= totalPages; i++) pages.push(i);
-                        } else {
-                          pages.push(1);
-                          if (showEllipsisStart) pages.push("...");
-                          const start = Math.max(2, currentPage - 1);
-                          const end = Math.min(totalPages - 1, currentPage + 1);
-                          for (let i = start; i <= end; i++) pages.push(i);
-                          if (showEllipsisEnd) pages.push("...");
-                          pages.push(totalPages);
-                        }
-
-                        return pages.map((page, i) => (
-                          <button
-                            key={i}
-                            onClick={() => typeof page === "number" && handlePageChange(page)}
-                            disabled={page === "..."}
-                            className={`w-10 h-10 rounded-lg text-sm font-medium transition-colors ${
-                              page === currentPage
-                                ? "bg-[var(--color-claude-coral)] text-white"
-                                : page === "..."
-                                  ? "text-text-muted cursor-default"
-                                  : "text-text-secondary hover:text-text-primary hover:bg-white/10"
-                            }`}
-                          >
-                            {page}
-                          </button>
-                        ));
-                      })()}
-
-                      <button
-                        onClick={() => handlePageChange(Math.min(totalPages, currentPage + 1))}
-                        disabled={currentPage === totalPages}
-                        className="w-10 h-10 rounded-lg text-sm font-medium text-text-secondary hover:text-text-primary hover:bg-white/10 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-                      >
-                        ›
-                      </button>
-
-                      <span className="ml-4 text-xs text-text-muted">{total} users</span>
-                    </div>
-                  )}
-
-                  {/* Onboarding Copy */}
-                  <p className="text-center text-[11px] text-[var(--color-text-muted)]/60 mt-6">
-                    Sync your Claude Code usage to climb the leaderboard →{" "}
-                    <GetStartedButton className="underline hover:text-[var(--color-text-muted)]" />
-                  </p>
                 </div>
               )}
             </div>

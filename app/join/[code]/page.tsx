@@ -146,9 +146,6 @@ export default function JoinPage() {
                     ? "A Passionate CCgather Member"
                     : inviter?.display_name || inviter?.username}
                 </h2>
-                {!inviter?.hidden && (
-                  <p className="text-xs text-[var(--color-text-muted)]">@{inviter?.username}</p>
-                )}
               </div>
             </div>
 

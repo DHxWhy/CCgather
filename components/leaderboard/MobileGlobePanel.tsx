@@ -2,8 +2,17 @@
 
 import { useEffect, useRef, useState, useCallback } from "react";
 import dynamic from "next/dynamic";
-import { TopCountriesSection } from "./TopCountriesSection";
+import ReactCountryFlag from "react-country-flag";
+import { TopCountriesSection, TopCountriesSectionRef } from "./TopCountriesSection";
 import type { CountryStat } from "./TopCountriesSection";
+
+// Format tokens for display
+function formatTokens(num: number): string {
+  if (num >= 1_000_000_000) return `${(num / 1_000_000_000).toFixed(1)}B`;
+  if (num >= 1_000_000) return `${(num / 1_000_000).toFixed(1)}M`;
+  if (num >= 1_000) return `${(num / 1_000).toFixed(1)}K`;
+  return num.toString();
+}
 
 // Lazy load Globe
 const Globe = dynamic(
@@ -41,14 +50,38 @@ export function MobileGlobePanel({
   scopeFilter,
 }: MobileGlobePanelProps) {
   const panelRef = useRef<HTMLDivElement>(null);
-  const [touchStartX, setTouchStartX] = useState<number | null>(null);
-  const [touchCurrentX, setTouchCurrentX] = useState<number | null>(null);
-  const [isDragging, setIsDragging] = useState(false);
+  const countryListRef = useRef<HTMLDivElement>(null);
+  const topCountriesSectionRef = useRef<TopCountriesSectionRef>(null);
+
+  // User country sticky state
+  const [userCountryVisible, setUserCountryVisible] = useState(true);
+  const [userCountryRank, setUserCountryRank] = useState(0);
+  const [userCountryData, setUserCountryData] = useState<CountryStat | null>(null);
+  const [userCountryDirection, setUserCountryDirection] = useState<"above" | "below" | null>(null);
 
   // Dynamic sizing based on screen dimensions (matching ProfileSidePanel behavior)
   const [globeSize, setGlobeSize] = useState(240);
 
-  const SWIPE_THRESHOLD = 100; // px to trigger close (unified with ProfileSidePanel)
+  // Handle user country visibility change
+  const handleUserCountryVisibilityChange = useCallback(
+    (
+      visible: boolean,
+      rank: number,
+      stat: CountryStat | null,
+      direction: "above" | "below" | null
+    ) => {
+      setUserCountryVisible(visible);
+      setUserCountryRank(rank);
+      setUserCountryData(stat);
+      setUserCountryDirection(direction);
+    },
+    []
+  );
+
+  // Jump to user's country
+  const jumpToUserCountry = useCallback(() => {
+    topCountriesSectionRef.current?.scrollToUserCountry();
+  }, []);
 
   // Update globe size based on screen dimensions
   useEffect(() => {
@@ -77,45 +110,6 @@ export function MobileGlobePanel({
     };
   }, [isOpen]);
 
-  // Calculate drag offset
-  const dragOffset =
-    isDragging && touchStartX !== null && touchCurrentX !== null
-      ? Math.min(0, touchCurrentX - touchStartX)
-      : 0;
-
-  // Touch handlers for swipe-to-close
-  const handleTouchStart = useCallback((e: React.TouchEvent) => {
-    const touch = e.touches[0];
-    if (touch) {
-      setTouchStartX(touch.clientX);
-      setTouchCurrentX(touch.clientX);
-      setIsDragging(true);
-    }
-  }, []);
-
-  const handleTouchMove = useCallback(
-    (e: React.TouchEvent) => {
-      if (!isDragging) return;
-      const touch = e.touches[0];
-      if (touch) {
-        setTouchCurrentX(touch.clientX);
-      }
-    },
-    [isDragging]
-  );
-
-  const handleTouchEnd = useCallback(() => {
-    if (isDragging && touchStartX !== null && touchCurrentX !== null) {
-      const delta = touchCurrentX - touchStartX;
-      if (delta < -SWIPE_THRESHOLD) {
-        onClose();
-      }
-    }
-    setTouchStartX(null);
-    setTouchCurrentX(null);
-    setIsDragging(false);
-  }, [isDragging, touchStartX, touchCurrentX, onClose]);
-
   // Close on escape key
   useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {
@@ -127,15 +121,35 @@ export function MobileGlobePanel({
     return () => window.removeEventListener("keydown", handleEscape);
   }, [isOpen, onClose]);
 
-  // Prevent body scroll when panel is open
+  // Prevent body scroll when panel is open (iOS compatible)
   useEffect(() => {
     if (isOpen) {
+      // Store current scroll position
+      const scrollY = window.scrollY;
       document.body.style.overflow = "hidden";
+      document.body.style.position = "fixed";
+      document.body.style.top = `-${scrollY}px`;
+      document.body.style.width = "100%";
     } else {
+      // Restore scroll position
+      const scrollY = document.body.style.top;
       document.body.style.overflow = "";
+      document.body.style.position = "";
+      document.body.style.top = "";
+      document.body.style.width = "";
+      if (scrollY) {
+        window.scrollTo(0, parseInt(scrollY || "0") * -1);
+      }
     }
     return () => {
+      const scrollY = document.body.style.top;
       document.body.style.overflow = "";
+      document.body.style.position = "";
+      document.body.style.top = "";
+      document.body.style.width = "";
+      if (scrollY) {
+        window.scrollTo(0, parseInt(scrollY || "0") * -1);
+      }
     };
   }, [isOpen]);
 
@@ -159,17 +173,12 @@ export function MobileGlobePanel({
           width: "calc(100% - 56px)",
           maxWidth: "calc(100% - 56px)",
           height: "calc(100% - 56px)",
-          transform: isOpen ? `translateX(${dragOffset}px)` : "translateX(-100%)",
-          transition: isDragging ? "none" : "transform 0.3s ease-out",
         }}
-        onTouchStart={handleTouchStart}
-        onTouchMove={handleTouchMove}
-        onTouchEnd={handleTouchEnd}
       >
-        {/* Content */}
-        <div className="h-full overflow-y-auto p-4 space-y-4">
+        {/* Content - flex column to fill height */}
+        <div className="h-full flex flex-col p-4 gap-4">
           {/* Title Section */}
-          <div className="text-center pt-2">
+          <div className="text-center pt-2 flex-shrink-0">
             <h2 className="text-xl font-bold text-[var(--color-text-primary)] flex items-center justify-center gap-2">
               <span>🌍</span>
               Global Usage
@@ -180,13 +189,13 @@ export function MobileGlobePanel({
           </div>
 
           {/* Globe with Filter Buttons */}
-          <div className="relative flex justify-center">
+          <div className="relative flex justify-center flex-shrink-0">
             {/* Filter Buttons - Top Right of Globe */}
             {onSortByChange && (
-              <div className="absolute top-0 right-0 z-10 flex h-7 glass rounded-lg overflow-hidden">
+              <div className="absolute top-0 right-0 z-10 flex h-[34px] glass rounded-lg overflow-hidden">
                 <button
                   onClick={() => onSortByChange("cost")}
-                  className={`h-7 w-7 text-xs font-medium transition-colors flex items-center justify-center ${
+                  className={`h-[34px] w-[34px] text-sm font-medium transition-colors flex items-center justify-center ${
                     sortBy === "cost"
                       ? "bg-[var(--color-cost)]/30 text-[var(--color-cost)]"
                       : "text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-filter-hover)]"
@@ -197,7 +206,7 @@ export function MobileGlobePanel({
                 </button>
                 <button
                   onClick={() => onSortByChange("tokens")}
-                  className={`h-7 w-7 text-xs font-medium transition-colors flex items-center justify-center ${
+                  className={`h-[34px] w-[34px] text-sm font-medium transition-colors flex items-center justify-center ${
                     sortBy === "tokens"
                       ? "bg-[var(--color-claude-coral)]/30 text-[var(--color-claude-coral)]"
                       : "text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-filter-hover)]"
@@ -215,7 +224,7 @@ export function MobileGlobePanel({
           </div>
 
           {/* Global Stats - Total Cost & Tokens */}
-          <div className="flex items-center justify-center gap-3 py-2">
+          <div className="flex items-center justify-center gap-3 py-2 flex-shrink-0">
             <span className="text-base">🌍</span>
             <span className="text-[var(--color-text-muted)]">·</span>
             <div className="flex items-center gap-1.5">
@@ -237,20 +246,148 @@ export function MobileGlobePanel({
             </div>
           </div>
 
-          {/* Top Countries */}
-          {countryStats.length > 0 && (
-            <div className="glass rounded-xl border border-[var(--border-default)] p-3">
-              <TopCountriesSection
-                stats={countryStats}
-                totalTokens={totalTokens}
-                totalCost={totalCost}
-                sortBy={sortBy}
-                userCountryCode={userCountryCode}
-                maxItems={10}
-                compact={true}
-              />
+          {/* Top Countries - fills remaining space to bottom */}
+          <div className="glass rounded-xl border border-[var(--border-default)] flex-1 min-h-0 relative flex flex-col">
+            {/* 📍 Your Country - Top (when scrolled below user's country) */}
+            {!userCountryVisible && userCountryData && userCountryDirection === "above" && (
+              <div
+                onClick={jumpToUserCountry}
+                className="absolute top-0 left-0 right-0 z-30 bg-[var(--glass-bg)] backdrop-blur-md rounded-t-xl cursor-pointer active:bg-[var(--glass-bg-hover)] transition-colors"
+              >
+                <div className="text-[10px] text-[var(--color-text-muted)] uppercase tracking-wide px-3 pt-2 pb-1 flex items-center gap-1">
+                  <span>📍 Your Country</span>
+                  <span className="text-[var(--color-text-muted)]/50">↑</span>
+                </div>
+                <div className="flex items-center gap-2 px-3 h-10 bg-[var(--user-country-bg)] border-b border-[var(--color-text-muted)]/30">
+                  <span className="w-6 text-xs font-mono text-[var(--color-text-muted)] flex-shrink-0">
+                    #{userCountryRank}
+                  </span>
+                  <div className="w-4 flex-shrink-0">
+                    <ReactCountryFlag
+                      countryCode={userCountryData.code}
+                      svg
+                      style={{ width: "16px", height: "16px" }}
+                    />
+                  </div>
+                  <div className="flex-1 min-w-0 flex items-center gap-1.5">
+                    <span className="text-xs font-medium text-[var(--user-country-text)] truncate">
+                      {userCountryData.name}
+                      <span className="ml-1 text-[10px]">🟢</span>
+                    </span>
+                    <span className="text-[10px] font-mono text-[var(--color-text-muted)] flex-shrink-0">
+                      {(
+                        (sortBy === "tokens"
+                          ? userCountryData.tokens / totalTokens
+                          : userCountryData.cost / totalCost) * 100
+                      ).toFixed(1)}
+                      %
+                    </span>
+                  </div>
+                  <div className="flex items-center font-mono flex-shrink-0 gap-2 text-[10px]">
+                    {sortBy === "tokens" ? (
+                      <span className="min-w-[40px] text-right text-[var(--color-cost)]">
+                        $
+                        {userCountryData.cost >= 1000
+                          ? `${(userCountryData.cost / 1000).toFixed(1)}K`
+                          : userCountryData.cost.toFixed(0)}
+                      </span>
+                    ) : (
+                      <span className="min-w-[45px] text-right text-[var(--color-claude-coral)]">
+                        {formatTokens(userCountryData.tokens)}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <div
+              ref={countryListRef}
+              className="p-3 pb-0 flex-1 min-h-0 overflow-y-auto"
+              style={{
+                overscrollBehavior: "contain",
+                paddingTop:
+                  !userCountryVisible && userCountryData && userCountryDirection === "above"
+                    ? "68px"
+                    : undefined,
+              }}
+            >
+              {countryStats.length > 0 ? (
+                <TopCountriesSection
+                  ref={topCountriesSectionRef}
+                  stats={countryStats}
+                  totalTokens={totalTokens}
+                  totalCost={totalCost}
+                  sortBy={sortBy}
+                  userCountryCode={userCountryCode}
+                  compact={true}
+                  onUserCountryVisibilityChange={handleUserCountryVisibilityChange}
+                  scrollContainerRef={countryListRef}
+                />
+              ) : (
+                <div className="h-full" />
+              )}
+              {/* Spacer for sticky section */}
+              {!userCountryVisible && userCountryData && userCountryDirection === "below" && (
+                <div className="h-16" />
+              )}
             </div>
-          )}
+
+            {/* 📍 Your Country - Bottom (when scrolled above user's country) */}
+            {!userCountryVisible && userCountryData && userCountryDirection === "below" && (
+              <div
+                onClick={jumpToUserCountry}
+                className="absolute bottom-0 left-0 right-0 z-30 bg-[var(--glass-bg)] backdrop-blur-md border-t border-[var(--color-text-muted)]/30 rounded-b-xl cursor-pointer active:bg-[var(--glass-bg-hover)] transition-colors pb-4"
+              >
+                <div className="text-[10px] text-[var(--color-text-muted)] uppercase tracking-wide px-3 pt-2 pb-1 flex items-center gap-1">
+                  <span>📍 Your Country</span>
+                  <span className="text-[var(--color-text-muted)]/50">↓</span>
+                </div>
+                <div className="flex items-center gap-2 px-3 h-10 bg-[var(--user-country-bg)]">
+                  <span className="w-6 text-xs font-mono text-[var(--color-text-muted)] flex-shrink-0">
+                    #{userCountryRank}
+                  </span>
+                  <div className="w-4 flex-shrink-0">
+                    <ReactCountryFlag
+                      countryCode={userCountryData.code}
+                      svg
+                      style={{ width: "16px", height: "16px" }}
+                    />
+                  </div>
+                  <div className="flex-1 min-w-0 flex items-center gap-1.5">
+                    <span className="text-xs font-medium text-[var(--user-country-text)] truncate">
+                      {userCountryData.name}
+                      <span className="ml-1 text-[10px]">🟢</span>
+                    </span>
+                    <span className="text-[10px] font-mono text-[var(--color-text-muted)] flex-shrink-0">
+                      {(
+                        (sortBy === "tokens"
+                          ? userCountryData.tokens / totalTokens
+                          : userCountryData.cost / totalCost) * 100
+                      ).toFixed(1)}
+                      %
+                    </span>
+                  </div>
+                  <div className="flex items-center font-mono flex-shrink-0 gap-2 text-[10px]">
+                    {sortBy === "tokens" ? (
+                      <span className="min-w-[40px] text-right text-[var(--color-cost)]">
+                        $
+                        {userCountryData.cost >= 1000
+                          ? `${(userCountryData.cost / 1000).toFixed(1)}K`
+                          : userCountryData.cost.toFixed(0)}
+                      </span>
+                    ) : (
+                      <span className="min-w-[45px] text-right text-[var(--color-claude-coral)]">
+                        {formatTokens(userCountryData.tokens)}
+                      </span>
+                    )}
+                  </div>
+                </div>
+                {/* Safe area padding for mobile */}
+                <div className="h-[env(safe-area-inset-bottom,0px)]" />
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </>

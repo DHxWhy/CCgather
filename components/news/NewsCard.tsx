@@ -116,7 +116,7 @@ function NewsCardComponent({ article, variant = "default", isLatest = false }: N
       titleEmoji: titleEmojiValue,
       summary:
         article.one_liner ||
-        (hasRichContent ? richContent.summary.text : article.summary || article.summary_md),
+        (hasRichContent ? richContent.summary.text : article.summary_md || article.summary),
       difficulty: (hasRichContent ? richContent.meta.difficulty : article.difficulty) as
         | Difficulty
         | undefined,

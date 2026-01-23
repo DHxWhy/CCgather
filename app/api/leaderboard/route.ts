@@ -68,6 +68,46 @@ function getPeriodDateRange(
   return { startDate, endDate };
 }
 
+// ============ TEST MOCK DATA FLAG - REMOVE AFTER TESTING ============
+const USE_MOCK_DATA = false; // Set to false to use real database
+const MOCK_TOTAL_USERS = 150; // For testing bidirectional scroll
+
+// Generate mock users for testing
+function generateMockUsers(page: number, limit: number, total: number) {
+  const startIndex = (page - 1) * limit;
+  const endIndex = Math.min(startIndex + limit, total);
+  const users = [];
+
+  const countries = ["KR", "US", "JP", "DE", "GB", "FR", "CA", "AU", "BR", "IN"];
+  const levels = [1, 2, 3, 4, 5, 6];
+
+  for (let i = startIndex; i < endIndex; i++) {
+    const rank = i + 1;
+    const tokens = Math.floor(10000000000 / (rank * 0.8 + 1)); // Decreasing tokens
+    const cost = tokens * 0.000003;
+
+    users.push({
+      id: `mock-user-${rank}`,
+      username: `testuser${rank}`,
+      display_name: `Test User ${rank}`,
+      avatar_url: null,
+      country_code: countries[i % countries.length],
+      current_level: levels[Math.min(Math.floor(6 - rank / 30), 5)],
+      global_rank: rank,
+      country_rank: Math.floor(rank / 10) + 1,
+      total_tokens: tokens,
+      total_cost: cost,
+      total_sessions: Math.floor(100 - rank / 2),
+      ccplan: rank <= 10 ? "max" : "pro",
+      has_opus_usage: rank <= 20,
+      social_links: null,
+    });
+  }
+
+  return users;
+}
+// ============ END TEST MOCK DATA ============
+
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
   const period = (searchParams.get("period") || "all") as Period;
@@ -81,6 +121,54 @@ export async function GET(request: NextRequest) {
   const customEnd = searchParams.get("endDate");
   // User's timezone (e.g., "Asia/Seoul", "America/Los_Angeles")
   const timezone = searchParams.get("tz");
+
+  // ============ TEST: Return mock data ============
+  if (USE_MOCK_DATA) {
+    // Handle findUser for mock data
+    if (findUser) {
+      const match = findUser.match(/testuser(\d+)/i);
+      if (match && match[1]) {
+        const rank = parseInt(match[1], 10);
+        const userPage = Math.ceil(rank / limit);
+        return NextResponse.json({
+          found: true,
+          user: { id: `mock-user-${rank}`, username: `testuser${rank}`, rank, page: userPage },
+        });
+      }
+      return NextResponse.json({ found: false });
+    }
+
+    // Handle findCurrentUserId for mock data
+    const findCurrentUserId = searchParams.get("findCurrentUserId");
+    if (findCurrentUserId) {
+      // Mock: assume current user is at rank 75 (page 2 with limit 50)
+      const rank = 75;
+      const userPage = Math.ceil(rank / limit);
+      return NextResponse.json({
+        found: true,
+        currentUser: {
+          rank,
+          page: userPage,
+          total: MOCK_TOTAL_USERS,
+          totalPages: Math.ceil(MOCK_TOTAL_USERS / limit),
+        },
+      });
+    }
+
+    // Return paginated mock users
+    const mockUsers = generateMockUsers(page, limit, MOCK_TOTAL_USERS);
+    return NextResponse.json({
+      users: mockUsers,
+      pagination: {
+        page,
+        limit,
+        total: MOCK_TOTAL_USERS,
+        totalPages: Math.ceil(MOCK_TOTAL_USERS / limit),
+      },
+      period,
+    });
+  }
+  // ============ END TEST ============
 
   const supabase = await createClient();
   const dateRange = getPeriodDateRange(period, customStart, customEnd, timezone);
@@ -120,6 +208,55 @@ export async function GET(request: NextRequest) {
     });
   }
 
+  // Find current user's position (for direct jump feature)
+  const findCurrentUserId = searchParams.get("findCurrentUserId") || null;
+  if (findCurrentUserId && !dateRange) {
+    // Get total count first
+    const { count: totalCount } = await supabase
+      .from("users")
+      .select("id", { count: "exact", head: true })
+      .eq("onboarding_completed", true)
+      .gt("total_tokens", 0);
+
+    // Find user's rank by counting users with more tokens
+    let rankQuery = supabase
+      .from("users")
+      .select("total_tokens")
+      .eq("id", findCurrentUserId)
+      .single();
+
+    const { data: currentUserData } = await rankQuery;
+
+    if (!currentUserData) {
+      return NextResponse.json({ found: false });
+    }
+
+    // Count users with more tokens (their rank - 1 = users ahead)
+    let countQuery = supabase
+      .from("users")
+      .select("id", { count: "exact", head: true })
+      .eq("onboarding_completed", true)
+      .gt("total_tokens", currentUserData.total_tokens);
+
+    if (country) {
+      countQuery = countQuery.eq("country_code", country.toUpperCase());
+    }
+
+    const { count: usersAhead } = await countQuery;
+    const rank = (usersAhead || 0) + 1;
+    const userPage = Math.ceil(rank / limit);
+
+    return NextResponse.json({
+      found: true,
+      currentUser: {
+        rank,
+        page: userPage,
+        total: totalCount || 0,
+        totalPages: Math.ceil((totalCount || 0) / limit),
+      },
+    });
+  }
+
   // If period is 'all', use existing simple query
   if (!dateRange) {
     let query = supabase
@@ -136,6 +273,7 @@ export async function GET(request: NextRequest) {
         country_rank,
         total_tokens,
         total_cost,
+        total_sessions,
         ccplan,
         has_opus_usage,
         social_links
@@ -227,8 +365,11 @@ export async function GET(request: NextRequest) {
       avatar_url,
       country_code,
       current_level,
+      global_rank,
+      country_rank,
       total_tokens,
       total_cost,
+      total_sessions,
       ccplan,
       has_opus_usage,
       social_links

@@ -72,8 +72,8 @@
   --color-bg-card-hover: #222228;
   --color-bg-elevated: #2a2a30;
 
-  /* Text - Dark */
-  --color-text-primary: #f9f9f8;
+  /* Text - Dark (Eye comfort: softer off-white for reduced eye strain) */
+  --color-text-primary: #e4e4e7;
   --color-text-secondary: #a1a1aa;
   --color-text-muted: #71717a;
   --color-text-disabled: #52525b;
@@ -202,8 +202,8 @@
   --color-bg-card-hover: #eeeee8;
   --color-bg-elevated: #e8e8e2;
 
-  /* Text - Light */
-  --color-text-primary: #18181b;
+  /* Text - Light (Eye comfort: softer dark gray instead of pure black) */
+  --color-text-primary: #374151;
   --color-text-secondary: #52525b;
   --color-text-muted: #71717a;
   --color-text-disabled: #a1a1aa;
@@ -395,6 +395,22 @@ body {
   animation: fadeInUp 0.5s ease-out forwards;
 }
 
+/* Simple fade in */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fadeIn {
+  animation: fadeIn 0.3s ease-out forwards;
+}
+
 /* Fade Slide In (for table rows) */
 @keyframes fadeSlideIn {
   from {
@@ -562,6 +578,31 @@ body {
 
 .animate-blink {
   animation: blink 1.5s ease-in-out infinite;
+}
+
+/* Shake Animation - for expand button hint */
+@keyframes shake {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  10%,
+  30%,
+  50%,
+  70%,
+  90% {
+    transform: translateX(-2px);
+  }
+  20%,
+  40%,
+  60%,
+  80% {
+    transform: translateX(2px);
+  }
+}
+
+.animate-shake {
+  animation: shake 0.5s ease-in-out;
 }
 
 /* Globe Particle Emanation Effect */
@@ -1081,6 +1122,19 @@ body {
 .light .level-badge-6 {
   background-color: rgba(202, 138, 4, 0.15);
   color: #854d0e;
+}
+
+/* ========================================
+   FLAG ICON EYE COMFORT (DARK MODE)
+   Reduces brightness of flag icons to reduce eye strain
+   ======================================== */
+:root:not(.light) img[alt*="flag" i],
+:root:not(.light) [class*="flag"],
+:root:not(.light) .react-country-flag,
+.dark img[alt*="flag" i],
+.dark [class*="flag"],
+.dark .react-country-flag {
+  filter: brightness(0.9);
 }
 
 /* ========================================

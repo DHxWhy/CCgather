@@ -15,7 +15,7 @@ export async function GET(request: NextRequest) {
 
     const searchParams = request.nextUrl.searchParams;
     const type = searchParams.get("type") || "all"; // 'news', 'youtube', 'all'
-    const status = searchParams.get("status") || "all"; // 'pending', 'ready', 'published', 'rejected', 'all'
+    const status = searchParams.get("status") || "all"; // 'pending', 'published', 'rejected', 'all'
     const page = parseInt(searchParams.get("page") || "1");
     const limit = parseInt(searchParams.get("limit") || "500"); // Show all by default for admin
 
@@ -54,7 +54,6 @@ export async function GET(request: NextRequest) {
       news: statsData?.filter((c: ContentRow) => c.type === "news").length || 0,
       youtube: statsData?.filter((c: ContentRow) => c.type === "youtube").length || 0,
       pending: statsData?.filter((c: ContentRow) => c.status === "pending").length || 0,
-      ready: statsData?.filter((c: ContentRow) => c.status === "ready").length || 0,
       published: statsData?.filter((c: ContentRow) => c.status === "published").length || 0,
       rejected: statsData?.filter((c: ContentRow) => c.status === "rejected").length || 0,
     };

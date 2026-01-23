@@ -8,6 +8,7 @@ import TargetManager from "@/components/admin/TargetManager";
 import CronScheduler from "@/components/admin/CronScheduler";
 import UnusedThumbnailManager from "@/components/admin/UnusedThumbnailManager";
 import BatchCollector from "@/components/admin/BatchCollector";
+import ReverifyModal, { type ReverifyPreviewData } from "@/components/admin/ReverifyModal";
 import { useToast } from "@/components/ui/ToastProvider";
 import type { ThumbnailSource } from "@/types/automation";
 
@@ -22,7 +23,7 @@ const THUMBNAIL_MODELS: Record<ThumbnailModel, { label: string; price: string; c
 const THUMBNAIL_MODEL_STORAGE_KEY = "ccgather_thumbnail_model";
 
 type ContentType = "news" | "youtube";
-type ContentStatus = "pending" | "ready" | "published" | "rejected";
+type ContentStatus = "pending" | "published" | "rejected";
 type ContentTab = "news" | "youtube" | "targets" | "scheduler" | "storage" | "batch";
 
 // AI Article Types (from gemini-client.ts)
@@ -68,11 +69,17 @@ interface ContentItem {
   ai_classification_confidence?: number;
   ai_classification_signals?: string[];
   ai_processed_at?: string;
+  // Rich Content from AI Pipeline
+  rich_content?: unknown;
+  // Full article content
+  body_html?: string;
+  insight_html?: string;
+  key_takeaways?: Array<{ icon: string; text: string }>;
+  difficulty?: string;
 }
 
 const STATUS_STYLES: Record<ContentStatus, { bg: string; text: string; label: string }> = {
-  pending: { bg: "bg-yellow-500/20", text: "text-yellow-400", label: "대기" },
-  ready: { bg: "bg-blue-500/20", text: "text-blue-400", label: "준비" },
+  pending: { bg: "bg-yellow-500/20", text: "text-yellow-400", label: "검토 대기" },
   published: { bg: "bg-emerald-500/20", text: "text-emerald-400", label: "게시" },
   rejected: { bg: "bg-red-500/20", text: "text-red-400", label: "거부" },
 };
@@ -142,6 +149,7 @@ export default function AdminContentsPage() {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<"all" | ContentStatus>("all");
   const [editingItem, setEditingItem] = useState<ContentItem | null>(null);
+  const [previewItem, setPreviewItem] = useState<ContentItem | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
   const { showToast } = useToast();
 
@@ -160,6 +168,13 @@ export default function AdminContentsPage() {
     batchIndex: number;
   } | null>(null);
   const bulkAbortedRef = useRef(false);
+
+  // Reverify modal state
+  const [reverifyModalOpen, setReverifyModalOpen] = useState(false);
+  const [reverifyContentId, setReverifyContentId] = useState<string | null>(null);
+  const [reverifyContentTitle, setReverifyContentTitle] = useState<string>("");
+  const [reverifyPreviewData, setReverifyPreviewData] = useState<ReverifyPreviewData | null>(null);
+  const [reverifyLoading, setReverifyLoading] = useState(false);
 
   // Load thumbnail model preference from localStorage
   useEffect(() => {
@@ -404,6 +419,98 @@ export default function AdminContentsPage() {
     }
   }
 
+  // Open reverify modal with preview
+  async function openReverifyModal(id: string, title: string) {
+    setReverifyContentId(id);
+    setReverifyContentTitle(title);
+    setReverifyPreviewData(null);
+    setReverifyModalOpen(true);
+    setReverifyLoading(true);
+
+    try {
+      const res = await fetch(`/api/admin/contents/${id}/reverify`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ preview: true }),
+      });
+
+      if (res.ok) {
+        const result = await res.json();
+        setReverifyPreviewData(result);
+      } else {
+        const error = await res.json();
+        showToast({
+          type: "error",
+          title: "검증 실패",
+          message: error.error || "알 수 없는 오류",
+        });
+        setReverifyModalOpen(false);
+      }
+    } catch (error) {
+      console.error("Failed to preview reverify:", error);
+      showToast({
+        type: "error",
+        title: "검증 실패",
+        message: "네트워크 오류",
+      });
+      setReverifyModalOpen(false);
+    } finally {
+      setReverifyLoading(false);
+    }
+  }
+
+  // Apply reverify fixes
+  async function applyReverifyFix() {
+    if (!reverifyContentId) return;
+
+    try {
+      const res = await fetch(`/api/admin/contents/${reverifyContentId}/reverify`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ autoFix: true }),
+      });
+
+      if (res.ok) {
+        const result = await res.json();
+        if (result.autoFixed && result.corrections.length > 0) {
+          showToast({
+            type: "success",
+            title: "수정 완료",
+            message: `${result.corrections.length}개 항목이 수정되었습니다. 점수: ${result.newScore.toFixed(0)}점`,
+            duration: 5000,
+          });
+        } else if (result.newScore === 100) {
+          showToast({
+            type: "success",
+            title: "팩트체크 통과",
+            message: "모든 날짜/숫자가 원본과 일치합니다.",
+            duration: 5000,
+          });
+        }
+        fetchContents();
+      } else {
+        const error = await res.json();
+        showToast({
+          type: "error",
+          title: "수정 실패",
+          message: error.error || "알 수 없는 오류",
+        });
+      }
+    } catch (error) {
+      console.error("Failed to apply reverify fix:", error);
+      showToast({
+        type: "error",
+        title: "수정 실패",
+        message: "네트워크 오류",
+      });
+    }
+  }
+
+  // Legacy function for backward compatibility (now opens modal)
+  async function reverifyContent(id: string, title?: string) {
+    openReverifyModal(id, title || "콘텐츠");
+  }
+
   const handleRefresh = () => {
     setRefreshKey((prev) => prev + 1);
     if (activeTab === "news" || activeTab === "youtube") {
@@ -474,19 +581,31 @@ export default function AdminContentsPage() {
             <div className="flex items-center justify-between gap-4">
               {/* Status Filter */}
               <div className="flex gap-1.5 flex-wrap">
-                {(["all", "pending", "ready", "published", "rejected"] as const).map((s) => (
-                  <button
-                    key={s}
-                    onClick={() => setFilter(s)}
-                    className={`px-3 py-1.5 rounded text-[11px] font-medium transition-colors ${
-                      filter === s
-                        ? "bg-white/15 text-white"
-                        : "bg-white/5 text-white/40 hover:text-white/60"
-                    }`}
-                  >
-                    {s === "all" ? "전체" : STATUS_STYLES[s].label}
-                  </button>
-                ))}
+                {(["all", "pending", "published", "rejected"] as const).map((s) => {
+                  const tabType = activeTab === "news" ? "news" : "youtube";
+                  const count =
+                    s === "all"
+                      ? contents.filter((c) => c.type === tabType).length
+                      : contents.filter((c) => c.type === tabType && c.status === s).length;
+                  return (
+                    <button
+                      key={s}
+                      onClick={() => setFilter(s)}
+                      className={`px-3 py-1.5 rounded text-[11px] font-medium transition-colors ${
+                        filter === s
+                          ? "bg-white/15 text-white"
+                          : "bg-white/5 text-white/40 hover:text-white/60"
+                      }`}
+                    >
+                      {s === "all" ? "전체" : STATUS_STYLES[s].label}
+                      <span
+                        className={`ml-1.5 ${filter === s ? "text-white/70" : "text-white/30"}`}
+                      >
+                        {count}
+                      </span>
+                    </button>
+                  );
+                })}
               </div>
 
               {/* Thumbnail Model Settings */}
@@ -616,8 +735,10 @@ export default function AdminContentsPage() {
                     key={item.id}
                     item={item}
                     onEdit={() => setEditingItem(item)}
+                    onPreview={() => setPreviewItem(item)}
                     onStatusChange={updateContentStatus}
                     onDelete={() => deleteContent(item.id)}
+                    onReverify={reverifyContent}
                     thumbnailModel={thumbnailModel}
                     onThumbnailUpdate={handleThumbnailUpdate}
                   />
@@ -655,6 +776,37 @@ export default function AdminContentsPage() {
           onSave={(updates) => updateContent(editingItem.id, updates)}
         />
       )}
+
+      {/* Preview Modal */}
+      {previewItem && (
+        <PreviewModal
+          item={previewItem}
+          onClose={() => setPreviewItem(null)}
+          onEdit={() => {
+            setPreviewItem(null);
+            setEditingItem(previewItem);
+          }}
+          onPublish={() => {
+            updateContentStatus(previewItem.id, "published");
+            setPreviewItem(null);
+          }}
+        />
+      )}
+
+      {/* Reverify Modal */}
+      <ReverifyModal
+        isOpen={reverifyModalOpen}
+        onClose={() => {
+          setReverifyModalOpen(false);
+          setReverifyContentId(null);
+          setReverifyPreviewData(null);
+        }}
+        contentId={reverifyContentId || ""}
+        contentTitle={reverifyContentTitle}
+        previewData={reverifyPreviewData}
+        isLoading={reverifyLoading}
+        onApplyFix={applyReverifyFix}
+      />
     </div>
   );
 }
@@ -699,15 +851,19 @@ function TabButton({
 function ContentCard({
   item,
   onEdit,
+  onPreview,
   onStatusChange,
   onDelete,
+  onReverify,
   thumbnailModel,
   onThumbnailUpdate,
 }: {
   item: ContentItem;
   onEdit: () => void;
+  onPreview: () => void;
   onStatusChange: (id: string, status: ContentStatus) => void;
   onDelete: () => void;
+  onReverify: (id: string, title: string) => void;
   thumbnailModel: ThumbnailModel;
   onThumbnailUpdate: (id: string, thumbnailUrl: string, source: string) => void;
 }) {
@@ -890,6 +1046,12 @@ function ContentCard({
               원본
             </a>
             <button
+              onClick={onPreview}
+              className="px-2 py-1 text-[10px] bg-blue-500/20 text-blue-400 rounded hover:bg-blue-500/30 transition-colors"
+            >
+              미리보기
+            </button>
+            <button
               onClick={onEdit}
               className="px-2 py-1 text-[10px] bg-white/5 text-white/50 rounded hover:text-white/70 transition-colors"
             >
@@ -897,6 +1059,13 @@ function ContentCard({
             </button>
             {item.status === "pending" && (
               <>
+                <button
+                  onClick={() => onReverify(item.id, item.title)}
+                  className="px-2 py-1 text-[10px] bg-purple-500/20 text-purple-400 rounded hover:bg-purple-500/30 transition-colors"
+                  title="3+ 재검증: 원본과 비교하여 날짜/숫자 오류 자동 수정"
+                >
+                  3+
+                </button>
                 <button
                   onClick={() => onStatusChange(item.id, "published")}
                   className="px-2 py-1 text-[10px] bg-emerald-500/20 text-emerald-400 rounded hover:bg-emerald-500/30 transition-colors"
@@ -910,14 +1079,6 @@ function ContentCard({
                   거부
                 </button>
               </>
-            )}
-            {item.status === "ready" && (
-              <button
-                onClick={() => onStatusChange(item.id, "published")}
-                className="px-2 py-1 text-[10px] bg-emerald-500/20 text-emerald-400 rounded hover:bg-emerald-500/30 transition-colors"
-              >
-                게시
-              </button>
             )}
             {item.status === "published" && (
               <button
@@ -1187,6 +1348,220 @@ function EditContentModal({
             저장
           </button>
         </div>
+      </div>
+    </div>
+  );
+}
+
+// Preview Modal - Shows article as it will appear to users
+function PreviewModal({
+  item,
+  onClose,
+  onEdit,
+  onPublish,
+}: {
+  item: ContentItem;
+  onClose: () => void;
+  onEdit: () => void;
+  onPublish: () => void;
+}) {
+  // Parse rich content if available
+  const richContent = item.rich_content as
+    | {
+        title?: { text: string; emoji?: string };
+        summary?: { text: string; analogy?: { text: string; icon: string } };
+        keyPoints?: Array<{ icon: string; text: string; highlight?: string }>;
+        meta?: { difficulty?: string; readTime?: string; category?: string };
+      }
+    | undefined;
+
+  const title = richContent?.title?.text || item.title;
+  const titleEmoji = richContent?.title?.emoji;
+  const summary = richContent?.summary?.text || item.summary_md || "";
+  const analogy = richContent?.summary?.analogy;
+  const keyPoints =
+    richContent?.keyPoints ||
+    item.key_takeaways ||
+    item.key_points?.map((text) => ({ icon: "✅", text }));
+  const difficulty = richContent?.meta?.difficulty || item.difficulty;
+  const readTime = richContent?.meta?.readTime;
+  const category = richContent?.meta?.category || item.category;
+  const bodyHtml = item.body_html;
+  const insightHtml = item.insight_html;
+
+  const publishedDate = new Date(item.published_at || item.created_at).toLocaleDateString("en-US", {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
+
+  // Difficulty styles
+  const difficultyStyles: Record<string, { bg: string; text: string; label: string }> = {
+    easy: { bg: "bg-green-500/20", text: "text-green-400", label: "Easy" },
+    medium: { bg: "bg-yellow-500/20", text: "text-yellow-400", label: "Medium" },
+    hard: { bg: "bg-red-500/20", text: "text-red-400", label: "Hard" },
+  };
+
+  return (
+    <div
+      className="fixed inset-0 bg-black/90 flex items-start justify-center z-50 overflow-y-auto"
+      onClick={onClose}
+    >
+      <div className="w-full max-w-3xl my-8 mx-4" onClick={(e) => e.stopPropagation()}>
+        {/* Preview Header */}
+        <div className="flex items-center justify-between mb-4 sticky top-0 bg-black/80 backdrop-blur-sm py-3 px-4 rounded-lg z-10">
+          <div className="flex items-center gap-2">
+            <span className="text-[11px] text-blue-400 bg-blue-500/20 px-2 py-1 rounded">
+              미리보기 모드
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={onEdit}
+              className="px-3 py-1.5 text-[11px] bg-white/10 text-white/70 rounded hover:bg-white/20 transition-colors"
+            >
+              수정하기
+            </button>
+            {item.status !== "published" && (
+              <button
+                onClick={onPublish}
+                className="px-3 py-1.5 text-[11px] bg-emerald-500/20 text-emerald-400 rounded hover:bg-emerald-500/30 transition-colors"
+              >
+                게시하기
+              </button>
+            )}
+            <button
+              onClick={onClose}
+              className="px-3 py-1.5 text-[11px] bg-white/5 text-white/50 rounded hover:text-white/70 transition-colors"
+            >
+              닫기
+            </button>
+          </div>
+        </div>
+
+        {/* Article Preview - Mimics actual news detail page */}
+        <article className="bg-[#0d0d0d] rounded-xl p-6 border border-white/[0.06]">
+          {/* Article Header */}
+          <header className="mb-5">
+            <h1 className="text-lg md:text-xl font-bold text-white mb-2.5 leading-snug">
+              {titleEmoji && <span className="mr-2">{titleEmoji}</span>}
+              {title}
+            </h1>
+
+            {/* Meta Information */}
+            <div className="flex flex-wrap items-center gap-2 text-[11px] text-white/50">
+              <time className="flex items-center gap-1.5">📅 {publishedDate}</time>
+
+              {category && (
+                <span className="flex items-center gap-1 px-2 py-0.5 rounded bg-white/5">
+                  🏷️ {category}
+                </span>
+              )}
+
+              {readTime && <span>📖 {readTime}</span>}
+
+              {difficulty && difficultyStyles[difficulty] && (
+                <span
+                  className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${difficultyStyles[difficulty].bg} ${difficultyStyles[difficulty].text}`}
+                >
+                  {difficultyStyles[difficulty].label}
+                </span>
+              )}
+            </div>
+          </header>
+
+          {/* Hero Section */}
+          <div
+            className={`mb-6 ${keyPoints && keyPoints.length > 0 ? "lg:grid lg:grid-cols-2 lg:gap-5" : ""}`}
+          >
+            {/* Image */}
+            {item.thumbnail_url && (
+              <div className="relative w-full aspect-video lg:aspect-[4/3] rounded-xl overflow-hidden bg-black/20">
+                <Image
+                  src={item.thumbnail_url}
+                  alt={title}
+                  fill
+                  className="object-cover"
+                  unoptimized
+                />
+              </div>
+            )}
+
+            {/* Key Takeaways */}
+            {keyPoints && keyPoints.length > 0 && (
+              <section className="mt-3 lg:mt-0 p-3 rounded-lg bg-white/[0.02] border border-white/[0.06]">
+                <h2 className="text-sm font-semibold text-white mb-2.5">📌 Key Takeaways</h2>
+                <ul className="space-y-1.5">
+                  {keyPoints.slice(0, 5).map((point, index) => (
+                    <li key={index} className="flex items-start gap-1.5 text-white/70">
+                      <span className="text-xs flex-shrink-0">{point.icon}</span>
+                      <span className="text-[12px] leading-relaxed">{point.text}</span>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            )}
+          </div>
+
+          {/* Article Body - Full HTML content */}
+          {bodyHtml ? (
+            <div
+              className="prose prose-sm prose-invert max-w-none mb-6 article-body article-body-compact"
+              dangerouslySetInnerHTML={{ __html: bodyHtml }}
+            />
+          ) : summary ? (
+            <div className="mb-6">
+              <p className="text-sm text-white/70 leading-relaxed">{summary}</p>
+            </div>
+          ) : null}
+
+          {/* Analogy Box */}
+          {analogy && !insightHtml && (
+            <div className="mb-6 p-3 rounded-lg bg-blue-500/10 border-l-4 border-blue-500/50">
+              <span className="mr-2 text-sm">{analogy.icon}</span>
+              <span className="text-white/70 italic text-[13px]">{analogy.text}</span>
+            </div>
+          )}
+
+          {/* In Simple Terms - insight_html */}
+          {insightHtml && (
+            <div className="mb-5 p-4 rounded-lg bg-emerald-500/10 border-l-4 border-emerald-500/50">
+              <h3 className="text-sm font-semibold text-white mb-2 flex items-center gap-2">
+                🌱 In Simple Terms
+              </h3>
+              <div
+                className="text-white/70 leading-relaxed text-[13px]"
+                dangerouslySetInnerHTML={{ __html: insightHtml }}
+              />
+            </div>
+          )}
+
+          {/* Source Reference */}
+          <div className="pt-3 border-t border-white/[0.06]">
+            <p className="text-[10px] text-white/40 leading-relaxed">
+              Source:{" "}
+              <a
+                href={item.source_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-white/50 hover:text-white/70 underline underline-offset-2 transition-colors"
+              >
+                {item.source_name || "원본 보기"}
+              </a>
+              <span className="mx-1.5">·</span>
+              AI-reconstructed content. Verify with original source.
+            </p>
+          </div>
+        </article>
+
+        {/* Content availability notice */}
+        {!bodyHtml && (
+          <div className="mt-4 p-3 rounded-lg bg-yellow-500/10 border border-yellow-500/20">
+            <p className="text-[11px] text-yellow-400">
+              ⚠️ 본문(body_html)이 없습니다. 요약만 표시됩니다.
+            </p>
+          </div>
+        )}
       </div>
     </div>
   );

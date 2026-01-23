@@ -115,6 +115,7 @@ export interface LeaderboardUser {
   country_rank: number | null;
   total_tokens: number;
   total_cost: number;
+  total_sessions?: number;
   // Period-specific fields (when filtered by period)
   period_tokens?: number;
   period_cost?: number;

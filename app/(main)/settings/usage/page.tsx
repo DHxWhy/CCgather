@@ -131,7 +131,8 @@ export default function SettingsUsagePage() {
           total_cost: meData.user.total_cost || 0,
         });
 
-        const historyRes = await fetch(`/api/users/${meData.user.id}/history?days=365`);
+        // Fetch all history (use large number to get everything)
+        const historyRes = await fetch(`/api/users/${meData.user.id}/history?days=3650`);
         if (historyRes.ok) {
           const historyData = await historyRes.json();
           setHistory(historyData.history || []);

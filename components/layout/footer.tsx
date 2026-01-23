@@ -1,9 +1,17 @@
-import Link from 'next/link';
-import Image from 'next/image';
+"use client";
+
+import Link from "next/link";
+import Image from "next/image";
+import { usePathname } from "next/navigation";
 
 export function Footer() {
+  const pathname = usePathname();
+  const isLeaderboard = pathname === "/leaderboard";
+
   return (
-    <footer className="border-t border-[var(--border-default)] py-8 bg-[var(--color-bg-primary)]">
+    <footer
+      className={`border-t border-[var(--border-default)] py-4 bg-[var(--color-bg-primary)] ${isLeaderboard ? "hidden lg:block" : ""}`}
+    >
       <div className="mx-auto max-w-7xl px-4 flex flex-col md:flex-row items-center justify-between gap-4">
         <div className="flex items-center gap-2">
           <Image

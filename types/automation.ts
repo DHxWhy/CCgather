@@ -224,7 +224,7 @@ export interface PublishOrderItem {
   source_name: string;
   published_at: string; // Original date
   created_at: string; // Crawled date
-  status: "pending" | "ready";
+  status: "pending";
   order: number;
 }
 
@@ -241,7 +241,7 @@ export interface PublishOrderProps {
 
 export type ContentType = "news" | "youtube";
 export type ContentCategory = "version_update" | "official" | "press" | "community" | "youtube";
-export type ContentStatus = "pending" | "ready" | "published" | "rejected";
+export type ContentStatus = "pending" | "published" | "rejected";
 export type ThumbnailSource =
   | "gemini"
   | "imagen"

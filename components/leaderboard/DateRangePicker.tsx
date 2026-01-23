@@ -57,10 +57,10 @@ export function DateRangePicker({ isOpen, onClose, onApply, initialRange }: Date
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 10 }}
             transition={{ type: "spring", damping: 25, stiffness: 300 }}
-            className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-[201] bg-[var(--color-bg-secondary)] border border-white/10 rounded-xl shadow-2xl overflow-hidden"
+            className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-[201] glass rounded-xl shadow-2xl overflow-hidden"
           >
             {/* Header */}
-            <div className="flex items-center justify-between px-4 py-3 border-b border-white/10">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--color-text-muted)]/30">
               <div className="flex items-center gap-2">
                 <CalendarIcon className="w-4 h-4 text-[var(--color-claude-coral)]" />
                 <span className="text-sm font-medium text-[var(--color-text-primary)]">
@@ -107,7 +107,7 @@ export function DateRangePicker({ isOpen, onClose, onApply, initialRange }: Date
             </div>
 
             {/* Footer */}
-            <div className="flex items-center justify-between px-4 py-3 border-t border-white/10 bg-black/20">
+            <div className="flex items-center justify-between px-4 py-3 border-t border-[var(--color-text-muted)]/30">
               <button
                 onClick={handleReset}
                 className="px-3 py-1.5 text-xs font-medium text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] transition-colors"
@@ -149,14 +149,14 @@ export function DateRangeButton({ onClick, isActive, dateLabel }: DateRangeButto
     <button
       onClick={onClick}
       title="Custom date range"
-      className={`w-[28px] lg:w-auto lg:px-1.5 rounded-lg text-[10px] leading-none font-medium transition-colors flex items-center justify-center gap-0.5 glass ${
+      className={`w-[34px] lg:w-auto lg:px-2 rounded-lg text-[11px] leading-none font-medium transition-colors flex items-center justify-center gap-0.5 glass ${
         isActive
           ? "bg-[var(--color-claude-coral)]/50 text-[var(--color-claude-coral)]"
           : "text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-filter-hover)]"
       }`}
-      style={{ height: 28 }}
+      style={{ height: 34 }}
     >
-      <CalendarIcon className="w-3 h-3" />
+      <CalendarIcon className="w-3.5 h-3.5" />
       {dateLabel && <span className="hidden lg:inline">{dateLabel}</span>}
     </button>
   );

@@ -53,16 +53,16 @@ export function PeriodDropdown({ value, onChange, options, customLabel }: Period
       {/* Trigger Button */}
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className={`flex items-center gap-0.5 px-1.5 pr-1 glass rounded-lg text-[10px] leading-none font-medium transition-all cursor-pointer ${
+        className={`flex items-center gap-0.5 px-2 pr-1.5 glass rounded-lg text-[11px] leading-none font-medium transition-all cursor-pointer ${
           isOpen
             ? "ring-1 ring-[var(--color-claude-coral)] text-[var(--color-text-primary)]"
             : "text-[var(--color-text-primary)] hover:bg-white/10"
         }`}
-        style={{ height: 28 }}
+        style={{ height: 34 }}
       >
         <span>{displayLabel}</span>
         <ChevronDown
-          className={`w-2.5 h-2.5 text-[var(--color-text-muted)] transition-transform ${
+          className={`w-3 h-3 text-[var(--color-text-muted)] transition-transform ${
             isOpen ? "rotate-180" : ""
           }`}
         />
@@ -85,7 +85,7 @@ export function PeriodDropdown({ value, onChange, options, customLabel }: Period
                   onChange(option.value);
                   setIsOpen(false);
                 }}
-                className={`w-full px-2 py-1 text-left text-[10px] font-medium transition-colors ${
+                className={`w-full px-2.5 py-1.5 text-left text-[11px] font-medium transition-colors ${
                   value === option.value
                     ? "bg-[var(--color-claude-coral)]/20 text-[var(--color-claude-coral)]"
                     : "text-[var(--color-text-secondary)] hover:bg-white/10 hover:text-[var(--color-text-primary)]"

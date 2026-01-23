@@ -76,7 +76,19 @@ function getTooltipPosition(
 
 export function ActivityHeatmap({ data, periodDays = 90 }: ActivityHeatmapProps) {
   const [hoveredCell, setHoveredCell] = useState<string | null>(null);
+  const [isDesktop, setIsDesktop] = useState(false);
+  const [hasScrolled, setHasScrolled] = useState(false);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+
+  // Detect desktop for tooltip (disable on mobile/tablet)
+  useEffect(() => {
+    const checkDesktop = () => {
+      setIsDesktop(window.innerWidth >= 1040);
+    };
+    checkDesktop();
+    window.addEventListener("resize", checkDesktop);
+    return () => window.removeEventListener("resize", checkDesktop);
+  }, []);
 
   // Scroll to right end (current date) on mount
   useEffect(() => {
@@ -84,6 +96,11 @@ export function ActivityHeatmap({ data, periodDays = 90 }: ActivityHeatmapProps)
       scrollContainerRef.current.scrollLeft = scrollContainerRef.current.scrollWidth;
     }
   }, []);
+
+  // Track scroll to show scrollbar
+  const handleScroll = () => {
+    if (!hasScrolled) setHasScrolled(true);
+  };
 
   // Process data into a grid structure
   // Always generate the grid structure, even with no data (for consistent layout)
@@ -190,7 +207,14 @@ export function ActivityHeatmap({ data, periodDays = 90 }: ActivityHeatmapProps)
   return (
     <div className="space-y-1 w-full max-w-[390px]">
       {/* Container - scroll on mobile/tablet, visible on desktop for tooltips */}
-      <div ref={scrollContainerRef} className="overflow-x-auto lg:overflow-visible">
+      {/* Hide scrollbar until user scrolls, add padding to prevent vertical scrollbar */}
+      <div
+        ref={scrollContainerRef}
+        onScroll={handleScroll}
+        className={`overflow-x-auto overflow-y-hidden lg:overflow-visible pb-2 ${
+          hasScrolled ? "" : "scrollbar-hide"
+        }`}
+      >
         <div className="w-fit">
           {/* Top month labels (even indices - Jan, Mar, May...) */}
           <div className="flex text-[7px] text-[var(--color-text-muted)] ml-3 relative h-2.5">
@@ -290,19 +314,19 @@ export function ActivityHeatmap({ data, periodDays = 90 }: ActivityHeatmapProps)
                           <div
                             key={cell.date}
                             className="relative"
-                            onMouseEnter={() => setHoveredCell(cell.date)}
-                            onMouseLeave={() => setHoveredCell(null)}
+                            onMouseEnter={() => isDesktop && setHoveredCell(cell.date)}
+                            onMouseLeave={() => isDesktop && setHoveredCell(null)}
                           >
                             <div
-                              className={`w-[5.7px] h-[5.7px] rounded-[1px] cursor-pointer transition-all ${
-                                INTENSITY_COLORS[cell.intensity]
-                              } ${isToday ? "ring-1 ring-[var(--color-claude-coral)]" : ""} ${
-                                isHovered ? "ring-1 ring-white/50" : ""
-                              }`}
+                              className={`w-[5.7px] h-[5.7px] rounded-[1px] transition-all ${
+                                isDesktop ? "cursor-pointer" : ""
+                              } ${INTENSITY_COLORS[cell.intensity]} ${
+                                isToday ? "ring-1 ring-[var(--color-claude-coral)]" : ""
+                              } ${isHovered && isDesktop ? "ring-1 ring-white/50" : ""}`}
                             />
 
-                            {/* Tooltip */}
-                            {isHovered && (
+                            {/* Tooltip - PC only */}
+                            {isHovered && isDesktop && (
                               <div
                                 className={`absolute ${verticalClass} ${horizontalClass} z-50 px-2 py-1.5 bg-[var(--color-bg-secondary)] border border-[var(--border-default)] rounded-lg shadow-xl whitespace-nowrap`}
                               >

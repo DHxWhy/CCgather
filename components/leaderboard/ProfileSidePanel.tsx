@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useMemo, useCallback } from "react";
+import { createPortal } from "react-dom";
 import Image from "next/image";
 import { Github, Linkedin, Globe } from "lucide-react";
 import ReactCountryFlag from "react-country-flag";
@@ -163,9 +164,7 @@ function UsageChart({
               strokeWidth={2}
               dot={false}
               activeDot={{ r: 4, fill: "#DA7756", stroke: "#fff", strokeWidth: 2 }}
-              animationDuration={500}
-              animationBegin={50}
-              animationEasing="ease-out"
+              isAnimationActive={false}
             />
           </LineChart>
         </ResponsiveContainer>
@@ -306,14 +305,19 @@ function BadgeItem({
   columnIndex,
   totalInCategory: _totalInCategory,
   userCountry,
+  isMobile,
 }: {
   badge: Badge;
   isEarned: boolean;
   columnIndex: number;
   totalInCategory: number;
   userCountry?: string;
+  isMobile?: boolean;
 }) {
   const [isHovered, setIsHovered] = useState(false);
+  const [isMounted, setIsMounted] = useState(false);
+  const badgeRef = useRef<HTMLDivElement>(null);
+  const [popoverPosition, setPopoverPosition] = useState({ top: 0, left: 0 });
 
   const RARITY_TEXT_COLOR = "text-[var(--color-text-primary)]";
 
@@ -324,23 +328,131 @@ function BadgeItem({
     legendary: "bg-[var(--color-claude-coral)]/30",
   };
 
-  // Show popover on the left side of the badge for easier vertical navigation
-  const isRightColumn = columnIndex >= 3; // Right half of 5 columns
+  // Mobile: 1-2열 우측, 3열 위, 4-5열 좌측 / Desktop: 항상 좌측
+  const popoverDirection = isMobile
+    ? columnIndex <= 1
+      ? "right"
+      : columnIndex === 2
+        ? "top"
+        : "left"
+    : "left";
+
+  // Ensure portal renders only on client side
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
+  const showPopover = () => {
+    if (!badgeRef.current) return;
+
+    const rect = badgeRef.current.getBoundingClientRect();
+    const popoverWidth = 192;
+    const popoverHeight = 140;
+    const gap = 8;
+
+    let top = 0;
+    let left = 0;
+
+    if (popoverDirection === "left") {
+      top = rect.top + rect.height / 2 - popoverHeight / 2;
+      left = rect.left - popoverWidth - gap;
+    } else if (popoverDirection === "right") {
+      top = rect.top + rect.height / 2 - popoverHeight / 2;
+      left = rect.right + gap;
+    } else {
+      top = rect.top - popoverHeight - gap;
+      left = rect.left + rect.width / 2 - popoverWidth / 2;
+    }
+
+    // Ensure popover stays within viewport bounds
+    const viewportWidth = window.innerWidth;
+    const viewportHeight = window.innerHeight;
+
+    if (left < 8) left = 8;
+    if (left + popoverWidth > viewportWidth - 8) left = viewportWidth - popoverWidth - 8;
+    if (top < 8) top = 8;
+    if (top + popoverHeight > viewportHeight - 8) top = viewportHeight - popoverHeight - 8;
+
+    setPopoverPosition({ top, left });
+    setIsHovered(true);
+  };
+
+  const hidePopover = () => {
+    setIsHovered(false);
+  };
+
+  const popoverContent = isHovered && isMounted && (
+    <div
+      className="fixed w-48 p-2.5 bg-[var(--color-bg-secondary)] border border-[var(--border-default)] rounded-lg shadow-xl"
+      style={{
+        top: popoverPosition.top,
+        left: popoverPosition.left,
+        zIndex: 99999,
+      }}
+    >
+      {/* Arrow pointing to badge */}
+      <div
+        className={`absolute ${
+          popoverDirection === "left"
+            ? "top-1/2 -translate-y-1/2 -right-[15px]"
+            : popoverDirection === "right"
+              ? "top-1/2 -translate-y-1/2 -left-[15px]"
+              : "-bottom-[15px] left-1/2 -translate-x-1/2"
+        }`}
+      >
+        <div
+          className={`border-8 border-transparent ${
+            popoverDirection === "left"
+              ? "border-l-[var(--color-bg-secondary)]"
+              : popoverDirection === "right"
+                ? "border-r-[var(--color-bg-secondary)]"
+                : "border-t-[var(--color-bg-secondary)]"
+          }`}
+        />
+      </div>
+      <div className="flex items-center gap-2 mb-1.5">
+        <span className="text-lg">
+          {badge.id === "country_first" && userCountry
+            ? countryCodeToFlag(userCountry)
+            : badge.icon}
+        </span>
+        <div>
+          <div className="text-xs font-medium text-[var(--color-text-primary)]">{badge.name}</div>
+          <span
+            className={`inline-block text-[9px] font-medium capitalize px-1.5 py-0.5 rounded ${RARITY_BG_COLORS[badge.rarity]} ${RARITY_TEXT_COLOR}`}
+          >
+            {badge.rarity}
+          </span>
+        </div>
+      </div>
+      <div className="text-[10px] text-[var(--color-text-secondary)] mb-1.5 bg-black/20 px-1.5 py-1 rounded">
+        {badge.description}
+      </div>
+      <div
+        className={`text-[10px] ${isEarned ? "text-[var(--color-text-secondary)]" : "text-[var(--color-text-muted)]"}`}
+      >
+        {isEarned ? `${badge.praise}` : "Not yet unlocked"}
+      </div>
+    </div>
+  );
 
   return (
     <div
+      ref={badgeRef}
       className="relative"
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
+      onMouseEnter={() => !isMobile && showPopover()}
+      onMouseLeave={() => !isMobile && hidePopover()}
+      onTouchStart={() => isMobile && showPopover()}
+      onTouchEnd={() => isMobile && hidePopover()}
     >
       <div
         className={`w-full aspect-square flex items-center justify-center rounded text-center transition-colors cursor-default ${
           isEarned
-            ? `bg-[var(--color-section-bg)] hover:bg-white/10`
-            : "bg-[var(--color-section-bg)] opacity-50"
+            ? `bg-[var(--color-section-bg)] ring-2 ring-[var(--color-primary)] hover:bg-white/10`
+            : "bg-black/40"
         }`}
       >
-        <div className={`text-lg ${!isEarned ? "grayscale" : ""}`}>
+        <div className={`text-lg ${!isEarned ? "grayscale opacity-40" : ""}`}>
           {isEarned
             ? badge.id === "country_first" && userCountry
               ? countryCodeToFlag(userCountry)
@@ -349,53 +461,8 @@ function BadgeItem({
         </div>
       </div>
 
-      {isHovered && (
-        <div
-          className={`absolute top-1/2 -translate-y-1/2 z-[100] w-48 p-2.5 bg-[var(--color-bg-secondary)] border border-[var(--border-default)] rounded-lg shadow-xl ${
-            isRightColumn ? "right-full mr-2" : "left-full ml-2"
-          }`}
-        >
-          {/* Arrow pointing to badge */}
-          <div
-            className={`absolute top-1/2 -translate-y-1/2 ${
-              isRightColumn ? "left-full ml-[-1px]" : "right-full mr-[-1px]"
-            }`}
-          >
-            <div
-              className={`border-8 border-transparent ${
-                isRightColumn
-                  ? "border-l-[var(--color-bg-secondary)]"
-                  : "border-r-[var(--color-bg-secondary)]"
-              }`}
-            />
-          </div>
-          <div className="flex items-center gap-2 mb-1.5">
-            <span className="text-lg">
-              {badge.id === "country_first" && userCountry
-                ? countryCodeToFlag(userCountry)
-                : badge.icon}
-            </span>
-            <div>
-              <div className="text-xs font-medium text-[var(--color-text-primary)]">
-                {badge.name}
-              </div>
-              <span
-                className={`inline-block text-[9px] font-medium capitalize px-1.5 py-0.5 rounded ${RARITY_BG_COLORS[badge.rarity]} ${RARITY_TEXT_COLOR}`}
-              >
-                {badge.rarity}
-              </span>
-            </div>
-          </div>
-          <div className="text-[10px] text-[var(--color-text-secondary)] mb-1.5 bg-black/20 px-1.5 py-1 rounded">
-            📋 {badge.description}
-          </div>
-          <div
-            className={`text-[10px] ${isEarned ? "text-[var(--color-text-secondary)]" : "text-[var(--color-text-muted)]"}`}
-          >
-            {isEarned ? `✨ ${badge.praise}` : "🔒 Not yet unlocked"}
-          </div>
-        </div>
-      )}
+      {/* Render popover in portal to escape overflow constraints */}
+      {isMounted && popoverContent && createPortal(popoverContent, document.body)}
     </div>
   );
 }
@@ -521,7 +588,15 @@ const RARITY_ORDER: Record<Badge["rarity"], number> = {
 const BADGE_CATEGORIES: Badge["category"][] = ["streak", "tokens", "rank", "model", "social"];
 
 // Badge display component
-function BadgeGrid({ badgeIds, userCountry }: { badgeIds: string[]; userCountry: string }) {
+function BadgeGrid({
+  badgeIds,
+  userCountry,
+  isMobile,
+}: {
+  badgeIds: string[];
+  userCountry: string;
+  isMobile?: boolean;
+}) {
   const badgesByCategory = useMemo(() => {
     return BADGE_CATEGORIES.map((category) => ({
       category,
@@ -549,6 +624,7 @@ function BadgeGrid({ badgeIds, userCountry }: { badgeIds: string[]; userCountry:
                 columnIndex={colIndex}
                 totalInCategory={5}
                 userCountry={userCountry}
+                isMobile={isMobile}
               />
             ))}
             {Array.from({ length: maxBadges - badges.length }).map((_, i) => (
@@ -669,13 +745,6 @@ export function ProfileSidePanel({
   // Only mobile uses overlay mode, tablet uses push mode
   const isOverlayPanel = isMobile;
 
-  // Swipe gesture state
-  const [touchStartX, setTouchStartX] = useState<number | null>(null);
-  const [touchStartY, setTouchStartY] = useState<number | null>(null);
-  const [touchCurrentX, setTouchCurrentX] = useState<number | null>(null);
-  const [isDragging, setIsDragging] = useState(false);
-  const [isVerticalScroll, setIsVerticalScroll] = useState(false);
-
   // Detect viewport size - 3-tier breakpoint system
   // Mobile: < 640px | Tablet: 640-1039px | PC: >= 1040px
   useEffect(() => {
@@ -690,100 +759,20 @@ export function ProfileSidePanel({
     return () => window.removeEventListener("resize", checkScreenSize);
   }, []);
 
-  // Calculate swipe offset (only for horizontal swipe, not vertical scroll)
-  const swipeOffset = useMemo(() => {
-    if (!isDragging || isVerticalScroll || touchStartX === null || touchCurrentX === null) return 0;
-    const diff = touchCurrentX - touchStartX;
-    return Math.max(0, diff);
-  }, [isDragging, isVerticalScroll, touchStartX, touchCurrentX]);
-
-  // Touch handlers with vertical scroll detection
-  const handleTouchStart = useCallback((e: React.TouchEvent) => {
-    const touch = e.touches[0];
-    if (touch) {
-      setTouchStartX(touch.clientX);
-      setTouchStartY(touch.clientY);
-      setTouchCurrentX(touch.clientX);
-      setIsDragging(false); // Don't start dragging until we determine direction
-      setIsVerticalScroll(false);
-    }
-  }, []);
-
-  const handleTouchMove = useCallback(
-    (e: React.TouchEvent) => {
-      const touch = e.touches[0];
-      if (!touch || touchStartX === null || touchStartY === null) return;
-
-      const deltaX = touch.clientX - touchStartX;
-      const deltaY = touch.clientY - touchStartY;
-
-      // Determine scroll direction on first significant movement
-      if (!isDragging && !isVerticalScroll) {
-        const minThreshold = 10; // Minimum movement before deciding direction
-        if (Math.abs(deltaX) > minThreshold || Math.abs(deltaY) > minThreshold) {
-          // If vertical movement is greater than horizontal, it's a vertical scroll
-          if (Math.abs(deltaY) > Math.abs(deltaX)) {
-            setIsVerticalScroll(true);
-            return;
-          } else {
-            // Horizontal movement - start dragging, prevent page scroll
-            setIsDragging(true);
-            e.preventDefault();
-          }
-        }
-      }
-
-      // Only update horizontal position if we're in drag mode
-      if (isDragging && !isVerticalScroll) {
-        e.preventDefault(); // Prevent page from scrolling horizontally
-        setTouchCurrentX(touch.clientX);
-      }
-    },
-    [isDragging, isVerticalScroll, touchStartX, touchStartY]
-  );
-
-  const handleTouchEnd = useCallback(() => {
-    // Only close if it was a horizontal swipe (not vertical scroll)
-    if (isDragging && !isVerticalScroll && touchStartX !== null && touchCurrentX !== null) {
-      const diff = touchCurrentX - touchStartX;
-      const threshold = 100;
-
-      if (diff > threshold) {
-        onClose();
-      }
-    }
-
-    // Reset all touch state
-    setIsDragging(false);
-    setTouchStartX(null);
-    setTouchStartY(null);
-    setTouchCurrentX(null);
-    setIsVerticalScroll(false);
-  }, [isDragging, isVerticalScroll, touchStartX, touchCurrentX, onClose]);
-
   // Fetch user history and badges when user changes
   useEffect(() => {
     if (!user) return;
 
     const userId = user.id; // Capture for async closure
     let cancelled = false;
-    const FADE_DURATION = 200; // Match CSS transition duration
 
     async function fetchUserData() {
-      // Phase 1: Fade out (wait for animation to complete)
+      // Start fade out AND fetch simultaneously (don't wait!)
       setChartFadeIn(false);
-      await new Promise((resolve) => setTimeout(resolve, FADE_DURATION));
-
-      if (cancelled) return;
-
-      // Phase 2: Clear old data (while hidden)
       setHistoryLoading(true);
-      setUsageHistory([]);
-      setUserBadges([]);
-      setFreshSocialLinks(null);
 
       try {
-        // Fetch new data
+        // Fetch new data (runs in parallel with fade out animation)
         const [historyResponse, badgesResponse] = await Promise.all([
           fetch(`/api/users/${userId}/history?days=365`),
           fetch(`/api/users/${userId}/badges`),
@@ -797,16 +786,22 @@ export function ProfileSidePanel({
           if (data.user?.social_links) {
             setFreshSocialLinks(data.user.social_links);
           }
+        } else {
+          setUsageHistory([]);
+          setFreshSocialLinks(null);
         }
 
         if (badgesResponse.ok) {
           const data = await badgesResponse.json();
           setUserBadges((data.badges || []).map((b: { badge_type: string }) => b.badge_type));
+        } else {
+          setUserBadges([]);
         }
       } catch {
         if (!cancelled) {
           setUsageHistory([]);
           setUserBadges([]);
+          setFreshSocialLinks(null);
         }
       } finally {
         if (!cancelled) {
@@ -953,15 +948,6 @@ export function ProfileSidePanel({
       ? filteredHistory.reduce((sum, day) => sum + day.tokens, 0) / filteredHistory.length
       : 0;
 
-  const periodLabel =
-    periodFilter === "today"
-      ? "Today"
-      : periodFilter === "7d"
-        ? "7D"
-        : periodFilter === "30d"
-          ? "30D"
-          : "All Time";
-
   return (
     <>
       {isOverlayPanel && (
@@ -975,19 +961,12 @@ export function ProfileSidePanel({
 
       <div
         ref={panelRef}
-        className={`fixed top-14 md:top-16 right-0 flex flex-col bg-[var(--color-bg-primary)] border-l border-[var(--border-default)] z-50 shadow-2xl will-change-transform ${
-          isDragging ? "" : "transition-transform duration-200 ease-out"
-        } ${isOpen ? "translate-x-0" : "translate-x-full"}`}
+        className={`fixed top-14 md:top-16 right-0 flex flex-col bg-[var(--color-bg-primary)] border-l border-[var(--border-default)] z-50 shadow-2xl will-change-transform transition-transform duration-200 ease-out ${isOpen ? "translate-x-0" : "translate-x-full"}`}
         style={{
           width: isMobile ? "calc(100% - 56px)" : isTabletPortrait ? "320px" : "440px",
           maxWidth: isMobile ? "calc(100% - 56px)" : isTabletPortrait ? "320px" : "440px",
           height: isMobile ? "calc(100% - 56px)" : "calc(100% - 64px)",
-          transform: isOpen ? `translateX(${swipeOffset}px)` : "translateX(100%)",
-          touchAction: isOverlayPanel ? "pan-y" : "auto",
         }}
-        onTouchStart={isOverlayPanel ? handleTouchStart : undefined}
-        onTouchMove={isOverlayPanel ? handleTouchMove : undefined}
-        onTouchEnd={isOverlayPanel ? handleTouchEnd : undefined}
       >
         {/* Fixed Header Area */}
         <div className="flex-shrink-0">
@@ -1071,7 +1050,7 @@ export function ProfileSidePanel({
 
           {/* Compact Stats Bar */}
           <div
-            className={`overflow-hidden transition-all duration-200 ${
+            className={`overflow-hidden transition-all duration-100 ease-out ${
               showCompactStats ? "max-h-16 opacity-100" : "max-h-0 opacity-0"
             }`}
           >
@@ -1096,6 +1075,12 @@ export function ProfileSidePanel({
                   </span>
                 </div>
                 <div className="flex-1 flex items-center justify-center gap-1">
+                  <span>💻</span>
+                  <span className="font-medium text-[var(--color-text-primary)]">
+                    {(currentUser.total_sessions || 0).toLocaleString()}
+                  </span>
+                </div>
+                <div className="flex-1 flex items-center justify-center gap-1">
                   <span>💰</span>
                   <span className="font-medium text-[var(--color-cost)]">
                     ${formatTokens(periodCost)}
@@ -1113,7 +1098,7 @@ export function ProfileSidePanel({
         </div>
 
         {/* Scrollable Content */}
-        <div ref={scrollContainerRef} className="p-4 overflow-y-auto overflow-x-clip flex-1">
+        <div ref={scrollContainerRef} className="p-4 overflow-y-auto flex-1">
           {/* Level Progress */}
           <LevelProgressBar
             currentTokens={currentUser.total_tokens}
@@ -1123,58 +1108,32 @@ export function ProfileSidePanel({
             userId={currentUser.id}
           />
 
-          {/* Stats Grid */}
+          {/* Stats Grid - New Layout: Top row 1:1:2, Bottom row 1:1 */}
           <div
             ref={statsRef}
-            className="grid grid-cols-2 gap-2 mb-4"
+            className="grid grid-cols-6 gap-2 mb-4"
             key={`stats-${currentUser.id}`}
           >
             {/* Global Rank */}
             <div
-              className={`p-3 rounded-lg transition-all ${
+              className={`col-span-2 p-3 rounded-lg transition-all ${
                 scopeFilter === "global"
                   ? "bg-primary/10 ring-1 ring-primary/30"
                   : "bg-[var(--color-section-bg)]"
               } border border-[var(--border-default)]`}
             >
               <div className="text-[10px] text-[var(--color-text-muted)] mb-0.5 flex items-center gap-1">
-                🌍 Global Rank
+                🌍 Global
               </div>
               <div
-                className={`font-semibold text-[var(--color-text-primary)] ${isNarrow ? "text-base" : "text-lg"}`}
+                className={`font-semibold text-[var(--color-text-primary)] ${isNarrow ? "text-sm" : "text-base"}`}
               >
                 #{(currentUser.global_rank || currentUser.rank).toLocaleString()}
               </div>
             </div>
-            {/* Cost */}
-            <div className="p-3 bg-[var(--color-section-bg)] rounded-lg border border-[var(--border-default)]">
-              <div className="text-[10px] text-[var(--color-text-muted)] mb-0.5">
-                {periodLabel} Cost $
-              </div>
-              <div
-                className={`font-semibold text-[var(--color-cost)] ${
-                  isNarrow
-                    ? periodCost >= 100_000
-                      ? "text-sm"
-                      : "text-base"
-                    : periodTokens >= 100_000_000_000
-                      ? "text-sm lg:text-lg"
-                      : periodTokens >= 1_000_000_000
-                        ? "text-base lg:text-lg"
-                        : "text-lg"
-                }`}
-              >
-                {isNarrow && periodCost >= 100_000
-                  ? `${(periodCost / 1_000).toFixed(0)}K`
-                  : periodCost.toLocaleString(undefined, {
-                      minimumFractionDigits: 0,
-                      maximumFractionDigits: 0,
-                    })}
-              </div>
-            </div>
             {/* Country Rank */}
             <div
-              className={`p-3 rounded-lg transition-all ${
+              className={`col-span-2 p-3 rounded-lg transition-all ${
                 scopeFilter === "country"
                   ? "bg-primary/10 ring-1 ring-primary/30"
                   : "bg-[var(--color-section-bg)]"
@@ -1188,34 +1147,41 @@ export function ProfileSidePanel({
                     style={{ width: "10px", height: "10px" }}
                   />
                 )}
-                Country Rank
+                Country
               </div>
               <div
-                className={`font-semibold text-[var(--color-text-primary)] ${isNarrow ? "text-base" : "text-lg"}`}
+                className={`font-semibold text-[var(--color-text-primary)] ${isNarrow ? "text-sm" : "text-base"}`}
               >
                 #{countryRank.toLocaleString()}
               </div>
             </div>
-            {/* Tokens */}
-            <div className="p-3 bg-[var(--color-section-bg)] rounded-lg border border-[var(--border-default)]">
-              <div className="text-[10px] text-[var(--color-text-muted)] mb-0.5">
-                {periodLabel} Tokens
-              </div>
+            {/* Sessions */}
+            <div className="col-span-2 p-3 bg-[var(--color-section-bg)] rounded-lg border border-[var(--border-default)]">
+              <div className="text-[10px] text-[var(--color-text-muted)] mb-0.5">💻 Sessions</div>
               <div
-                className={`font-semibold text-[var(--color-claude-coral)] ${
-                  isNarrow
-                    ? periodTokens >= 1_000_000_000
-                      ? "text-sm"
-                      : "text-base"
-                    : periodTokens >= 100_000_000_000
-                      ? "text-sm lg:text-lg"
-                      : periodTokens >= 1_000_000_000
-                        ? "text-base lg:text-lg"
-                        : "text-lg"
-                }`}
+                className={`font-semibold text-[var(--color-text-primary)] ${isNarrow ? "text-sm" : "text-base"}`}
               >
-                {isNarrow && periodTokens >= 1_000_000_000
-                  ? `${(periodTokens / 1_000_000_000).toFixed(1)}B`
+                {(currentUser.total_sessions || 0).toLocaleString()}
+              </div>
+            </div>
+            {/* Cost */}
+            <div className="col-span-3 p-3 bg-[var(--color-section-bg)] rounded-lg border border-[var(--border-default)]">
+              <div className="text-[10px] text-[var(--color-text-muted)] mb-0.5">💰 Costs</div>
+              <div className="font-medium text-base text-[var(--color-cost)]">
+                $
+                {periodCost >= 1_000_000
+                  ? `${(periodCost / 1_000_000).toFixed(1)}M`
+                  : periodCost >= 1_000
+                    ? `${(periodCost / 1_000).toFixed(1)}K`
+                    : periodCost.toFixed(0)}
+              </div>
+            </div>
+            {/* Tokens */}
+            <div className="col-span-3 p-3 bg-[var(--color-section-bg)] rounded-lg border border-[var(--border-default)]">
+              <div className="text-[10px] text-[var(--color-text-muted)] mb-0.5">🔥 Tokens</div>
+              <div className="font-medium text-base text-[var(--color-claude-coral)]">
+                {periodTokens >= 1_000_000_000
+                  ? `${(periodTokens / 1_000_000_000).toFixed(2)}B`
                   : periodTokens.toLocaleString()}
               </div>
             </div>
@@ -1255,7 +1221,7 @@ export function ProfileSidePanel({
           </div>
 
           {/* Activity Heatmap */}
-          <div className="mb-4 p-3 pt-6 pb-4 bg-[var(--color-section-bg)] rounded-lg border border-[var(--border-default)]">
+          <div className="mb-4 px-4 py-3 pt-6 pb-6 bg-[var(--color-section-bg)] rounded-lg border border-[var(--border-default)]">
             <div className="text-[10px] text-[var(--color-text-muted)] uppercase tracking-wide mb-3">
               📅 Activity (Last Year)
             </div>
@@ -1273,7 +1239,11 @@ export function ProfileSidePanel({
               🏅 Badges ({userBadges.length}/{BADGES.length})
             </div>
             <div className="overflow-visible">
-              <BadgeGrid badgeIds={userBadges} userCountry={currentUser.country_code || "US"} />
+              <BadgeGrid
+                badgeIds={userBadges}
+                userCountry={currentUser.country_code || "US"}
+                isMobile={isMobile}
+              />
             </div>
           </div>
         </div>

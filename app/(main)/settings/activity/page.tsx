@@ -36,7 +36,8 @@ export default function SettingsActivityPage() {
         const userId = meData.user?.id;
         if (!userId) throw new Error("User ID not found");
 
-        const historyRes = await fetch(`/api/users/${userId}/history?days=30`);
+        // Fetch all history (use large number to get everything)
+        const historyRes = await fetch(`/api/users/${userId}/history?days=3650`);
         if (!historyRes.ok) throw new Error("Failed to fetch history");
         const historyData = await historyRes.json();
         setHistory(historyData.history || []);
@@ -119,7 +120,7 @@ export default function SettingsActivityPage() {
         </div>
       )}
 
-      <p className="text-xs text-[var(--color-text-muted)]">Your daily usage data (last 30 days)</p>
+      <p className="text-xs text-[var(--color-text-muted)]">Your complete usage history</p>
 
       {isLoading ? (
         <div className="space-y-2">

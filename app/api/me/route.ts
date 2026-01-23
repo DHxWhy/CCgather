@@ -290,29 +290,66 @@ export async function GET() {
     );
   }
 
-  // Auto-populate GitHub from Clerk OAuth if not set
-  const socialLinks = (user.social_links as Record<string, string> | null) || {};
-  if (!socialLinks.github) {
-    const clerkUser = await currentUser();
-
-    // Debug logging
-    console.log("[/api/me] Auto-populate GitHub check:", {
-      userId,
-      clerkUsername: clerkUser?.username,
-      externalAccounts: clerkUser?.externalAccounts?.map((a) => ({
-        provider: a.provider,
-        username: a.username,
-      })),
-      currentSocialLinks: socialLinks,
-    });
-
-    // Check for GitHub account - provider can be "github" or "oauth_github"
-    const githubAccount = clerkUser?.externalAccounts?.find((account) =>
+  // Sync user profile from Clerk (GitHub OAuth) on every request
+  const clerkUser = await currentUser();
+  if (clerkUser) {
+    const githubAccount = clerkUser.externalAccounts?.find((account) =>
       account.provider.toLowerCase().includes("github")
     );
 
-    // Get GitHub username from external account or Clerk username (often same as GitHub when using GitHub OAuth)
-    const githubUsername = githubAccount?.username || clerkUser?.username;
+    // Get latest values from Clerk/GitHub
+    const latestUsername = githubAccount?.username || clerkUser.username;
+    const latestDisplayName =
+      [clerkUser.firstName, clerkUser.lastName].filter(Boolean).join(" ") ||
+      latestUsername ||
+      user.display_name;
+    const latestAvatarUrl = clerkUser.imageUrl;
+
+    // Check if any profile info has changed
+    const needsUpdate =
+      (latestUsername && user.username !== latestUsername) ||
+      (latestDisplayName && user.display_name !== latestDisplayName) ||
+      (latestAvatarUrl && user.avatar_url !== latestAvatarUrl);
+
+    if (needsUpdate) {
+      const updateData: Record<string, unknown> = {
+        updated_at: new Date().toISOString(),
+      };
+
+      if (latestUsername && user.username !== latestUsername) {
+        updateData.username = latestUsername;
+      }
+      if (latestDisplayName && user.display_name !== latestDisplayName) {
+        updateData.display_name = latestDisplayName;
+      }
+      if (latestAvatarUrl && user.avatar_url !== latestAvatarUrl) {
+        updateData.avatar_url = latestAvatarUrl;
+      }
+
+      const { error: syncError } = await supabase
+        .from("users")
+        .update(updateData)
+        .eq("clerk_id", userId);
+
+      if (syncError) {
+        console.error("[/api/me] Failed to sync profile from Clerk:", syncError);
+      } else {
+        console.log("[/api/me] Synced profile from Clerk:", updateData);
+        // Update local user object with new values
+        Object.assign(user, updateData);
+      }
+    }
+  }
+
+  // Auto-populate GitHub from Clerk OAuth if not set
+  const socialLinks = (user.social_links as Record<string, string> | null) || {};
+  if (!socialLinks.github && clerkUser) {
+    const githubAccount = clerkUser.externalAccounts?.find((account) =>
+      account.provider.toLowerCase().includes("github")
+    );
+
+    // Get GitHub username from external account or Clerk username
+    const githubUsername = githubAccount?.username || clerkUser.username;
 
     console.log("[/api/me] GitHub username resolved:", githubUsername);
 

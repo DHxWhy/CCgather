@@ -37,6 +37,8 @@ interface GlobeStatsSectionProps {
   scopeFilter?: "global" | "country";
   sortBy?: "tokens" | "cost";
   compact?: boolean; // Tighter spacing for tablet
+  hideParticles?: boolean; // Hide particles (when rendered separately)
+  hideStats?: boolean; // Hide stats summary (when rendered in sticky header)
 }
 
 // Hook for responsive globe size
@@ -85,6 +87,8 @@ export function GlobeStatsSection({
   scopeFilter = "global",
   sortBy = "tokens",
   compact = false,
+  hideParticles = false,
+  hideStats = false,
 }: GlobeStatsSectionProps) {
   const [stats, setStats] = useState<CountryStat[]>([]);
   const [totalTokens, setTotalTokens] = useState(0);
@@ -149,7 +153,7 @@ export function GlobeStatsSection({
       <div className="relative" style={{ width: globeSize, height: globeSize }}>
         {!loading && (
           <>
-            <GlobeParticles size={globeSize} />
+            {!hideParticles && <GlobeParticles size={globeSize} />}
             <Globe
               markers={stats}
               size={globeSize}
@@ -166,10 +170,10 @@ export function GlobeStatsSection({
         )}
       </div>
 
-      {/* Stats summary below globe - single line with emojis */}
+      {/* Stats summary below globe - single line with emojis (hidden when scrolling) */}
       <div
-        className={`flex items-center justify-center transition-all duration-500 ${
-          loading ? "opacity-0 translate-y-2" : "opacity-100 translate-y-0"
+        className={`flex items-center justify-center transition-all duration-300 ${
+          loading || hideStats ? "opacity-0 invisible" : "opacity-100 visible"
         } ${isLarge ? (compact ? "gap-2 mt-2 text-xs" : "gap-3 mt-4 text-sm") : "gap-2 mt-3 text-xs"}`}
       >
         {scopeFilter === "global" ? (
