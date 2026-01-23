@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { revalidatePath } from "next/cache";
 import { createServiceClient } from "@/lib/supabase/server";
 import { checkAndAwardBadges } from "@/lib/services/badgeService";
 import { calculateLevel } from "@/lib/types/leaderboard";
@@ -89,9 +90,10 @@ interface AuthenticatedUser {
   current_level?: number | null;
 }
 
-// Rate limit settings: 10 submissions per hour
+// Rate limit settings: 2 submissions per hour
+// (Since v2.0 submits ALL projects at once, frequent submissions are unnecessary)
 const RATE_LIMIT_WINDOW_HOURS = 1;
-const RATE_LIMIT_MAX_SUBMISSIONS = 10;
+const RATE_LIMIT_MAX_SUBMISSIONS = 2;
 
 export async function POST(request: NextRequest) {
   try {
@@ -501,6 +503,25 @@ export async function POST(request: NextRequest) {
       },
       usageHistory
     );
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // STEP 4: Invalidate caches for immediate data refresh
+    // ═══════════════════════════════════════════════════════════════════════════
+    try {
+      // Invalidate leaderboard cache (affects all leaderboard pages)
+      revalidatePath("/api/leaderboard");
+      // Invalidate country statistics cache
+      revalidatePath("/api/countries");
+      // Invalidate global statistics cache
+      revalidatePath("/api/stats/global");
+      // Invalidate this user's profile cache
+      revalidatePath(`/api/profile/${authenticatedUser.username}`);
+
+      console.log(`[CLI Submit] Cache invalidated for user ${authenticatedUser.username}`);
+    } catch (cacheError) {
+      // Cache invalidation failure should not block the submission
+      console.error("[CLI Submit] Cache invalidation error:", cacheError);
+    }
 
     // Build response with previous submission info (for CLI UX)
     const response: Record<string, unknown> = {

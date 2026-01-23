@@ -302,16 +302,24 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Failed to fetch leaderboard" }, { status: 500 });
     }
 
-    return NextResponse.json({
-      users: users || [],
-      pagination: {
-        page,
-        limit,
-        total: count || 0,
-        totalPages: Math.ceil((count || 0) / limit),
+    return NextResponse.json(
+      {
+        users: users || [],
+        pagination: {
+          page,
+          limit,
+          total: count || 0,
+          totalPages: Math.ceil((count || 0) / limit),
+        },
+        period,
       },
-      period,
-    });
+      {
+        headers: {
+          // CDN 캐싱: 5분간 캐시, 1분간 stale 허용
+          "Cache-Control": "public, s-maxage=300, stale-while-revalidate=60",
+        },
+      }
+    );
   }
 
   // For period-based queries, aggregate from usage_stats
@@ -418,14 +426,22 @@ export async function GET(request: NextRequest) {
   const total = rankedUsers.length;
   const paginatedUsers = rankedUsers.slice(offset, offset + limit);
 
-  return NextResponse.json({
-    users: paginatedUsers,
-    pagination: {
-      page,
-      limit,
-      total,
-      totalPages: Math.ceil(total / limit),
+  return NextResponse.json(
+    {
+      users: paginatedUsers,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+      },
+      period,
     },
-    period,
-  });
+    {
+      headers: {
+        // CDN 캐싱: 5분간 캐시, 1분간 stale 허용
+        "Cache-Control": "public, s-maxage=300, stale-while-revalidate=60",
+      },
+    }
+  );
 }

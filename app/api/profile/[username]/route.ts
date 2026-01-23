@@ -1,5 +1,5 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { NextRequest, NextResponse } from "next/server";
+import { createClient } from "@/lib/supabase/server";
 
 interface UsageHistoryRow {
   date: string;
@@ -17,35 +17,30 @@ export async function GET(
 
     // Fetch user profile
     const { data: user, error } = await supabase
-      .from('users')
-      .select('*')
-      .eq('username', username)
+      .from("users")
+      .select("*")
+      .eq("username", username)
       .single();
 
     if (error || !user) {
-      return NextResponse.json(
-        { error: 'User not found' },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
     // Calculate percentile
     const { count: totalUsers } = await supabase
-      .from('users')
-      .select('*', { count: 'exact', head: true });
+      .from("users")
+      .select("*", { count: "exact", head: true });
 
-    const percentile = totalUsers
-      ? ((totalUsers - user.rank + 1) / totalUsers) * 100
-      : 0;
+    const percentile = totalUsers ? ((totalUsers - user.rank + 1) / totalUsers) * 100 : 0;
 
     // Fetch usage history (last 30 days)
     const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
     const { data: usageHistory } = await supabase
-      .from('usage_history')
-      .select('date, tokens')
-      .eq('user_id', user.id)
-      .gte('date', thirtyDaysAgo.toISOString().split('T')[0])
-      .order('date', { ascending: true });
+      .from("usage_history")
+      .select("date, tokens")
+      .eq("user_id", user.id)
+      .gte("date", thirtyDaysAgo.toISOString().split("T")[0])
+      .order("date", { ascending: true });
 
     const profile = {
       id: user.id,
@@ -64,19 +59,24 @@ export async function GET(
       percentile,
     };
 
-    return NextResponse.json({
-      profile,
-      usageHistory: (usageHistory || []).map((row: UsageHistoryRow) => ({
-        date: row.date,
-        tokens: row.tokens,
-      })),
-      modelBreakdown: user.model_breakdown || {},
-    });
-  } catch (error) {
-    console.error('[API] Profile fetch error:', error);
     return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
+      {
+        profile,
+        usageHistory: (usageHistory || []).map((row: UsageHistoryRow) => ({
+          date: row.date,
+          tokens: row.tokens,
+        })),
+        modelBreakdown: user.model_breakdown || {},
+      },
+      {
+        headers: {
+          // 프로필은 10분 캐싱
+          "Cache-Control": "public, s-maxage=600, stale-while-revalidate=60",
+        },
+      }
     );
+  } catch (error) {
+    console.error("[API] Profile fetch error:", error);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }

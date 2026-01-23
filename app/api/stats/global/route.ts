@@ -47,12 +47,19 @@ export async function GET() {
     totalCountries >= THRESHOLDS.minCountries &&
     totalTokens >= THRESHOLDS.minTokens;
 
-  return NextResponse.json({
-    totalUsers: totalUsers || 0,
-    totalCountries,
-    totalTokens,
-    totalCost,
-    showStats,
-    thresholds: THRESHOLDS,
-  });
+  return NextResponse.json(
+    {
+      totalUsers: totalUsers || 0,
+      totalCountries,
+      totalTokens,
+      totalCost,
+      showStats,
+      thresholds: THRESHOLDS,
+    },
+    {
+      headers: {
+        "Cache-Control": "public, s-maxage=300, stale-while-revalidate=60",
+      },
+    }
+  );
 }
