@@ -35,7 +35,6 @@ export default function SettingsProfilePage() {
   const { signOut } = useClerk();
 
   const [dbCountryCode, setDbCountryCode] = useState<string>("");
-  const [dbDisplayName, setDbDisplayName] = useState<string | null>(null);
   const [socialLinks, setSocialLinks] = useState<SocialLinks>({});
   const [editedLinks, setEditedLinks] = useState<SocialLinks>({});
   const [isSaving, setIsSaving] = useState(false);
@@ -55,7 +54,6 @@ export default function SettingsProfilePage() {
         if (res.ok) {
           const data = await res.json();
           setDbCountryCode(data.user?.country_code || "");
-          setDbDisplayName(data.user?.display_name || null);
           setSocialLinks(data.user?.social_links || {});
           setEditedLinks(data.user?.social_links || {});
           setReferralCode(data.user?.referral_code || null);
@@ -209,18 +207,6 @@ export default function SettingsProfilePage() {
     }
   };
 
-  const handleDisplayNameSave = async (name: string) => {
-    const res = await fetch("/api/me", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ display_name: name }),
-    });
-    if (!res.ok) {
-      throw new Error("Failed to save display name");
-    }
-    setDbDisplayName(name);
-  };
-
   const handleDeleteAccount = async () => {
     const res = await fetch("/api/me", { method: "DELETE" });
     if (!res.ok) {
@@ -241,13 +227,7 @@ export default function SettingsProfilePage() {
   return (
     <div className="max-w-xl mx-auto p-4 sm:p-6 space-y-6 sm:space-y-8">
       {/* Profile Card */}
-      <ProfileCard
-        imageUrl={user.imageUrl}
-        fullName={user.fullName}
-        username={user.username}
-        displayName={dbDisplayName}
-        onDisplayNameSave={handleDisplayNameSave}
-      />
+      <ProfileCard imageUrl={user.imageUrl} fullName={user.fullName} username={user.username} />
 
       {/* Social Links */}
       <section>

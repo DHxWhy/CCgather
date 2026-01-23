@@ -31,7 +31,6 @@ const SocialLinksSchema = z
   .optional();
 
 const UpdateProfileSchema = z.object({
-  display_name: z.string().min(1).max(50).optional(),
   country_code: z.string().length(2).optional(),
   timezone: z.string().optional(),
   onboarding_completed: z.boolean().optional(),
@@ -292,60 +291,73 @@ export async function GET() {
     );
   }
 
-  // Sync user profile from Clerk (GitHub OAuth) on every request
+  // Sync user profile from GitHub API directly (Clerk caches OAuth data)
   const clerkUser = await currentUser();
   if (clerkUser) {
     const githubAccount = clerkUser.externalAccounts?.find((account) =>
       account.provider.toLowerCase().includes("github")
     );
 
-    // Get latest values from GitHub OAuth (priority) or Clerk profile
-    // GitHub OAuth provides: username, firstName, lastName, imageUrl
-    const latestUsername = githubAccount?.username || clerkUser.username;
+    // Get GitHub username from Clerk's OAuth data
+    const githubUsername = githubAccount?.username || clerkUser.username;
 
-    // For display name: prioritize GitHub OAuth name, then Clerk profile, then username
-    const githubDisplayName = githubAccount
-      ? [githubAccount.firstName, githubAccount.lastName].filter(Boolean).join(" ")
-      : null;
-    const clerkDisplayName = [clerkUser.firstName, clerkUser.lastName].filter(Boolean).join(" ");
-    const latestDisplayName =
-      githubDisplayName || clerkDisplayName || latestUsername || user.display_name;
+    if (githubUsername) {
+      try {
+        // Fetch latest profile directly from GitHub API
+        const githubRes = await fetch(`https://api.github.com/users/${githubUsername}`, {
+          headers: {
+            Accept: "application/vnd.github.v3+json",
+            "User-Agent": "CCgather",
+          },
+          next: { revalidate: 3600 }, // Cache for 1 hour
+        });
 
-    // For avatar: prioritize GitHub OAuth avatar
-    const latestAvatarUrl = githubAccount?.imageUrl || clerkUser.imageUrl;
+        if (githubRes.ok) {
+          const githubProfile = await githubRes.json();
 
-    // Check if any profile info has changed
-    const needsUpdate =
-      (latestUsername && user.username !== latestUsername) ||
-      (latestDisplayName && user.display_name !== latestDisplayName) ||
-      (latestAvatarUrl && user.avatar_url !== latestAvatarUrl);
+          // Get latest values from GitHub API
+          const latestUsername = githubProfile.login; // GitHub login (username)
+          const latestDisplayName = githubProfile.name || latestUsername; // GitHub display name
+          const latestAvatarUrl = githubProfile.avatar_url;
 
-    if (needsUpdate) {
-      const updateData: Record<string, unknown> = {
-        updated_at: new Date().toISOString(),
-      };
+          // Check if any profile info has changed
+          const needsUpdate =
+            (latestUsername && user.username !== latestUsername) ||
+            (latestDisplayName && user.display_name !== latestDisplayName) ||
+            (latestAvatarUrl && user.avatar_url !== latestAvatarUrl);
 
-      if (latestUsername && user.username !== latestUsername) {
-        updateData.username = latestUsername;
-      }
-      if (latestDisplayName && user.display_name !== latestDisplayName) {
-        updateData.display_name = latestDisplayName;
-      }
-      if (latestAvatarUrl && user.avatar_url !== latestAvatarUrl) {
-        updateData.avatar_url = latestAvatarUrl;
-      }
+          if (needsUpdate) {
+            const updateData: Record<string, unknown> = {
+              updated_at: new Date().toISOString(),
+            };
 
-      const { error: syncError } = await supabase
-        .from("users")
-        .update(updateData)
-        .eq("clerk_id", userId);
+            if (latestUsername && user.username !== latestUsername) {
+              updateData.username = latestUsername;
+            }
+            if (latestDisplayName && user.display_name !== latestDisplayName) {
+              updateData.display_name = latestDisplayName;
+            }
+            if (latestAvatarUrl && user.avatar_url !== latestAvatarUrl) {
+              updateData.avatar_url = latestAvatarUrl;
+            }
 
-      if (syncError) {
-        console.error("[/api/me] Failed to sync profile from Clerk:", syncError);
-      } else {
-        console.log("[/api/me] Synced profile from Clerk:", updateData);
-        // Update local user object with new values
-        Object.assign(user, updateData);
+            const { error: syncError } = await supabase
+              .from("users")
+              .update(updateData)
+              .eq("clerk_id", userId);
+
+            if (syncError) {
+              console.error("[/api/me] Failed to sync profile from GitHub:", syncError);
+            } else {
+              console.log("[/api/me] Synced profile from GitHub API:", updateData);
+              // Update local user object with new values
+              Object.assign(user, updateData);
+            }
+          }
+        }
+      } catch (githubError) {
+        console.error("[/api/me] GitHub API fetch failed:", githubError);
+        // Continue without syncing - don't block the request
       }
     }
   }
