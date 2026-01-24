@@ -195,12 +195,12 @@
    ======================================== */
 :root.light,
 .light {
-  /* Backgrounds - Light (Warm Beige Tone) */
-  --color-bg-primary: #f5f5f0;
-  --color-bg-secondary: #eeeee8;
-  --color-bg-card: #f5f5f0;
-  --color-bg-card-hover: #eeeee8;
-  --color-bg-elevated: #e8e8e2;
+  /* Backgrounds - Light (Warm Beige Tone - matches Globe baseColor) */
+  --color-bg-primary: #f8f6f2;
+  --color-bg-secondary: #f0e8e0;
+  --color-bg-card: #f5f2ed;
+  --color-bg-card-hover: #ebe5dc;
+  --color-bg-elevated: #e8e2da;
 
   /* Text - Light (Eye comfort: softer dark gray instead of pure black) */
   --color-text-primary: #374151;
@@ -213,9 +213,9 @@
   --border-hover: rgba(0, 0, 0, 0.25);
   --border-focus: rgba(218, 119, 86, 0.5);
 
-  /* Glass Effect - Light */
-  --glass-bg: rgba(245, 245, 240, 0.9);
-  --glass-border: rgba(0, 0, 0, 0.18);
+  /* Glass Effect - Light (Semi-transparent for particle visibility) */
+  --glass-bg: rgba(235, 225, 212, 0.5);
+  --glass-border: rgba(180, 160, 140, 0.25);
 
   /* Shadows - Light */
   --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.03);
@@ -250,18 +250,18 @@
   --color-warning-bg: rgba(234, 179, 8, 0.08);
   --color-info-bg: rgba(59, 130, 246, 0.08);
 
-  /* Table Row Colors - Light Mode (same as background) */
-  --color-table-row-even: #f5f5f0;
-  --color-table-row-hover: rgba(0, 0, 0, 0.05);
+  /* Table Row Colors - Light Mode (semi-transparent for particle visibility) */
+  --color-table-row-even: rgba(230, 220, 205, 0.15);
+  --color-table-row-hover: rgba(220, 205, 185, 0.35);
 
-  /* Filter Button Group - Light Mode (white background) */
-  --color-filter-bg: #ffffff;
-  --color-filter-hover: rgba(0, 0, 0, 0.05);
-  --color-filter-active: rgba(0, 0, 0, 0.08);
+  /* Filter Button Group - Light Mode (warm tone) */
+  --color-filter-bg: #faf8f5;
+  --color-filter-hover: rgba(200, 180, 155, 0.2);
+  --color-filter-active: rgba(200, 180, 155, 0.35);
 
-  /* Section/Card inside panels - Light Mode */
-  --color-section-bg: rgba(0, 0, 0, 0.03);
-  --color-section-bg-hover: rgba(0, 0, 0, 0.06);
+  /* Section/Card inside panels - Light Mode (semi-transparent) */
+  --color-section-bg: rgba(235, 225, 210, 0.2);
+  --color-section-bg-hover: rgba(225, 212, 195, 0.35);
 
   /* Cost Color (Dark Gold for light mode) */
   --color-cost: #b8860b;
@@ -294,24 +294,45 @@
 html {
   scroll-behavior: smooth;
   overflow-x: hidden;
+  scrollbar-gutter: stable;
 }
 
 body {
   background: var(--color-bg-primary);
   color: var(--color-text-primary);
   overflow-x: hidden;
-  transition:
-    background-color 0.3s ease,
-    color 0.3s ease;
 }
 
-/* Smooth theme transitions for all elements */
-*,
-*::before,
-*::after {
-  transition-property: background-color, border-color, color, fill, stroke, box-shadow;
-  transition-duration: 0.3s;
-  transition-timing-function: ease;
+/* View Transitions API - smooth crossfade for theme switching */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: 0.4s;
+  animation-timing-function: ease-out;
+}
+
+/* Reduce motion for users who prefer it */
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-old(root),
+  ::view-transition-new(root) {
+    animation-duration: 0.01s;
+  }
+}
+
+/* Fallback for browsers without View Transitions API */
+@supports not (view-transition-name: none) {
+  body {
+    transition:
+      background-color 0.5s ease,
+      color 0.5s ease;
+  }
+
+  *,
+  *::before,
+  *::after {
+    transition-property: background-color, border-color, color, fill, stroke, box-shadow;
+    transition-duration: 0.5s;
+    transition-timing-function: ease;
+  }
 }
 
 /* ========================================
@@ -378,6 +399,54 @@ body {
 /* ========================================
    ANIMATIONS
    ======================================== */
+
+/* Loading slide animation for progress bar */
+@keyframes loading-slide {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(400%);
+  }
+}
+
+/* Celestial rise animation - arc from bottom-right to center */
+@keyframes celestial-rise {
+  0% {
+    transform: translate(150%, 150%) rotate(-45deg);
+    opacity: 0;
+  }
+  30% {
+    opacity: 1;
+  }
+  100% {
+    transform: translate(0, 0) rotate(0deg);
+    opacity: 1;
+  }
+}
+
+/* Celestial fall animation - arc from center to bottom-left */
+@keyframes celestial-fall {
+  0% {
+    transform: translate(0, 0) rotate(0deg);
+    opacity: 1;
+  }
+  70% {
+    opacity: 0.5;
+  }
+  100% {
+    transform: translate(-150%, 150%) rotate(45deg);
+    opacity: 0;
+  }
+}
+
+.animate-celestial-rise {
+  animation: celestial-rise 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+.animate-celestial-fall {
+  animation: celestial-fall 0.6s cubic-bezier(0.36, 0, 0.66, -0.56) forwards;
+}
 
 /* Fade In Up */
 @keyframes fadeInUp {
@@ -618,17 +687,14 @@ body {
 @keyframes globe-particle-travel {
   0% {
     transform: translate(-50%, -50%);
-    opacity: 0;
-  }
-  10% {
-    opacity: 0.8;
+    opacity: 1;
   }
   100% {
     transform: translate(
       calc(-50% + var(--distance-x) * 1px),
       calc(-50% + var(--distance-y) * 1px)
     );
-    opacity: 0;
+    opacity: 1;
   }
 }
 
@@ -639,13 +705,11 @@ body {
   }
   50% {
     background: var(--particle-color, #da7756);
-    box-shadow: 0 0 4px var(--particle-color, #da7756);
-    opacity: 0.8;
+    box-shadow: 0 0 6px var(--particle-color, #da7756);
   }
   100% {
     background: var(--particle-color, #da7756);
-    box-shadow: 0 0 2px var(--particle-color, #da7756);
-    opacity: 0.3;
+    box-shadow: 0 0 3px var(--particle-color, #da7756);
   }
 }
 

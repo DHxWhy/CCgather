@@ -88,7 +88,7 @@ export const LEVELS: Level[] = [
     icon: "🌌",
     minTokens: 100_000_000_000,
     maxTokens: Infinity,
-    color: "#FFFFFF", // White
+    color: "#DC2626", // Intense Red
   },
 ];
 

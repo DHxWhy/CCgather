@@ -76,7 +76,7 @@ export function PeriodDropdown({ value, onChange, options, customLabel }: Period
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -4, scale: 0.95 }}
             transition={{ duration: 0.15, ease: "easeOut" }}
-            className="absolute top-full left-0 mt-1 z-50 min-w-[60px] py-0.5 bg-[var(--color-bg-secondary)] border border-white/10 rounded-lg shadow-xl overflow-hidden"
+            className="absolute top-full left-0 mt-1 z-50 min-w-[60px] py-0.5 bg-[var(--color-bg-secondary)] border border-[var(--border-default)] rounded-lg shadow-xl overflow-hidden"
           >
             {options.map((option) => (
               <button

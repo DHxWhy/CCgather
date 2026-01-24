@@ -4,12 +4,11 @@ import { useEffect, useRef } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { useUser, useClerk } from "@clerk/nextjs";
 import Link from "next/link";
-import { User, Activity, BarChart3, LogOut, ChevronLeft } from "lucide-react";
+import { User, BarChart3, LogOut, ChevronLeft } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const NAV_ITEMS = [
   { href: "/settings", label: "Profile", icon: User },
-  { href: "/settings/activity", label: "Activity", icon: Activity },
   { href: "/settings/usage", label: "Heatmap", icon: BarChart3 },
 ];
 
@@ -61,7 +60,7 @@ export default function SettingsLayout({ children }: { children: React.ReactNode
   };
 
   return (
-    <div className="min-h-[calc(100vh-4rem)] md:flex">
+    <div className="min-h-[calc(100vh-4rem)] md:flex md:h-[calc(100vh-4rem)] md:overflow-hidden">
       {/* Mobile Header - Top Tabs */}
       <div className="md:hidden sticky top-16 z-40 bg-[var(--color-bg-primary)] border-b border-[var(--border-default)]">
         {/* Back + Title Row */}

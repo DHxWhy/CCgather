@@ -217,9 +217,17 @@ export function MobileGlobePanel({
                 </button>
               </div>
             )}
-            <div className="relative" style={{ width: globeSize, height: globeSize }}>
-              <GlobeParticles size={globeSize} />
-              <Globe size={globeSize} userCountryCode={userCountryCode} scopeFilter={scopeFilter} />
+            <div
+              className="relative overflow-visible"
+              style={{ width: globeSize, height: globeSize }}
+            >
+              <GlobeParticles size={globeSize} className="z-0" />
+              <Globe
+                size={globeSize}
+                userCountryCode={userCountryCode}
+                scopeFilter={scopeFilter}
+                className="relative z-10"
+              />
             </div>
           </div>
 

@@ -1,10 +1,10 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { Monitor, Sun, Moon } from "lucide-react";
+import { Moon, Sun } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-type TTheme = "system" | "light" | "dark";
+type TTheme = "light" | "dark";
 
 interface ThemeSwitcherProps {
   className?: string;
@@ -12,165 +12,140 @@ interface ThemeSwitcherProps {
 }
 
 export function ThemeSwitcher({ className, size = "md" }: ThemeSwitcherProps) {
-  const [theme, setTheme] = useState<TTheme>("dark"); // Default to dark
+  const [theme, setTheme] = useState<TTheme>("dark");
   const [mounted, setMounted] = useState(false);
+  const [isAnimating, setIsAnimating] = useState(false);
 
-  // Initialize theme from localStorage (default to dark for first-time visitors)
+  // Initialize theme from localStorage (default to dark)
   useEffect(() => {
     setMounted(true);
     const stored = localStorage.getItem("theme") as TTheme | null;
-    if (stored && ["system", "light", "dark"].includes(stored)) {
+    if (stored && ["light", "dark"].includes(stored)) {
       setTheme(stored);
     } else {
-      // First-time visitor: default to dark mode
       setTheme("dark");
       localStorage.setItem("theme", "dark");
     }
   }, []);
 
-  // Apply theme changes (Default is dark, 'light' class for light mode)
-  const applyTheme = useCallback((newTheme: TTheme) => {
+  // Apply theme with View Transitions API for smooth crossfade
+  const applyTheme = useCallback((newTheme: TTheme, animate = true) => {
     const root = document.documentElement;
-
-    if (newTheme === "system") {
-      const prefersLight = window.matchMedia("(prefers-color-scheme: light)").matches;
-      root.classList.toggle("light", prefersLight);
-    } else {
+    const updateDOM = () => {
       root.classList.toggle("light", newTheme === "light");
+    };
+
+    // Use View Transitions API if available for smooth crossfade
+    if (animate && "startViewTransition" in document) {
+      (document as any).startViewTransition(() => {
+        updateDOM();
+      });
+    } else {
+      updateDOM();
     }
   }, []);
 
   // Handle theme change
   useEffect(() => {
     if (!mounted) return;
-
-    applyTheme(theme);
+    // Skip animation on initial load
+    const isInitialLoad = !document.documentElement.classList.contains("light") && theme === "dark";
+    applyTheme(theme, !isInitialLoad);
     localStorage.setItem("theme", theme);
   }, [theme, mounted, applyTheme]);
 
-  // Listen for system theme changes
-  useEffect(() => {
-    if (!mounted || theme !== "system") return;
-
-    const mediaQuery = window.matchMedia("(prefers-color-scheme: light)");
-    const handleChange = () => applyTheme("system");
-
-    mediaQuery.addEventListener("change", handleChange);
-    return () => mediaQuery.removeEventListener("change", handleChange);
-  }, [theme, mounted, applyTheme]);
+  // Toggle theme with animation
+  const toggleTheme = () => {
+    if (isAnimating) return;
+    setIsAnimating(true);
+    setTheme(theme === "dark" ? "light" : "dark");
+    // Reset animation state after animation completes
+    setTimeout(() => setIsAnimating(false), 600);
+  };
 
   // Size variants
   const sizes = {
     sm: {
-      container: "",
-      button: "w-5 h-5",
-      icon: 12,
+      container: "w-8 h-8",
+      icon: 16,
     },
     md: {
-      container: "",
-      button: "w-6 h-6",
-      icon: 14,
+      container: "w-10 h-10",
+      icon: 20,
     },
   };
 
   const currentSize = sizes[size];
-
-  const options: { value: TTheme; icon: React.ReactNode; label: string }[] = [
-    {
-      value: "system",
-      icon: <Monitor size={currentSize.icon} />,
-      label: "System theme",
-    },
-    {
-      value: "light",
-      icon: <Sun size={currentSize.icon} />,
-      label: "Light mode",
-    },
-    {
-      value: "dark",
-      icon: <Moon size={currentSize.icon} />,
-      label: "Dark mode",
-    },
-  ];
 
   // Prevent hydration mismatch with skeleton
   if (!mounted) {
     return (
       <div
         className={cn(
-          "flex p-1 rounded-full gap-0.5 border border-[var(--border-default)] bg-transparent",
+          "rounded-full border border-[var(--border-default)] bg-transparent",
           currentSize.container,
           className
         )}
-      >
-        {options.map((option) => (
-          <div key={option.value} className={cn(currentSize.button, "rounded-full")} />
-        ))}
-      </div>
+      />
     );
   }
 
   return (
-    <fieldset
+    <button
+      onClick={toggleTheme}
+      disabled={isAnimating}
+      aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+      title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
       className={cn(
-        "relative flex p-1 m-0 rounded-full gap-0.5",
+        "relative rounded-full overflow-hidden",
         "border border-[var(--border-default)]",
-        "bg-transparent",
+        "bg-[var(--color-bg-secondary)]",
+        "hover:border-[var(--color-claude-coral)]/50",
+        "focus-visible:ring-2 focus-visible:ring-[var(--color-claude-coral)] focus-visible:ring-offset-1",
+        "transition-colors duration-300",
+        "cursor-pointer",
         currentSize.container,
         className
       )}
     >
-      <legend className="sr-only">Theme selection:</legend>
-
-      {/* Sliding background indicator */}
+      {/* Moon icon - soft yellow/cream color */}
       <div
         className={cn(
-          "absolute top-1 rounded-full",
-          "bg-[var(--color-claude-coral)]",
-          "shadow-md shadow-[var(--color-claude-coral)]/30",
-          "transition-all duration-300 ease-out",
-          currentSize.button
+          "absolute inset-0 flex items-center justify-center",
+          "text-amber-200",
+          theme === "dark"
+            ? isAnimating
+              ? "animate-celestial-rise"
+              : "translate-x-0 translate-y-0 opacity-100"
+            : isAnimating
+              ? "animate-celestial-fall"
+              : "translate-x-[-150%] translate-y-[150%] opacity-0"
         )}
-        style={{
-          left: `calc(${options.findIndex((o) => o.value === theme) * (size === "sm" ? 22 : 26)}px + 4px)`,
-        }}
-      />
+      >
+        <Moon
+          size={currentSize.icon}
+          className="drop-shadow-[0_0_8px_rgba(252,211,77,0.6)]"
+          fill="currentColor"
+        />
+      </div>
 
-      {options.map((option) => (
-        <div key={option.value} className="relative z-10">
-          <input
-            aria-label={option.label}
-            id={`theme-switch-${option.value}`}
-            type="radio"
-            name="theme"
-            value={option.value}
-            checked={theme === option.value}
-            onChange={() => setTheme(option.value)}
-            className="sr-only peer"
-          />
-          <label
-            htmlFor={`theme-switch-${option.value}`}
-            title={option.label}
-            className={cn(
-              "flex items-center justify-center cursor-pointer rounded-full",
-              "transition-colors duration-300",
-              currentSize.button,
-              // Default state
-              "text-[var(--color-text-muted)]",
-              // Hover state
-              "hover:text-[var(--color-text-secondary)]",
-              // Selected state
-              "peer-checked:text-white",
-              // Focus state
-              "peer-focus-visible:ring-2 peer-focus-visible:ring-[var(--color-claude-coral)] peer-focus-visible:ring-offset-1"
-            )}
-          >
-            <span className="sr-only">{option.label}</span>
-            {option.icon}
-          </label>
-        </div>
-      ))}
-    </fieldset>
+      {/* Sun icon - warm orange/gold color */}
+      <div
+        className={cn(
+          "absolute inset-0 flex items-center justify-center",
+          "text-orange-400",
+          theme === "light"
+            ? isAnimating
+              ? "animate-celestial-rise"
+              : "translate-x-0 translate-y-0 opacity-100"
+            : isAnimating
+              ? "animate-celestial-fall"
+              : "translate-x-[-150%] translate-y-[150%] opacity-0"
+        )}
+      >
+        <Sun size={currentSize.icon} className="drop-shadow-[0_0_10px_rgba(251,146,60,0.7)]" />
+      </div>
+    </button>
   );
 }
 

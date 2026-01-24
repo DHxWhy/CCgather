@@ -8,12 +8,13 @@ interface GlobeParticlesProps {
   className?: string;
 }
 
-// Leaderboard signature colors
+// Leaderboard signature colors (Coral weighted higher ~40%)
 const PARTICLE_COLORS = [
-  "#FBBF24", // Yellow/Gold (1st place)
+  "#FBBF24", // Yellow/Gold (1st place) ~20%
   "#DA7756", // Claude Coral (signature)
-  "#10b981", // Emerald Green
-  "#3B82F6", // Blue
+  "#DA7756", // Claude Coral (duplicate for higher weight)
+  "#10b981", // Emerald Green ~20%
+  "#3B82F6", // Blue ~20%
 ];
 
 // Seeded random number generator for consistent SSR/client rendering
@@ -67,49 +68,84 @@ export const GlobeParticles: React.FC<GlobeParticlesProps> = ({ size, className 
     seededRandom: () => number,
     random: (min: number, max: number) => number,
     randomColor: () => string,
-    wave: number, // 1 = first wave, 2 = second wave, 3 = third wave
-    waveIndex?: number, // Index within the wave (for 3rd wave uniform distribution)
-    waveTotal?: number // Total particles in the wave (for 3rd wave uniform distribution)
+    wave: number // 1 = first wave, 2 = second wave, 3 = third wave
   ) => {
     let startAngle: number;
 
+    // Globe is positioned top-left, so bias particles toward right and bottom
+    // Angles: 3시=0°, 6시=90°(π/2), 9시=180°(π), 12시=-90°(-π/2)
+    // Target: right-bottom quadrant (1시~7시, -60° ~ 120°)
+
     if (wave === 3) {
-      // Third wave: 360° uniform distribution
-      const baseAngle = ((waveIndex || 0) / (waveTotal || 1)) * 2 * Math.PI;
-      startAngle = baseAngle + random(-Math.PI / 18, Math.PI / 18); // ±10° jitter
+      // Third wave: 75% toward right-bottom, 25% elsewhere
+      if (seededRandom() < 0.75) {
+        // Right-bottom bias: -60° to 120° (1시~7시)
+        startAngle = random(-Math.PI / 3, (2 * Math.PI) / 3);
+      } else {
+        // Remaining directions with shorter travel
+        startAngle = random((2 * Math.PI) / 3, (5 * Math.PI) / 3);
+      }
+      startAngle += random(-Math.PI / 18, Math.PI / 18); // ±10° jitter
     } else if (wave === 2) {
       // Second wave: target 2시, 4시, 6시 directions with ±15° variation
       const directionIndex = Math.floor(seededRandom() * SECOND_WAVE_DIRECTIONS.length);
       const baseDirection = SECOND_WAVE_DIRECTIONS[directionIndex] ?? SECOND_WAVE_DIRECTIONS[0]!;
       startAngle = baseDirection + random(-Math.PI / 12, Math.PI / 12); // ±15° spread
     } else {
-      // First wave: 70% towards 2:30-6:30, 30% all directions
+      // First wave: 85% toward right-bottom (1시~7시), 15% elsewhere
       startAngle =
-        seededRandom() < 0.7
-          ? random(-Math.PI / 12, (7 * Math.PI) / 12)
+        seededRandom() < 0.85
+          ? random(-Math.PI / 3, (2 * Math.PI) / 3) // -60° to 120°
           : random(-Math.PI, Math.PI);
     }
 
-    const startRadius = size / 2 - 5; // Start slightly inside globe outline
+    // Start from globe center (particles hidden behind globe initially)
+    const startRadius = 0;
+    const globeRadius = size / 2;
 
-    // Particles going right travel further (150-400px), others travel less (80-200px)
-    const isRightward = Math.abs(startAngle) < Math.PI / 2;
-    const travelDistance = isRightward ? random(150, 400) : random(80, 200);
+    // Particles travel: globe radius (hidden) + visible distance beyond globe
+    // Longer travel for right-bottom direction (where more screen space)
+    const isRightward = Math.abs(startAngle) < Math.PI / 2; // -90° to 90°
+    const isDownward = startAngle > 0 && startAngle < Math.PI; // 0° to 180°
+    const isRightBottom = isRightward && isDownward; // 0° to 90° (3시~6시)
 
-    // Calculate travel direction
+    let visibleDistance: number;
+    if (isRightBottom) {
+      visibleDistance = random(200, 500); // Longest: right-bottom
+    } else if (isRightward || isDownward) {
+      visibleDistance = random(150, 350); // Medium: right or bottom
+    } else {
+      visibleDistance = random(60, 150); // Shortest: left-top (less screen space)
+    }
+    const travelDistance = globeRadius + visibleDistance;
+
+    // Calculate travel direction (total distance from center)
     const distanceX = Math.cos(startAngle) * travelDistance;
     const distanceY = Math.sin(startAngle) * travelDistance;
 
-    // Starting position on globe outline
+    // Starting position at globe center
     const startX = Math.cos(startAngle) * startRadius;
     const startY = Math.sin(startAngle) * startRadius;
 
-    // Second wave: slightly faster for variety
-    const duration = wave === 2 ? random(45, 80) : random(53, 95);
+    // Slower animation for smooth, relaxing effect
+    const duration = wave === 2 ? random(80, 130) : random(90, 150);
     // Spread particles evenly across animation cycle
     const animationProgress = seededRandom();
     // Apply wave delay offset
     const waveDelay = WAVE_DELAYS[wave as keyof typeof WAVE_DELAYS] || 0;
+
+    // Determine color first
+    const color = randomColor();
+    const isCoral = color === "#DA7756";
+
+    // Coral particles: reduce large size ratio by 1/5 (30% → 24% large)
+    // Non-coral: 70% small, 30% large
+    // Coral: 76% small, 24% large
+    const smallSizeRatio = isCoral ? 0.76 : 0.7;
+    const particleSize =
+      seededRandom() < smallSizeRatio
+        ? random(1.0, 1.3) // Small
+        : random(1.3, 1.5); // Large
 
     return {
       index,
@@ -119,8 +155,9 @@ export const GlobeParticles: React.FC<GlobeParticlesProps> = ({ size, className 
       distanceY,
       duration,
       delay: -animationProgress * duration + waveDelay,
-      particleSize: seededRandom() < 0.7 ? random(1.0, 1.3) : random(1.3, 1.5),
-      color: randomColor(),
+      particleSize,
+      opacity: seededRandom() < 0.5 ? 0.7 : 1, // Half at 70%, half at 100%
+      color,
       wave,
     };
   };
@@ -150,15 +187,7 @@ export const GlobeParticles: React.FC<GlobeParticlesProps> = ({ size, className 
       PARTICLE_COLORS[Math.floor(seededRandom3() * PARTICLE_COLORS.length)] ?? PARTICLE_COLORS[0]!;
 
     const thirdWave = [...Array(thirdWaveCount)].map((_, index) =>
-      generateParticle(
-        firstWaveCount + index,
-        seededRandom3,
-        random3,
-        randomColor3,
-        3,
-        index,
-        thirdWaveCount
-      )
+      generateParticle(firstWaveCount + index, seededRandom3, random3, randomColor3, 3)
     );
 
     // Second wave - desktop only (50 extra particles targeting 2시, 4시, 6시)
@@ -193,7 +222,18 @@ export const GlobeParticles: React.FC<GlobeParticlesProps> = ({ size, className 
   return (
     <div className={cn("absolute inset-0 pointer-events-none", className)}>
       {particles.map(
-        ({ index, startX, startY, distanceX, distanceY, duration, delay, particleSize, color }) => (
+        ({
+          index,
+          startX,
+          startY,
+          distanceX,
+          distanceY,
+          duration,
+          delay,
+          particleSize,
+          opacity,
+          color,
+        }) => (
           <div
             key={`particle-${index}`}
             className="globe-particle absolute rounded-full"
@@ -202,6 +242,7 @@ export const GlobeParticles: React.FC<GlobeParticlesProps> = ({ size, className 
               height: particleSize,
               left: `calc(50% + ${startX}px)`,
               top: `calc(50% + ${startY}px)`,
+              opacity,
               ["--distance-x" as string]: distanceX,
               ["--distance-y" as string]: distanceY,
               ["--particle-color" as string]: color,

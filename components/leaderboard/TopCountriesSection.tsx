@@ -1,6 +1,14 @@
 "use client";
 
-import { useState, useEffect, useRef, useImperativeHandle, forwardRef } from "react";
+import {
+  useState,
+  useEffect,
+  useRef,
+  useImperativeHandle,
+  forwardRef,
+  useMemo,
+  useCallback,
+} from "react";
 import { FlagIcon } from "@/components/ui/FlagIcon";
 import { formatNumber, formatCost } from "@/lib/utils/format";
 import { GetStartedButton } from "@/components/auth/GetStartedButton";
@@ -39,6 +47,12 @@ interface TopCountriesSectionProps {
 const INITIAL_VISIBLE_COUNT = 5;
 const LOAD_INCREMENT = 10;
 
+// Type for combined visibility state
+interface VisibilityState {
+  isVisible: boolean;
+  direction: "above" | "below" | null;
+}
+
 export const TopCountriesSection = forwardRef<TopCountriesSectionRef, TopCountriesSectionProps>(
   function TopCountriesSection(
     {
@@ -57,22 +71,27 @@ export const TopCountriesSection = forwardRef<TopCountriesSectionRef, TopCountri
     ref
   ) {
     const [visibleCount, setVisibleCount] = useState(INITIAL_VISIBLE_COUNT);
-    const [isUserCountryActuallyVisible, setIsUserCountryActuallyVisible] = useState(false);
-    const [userCountryDirection, setUserCountryDirection] = useState<"above" | "below" | null>(
-      null
-    );
+    // Combined visibility state to prevent double updates
+    const [visibilityState, setVisibilityState] = useState<VisibilityState>({
+      isVisible: false,
+      direction: null,
+    });
     const loadMoreRef = useRef<HTMLDivElement>(null);
     const userCountryRowRef = useRef<HTMLDivElement>(null);
     const pendingScrollRef = useRef(false);
 
-    // Sort stats based on selected criteria
-    const sortedStats = [...stats]
-      .sort((a, b) => (sortBy === "tokens" ? b.tokens - a.tokens : b.cost - a.cost))
-      .slice(0, maxItems ?? stats.length);
+    // Sort stats based on selected criteria (memoized to prevent infinite loops)
+    const sortedStats = useMemo(
+      () =>
+        [...stats]
+          .sort((a, b) => (sortBy === "tokens" ? b.tokens - a.tokens : b.cost - a.cost))
+          .slice(0, maxItems ?? stats.length),
+      [stats, sortBy, maxItems]
+    );
 
-    // Calculate max values for progress bars
-    const maxTokens = Math.max(...stats.map((s) => s.tokens), 1);
-    const maxCost = Math.max(...stats.map((s) => s.cost), 1);
+    // Calculate max values for progress bars (memoized)
+    const maxTokens = useMemo(() => Math.max(...stats.map((s) => s.tokens), 1), [stats]);
+    const maxCost = useMemo(() => Math.max(...stats.map((s) => s.cost), 1), [stats]);
 
     // Find user's country data and rank
     const userCountryIndex = sortedStats.findIndex(
@@ -134,33 +153,53 @@ export const TopCountriesSection = forwardRef<TopCountriesSectionRef, TopCountri
       return () => observer.disconnect();
     }, [hasMoreItems, sortedStats.length]);
 
-    // IntersectionObserver for user's country row actual visibility and direction
+    // Refs for tracking previous values to prevent unnecessary updates
+    const lastVisibilityRef = useRef<VisibilityState>({ isVisible: false, direction: null });
+    const lastNotifiedRef = useRef<{
+      visible: boolean;
+      rank: number;
+      direction: "above" | "below" | null;
+    } | null>(null);
+    const callbackRef = useRef(onUserCountryVisibilityChange);
+    callbackRef.current = onUserCountryVisibilityChange;
+
+    // Store scroll container ref value to avoid issues with ref object in dependencies
+    const scrollRootRef = useRef<HTMLDivElement | null>(null);
+    useEffect(() => {
+      scrollRootRef.current = scrollContainerRef?.current || null;
+    }, [scrollContainerRef]);
+
+    // IntersectionObserver for user's country row visibility and direction
     useEffect(() => {
       const row = userCountryRowRef.current;
-      if (!row || !userCountryStat) return;
+      if (!row || userCountryIndex < 0) return;
 
       const observer = new IntersectionObserver(
         (entries) => {
           const entry = entries[0];
-          if (entry) {
-            setIsUserCountryActuallyVisible(entry.isIntersecting);
+          if (!entry) return;
 
-            // Determine direction when not visible
-            if (!entry.isIntersecting && entry.rootBounds) {
-              // If the row's bottom is above the viewport top → user country is ABOVE
-              // If the row's top is below the viewport bottom → user country is BELOW
-              if (entry.boundingClientRect.bottom < entry.rootBounds.top) {
-                setUserCountryDirection("above");
-              } else if (entry.boundingClientRect.top > entry.rootBounds.bottom) {
-                setUserCountryDirection("below");
-              }
-            } else {
-              setUserCountryDirection(null);
+          const newVisible = entry.isIntersecting;
+          let newDirection: "above" | "below" | null = null;
+
+          // Determine direction when not visible
+          if (!newVisible && entry.rootBounds) {
+            if (entry.boundingClientRect.bottom < entry.rootBounds.top) {
+              newDirection = "above";
+            } else if (entry.boundingClientRect.top > entry.rootBounds.bottom) {
+              newDirection = "below";
             }
+          }
+
+          // Only update if values actually changed
+          const last = lastVisibilityRef.current;
+          if (last.isVisible !== newVisible || last.direction !== newDirection) {
+            lastVisibilityRef.current = { isVisible: newVisible, direction: newDirection };
+            setVisibilityState({ isVisible: newVisible, direction: newDirection });
           }
         },
         {
-          root: scrollContainerRef?.current || null,
+          root: scrollRootRef.current,
           rootMargin: "0px",
           threshold: 0.1,
         }
@@ -168,28 +207,36 @@ export const TopCountriesSection = forwardRef<TopCountriesSectionRef, TopCountri
 
       observer.observe(row);
       return () => observer.disconnect();
-    }, [visibleCount, userCountryStat, scrollContainerRef]);
+    }, [userCountryIndex]); // Only re-create observer when user country index changes
 
     // Notify parent when user country visibility changes
-    useEffect(() => {
-      if (onUserCountryVisibilityChange) {
-        // Use actual visibility (IntersectionObserver) instead of just "loaded" state
-        const actuallyVisible = isUserInTopVisible && isUserCountryActuallyVisible;
-        onUserCountryVisibilityChange(
-          actuallyVisible,
-          userCountryIndex + 1,
-          userCountryStat ?? null,
-          userCountryDirection
-        );
+    const notifyParent = useCallback(() => {
+      const callback = callbackRef.current;
+      if (!callback) return;
+
+      const actuallyVisible = isUserInTopVisible && visibilityState.isVisible;
+      const newRank = userCountryIndex + 1;
+      const direction = visibilityState.direction;
+
+      // Only call callback if values actually changed
+      const last = lastNotifiedRef.current;
+      if (
+        last &&
+        last.visible === actuallyVisible &&
+        last.rank === newRank &&
+        last.direction === direction
+      ) {
+        return;
       }
-    }, [
-      isUserInTopVisible,
-      isUserCountryActuallyVisible,
-      userCountryIndex,
-      userCountryStat,
-      onUserCountryVisibilityChange,
-      userCountryDirection,
-    ]);
+
+      lastNotifiedRef.current = { visible: actuallyVisible, rank: newRank, direction };
+      callback(actuallyVisible, newRank, userCountryStat ?? null, direction);
+    }, [isUserInTopVisible, visibilityState, userCountryIndex, userCountryStat]);
+
+    // Call notifyParent when relevant values change
+    useEffect(() => {
+      notifyParent();
+    }, [notifyParent]);
 
     if (sortedStats.length === 0) {
       return null;
@@ -214,7 +261,7 @@ export const TopCountriesSection = forwardRef<TopCountriesSectionRef, TopCountri
           key={`${stat.code}-${displayRank}`}
           ref={isUserCountry ? userCountryRowRef : undefined}
           data-country-code={stat.code}
-          className={`group flex items-center gap-2 px-3 py-1.5 transition-all duration-300 animate-fadeIn ${
+          className={`group relative flex items-center gap-2 px-3 h-10 transition-all duration-300 animate-fadeIn ${
             isUserCountry ? "bg-[var(--user-country-bg)]" : "hover:bg-[var(--glass-bg)]"
           }`}
           style={{
@@ -222,47 +269,36 @@ export const TopCountriesSection = forwardRef<TopCountriesSectionRef, TopCountri
             animationFillMode: "backwards",
           }}
         >
-          {/* Rank - vertically centered */}
-          <span className="w-6 text-xs font-mono text-[var(--color-text-muted)] flex-shrink-0 self-center">
+          {/* Rank */}
+          <span className="w-6 text-xs font-mono text-[var(--color-text-muted)] flex-shrink-0">
             #{displayRank}
           </span>
 
           {/* Flag */}
-          <FlagIcon countryCode={stat.code} size="sm" className="flex-shrink-0 self-center" />
+          <FlagIcon countryCode={stat.code} size="sm" className="flex-shrink-0" />
 
-          {/* Country name + Gauge (stacked) */}
-          <div className="flex-1 min-w-0 flex flex-col justify-center gap-0.5">
-            {/* Top row: Country name + percentage */}
-            <div className="flex items-center gap-1.5">
-              <span
-                className={`text-xs font-medium truncate leading-tight ${
-                  isUserCountry
-                    ? "text-[var(--user-country-text)]"
-                    : "text-[var(--color-text-primary)]"
-                }`}
-              >
-                {stat.name}
-                {isUserCountry && <span className="ml-1 text-[10px]">🟢</span>}
-              </span>
-              <span className="text-[10px] font-mono text-[var(--color-text-muted)] flex-shrink-0">
-                {percentage.toFixed(1)}%
-              </span>
-            </div>
-            {/* Gauge bar below country name */}
-            <div className="w-full h-[3px] bg-[var(--color-filter-bg)] rounded-sm overflow-hidden">
-              <div
-                className="h-full transition-all duration-500"
-                style={{ background: barColor, width: `${barWidth}%` }}
-              />
-            </div>
+          {/* Country name + Percentage (right aligned) */}
+          <div className="flex-1 min-w-0 flex items-center gap-1">
+            <span
+              className={`text-xs font-medium truncate leading-tight ${
+                isUserCountry
+                  ? "text-[var(--user-country-text)]"
+                  : "text-[var(--color-text-primary)]"
+              }`}
+            >
+              {stat.name}
+              {isUserCountry && <span className="ml-1 text-[10px]">🟢</span>}
+            </span>
+            <span className="text-[10px] font-mono text-[var(--color-text-muted)] ml-auto flex-shrink-0">
+              {percentage.toFixed(1)}%
+            </span>
           </div>
 
-          {/* Cost & Tokens - responsive based on compact prop */}
+          {/* Cost & Tokens */}
           <div
-            className={`flex items-center font-mono flex-shrink-0 self-center ${compact ? "gap-2 text-[10px]" : "gap-3 text-xs"}`}
+            className={`flex items-center font-mono flex-shrink-0 ${compact ? "gap-2 text-[10px]" : "gap-3 text-xs"}`}
           >
             {compact ? (
-              /* Compact: show only the non-selected value with its color */
               sortBy === "tokens" ? (
                 <span className="min-w-[40px] text-right text-[var(--color-cost)]">
                   {formatCost(stat.cost)}
@@ -273,7 +309,6 @@ export const TopCountriesSection = forwardRef<TopCountriesSectionRef, TopCountri
                 </span>
               )
             ) : (
-              /* Default: both values */
               <>
                 <span
                   className={`min-w-[40px] text-right ${
@@ -295,6 +330,14 @@ export const TopCountriesSection = forwardRef<TopCountriesSectionRef, TopCountri
                 </span>
               </>
             )}
+          </div>
+
+          {/* Gauge bar - absolute bottom, from flag to end */}
+          <div className="absolute bottom-1 left-[44px] right-3 h-[3px] bg-[var(--color-filter-bg)] rounded-sm overflow-hidden">
+            <div
+              className="h-full transition-all duration-500"
+              style={{ background: barColor, width: `${barWidth}%` }}
+            />
           </div>
         </div>
       );

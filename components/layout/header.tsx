@@ -154,8 +154,11 @@ export function Header() {
               priority
               className="w-7 h-7 md:w-8 md:h-8 rounded-md transition-all duration-300 group-hover:shadow-[var(--glow-primary)]"
             />
-            {/* Logo Text */}
-            <span className="text-base md:text-lg font-semibold text-[var(--color-text-primary)]">
+            {/* Logo Text - Space Grotesk */}
+            <span
+              className="text-base md:text-lg font-semibold text-[var(--color-text-primary)]"
+              style={{ fontFamily: "var(--font-logo)" }}
+            >
               CCgather
             </span>
           </Link>
@@ -206,12 +209,22 @@ export function Header() {
             {isLoaded && isSignedIn && !clerkFailed && (
               <Link
                 href="/settings"
-                className="flex items-center justify-center w-8 h-8 rounded-full border border-[var(--border-default)] hover:border-[var(--color-text-muted)] transition-colors group"
+                className={cn(
+                  "flex items-center justify-center w-8 h-8 rounded-full border transition-colors group",
+                  pathname.startsWith("/settings")
+                    ? "border-[var(--color-claude-coral)] bg-[var(--color-claude-coral)]/10"
+                    : "border-[var(--border-default)] hover:border-[var(--color-text-muted)]"
+                )}
                 aria-label="Settings"
               >
                 <Settings
                   size={14}
-                  className="text-[var(--color-text-muted)] group-hover:text-[var(--color-text-secondary)] transition-colors"
+                  className={cn(
+                    "transition-colors",
+                    pathname.startsWith("/settings")
+                      ? "text-[var(--color-claude-coral)]"
+                      : "text-[var(--color-text-muted)] group-hover:text-[var(--color-text-secondary)]"
+                  )}
                 />
               </Link>
             )}
@@ -293,8 +306,9 @@ export function Header() {
                 className={cn(
                   "w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl",
                   "text-base font-medium transition-all duration-200",
-                  "text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]",
-                  "border border-[var(--border-default)] hover:border-[var(--color-text-muted)]"
+                  pathname.startsWith("/settings")
+                    ? "text-[var(--color-claude-coral)] bg-[var(--color-claude-coral)]/10 border border-[var(--color-claude-coral)]"
+                    : "text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] border border-[var(--border-default)] hover:border-[var(--color-text-muted)]"
                 )}
               >
                 <Settings size={18} />

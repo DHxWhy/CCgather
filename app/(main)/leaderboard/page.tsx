@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect, useLayoutEffect, useCallback, useRef } from "react";
+import React, { useState, useMemo, useEffect, useLayoutEffect, useCallback, useRef } from "react";
 import { useSearchParams } from "next/navigation";
 import dynamic from "next/dynamic";
 import Image from "next/image";
@@ -12,6 +12,7 @@ import {
   CountryStat,
   TopCountriesSectionRef,
 } from "@/components/leaderboard/TopCountriesSection";
+import { getCountryName } from "@/lib/constants/countries";
 
 // Dynamic import for GlobeParticles (stars effect)
 const GlobeParticles = dynamic(
@@ -50,8 +51,14 @@ function formatTokens(num: number): string {
   return num.toString();
 }
 
-// Country Flag with Popover
-function CountryFlag({ countryCode, size = 16 }: { countryCode: string; size?: number }) {
+// Country Flag with Popover - Memoized to prevent unnecessary re-renders
+const CountryFlag = React.memo(function CountryFlag({
+  countryCode,
+  size = 16,
+}: {
+  countryCode: string;
+  size?: number;
+}) {
   const [isHovered, setIsHovered] = useState(false);
 
   return (
@@ -74,22 +81,22 @@ function CountryFlag({ countryCode, size = 16 }: { countryCode: string; size?: n
       )}
     </div>
   );
-}
+});
 
-// Format token range for level display
-function formatLevelRange(min: number, max: number): string {
+// Format token range for level display - returns [min, max] for aligned display
+function formatLevelRangeParts(min: number, max: number): [string, string] {
   const formatNum = (n: number) => {
     if (n >= 1_000_000_000) return `${(n / 1_000_000_000).toFixed(0)}B`;
     if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(0)}M`;
     if (n >= 1_000) return `${(n / 1_000).toFixed(0)}K`;
     return n.toString();
   };
-  if (max === Infinity) return `${formatNum(min)}+`;
-  return `${formatNum(min)} - ${formatNum(max)}`;
+  if (max === Infinity) return [formatNum(min), "+"];
+  return [formatNum(min), formatNum(max)];
 }
 
-// Level Badge with Popover
-function LevelBadge({ tokens }: { tokens: number }) {
+// Level Badge with Popover - Memoized to prevent unnecessary re-renders
+const LevelBadge = React.memo(function LevelBadge({ tokens }: { tokens: number }) {
   const currentLevel = getLevelByTokens(tokens);
   const useCssClass = currentLevel.level === 5 || currentLevel.level === 6;
 
@@ -107,14 +114,14 @@ function LevelBadge({ tokens }: { tokens: number }) {
       {currentLevel.icon} Lv.{currentLevel.level}
     </span>
   );
-}
+});
 
-// Level Info Popover Component (PC hover)
-function LevelInfoPopover({ isOpen }: { isOpen: boolean }) {
+// Level Info Popover Component (PC hover) - Memoized for performance
+const LevelInfoPopover = React.memo(function LevelInfoPopover({ isOpen }: { isOpen: boolean }) {
   if (!isOpen) return null;
 
   return (
-    <div className="absolute right-0 top-full mt-2 z-[100] w-56 p-2 bg-black/40 backdrop-blur-xl border border-white/10 rounded-lg">
+    <div className="absolute right-0 top-full mt-2 z-[100] w-56 p-2 bg-[var(--color-bg-secondary)] border border-[var(--border-default)] rounded-lg shadow-lg">
       <div className="text-[9px] text-[var(--color-text-muted)] uppercase tracking-wide mb-1.5">
         Level System
       </div>
@@ -133,24 +140,39 @@ function LevelInfoPopover({ isOpen }: { isOpen: boolean }) {
                   : { backgroundColor: `${level.color}20`, color: level.color }
               }
             >
-              <div className="flex items-center gap-1.5">
+              <div className="flex items-center gap-1.5 flex-1 min-w-0">
                 <span>{level.icon}</span>
-                <span>
+                <span className="truncate">
                   Lv.{level.level} {level.name}
                 </span>
               </div>
-              <span className="text-[8px] opacity-70">
-                ⚡ {formatLevelRange(level.minTokens, level.maxTokens)}
-              </span>
+              {(() => {
+                const [min, max] = formatLevelRangeParts(level.minTokens, level.maxTokens);
+                return (
+                  <span className="text-[8px] opacity-70 tabular-nums flex items-center gap-0.5 ml-2">
+                    <span className="text-[7px]">⚡</span>
+                    <span className="w-[28px] text-right">{min}</span>
+                    <span className="w-[8px] text-center">{max === "+" ? "" : "-"}</span>
+                    <span className="w-[28px] text-left">{max}</span>
+                  </span>
+                );
+              })()}
             </div>
           );
         })}
       </div>
     </div>
   );
-}
+});
 
 const ITEMS_PER_PAGE = 50;
+
+// Static style object (no need for useMemo - defined outside component)
+const PARTICLE_CONTAINER_STYLE = {
+  top: 220,
+  width: "min(1000px, 100vw - 32px)" as const,
+  bottom: 0,
+} as const;
 
 // Extended user type for UI
 interface DisplayUser extends LeaderboardUser {
@@ -219,6 +241,11 @@ export default function LeaderboardPage() {
   const loadPreviousTriggerRef = useRef<HTMLDivElement>(null);
   // Track scroll position for prepend restoration
   const scrollHeightBeforePrepend = useRef<number>(0);
+
+  // Globe position tracking for full-screen particles
+  const globeContainerRef = useRef<HTMLDivElement>(null);
+  const [globePosition, setGlobePosition] = useState<{ x: number; y: number } | null>(null);
+
   const [currentUserCountry, setCurrentUserCountry] = useState<string>("KR");
   const [currentUsername, setCurrentUsername] = useState<string | null>(null);
   const [userInfoLoaded, setUserInfoLoaded] = useState(false);
@@ -300,68 +327,6 @@ export default function LeaderboardPage() {
   const [totalGlobalTokens, setTotalGlobalTokens] = useState(0);
   const [totalGlobalCost, setTotalGlobalCost] = useState(0);
 
-  // Country name mapping (58 countries for testing)
-  const countryNames: Record<string, string> = {
-    US: "United States",
-    CN: "China",
-    JP: "Japan",
-    DE: "Germany",
-    GB: "United Kingdom",
-    FR: "France",
-    IN: "India",
-    CA: "Canada",
-    AU: "Australia",
-    BR: "Brazil",
-    IT: "Italy",
-    ES: "Spain",
-    MX: "Mexico",
-    NL: "Netherlands",
-    SE: "Sweden",
-    CH: "Switzerland",
-    PL: "Poland",
-    BE: "Belgium",
-    AT: "Austria",
-    NO: "Norway",
-    DK: "Denmark",
-    FI: "Finland",
-    IE: "Ireland",
-    PT: "Portugal",
-    CZ: "Czech Republic",
-    RO: "Romania",
-    HU: "Hungary",
-    IL: "Israel",
-    SG: "Singapore",
-    NZ: "New Zealand",
-    ZA: "South Africa",
-    AR: "Argentina",
-    CL: "Chile",
-    CO: "Colombia",
-    MY: "Malaysia",
-    TH: "Thailand",
-    PH: "Philippines",
-    VN: "Vietnam",
-    ID: "Indonesia",
-    TR: "Turkey",
-    EG: "Egypt",
-    NG: "Nigeria",
-    KE: "Kenya",
-    UA: "Ukraine",
-    GR: "Greece",
-    HR: "Croatia",
-    SK: "Slovakia",
-    BG: "Bulgaria",
-    RS: "Serbia",
-    LT: "Lithuania",
-    LV: "Latvia",
-    EE: "Estonia",
-    SI: "Slovenia",
-    KR: "South Korea",
-    TW: "Taiwan",
-    HK: "Hong Kong",
-    AE: "United Arab Emirates",
-    SA: "Saudi Arabia",
-  };
-
   // Calculate country stats from users data
   useEffect(() => {
     if (users.length === 0) return;
@@ -380,7 +345,7 @@ export default function LeaderboardPage() {
     // Convert to array
     const stats: CountryStat[] = Array.from(countryMap.entries()).map(([code, data]) => ({
       code,
-      name: countryNames[code] || code,
+      name: getCountryName(code),
       tokens: data.tokens,
       cost: data.cost,
     }));
@@ -896,6 +861,29 @@ export default function LeaderboardPage() {
     return () => observer.disconnect();
   }, [hasPrevious, loadingPrevious, loading, loadPrevious]);
 
+  // Track Globe position for full-screen particles
+  // Only update on resize (not scroll) - particles don't need to follow scroll
+  useEffect(() => {
+    const updateGlobePosition = () => {
+      if (!globeContainerRef.current) return;
+      const rect = globeContainerRef.current.getBoundingClientRect();
+      const centerX = rect.left + rect.width / 2;
+      const centerY = rect.top + rect.height / 2;
+      setGlobePosition({ x: centerX, y: centerY });
+    };
+
+    // Initial measurement after layout
+    const timer = setTimeout(updateGlobePosition, 100);
+
+    // Update only on resize (removed scroll listener for performance)
+    window.addEventListener("resize", updateGlobePosition);
+
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener("resize", updateGlobePosition);
+    };
+  }, [loading, stickyLocked, viewportWidth]);
+
   const handleRowClick = (user: DisplayUser) => {
     setSelectedUser(user);
     setIsPanelOpen(true);
@@ -916,34 +904,80 @@ export default function LeaderboardPage() {
   // Show level column: always on 860px+, or on narrow when panel is open (table expanded)
   const showLevelColumn = viewportWidth >= 860 || (viewportWidth >= 768 && isPanelOpen);
 
+  // Memoized style objects to prevent unnecessary re-renders
+  const containerStyle = useMemo(
+    () => ({
+      marginRight:
+        isPanelOpen && panelWidth > 0 && viewportWidth < 1500 ? `${panelWidth}px` : undefined,
+    }),
+    [isPanelOpen, panelWidth, viewportWidth]
+  );
+
+  const particleInnerStyle = useMemo(() => {
+    if (!globePosition) return undefined;
+    return {
+      left: globePosition.x - (viewportWidth - Math.min(1000, viewportWidth - 32)) / 2,
+      top: globePosition.y - 220,
+      transform: "translate(-50%, -50%)" as const,
+    };
+  }, [globePosition, viewportWidth]);
+
+  const leftColumnStyle = useMemo(
+    () => ({
+      width: useCompactRatio
+        ? undefined
+        : isPanelOpen && viewportWidth < 1500
+          ? "40%"
+          : isTablet
+            ? "45%"
+            : "50%",
+    }),
+    [useCompactRatio, isPanelOpen, viewportWidth, isTablet]
+  );
+
+  const rightColumnStyle = useMemo(
+    () => ({
+      width:
+        viewportWidth < 768
+          ? "100%"
+          : useCompactRatio
+            ? "100%"
+            : isPanelOpen && viewportWidth < 1500
+              ? "60%"
+              : isTablet
+                ? "55%"
+                : "50%",
+    }),
+    [viewportWidth, useCompactRatio, isPanelOpen, isTablet]
+  );
+
+  const scrollContainerStyle = useMemo(
+    () => ({
+      height: viewportWidth >= 768 ? "calc(100vh - 64px - 156px)" : undefined,
+      minHeight: viewportWidth >= 768 ? "400px" : "200px",
+      overscrollBehavior: "none" as const,
+    }),
+    [viewportWidth]
+  );
+
   return (
     <div className="min-h-screen overflow-x-hidden md:fixed md:top-16 md:left-0 md:right-0 md:bottom-0 md:z-10 md:bg-[var(--color-bg-primary)] md:overflow-hidden">
-      {/* Full-screen Globe Particles background - spans both columns */}
-      {viewportWidth >= 768 && (
-        <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden">
-          {/* Position particles origin at globe center (left column) */}
-          <div
-            className="absolute"
-            style={{
-              top: "180px",
-              left: `calc(${isTablet ? "22.5%" : "25%"} - 20px)`,
-              width: "800px",
-              height: "800px",
-            }}
-          >
-            <GlobeParticles size={400} />
+      {/* Globe Particles - within content area (max-width 1000px), below filter */}
+      {/* Only show on tablet/desktop (md+), mobile has separate MobileGlobePanel */}
+      {viewportWidth >= 768 && globePosition && particleInnerStyle && (
+        <div
+          className="hidden md:block fixed pointer-events-none z-0 overflow-hidden left-1/2 -translate-x-1/2"
+          style={PARTICLE_CONTAINER_STYLE}
+        >
+          <div className="absolute" style={particleInnerStyle}>
+            <GlobeParticles size={isTablet ? 280 : 320} />
           </div>
         </div>
       )}
-      <div className="transition-all duration-300 ease-out h-[calc(100vh-56px)] md:h-auto overflow-hidden md:overflow-visible">
+      <div className="transition-[height,overflow] duration-300 ease-out h-[calc(100vh-56px)] md:h-auto overflow-hidden md:overflow-visible">
         <div
-          className="px-4 pt-4 pb-2 max-w-[1000px] mx-auto transition-all duration-300 h-full md:h-auto flex flex-col"
-          style={{
-            // 좁은 화면(<1500px)에서만 marginRight 적용 (패널과 겹치지 않도록)
-            // 넓은 화면(>=1500px)에서는 중앙 유지
-            marginRight:
-              isPanelOpen && panelWidth > 0 && viewportWidth < 1500 ? `${panelWidth}px` : undefined,
-          }}
+          className="px-4 pt-4 pb-2 max-w-[1000px] mx-auto transition-[margin] duration-300 h-full md:h-auto flex flex-col"
+          style={containerStyle}
         >
           {/* Header */}
           <header className="mb-4 md:mb-8">
@@ -985,18 +1019,10 @@ export default function LeaderboardPage() {
             {/* When panel opens: shrink to 35% to give more space to table */}
             {/* When panel opens on narrow viewport (<1200px): slides out */}
             <div
-              className={`hidden md:flex md:flex-col transition-all duration-300 relative ${
+              className={`hidden md:flex md:flex-col transition-[width,opacity,transform] duration-300 relative ${
                 useCompactRatio ? "md:w-0 md:opacity-0 md:-translate-x-full md:overflow-hidden" : ""
               }`}
-              style={{
-                width: useCompactRatio
-                  ? undefined
-                  : isPanelOpen && viewportWidth < 1500
-                    ? "40%"
-                    : isTablet
-                      ? "45%"
-                      : "50%",
-              }}
+              style={leftColumnStyle}
             >
               {/* Fixed Header: Stats Summary (left) + Scope Filter (right) */}
               <div className="flex items-center justify-between mb-4" style={{ height: 34 }}>
@@ -1076,8 +1102,8 @@ export default function LeaderboardPage() {
                   maxHeight: "calc(100vh - 64px - 156px)",
                 }}
               >
-                {/* Globe + Particles - Sticky, stays fixed while scrolling */}
-                <div className="sticky top-0 left-0 right-0 h-0 z-0 pointer-events-none flex justify-center">
+                {/* Globe - Sticky, stays fixed while scrolling, z-10 to cover particles */}
+                <div className="sticky top-0 left-0 right-0 h-0 z-10 pointer-events-none flex justify-center">
                   <div
                     className="absolute flex flex-col items-center"
                     style={{
@@ -1088,6 +1114,7 @@ export default function LeaderboardPage() {
                     {/* GlobeParticles moved to full-screen background layer */}
                     {/* Globe - fades to 10% when sticky locked or on scroll */}
                     <div
+                      ref={globeContainerRef}
                       className="transition-opacity duration-300 pointer-events-auto"
                       style={{
                         opacity: stickyLocked
@@ -1327,19 +1354,8 @@ export default function LeaderboardPage() {
             {/* When panel opens: expand to 65% (Globe shrinks to 35%) */}
             {/* When panel opens on narrow viewport (<1200px): expands to full width */}
             <div
-              className="w-full md:w-auto transition-all duration-300 flex-1 md:flex-none flex flex-col min-h-0"
-              style={{
-                width:
-                  viewportWidth < 768
-                    ? "100%"
-                    : useCompactRatio
-                      ? "100%"
-                      : isPanelOpen && viewportWidth < 1500
-                        ? "60%"
-                        : isTablet
-                          ? "55%"
-                          : "50%",
-              }}
+              className="w-full md:w-auto transition-[width] duration-300 flex-1 md:flex-none flex flex-col min-h-0"
+              style={rightColumnStyle}
             >
               {/* Filters - Above Table (height: 34px + mb-4 to match left column header) */}
               <div className="flex items-center justify-between gap-2 mb-4" style={{ height: 34 }}>
@@ -1503,16 +1519,6 @@ export default function LeaderboardPage() {
                 </div>
               </div>
 
-              {/* Loading State - Only show on initial load (no data yet) */}
-              {loading && users.length === 0 && (
-                <div className="flex items-center justify-center py-20">
-                  <div className="flex flex-col items-center gap-3">
-                    <div className="w-8 h-8 border-2 border-[var(--color-claude-coral)] border-t-transparent rounded-full animate-spin" />
-                    <p className="text-sm text-[var(--color-text-muted)]">Loading leaderboard...</p>
-                  </div>
-                </div>
-              )}
-
               {/* Error State */}
               {error && !loading && (
                 <div className="flex items-center justify-center py-20">
@@ -1529,34 +1535,23 @@ export default function LeaderboardPage() {
                 </div>
               )}
 
-              {/* Empty State */}
-              {!loading && !error && users.length === 0 && (
-                <div className="flex items-center justify-center py-20">
-                  <div className="flex flex-col items-center gap-3 text-center">
-                    <span className="text-4xl">📭</span>
-                    <p className="text-sm text-[var(--color-text-muted)]">No users found</p>
-                    <p className="text-xs text-[var(--color-text-muted)]">
-                      Be the first to join the leaderboard!
-                    </p>
-                  </div>
-                </div>
-              )}
-
-              {/* Leaderboard Table - Keep showing while loading new data */}
-              {users.length > 0 && (
-                <div
-                  className={`flex-1 min-h-0 flex flex-col ${loading && users.length === 0 ? "opacity-70 pointer-events-none" : "opacity-100"}`}
-                >
-                  <div className="glass !border-0 rounded-t-2xl overflow-hidden flex-1 min-h-0 flex flex-col">
+              {/* Leaderboard Table - Always visible to maintain layout */}
+              {!error && (
+                <div className="flex-1 min-h-0 flex flex-col relative">
+                  {/* Subtle loading indicator - thin progress bar at top */}
+                  {loading && users.length > 0 && (
+                    <div className="absolute top-0 left-0 right-0 z-30 h-0.5 bg-[var(--color-bg-secondary)] rounded-t-2xl overflow-hidden">
+                      <div className="h-full w-1/3 bg-[var(--color-claude-coral)] animate-[loading-slide_1s_ease-in-out_infinite]" />
+                    </div>
+                  )}
+                  <div
+                    className={`glass !border-0 rounded-t-2xl overflow-hidden flex-1 min-h-0 flex flex-col transition-opacity duration-500 ease-out ${loading && users.length > 0 ? "opacity-70" : "opacity-100"}`}
+                  >
                     {/* Scrollable table container - flex-1 on mobile, fixed height on tablet/PC */}
                     <div
                       ref={tableContainerRef}
                       className="overflow-y-auto overflow-x-hidden scrollbar-hide flex-1 md:flex-none"
-                      style={{
-                        height: viewportWidth >= 768 ? "calc(100vh - 64px - 156px)" : undefined,
-                        minHeight: viewportWidth >= 768 ? "400px" : "200px",
-                        overscrollBehavior: "none",
-                      }}
+                      style={scrollContainerStyle}
                     >
                       {/* Load previous trigger (for bidirectional infinite scroll) */}
                       <div ref={loadPreviousTriggerRef} className="py-1">
@@ -1726,6 +1721,35 @@ export default function LeaderboardPage() {
                         </thead>
 
                         <tbody>
+                          {/* Loading State - inside table to maintain layout */}
+                          {loading && users.length === 0 && (
+                            <tr>
+                              <td colSpan={6} className="py-20">
+                                <div className="flex flex-col items-center gap-3 text-center">
+                                  <div className="w-8 h-8 border-2 border-[var(--color-claude-coral)] border-t-transparent rounded-full animate-spin" />
+                                  <p className="text-sm text-[var(--color-text-muted)]">
+                                    Loading leaderboard...
+                                  </p>
+                                </div>
+                              </td>
+                            </tr>
+                          )}
+                          {/* Empty State - inside table to maintain layout */}
+                          {!loading && users.length === 0 && (
+                            <tr>
+                              <td colSpan={6} className="py-20">
+                                <div className="flex flex-col items-center gap-3 text-center">
+                                  <span className="text-4xl">📭</span>
+                                  <p className="text-sm text-[var(--color-text-muted)]">
+                                    No users found
+                                  </p>
+                                  <p className="text-xs text-[var(--color-text-muted)]">
+                                    Be the first to join the leaderboard!
+                                  </p>
+                                </div>
+                              </td>
+                            </tr>
+                          )}
                           {users.map((user, index) => {
                             const avatarSize = "w-6 h-6";
                             const avatarText = "text-xs";
@@ -1739,11 +1763,11 @@ export default function LeaderboardPage() {
 
                             return (
                               <tr
-                                key={`${scopeFilter}-${periodFilter}-${sortBy}-${user.id}`}
+                                key={user.id}
                                 ref={user.isCurrentUser ? currentUserRowRef : undefined}
                                 data-user-id={user.id}
                                 onClick={() => handleRowClick(user)}
-                                className={`h-10 transition-all cursor-pointer hover:!bg-[var(--color-table-row-hover)] border-b border-[var(--border-default)]/30 ${
+                                className={`h-10 transition-colors cursor-pointer hover:!bg-[var(--color-table-row-hover)] border-b border-[var(--border-default)]/30 ${
                                   user.isCurrentUser ? "bg-[var(--user-country-bg)]" : ""
                                 } ${selectedUser?.id === user.id && isPanelOpen ? "!bg-[var(--color-table-row-hover)]" : ""} ${
                                   user.isCurrentUser && highlightMyRank
