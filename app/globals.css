@@ -303,6 +303,12 @@ body {
   overflow-x: hidden;
 }
 
+/* Buttons should always show pointer cursor */
+button,
+[role="button"] {
+  cursor: pointer;
+}
+
 /* View Transitions API - smooth crossfade for theme switching */
 ::view-transition-old(root),
 ::view-transition-new(root) {
