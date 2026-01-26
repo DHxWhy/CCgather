@@ -1,0 +1,58 @@
+name: Abuse Report
+description: Report suspicious data manipulation or policy violations
+title: "[Abuse Report]: "
+labels: ["abuse-report"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ## Report Suspicious Activity
+
+        Thank you for helping keep CCgather fair. All reports are reviewed confidentially.
+
+        **Note**: False reports may result in action against the reporter.
+
+  - type: input
+    id: username
+    attributes:
+      label: Reported User
+      description: Username or profile URL of the suspected user
+      placeholder: "e.g., @username or https://ccgather.com/profile/username"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: violation-type
+    attributes:
+      label: Type of Violation
+      description: What type of suspicious activity did you observe?
+      options:
+        - Token count manipulation (unrealistic numbers)
+        - Session data tampering
+        - Multiple accounts (same person)
+        - Account sharing (multiple people)
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Evidence / Description
+      description: Describe what you observed and why it seems suspicious
+      placeholder: |
+        - What did you notice?
+        - When did you observe this?
+        - Any screenshots or specific data points?
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: confirmation
+    attributes:
+      label: Confirmation
+      options:
+        - label: I believe this report is accurate and made in good faith
+          required: true
+        - label: I understand false reports may result in action against my account
+          required: true
