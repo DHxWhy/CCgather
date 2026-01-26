@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Inter, JetBrains_Mono, Space_Grotesk } from "next/font/google";
 import { Providers } from "./providers";
 import { ClerkProviderWrapper } from "@/components/providers/ClerkProviderWrapper";
@@ -47,6 +47,18 @@ export const metadata: Metadata = {
   authors: [{ name: "CCgather" }],
   creator: "CCgather",
   publisher: "CCgather",
+  // PWA 설정 (app/manifest.ts에서 자동 생성)
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "CCgather",
+  },
+  formatDetection: {
+    telephone: false,
+  },
+  other: {
+    "mobile-web-app-capable": "yes",
+  },
   openGraph: {
     type: "website",
     locale: "en_US",
@@ -99,6 +111,18 @@ export const metadata: Metadata = {
     apple: { url: "/favicon.png", sizes: "512x512" },
     shortcut: "/favicon.png",
   },
+};
+
+// PWA viewport 설정
+export const viewport: Viewport = {
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#f8f6f2" },
+    { media: "(prefers-color-scheme: dark)", color: "#0d0d0f" },
+  ],
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 5,
+  userScalable: true,
 };
 
 // ===========================================

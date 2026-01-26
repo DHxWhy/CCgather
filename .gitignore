@@ -48,6 +48,12 @@ dist/
 build/
 .turbo/
 
+# PWA (Service Worker - 빌드 시 자동 생성)
+/public/sw.js
+/public/workbox-*.js
+/public/sw.js.map
+/public/workbox-*.js.map
+
 # ══════════════════════════════════════════════════════════
 # Testing
 # ══════════════════════════════════════════════════════════
