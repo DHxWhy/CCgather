@@ -27,7 +27,6 @@ const AuthModal = lazy(() =>
 const navLinks = [
   { href: "/leaderboard", label: "Leaderboard" },
   { href: "/community", label: "Community" },
-  { href: "/together", label: "Together" },
 ];
 
 // ============================================

@@ -215,296 +215,6 @@ const ITEMS_PER_PAGE = 50;
 // Empty arrays for Community features (API integration pending)
 const EMPTY_HALL_OF_FAME: HallOfFameEntry[] = [];
 
-// Mock community posts for development (3 Korean, 2 International)
-const MOCK_COMMUNITY_POSTS: FeedPost[] = [
-  {
-    id: "mock-1",
-    author: {
-      id: "user-kr-1",
-      username: "dev_minjun",
-      display_name: "김민준",
-      avatar_url: "https://avatars.githubusercontent.com/u/10001?v=4",
-      level: 6,
-      country_code: "KR",
-    },
-    content:
-      "Claude Code로 사이드 프로젝트 3일만에 MVP 완성했습니다 🚀 Next.js + Supabase 조합인데 거의 대부분의 코드를 Claude가 짜줬어요. 이제 직접 코딩하는 시간보다 리뷰하는 시간이 더 길어진 느낌...",
-    original_language: "ko",
-    is_translated: false,
-    likes_count: 47,
-    comments_count: 12,
-    created_at: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
-    comments: [
-      {
-        id: "comment-1-1",
-        author: {
-          id: "user-kr-2",
-          username: "fullstack_jisoo",
-          display_name: "이지수",
-          avatar_url: "https://avatars.githubusercontent.com/u/10003?v=4",
-        },
-        content: "대박 ㅋㅋ 저도 비슷한 경험! 코드 리뷰하는 시간이 더 길어졌어요 😂",
-        created_at: new Date(Date.now() - 1.5 * 60 * 60 * 1000).toISOString(),
-        likes_count: 8,
-        is_liked: false,
-        replies: [
-          {
-            id: "comment-1-1-1",
-            author: {
-              id: "user-kr-1",
-              username: "dev_minjun",
-              display_name: "김민준",
-              avatar_url: "https://avatars.githubusercontent.com/u/10001?v=4",
-            },
-            content: "진짜 그래요 ㅋㅋ 리뷰도 Claude한테 시키면 되나..?",
-            created_at: new Date(Date.now() - 1 * 60 * 60 * 1000).toISOString(),
-            parent_comment_id: "comment-1-1",
-            likes_count: 3,
-            is_liked: true,
-          },
-        ],
-      },
-      {
-        id: "comment-1-2",
-        author: {
-          id: "user-us-1",
-          username: "sarah_codes",
-          display_name: "Sarah Chen",
-          avatar_url: "https://avatars.githubusercontent.com/u/10002?v=4",
-        },
-        content: "What stack did you use? I'm curious about the architecture!",
-        created_at: new Date(Date.now() - 1 * 60 * 60 * 1000).toISOString(),
-        likes_count: 5,
-        is_liked: false,
-      },
-    ],
-  },
-  {
-    id: "mock-2",
-    author: {
-      id: "user-us-1",
-      username: "sarah_codes",
-      display_name: "Sarah Chen",
-      avatar_url: "https://avatars.githubusercontent.com/u/10002?v=4",
-      level: 8,
-      country_code: "US",
-    },
-    content:
-      "Just hit 50M tokens this month! 🎉 Mostly refactoring a legacy Java codebase to TypeScript. Claude Code understood the business logic perfectly and suggested some really elegant patterns I wouldn't have thought of.",
-    translated_content:
-      "이번 달 5천만 토큰 달성! 🎉 대부분 레거시 Java 코드베이스를 TypeScript로 리팩토링하는 데 사용했어요. Claude Code가 비즈니스 로직을 완벽하게 이해하고 제가 생각하지 못했을 정말 우아한 패턴들을 제안해줬습니다.",
-    original_language: "en",
-    is_translated: true,
-    likes_count: 89,
-    comments_count: 23,
-    created_at: new Date(Date.now() - 5 * 60 * 60 * 1000).toISOString(),
-    comments: [
-      {
-        id: "comment-2-1",
-        author: {
-          id: "user-jp-1",
-          username: "tanaka_dev",
-          display_name: "田中太郎",
-          avatar_url: "https://avatars.githubusercontent.com/u/10004?v=4",
-        },
-        content: "50M tokens is insane! 🔥 How long did the refactoring take?",
-        created_at: new Date(Date.now() - 4 * 60 * 60 * 1000).toISOString(),
-        likes_count: 12,
-        is_liked: false,
-        replies: [
-          {
-            id: "comment-2-1-1",
-            author: {
-              id: "user-us-1",
-              username: "sarah_codes",
-              display_name: "Sarah Chen",
-              avatar_url: "https://avatars.githubusercontent.com/u/10002?v=4",
-            },
-            content: "About 2 weeks for 200k LOC! Would've been months without Claude 😅",
-            created_at: new Date(Date.now() - 3.5 * 60 * 60 * 1000).toISOString(),
-            parent_comment_id: "comment-2-1",
-            likes_count: 18,
-            is_liked: true,
-          },
-          {
-            id: "comment-2-1-2",
-            author: {
-              id: "user-kr-3",
-              username: "backend_hyunwoo",
-              display_name: "박현우",
-              avatar_url: "https://avatars.githubusercontent.com/u/10005?v=4",
-            },
-            content: "200k LOC를 2주만에?! 진짜 대단하네요 👏",
-            created_at: new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString(),
-            parent_comment_id: "comment-2-1",
-            likes_count: 7,
-            is_liked: false,
-          },
-        ],
-      },
-    ],
-  },
-  {
-    id: "mock-3",
-    author: {
-      id: "user-kr-2",
-      username: "fullstack_jisoo",
-      display_name: "이지수",
-      avatar_url: "https://avatars.githubusercontent.com/u/10003?v=4",
-      level: 5,
-      country_code: "KR",
-    },
-    content:
-      "오늘의 팁: CLAUDE.md 파일에 프로젝트 컨벤션 정리해두면 Claude가 알아서 스타일 맞춰서 코드 짜줍니다. ESLint 룰이랑 네이밍 컨벤션 적어뒀더니 PR 리뷰 코멘트가 확 줄었어요 👍",
-    original_language: "ko",
-    is_translated: false,
-    likes_count: 156,
-    comments_count: 34,
-    created_at: new Date(Date.now() - 8 * 60 * 60 * 1000).toISOString(),
-    comments: [
-      {
-        id: "comment-3-1",
-        author: {
-          id: "user-kr-1",
-          username: "dev_minjun",
-          display_name: "김민준",
-          avatar_url: "https://avatars.githubusercontent.com/u/10001?v=4",
-        },
-        content: "오 이거 꿀팁이다! 바로 적용해봐야겠어요 👍",
-        created_at: new Date(Date.now() - 7 * 60 * 60 * 1000).toISOString(),
-        likes_count: 24,
-        is_liked: true,
-      },
-      {
-        id: "comment-3-2",
-        author: {
-          id: "user-kr-3",
-          username: "backend_hyunwoo",
-          display_name: "박현우",
-          avatar_url: "https://avatars.githubusercontent.com/u/10005?v=4",
-        },
-        content: "CLAUDE.md 예시 파일 공유해주실 수 있나요? 🙏",
-        created_at: new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString(),
-        likes_count: 15,
-        is_liked: false,
-        replies: [
-          {
-            id: "comment-3-2-1",
-            author: {
-              id: "user-kr-2",
-              username: "fullstack_jisoo",
-              display_name: "이지수",
-              avatar_url: "https://avatars.githubusercontent.com/u/10003?v=4",
-            },
-            content: "GitHub Gist로 올려둘게요! 프로필 링크 확인해주세요 ✨",
-            created_at: new Date(Date.now() - 5.5 * 60 * 60 * 1000).toISOString(),
-            parent_comment_id: "comment-3-2",
-            likes_count: 31,
-            is_liked: false,
-          },
-        ],
-      },
-    ],
-  },
-  {
-    id: "mock-4",
-    author: {
-      id: "user-jp-1",
-      username: "tanaka_dev",
-      display_name: "田中太郎",
-      avatar_url: "https://avatars.githubusercontent.com/u/10004?v=4",
-      level: 7,
-      country_code: "JP",
-    },
-    content:
-      "Claude Codeでブログ自動化を完成しました！生産性がヤバいです 🔥 AIが要件を完璧に理解して、きれいなTypeScriptコードを生成してくれました。",
-    translated_content:
-      "Claude Code로 블로그 자동화를 완성했습니다! 생산성이 미쳤어요 🔥 AI가 요구사항을 완벽히 이해하고 깔끔한 TypeScript 코드를 생성해줬습니다.",
-    original_language: "ja",
-    is_translated: true,
-    likes_count: 38,
-    comments_count: 8,
-    created_at: new Date(Date.now() - 12 * 60 * 60 * 1000).toISOString(),
-    comments: [
-      {
-        id: "comment-4-1",
-        author: {
-          id: "user-us-1",
-          username: "sarah_codes",
-          display_name: "Sarah Chen",
-          avatar_url: "https://avatars.githubusercontent.com/u/10002?v=4",
-        },
-        content: "ブログ自動化すごい! What kind of automation did you build?",
-        created_at: new Date(Date.now() - 11 * 60 * 60 * 1000).toISOString(),
-        likes_count: 4,
-        is_liked: false,
-      },
-    ],
-  },
-  {
-    id: "mock-5",
-    author: {
-      id: "user-kr-3",
-      username: "backend_hyunwoo",
-      display_name: "박현우",
-      avatar_url: "https://avatars.githubusercontent.com/u/10005?v=4",
-      level: 4,
-      country_code: "KR",
-    },
-    content:
-      '신입인데 Claude Code 덕분에 시니어처럼 일하는 중 ㅋㅋㅋ 코드 리뷰 받을 때 "이거 네가 짠 거 맞아?"라는 말 들었습니다. 맞긴 한데... 반쯤은 Claude가 짰죠 😅',
-    original_language: "ko",
-    is_translated: false,
-    likes_count: 203,
-    comments_count: 45,
-    created_at: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
-    comments: [
-      {
-        id: "comment-5-1",
-        author: {
-          id: "user-kr-2",
-          username: "fullstack_jisoo",
-          display_name: "이지수",
-          avatar_url: "https://avatars.githubusercontent.com/u/10003?v=4",
-        },
-        content: "ㅋㅋㅋㅋ 공감 100%! 저도 비슷한 경험 있어요 😂",
-        created_at: new Date(Date.now() - 23 * 60 * 60 * 1000).toISOString(),
-        likes_count: 45,
-        is_liked: true,
-        replies: [
-          {
-            id: "comment-5-1-1",
-            author: {
-              id: "user-kr-1",
-              username: "dev_minjun",
-              display_name: "김민준",
-              avatar_url: "https://avatars.githubusercontent.com/u/10001?v=4",
-            },
-            content: "사실 다들 그런 거 아닌가요? ㅋㅋㅋ",
-            created_at: new Date(Date.now() - 22 * 60 * 60 * 1000).toISOString(),
-            parent_comment_id: "comment-5-1",
-            likes_count: 28,
-            is_liked: false,
-          },
-        ],
-      },
-      {
-        id: "comment-5-2",
-        author: {
-          id: "user-jp-1",
-          username: "tanaka_dev",
-          display_name: "田中太郎",
-          avatar_url: "https://avatars.githubusercontent.com/u/10004?v=4",
-        },
-        content: "僕も同じです！新人なのにシニアレベルのコードが書けるようになりました 💪",
-        created_at: new Date(Date.now() - 20 * 60 * 60 * 1000).toISOString(),
-        likes_count: 19,
-        is_liked: false,
-      },
-    ],
-  },
-];
-
 // Static style object (no need for useMemo - defined outside component)
 const PARTICLE_CONTAINER_STYLE = {
   top: 220,
@@ -564,8 +274,8 @@ export default function LeaderboardPage() {
     username: string;
     displayName?: string | null;
   } | null>(null);
-  // Community posts state (API-driven, mock data for development)
-  const [communityPosts, setCommunityPosts] = useState<FeedPost[]>(MOCK_COMMUNITY_POSTS);
+  // Community posts state (API-driven)
+  const [communityPosts, setCommunityPosts] = useState<FeedPost[]>([]);
   const [communityLoading, setCommunityLoading] = useState(false);
   // Community stats for display (mock data for now, can be fetched from API later)
   const communityStats = useMemo(() => {
@@ -997,10 +707,9 @@ export default function LeaderboardPage() {
 
   // Reset globe pulse after animation completes
   useEffect(() => {
-    if (globePulse) {
-      const timer = setTimeout(() => setGlobePulse(false), 400);
-      return () => clearTimeout(timer);
-    }
+    if (!globePulse) return;
+    const timer = setTimeout(() => setGlobePulse(false), 400);
+    return () => clearTimeout(timer);
   }, [globePulse]);
 
   // Fetch current user's country and username
@@ -1279,20 +988,11 @@ export default function LeaderboardPage() {
   // =====================================================
 
   // Fetch community posts
-  // TODO: Remove USE_MOCK_DATA flag when API is ready for production
-  const USE_MOCK_DATA = true; // Set to false when API is production-ready
 
   const fetchCommunityPosts = useCallback(
     async (tab: string = "all") => {
       setCommunityLoading(true);
       try {
-        // Use mock data for development to test comment UI
-        if (USE_MOCK_DATA) {
-          setCommunityPosts(MOCK_COMMUNITY_POSTS);
-          setCommunityLoading(false);
-          return;
-        }
-
         const params = new URLSearchParams();
         if (tab !== "all") {
           params.set("tab", tab);
@@ -1345,17 +1045,10 @@ export default function LeaderboardPage() {
           })
         );
 
-        // Use mock data if API returns fewer posts than our mock (for development with realistic data)
-        // Once production has enough posts, this will naturally switch to API data
-        setCommunityPosts(
-          transformedPosts.length >= MOCK_COMMUNITY_POSTS.length
-            ? transformedPosts
-            : MOCK_COMMUNITY_POSTS
-        );
+        setCommunityPosts(transformedPosts);
       } catch (err) {
         console.error("Error fetching community posts:", err);
-        // Keep mock data on error (development fallback)
-        setCommunityPosts(MOCK_COMMUNITY_POSTS);
+        setCommunityPosts([]);
       } finally {
         setCommunityLoading(false);
       }

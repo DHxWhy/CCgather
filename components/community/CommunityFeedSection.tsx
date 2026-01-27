@@ -182,6 +182,11 @@ function CommunityFeedSectionComponent({
               Posts appear in your language
             </span>
           </div>
+          {/* Community intro for guests */}
+          <p className="mt-1.5 text-[10px] text-[var(--color-text-muted)]/70 leading-relaxed">
+            Connect with Claude Code developers worldwide. Share tips, celebrate wins, and learn
+            together.
+          </p>
         </div>
 
         {/* Country Filter Header */}
