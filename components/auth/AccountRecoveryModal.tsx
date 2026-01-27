@@ -36,14 +36,14 @@ export function AccountRecoveryModal({
   const formatRemainingTime = (hours: number) => {
     if (hours < 1) {
       const minutes = Math.floor(hours * 60);
-      return `${minutes}분`;
+      return `${minutes} minutes`;
     }
     const days = Math.floor(hours / 24);
     const remainingHours = Math.floor(hours % 24);
     if (days > 0) {
-      return `${days}일 ${remainingHours}시간`;
+      return `${days} days ${remainingHours} hours`;
     }
-    return `${remainingHours}시간`;
+    return `${remainingHours} hours`;
   };
 
   const handleRecover = async () => {
@@ -53,7 +53,7 @@ export function AccountRecoveryModal({
       await onRecover();
     } catch (err) {
       console.error("Account recovery failed:", err);
-      setError("복구 중 오류가 발생했습니다. 다시 시도해주세요.");
+      setError("An error occurred during recovery. Please try again.");
       setIsLoading(null);
     }
   };
@@ -65,7 +65,7 @@ export function AccountRecoveryModal({
       await onFreshStart();
     } catch (err) {
       console.error("Fresh start failed:", err);
-      setError("새로 시작 중 오류가 발생했습니다. 다시 시도해주세요.");
+      setError("An error occurred. Please try again.");
       setIsLoading(null);
     }
   };
@@ -95,17 +95,17 @@ export function AccountRecoveryModal({
                 <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gradient-to-br from-[#DA7756]/20 to-[#B85C3D]/20 mb-4">
                   <RefreshCw className="w-8 h-8 text-[#DA7756]" />
                 </div>
-                <h1 className="text-2xl font-bold text-white mb-2">이전 계정이 발견되었습니다!</h1>
+                <h1 className="text-2xl font-bold text-white mb-2">Previous Account Found!</h1>
                 <p className="text-zinc-400 text-sm">
-                  탈퇴 요청 중인 계정을 복구하거나 새로 시작할 수 있습니다
+                  You can recover your pending deletion account or start fresh
                 </p>
               </div>
 
               {/* Stats */}
               <div className="bg-white/5 rounded-xl p-4 mb-6">
                 <div className="text-sm text-zinc-400 mb-3">
-                  <span className="font-medium text-white">{pendingInfo.stats.username}</span>님의
-                  기록
+                  <span className="font-medium text-white">{pendingInfo.stats.username}</span>
+                  &apos;s activity
                 </div>
                 <div className="grid grid-cols-3 gap-4">
                   <div className="text-center">
@@ -113,21 +113,21 @@ export function AccountRecoveryModal({
                       <Wrench className="w-4 h-4" />
                       <span className="font-semibold">{pendingInfo.stats.tools_submitted}</span>
                     </div>
-                    <span className="text-xs text-zinc-500">추천 도구</span>
+                    <span className="text-xs text-zinc-500">Tools</span>
                   </div>
                   <div className="text-center">
                     <div className="flex items-center justify-center gap-1 text-zinc-300 mb-1">
                       <ThumbsUp className="w-4 h-4" />
                       <span className="font-semibold">{pendingInfo.stats.votes_count}</span>
                     </div>
-                    <span className="text-xs text-zinc-500">투표</span>
+                    <span className="text-xs text-zinc-500">Votes</span>
                   </div>
                   <div className="text-center">
                     <div className="flex items-center justify-center gap-1 text-zinc-300 mb-1">
                       <Trophy className="w-4 h-4" />
                       <span className="font-semibold">Lv.{pendingInfo.stats.level}</span>
                     </div>
-                    <span className="text-xs text-zinc-500">레벨</span>
+                    <span className="text-xs text-zinc-500">Level</span>
                   </div>
                 </div>
               </div>
@@ -135,7 +135,7 @@ export function AccountRecoveryModal({
               {/* Remaining time */}
               <div className="flex items-center justify-center gap-2 text-amber-400 text-sm mb-6">
                 <Clock className="w-4 h-4" />
-                <span>남은 복구 기간: {formatRemainingTime(pendingInfo.remaining_hours)}</span>
+                <span>Time remaining: {formatRemainingTime(pendingInfo.remaining_hours)}</span>
               </div>
 
               {/* Error */}
@@ -157,7 +157,7 @@ export function AccountRecoveryModal({
                   ) : (
                     <RefreshCw className="w-5 h-5" />
                   )}
-                  <span>계정 복구</span>
+                  <span>Recover Account</span>
                 </button>
 
                 <button
@@ -170,7 +170,7 @@ export function AccountRecoveryModal({
                   ) : (
                     <Trash2 className="w-5 h-5" />
                   )}
-                  <span>새로 시작</span>
+                  <span>Start Fresh</span>
                 </button>
               </div>
 
@@ -179,9 +179,9 @@ export function AccountRecoveryModal({
                 <div className="flex items-start gap-2">
                   <AlertTriangle className="w-4 h-4 text-amber-400 mt-0.5 flex-shrink-0" />
                   <p className="text-xs text-amber-200/80">
-                    <span className="font-semibold">"새로 시작"</span> 선택 시 이전 기록이{" "}
-                    <span className="font-semibold text-amber-300">즉시 영구 삭제</span>됩니다.
-                    복구가 불가능합니다.
+                    Choosing <span className="font-semibold">&quot;Start Fresh&quot;</span> will{" "}
+                    <span className="font-semibold text-amber-300">permanently delete</span> your
+                    previous data immediately. This cannot be undone.
                   </p>
                 </div>
               </div>

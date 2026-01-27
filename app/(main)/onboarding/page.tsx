@@ -10,12 +10,7 @@ import { Confetti, SparkleEffect } from "@/components/onboarding/Confetti";
 import { CLIModal } from "@/components/cli/CLIModal";
 import { AgreementModal } from "@/components/onboarding/AgreementModal";
 import { ChevronRight, Sparkles } from "lucide-react";
-import dynamic from "next/dynamic";
-
-const ReactCountryFlag = dynamic(() => import("react-country-flag"), {
-  ssr: false,
-  loading: () => <div className="w-[80px] h-[60px] bg-white/10 rounded animate-pulse" />,
-});
+import { FlagIcon } from "@/components/ui/FlagIcon";
 
 export default function OnboardingPage() {
   const router = useRouter();
@@ -46,13 +41,13 @@ export default function OnboardingPage() {
     setTimeout(() => setShowConfetti(false), 3000);
   }, []);
 
-  // Show agreement modal when user clicks Join League
+  // Show agreement modal when user clicks Join Leaderboard
   const handleJoinClick = () => {
     setShowAgreementModal(true);
   };
 
   // Handle agreement and submit
-  const handleAgree = async (profileConsent: boolean, communityConsent: boolean) => {
+  const handleAgree = async (profileConsent: boolean, integrityConsent: boolean) => {
     if (!selectedCountry) return;
 
     setIsSubmitting(true);
@@ -65,7 +60,7 @@ export default function OnboardingPage() {
           timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
           onboarding_completed: true,
           profile_visibility_consent: profileConsent,
-          community_updates_consent: communityConsent,
+          integrity_agreed: integrityConsent,
         }),
       });
 
@@ -114,7 +109,7 @@ export default function OnboardingPage() {
           return {};
         });
         console.error("Failed to update profile:", response.status, data);
-        alert(`Failed to join league (${response.status}): ${data.error || "Unknown error"}`);
+        alert(`Failed to join (${response.status}): ${data.error || "Unknown error"}`);
       }
     } catch (error) {
       console.error("Failed to update profile:", error);
@@ -259,9 +254,9 @@ export default function OnboardingPage() {
             transition={{ duration: 0.5, delay: 0.1 }}
             className="text-3xl sm:text-4xl md:text-5xl font-bold text-text-primary mb-3"
           >
-            Join Your{" "}
+            Join the{" "}
             <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#E8A087] to-[#F5C4B0]">
-              Nation&apos;s League
+              Global Leaderboard
             </span>
           </motion.h1>
 
@@ -297,11 +292,16 @@ export default function OnboardingPage() {
                   />
                 </div>
 
-                {/* Recommended Leagues */}
+                {/* Quick Select */}
                 <div className="flex-1">
-                  <div className="flex items-center gap-2 mb-4">
-                    <Sparkles className="w-4 h-4 text-primary" />
-                    <span className="text-sm font-medium text-text-secondary">Popular Leagues</span>
+                  <div className="mb-4">
+                    <div className="flex items-center gap-2">
+                      <Sparkles className="w-4 h-4 text-primary" />
+                      <span className="text-sm font-medium text-text-secondary">Quick Select</span>
+                    </div>
+                    <p className="text-xs text-text-muted mt-1 ml-6">
+                      Sorted by recent member activity
+                    </p>
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                     {TOP_COUNTRIES.map((country, index) => (
@@ -343,11 +343,7 @@ export default function OnboardingPage() {
                   {/* Flag container */}
                   <div className="relative w-32 h-32 sm:w-40 sm:h-40 rounded-xl bg-[var(--color-bg-card)] border border-[var(--border-default)] flex items-center justify-center shadow-2xl">
                     {selectedCountryData && (
-                      <ReactCountryFlag
-                        countryCode={selectedCountryData.code}
-                        svg
-                        style={{ width: "80px", height: "60px" }}
-                      />
+                      <FlagIcon countryCode={selectedCountryData.code} size="2xl" />
                     )}
                   </div>
                 </motion.div>
@@ -365,7 +361,7 @@ export default function OnboardingPage() {
                     </span>
                   </h2>
                   <p className="text-text-muted text-sm sm:text-base">
-                    You&apos;re about to join the {selectedCountryData?.name} league!
+                    You&apos;re about to represent {selectedCountryData?.name}!
                   </p>
                 </motion.div>
 
@@ -380,7 +376,7 @@ export default function OnboardingPage() {
                     onClick={handleJoinClick}
                     className="w-full flex items-center justify-center gap-2 px-6 py-3.5 rounded-xl bg-gradient-to-r from-primary to-[#B85C3D] text-white font-semibold hover:shadow-lg hover:shadow-primary/25 transition-all"
                   >
-                    <span>Join League</span>
+                    <span>Join Leaderboard</span>
                     <ChevronRight className="w-5 h-5" />
                   </button>
                   <button

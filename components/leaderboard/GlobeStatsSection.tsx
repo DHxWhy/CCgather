@@ -94,6 +94,7 @@ export function GlobeStatsSection({
   const [totalTokens, setTotalTokens] = useState(0);
   const [totalCost, setTotalCost] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [initialLoadComplete, setInitialLoadComplete] = useState(false);
   const globeSize = useResponsiveGlobeSize(size);
 
   // Calculate user's country rank and stats
@@ -135,6 +136,9 @@ export function GlobeStatsSection({
         setTotalCost(cost);
         setLoading(false);
 
+        // Mark initial load complete after a brief delay (for fadeIn to finish)
+        setTimeout(() => setInitialLoadComplete(true), 500);
+
         // Notify parent component
         if (onStatsLoaded) {
           onStatsLoaded(countryStats, tokens, cost);
@@ -152,7 +156,7 @@ export function GlobeStatsSection({
       {/* Globe */}
       <div className="relative" style={{ width: globeSize, height: globeSize }}>
         {!loading && (
-          <>
+          <div className={initialLoadComplete ? "" : "animate-fadeIn"}>
             {!hideParticles && <GlobeParticles size={globeSize} />}
             <Globe
               markers={stats}
@@ -161,11 +165,6 @@ export function GlobeStatsSection({
               userCountryCode={userCountryCode}
               scopeFilter={scopeFilter}
             />
-          </>
-        )}
-        {loading && (
-          <div className="absolute inset-0 flex items-center justify-center">
-            <div className="w-8 h-8 border-2 border-[var(--color-claude-coral)] border-t-transparent rounded-full animate-spin" />
           </div>
         )}
       </div>

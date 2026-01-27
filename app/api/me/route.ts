@@ -37,6 +37,7 @@ const UpdateProfileSchema = z.object({
   marketing_consent: z.boolean().optional(),
   profile_visibility_consent: z.boolean().optional(),
   community_updates_consent: z.boolean().optional(),
+  integrity_agreed: z.boolean().optional(),
   social_links: SocialLinksSchema,
   hide_profile_on_invite: z.boolean().optional(),
 });
@@ -463,6 +464,9 @@ export async function PATCH(request: NextRequest) {
     if (parsed.data.community_updates_consent !== undefined) {
       updateData.community_updates_consent_at = now;
     }
+    if (parsed.data.integrity_agreed !== undefined) {
+      updateData.integrity_agreed_at = now;
+    }
 
     if (!existingUser) {
       // User doesn't exist, create them with the profile data
@@ -601,7 +605,8 @@ export async function DELETE() {
 
     return NextResponse.json({
       success: true,
-      message: "계정이 3일 후 완전히 삭제됩니다. 그 전에 로그인하시면 복구할 수 있습니다.",
+      message:
+        "Your profile is now hidden. Your data will be permanently deleted after 7 days. You can recover your account by logging in within 7 days.",
       deleted_at: data.deleted_at,
       deletion_scheduled_at: data.expires_at,
     });

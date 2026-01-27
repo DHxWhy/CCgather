@@ -16,7 +16,7 @@ import {
   TOOL_PRICING_TYPES,
   type ToolCategory,
   type ToolPricingType,
-} from "@/types/tools";
+} from "@/lib/types/tools";
 
 // ===========================================
 // Configuration

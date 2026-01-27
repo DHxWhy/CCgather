@@ -94,7 +94,7 @@ export function AccountDeleteModal({
                 </div>
                 <div>
                   <h2 className="text-lg font-bold text-white">Delete Account</h2>
-                  <p className="text-xs text-zinc-500">This action cannot be undone</p>
+                  <p className="text-xs text-zinc-500">Your profile will be hidden immediately</p>
                 </div>
               </div>
               <button
@@ -113,11 +113,12 @@ export function AccountDeleteModal({
                 <Clock className="w-5 h-5 text-amber-400 mt-0.5 flex-shrink-0" />
                 <div>
                   <p className="text-sm font-medium text-amber-300">
-                    Recovery available within 3 days
+                    Recovery available within 7 days
                   </p>
                   <p className="text-xs text-amber-200/70 mt-1">
-                    If you log in again within 3 days after requesting account deletion, you can
-                    recover your account. After 3 days, all data will be permanently deleted.
+                    Your profile will be hidden immediately from the leaderboard and public views.
+                    If you log in within 7 days, you can recover your account. After 7 days, all
+                    data will be permanently deleted.
                   </p>
                 </div>
               </div>

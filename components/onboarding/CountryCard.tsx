@@ -64,7 +64,7 @@ export function CountryCard({ country, isSelected, onClick, index }: CountryCard
               ${
                 isSelected
                   ? "bg-primary text-white"
-                  : "bg-white/5 border border-white/10 group-hover:border-primary/50"
+                  : "border-2 border-[var(--border-default)] group-hover:border-primary/50"
               }
             `}
             animate={isSelected ? { scale: [0.8, 1.1, 1] } : {}}

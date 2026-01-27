@@ -2,8 +2,8 @@
 
 import { memo } from "react";
 import { cn } from "@/lib/utils";
-import type { TrustTier } from "@/types/tools";
-import { TRUST_TIER_META } from "@/types/tools";
+import type { TrustTier } from "@/lib/types/tools";
+import { TRUST_TIER_META } from "@/lib/types/tools";
 
 // =====================================================
 // Types

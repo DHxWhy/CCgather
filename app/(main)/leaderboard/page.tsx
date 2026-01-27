@@ -1,10 +1,11 @@
 "use client";
 
 import React, { useState, useMemo, useEffect, useLayoutEffect, useCallback, useRef } from "react";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, usePathname } from "next/navigation";
 import dynamic from "next/dynamic";
 import Image from "next/image";
-import ReactCountryFlag from "react-country-flag";
+import { TableVirtuoso } from "react-virtuoso";
+import { FlagIcon } from "@/components/ui/FlagIcon";
 import { useUser } from "@clerk/nextjs";
 import { GlobeStatsSection } from "@/components/leaderboard/GlobeStatsSection";
 import {
@@ -24,14 +25,51 @@ import { PeriodDropdown } from "@/components/leaderboard/PeriodDropdown";
 import { TimezoneClock } from "@/components/ui/timezone-clock";
 import { LEVELS, getLevelByTokens } from "@/lib/constants/levels";
 import { Info, ChevronDown } from "lucide-react";
+import AnimatedNumber from "@/components/ui/AnimatedNumber";
 import { format } from "date-fns";
 import type { LeaderboardUser, PeriodFilter, ScopeFilter, SortByFilter } from "@/lib/types";
+import type { FeedPost } from "@/components/community/FeedCard";
+import type { HallOfFameEntry } from "@/components/community/HallOfFame";
+
+// View mode type for tab switching
+type ViewMode = "leaderboard" | "community";
+
+// Community tab types - extensible for future tabs
+type CommunityTab = "vibes" | "canu" | "showcase" | "questions"; // Add more as needed
+
+// Tab configuration for easy extension
+const COMMUNITY_TABS: {
+  id: CommunityTab;
+  label: string;
+  emoji: string;
+}[] = [
+  {
+    id: "vibes",
+    label: "Vibes",
+    emoji: "✨",
+  },
+  {
+    id: "canu",
+    label: "Can U?",
+    emoji: "🎯",
+  },
+  // Future tabs can be added here:
+  // { id: "showcase", label: "Showcase", emoji: "✨", activeColor: "#FBBF24", activeBg: "#FBBF24" },
+  // { id: "questions", label: "Q&A", emoji: "💬", activeColor: "#10b981", activeBg: "#10b981" },
+];
 
 // Dynamic imports for heavy components - reduces initial bundle significantly
 const ProfileSidePanel = dynamic(
   () => import("@/components/leaderboard/ProfileSidePanel").then((mod) => mod.ProfileSidePanel),
   { ssr: false }
 );
+
+// Community components (lazy loaded for tab switching)
+const CommunityFeedSection = dynamic(() => import("@/components/community/CommunityFeedSection"), {
+  ssr: false,
+});
+
+const HallOfFame = dynamic(() => import("@/components/community/HallOfFame"), { ssr: false });
 
 const MobileGlobePanel = dynamic(
   () => import("@/components/leaderboard/MobileGlobePanel").then((mod) => mod.MobileGlobePanel),
@@ -42,6 +80,15 @@ const DateRangePicker = dynamic(
   () => import("@/components/leaderboard/DateRangePicker").then((mod) => mod.DateRangePicker),
   { ssr: false }
 );
+
+const LoginPromptModal = dynamic(
+  () => import("@/components/leaderboard/LoginPromptModal").then((mod) => mod.LoginPromptModal),
+  { ssr: false }
+);
+
+const CLIModal = dynamic(() => import("@/components/cli/CLIModal").then((mod) => mod.CLIModal), {
+  ssr: false,
+});
 
 // Format numbers - compact display (K/M/B for 1000+, plain for <1000)
 function formatTokens(num: number): string {
@@ -60,6 +107,8 @@ const CountryFlag = React.memo(function CountryFlag({
   size?: number;
 }) {
   const [isHovered, setIsHovered] = useState(false);
+  // Map pixel size to FlagIcon size
+  const flagSize = size <= 16 ? "xs" : size <= 20 ? "sm" : "md";
 
   return (
     <div
@@ -67,11 +116,7 @@ const CountryFlag = React.memo(function CountryFlag({
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
     >
-      <ReactCountryFlag
-        countryCode={countryCode}
-        svg
-        style={{ width: `${size}px`, height: `${size}px`, display: "block" }}
-      />
+      <FlagIcon countryCode={countryCode} size={flagSize} />
       {isHovered && (
         <div className="absolute right-full mr-1.5 top-1/2 -translate-y-1/2 z-50 px-1.5 py-0.5 bg-[var(--color-bg-secondary)] border border-white/10 rounded shadow-lg whitespace-nowrap">
           <span className="text-[10px] font-medium text-[var(--color-text-primary)]">
@@ -167,6 +212,299 @@ const LevelInfoPopover = React.memo(function LevelInfoPopover({ isOpen }: { isOp
 
 const ITEMS_PER_PAGE = 50;
 
+// Empty arrays for Community features (API integration pending)
+const EMPTY_HALL_OF_FAME: HallOfFameEntry[] = [];
+
+// Mock community posts for development (3 Korean, 2 International)
+const MOCK_COMMUNITY_POSTS: FeedPost[] = [
+  {
+    id: "mock-1",
+    author: {
+      id: "user-kr-1",
+      username: "dev_minjun",
+      display_name: "김민준",
+      avatar_url: "https://avatars.githubusercontent.com/u/10001?v=4",
+      level: 6,
+      country_code: "KR",
+    },
+    content:
+      "Claude Code로 사이드 프로젝트 3일만에 MVP 완성했습니다 🚀 Next.js + Supabase 조합인데 거의 대부분의 코드를 Claude가 짜줬어요. 이제 직접 코딩하는 시간보다 리뷰하는 시간이 더 길어진 느낌...",
+    original_language: "ko",
+    is_translated: false,
+    likes_count: 47,
+    comments_count: 12,
+    created_at: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
+    comments: [
+      {
+        id: "comment-1-1",
+        author: {
+          id: "user-kr-2",
+          username: "fullstack_jisoo",
+          display_name: "이지수",
+          avatar_url: "https://avatars.githubusercontent.com/u/10003?v=4",
+        },
+        content: "대박 ㅋㅋ 저도 비슷한 경험! 코드 리뷰하는 시간이 더 길어졌어요 😂",
+        created_at: new Date(Date.now() - 1.5 * 60 * 60 * 1000).toISOString(),
+        likes_count: 8,
+        is_liked: false,
+        replies: [
+          {
+            id: "comment-1-1-1",
+            author: {
+              id: "user-kr-1",
+              username: "dev_minjun",
+              display_name: "김민준",
+              avatar_url: "https://avatars.githubusercontent.com/u/10001?v=4",
+            },
+            content: "진짜 그래요 ㅋㅋ 리뷰도 Claude한테 시키면 되나..?",
+            created_at: new Date(Date.now() - 1 * 60 * 60 * 1000).toISOString(),
+            parent_comment_id: "comment-1-1",
+            likes_count: 3,
+            is_liked: true,
+          },
+        ],
+      },
+      {
+        id: "comment-1-2",
+        author: {
+          id: "user-us-1",
+          username: "sarah_codes",
+          display_name: "Sarah Chen",
+          avatar_url: "https://avatars.githubusercontent.com/u/10002?v=4",
+        },
+        content: "What stack did you use? I'm curious about the architecture!",
+        created_at: new Date(Date.now() - 1 * 60 * 60 * 1000).toISOString(),
+        likes_count: 5,
+        is_liked: false,
+      },
+    ],
+  },
+  {
+    id: "mock-2",
+    author: {
+      id: "user-us-1",
+      username: "sarah_codes",
+      display_name: "Sarah Chen",
+      avatar_url: "https://avatars.githubusercontent.com/u/10002?v=4",
+      level: 8,
+      country_code: "US",
+    },
+    content:
+      "Just hit 50M tokens this month! 🎉 Mostly refactoring a legacy Java codebase to TypeScript. Claude Code understood the business logic perfectly and suggested some really elegant patterns I wouldn't have thought of.",
+    translated_content:
+      "이번 달 5천만 토큰 달성! 🎉 대부분 레거시 Java 코드베이스를 TypeScript로 리팩토링하는 데 사용했어요. Claude Code가 비즈니스 로직을 완벽하게 이해하고 제가 생각하지 못했을 정말 우아한 패턴들을 제안해줬습니다.",
+    original_language: "en",
+    is_translated: true,
+    likes_count: 89,
+    comments_count: 23,
+    created_at: new Date(Date.now() - 5 * 60 * 60 * 1000).toISOString(),
+    comments: [
+      {
+        id: "comment-2-1",
+        author: {
+          id: "user-jp-1",
+          username: "tanaka_dev",
+          display_name: "田中太郎",
+          avatar_url: "https://avatars.githubusercontent.com/u/10004?v=4",
+        },
+        content: "50M tokens is insane! 🔥 How long did the refactoring take?",
+        created_at: new Date(Date.now() - 4 * 60 * 60 * 1000).toISOString(),
+        likes_count: 12,
+        is_liked: false,
+        replies: [
+          {
+            id: "comment-2-1-1",
+            author: {
+              id: "user-us-1",
+              username: "sarah_codes",
+              display_name: "Sarah Chen",
+              avatar_url: "https://avatars.githubusercontent.com/u/10002?v=4",
+            },
+            content: "About 2 weeks for 200k LOC! Would've been months without Claude 😅",
+            created_at: new Date(Date.now() - 3.5 * 60 * 60 * 1000).toISOString(),
+            parent_comment_id: "comment-2-1",
+            likes_count: 18,
+            is_liked: true,
+          },
+          {
+            id: "comment-2-1-2",
+            author: {
+              id: "user-kr-3",
+              username: "backend_hyunwoo",
+              display_name: "박현우",
+              avatar_url: "https://avatars.githubusercontent.com/u/10005?v=4",
+            },
+            content: "200k LOC를 2주만에?! 진짜 대단하네요 👏",
+            created_at: new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString(),
+            parent_comment_id: "comment-2-1",
+            likes_count: 7,
+            is_liked: false,
+          },
+        ],
+      },
+    ],
+  },
+  {
+    id: "mock-3",
+    author: {
+      id: "user-kr-2",
+      username: "fullstack_jisoo",
+      display_name: "이지수",
+      avatar_url: "https://avatars.githubusercontent.com/u/10003?v=4",
+      level: 5,
+      country_code: "KR",
+    },
+    content:
+      "오늘의 팁: CLAUDE.md 파일에 프로젝트 컨벤션 정리해두면 Claude가 알아서 스타일 맞춰서 코드 짜줍니다. ESLint 룰이랑 네이밍 컨벤션 적어뒀더니 PR 리뷰 코멘트가 확 줄었어요 👍",
+    original_language: "ko",
+    is_translated: false,
+    likes_count: 156,
+    comments_count: 34,
+    created_at: new Date(Date.now() - 8 * 60 * 60 * 1000).toISOString(),
+    comments: [
+      {
+        id: "comment-3-1",
+        author: {
+          id: "user-kr-1",
+          username: "dev_minjun",
+          display_name: "김민준",
+          avatar_url: "https://avatars.githubusercontent.com/u/10001?v=4",
+        },
+        content: "오 이거 꿀팁이다! 바로 적용해봐야겠어요 👍",
+        created_at: new Date(Date.now() - 7 * 60 * 60 * 1000).toISOString(),
+        likes_count: 24,
+        is_liked: true,
+      },
+      {
+        id: "comment-3-2",
+        author: {
+          id: "user-kr-3",
+          username: "backend_hyunwoo",
+          display_name: "박현우",
+          avatar_url: "https://avatars.githubusercontent.com/u/10005?v=4",
+        },
+        content: "CLAUDE.md 예시 파일 공유해주실 수 있나요? 🙏",
+        created_at: new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString(),
+        likes_count: 15,
+        is_liked: false,
+        replies: [
+          {
+            id: "comment-3-2-1",
+            author: {
+              id: "user-kr-2",
+              username: "fullstack_jisoo",
+              display_name: "이지수",
+              avatar_url: "https://avatars.githubusercontent.com/u/10003?v=4",
+            },
+            content: "GitHub Gist로 올려둘게요! 프로필 링크 확인해주세요 ✨",
+            created_at: new Date(Date.now() - 5.5 * 60 * 60 * 1000).toISOString(),
+            parent_comment_id: "comment-3-2",
+            likes_count: 31,
+            is_liked: false,
+          },
+        ],
+      },
+    ],
+  },
+  {
+    id: "mock-4",
+    author: {
+      id: "user-jp-1",
+      username: "tanaka_dev",
+      display_name: "田中太郎",
+      avatar_url: "https://avatars.githubusercontent.com/u/10004?v=4",
+      level: 7,
+      country_code: "JP",
+    },
+    content:
+      "Claude Codeでブログ自動化を完成しました！生産性がヤバいです 🔥 AIが要件を完璧に理解して、きれいなTypeScriptコードを生成してくれました。",
+    translated_content:
+      "Claude Code로 블로그 자동화를 완성했습니다! 생산성이 미쳤어요 🔥 AI가 요구사항을 완벽히 이해하고 깔끔한 TypeScript 코드를 생성해줬습니다.",
+    original_language: "ja",
+    is_translated: true,
+    likes_count: 38,
+    comments_count: 8,
+    created_at: new Date(Date.now() - 12 * 60 * 60 * 1000).toISOString(),
+    comments: [
+      {
+        id: "comment-4-1",
+        author: {
+          id: "user-us-1",
+          username: "sarah_codes",
+          display_name: "Sarah Chen",
+          avatar_url: "https://avatars.githubusercontent.com/u/10002?v=4",
+        },
+        content: "ブログ自動化すごい! What kind of automation did you build?",
+        created_at: new Date(Date.now() - 11 * 60 * 60 * 1000).toISOString(),
+        likes_count: 4,
+        is_liked: false,
+      },
+    ],
+  },
+  {
+    id: "mock-5",
+    author: {
+      id: "user-kr-3",
+      username: "backend_hyunwoo",
+      display_name: "박현우",
+      avatar_url: "https://avatars.githubusercontent.com/u/10005?v=4",
+      level: 4,
+      country_code: "KR",
+    },
+    content:
+      '신입인데 Claude Code 덕분에 시니어처럼 일하는 중 ㅋㅋㅋ 코드 리뷰 받을 때 "이거 네가 짠 거 맞아?"라는 말 들었습니다. 맞긴 한데... 반쯤은 Claude가 짰죠 😅',
+    original_language: "ko",
+    is_translated: false,
+    likes_count: 203,
+    comments_count: 45,
+    created_at: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
+    comments: [
+      {
+        id: "comment-5-1",
+        author: {
+          id: "user-kr-2",
+          username: "fullstack_jisoo",
+          display_name: "이지수",
+          avatar_url: "https://avatars.githubusercontent.com/u/10003?v=4",
+        },
+        content: "ㅋㅋㅋㅋ 공감 100%! 저도 비슷한 경험 있어요 😂",
+        created_at: new Date(Date.now() - 23 * 60 * 60 * 1000).toISOString(),
+        likes_count: 45,
+        is_liked: true,
+        replies: [
+          {
+            id: "comment-5-1-1",
+            author: {
+              id: "user-kr-1",
+              username: "dev_minjun",
+              display_name: "김민준",
+              avatar_url: "https://avatars.githubusercontent.com/u/10001?v=4",
+            },
+            content: "사실 다들 그런 거 아닌가요? ㅋㅋㅋ",
+            created_at: new Date(Date.now() - 22 * 60 * 60 * 1000).toISOString(),
+            parent_comment_id: "comment-5-1",
+            likes_count: 28,
+            is_liked: false,
+          },
+        ],
+      },
+      {
+        id: "comment-5-2",
+        author: {
+          id: "user-jp-1",
+          username: "tanaka_dev",
+          display_name: "田中太郎",
+          avatar_url: "https://avatars.githubusercontent.com/u/10004?v=4",
+        },
+        content: "僕も同じです！新人なのにシニアレベルのコードが書けるようになりました 💪",
+        created_at: new Date(Date.now() - 20 * 60 * 60 * 1000).toISOString(),
+        likes_count: 19,
+        is_liked: false,
+      },
+    ],
+  },
+];
+
 // Static style object (no need for useMemo - defined outside component)
 const PARTICLE_CONTAINER_STYLE = {
   top: 220,
@@ -185,12 +523,71 @@ interface DisplayUser extends LeaderboardUser {
 export default function LeaderboardPage() {
   const { user: clerkUser } = useUser();
   const searchParams = useSearchParams();
+  const pathname = usePathname();
   const highlightUsername = searchParams.get("u");
+
+  // Determine initial view from pathname
+  const getInitialView = (): ViewMode => {
+    if (pathname === "/community") return "community";
+    return "leaderboard";
+  };
+
+  // View mode for tab switching (leaderboard | community)
+  const [viewMode, setViewMode] = useState<ViewMode>(getInitialView);
+
+  // URL sync: Update URL when viewMode changes (zero-latency, no page reload)
+  useEffect(() => {
+    const targetUrl = viewMode === "community" ? "/community" : "/leaderboard";
+    if (pathname !== targetUrl) {
+      window.history.replaceState(null, "", targetUrl);
+    }
+  }, [viewMode, pathname]);
+
+  // Community tab state (extensible for future tabs)
+  const [communityTab, setCommunityTab] = useState<CommunityTab>("vibes");
+  // Post modal state (controlled at page level for filter area button)
+  const [isPostModalOpen, setIsPostModalOpen] = useState(false);
+  // Submission guide modal state (explains why submission is needed)
+  const [isSubmissionGuideOpen, setIsSubmissionGuideOpen] = useState(false);
+  // CLI modal state (shows how to use CLI)
+  const [isCLIModalOpen, setIsCLIModalOpen] = useState(false);
+  // Login modal state (for non-logged-in users)
+  const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
+  const [loginModalType, setLoginModalType] = useState<
+    "community_like" | "community_comment" | "community_post"
+  >("community_post");
+  // Featured post state (for Hall of Fame → Feed highlight)
+  const [featuredPostId, setFeaturedPostId] = useState<string | null>(null);
+  // Author filter state (for showing only one user's posts in community tab)
+  const [authorFilter, setAuthorFilter] = useState<string | null>(null);
+  const [authorFilterInfo, setAuthorFilterInfo] = useState<{
+    username: string;
+    displayName?: string | null;
+  } | null>(null);
+  // Community posts state (API-driven, mock data for development)
+  const [communityPosts, setCommunityPosts] = useState<FeedPost[]>(MOCK_COMMUNITY_POSTS);
+  const [communityLoading, setCommunityLoading] = useState(false);
+  // Community stats for display (mock data for now, can be fetched from API later)
+  const communityStats = useMemo(() => {
+    const totalPosts = communityPosts.length;
+    const totalLikes = communityPosts.reduce((sum, post) => sum + post.likes_count, 0);
+    const uniqueAuthors = new Set(communityPosts.map((post) => post.author.id)).size;
+    // Mock member count (in production, fetch from API)
+    const mockMemberCount = 1234;
+    return {
+      members: mockMemberCount,
+      posts: totalPosts,
+      likes: totalLikes,
+      contributors: uniqueAuthors,
+    };
+  }, [communityPosts]);
+
   const [selectedUser, setSelectedUser] = useState<DisplayUser | null>(null);
   const [isPanelOpen, setIsPanelOpen] = useState(false);
   const [isGlobePanelOpen, setIsGlobePanelOpen] = useState(false);
   const [periodFilter, setPeriodFilter] = useState<PeriodFilter>("all");
   const [scopeFilter, setScopeFilter] = useState<ScopeFilter>("global");
+  const [globePulse, setGlobePulse] = useState(false);
   const [sortBy, setSortBy] = useState<SortByFilter>("tokens");
   const [showLevelInfo, setShowLevelInfo] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
@@ -235,10 +632,8 @@ export default function LeaderboardPage() {
   const hasMore = loadedPageRange.end < totalPages;
   const hasPrevious = loadedPageRange.start > 1;
 
-  // Ref for infinite scroll
+  // Ref for table container
   const tableContainerRef = useRef<HTMLDivElement>(null);
-  const loadMoreTriggerRef = useRef<HTMLDivElement>(null);
-  const loadPreviousTriggerRef = useRef<HTMLDivElement>(null);
   // Track scroll position for prepend restoration
   const scrollHeightBeforePrepend = useRef<number>(0);
 
@@ -600,6 +995,14 @@ export default function LeaderboardPage() {
     }
   }, [userTargetPage, loading, users]);
 
+  // Reset globe pulse after animation completes
+  useEffect(() => {
+    if (globePulse) {
+      const timer = setTimeout(() => setGlobePulse(false), 400);
+      return () => clearTimeout(timer);
+    }
+  }, [globePulse]);
+
   // Fetch current user's country and username
   useEffect(() => {
     async function fetchUserInfo() {
@@ -815,52 +1218,6 @@ export default function LeaderboardPage() {
     setUserTargetPage(null);
   }, [scopeFilter, periodFilter, sortBy]);
 
-  // IntersectionObserver for infinite scroll (downward - load more)
-  useEffect(() => {
-    const trigger = loadMoreTriggerRef.current;
-    if (!trigger) return;
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        const entry = entries[0];
-        if (entry?.isIntersecting && hasMore && !loadingMore && !loading) {
-          loadMore();
-        }
-      },
-      {
-        root: tableContainerRef.current,
-        rootMargin: "100px",
-        threshold: 0,
-      }
-    );
-
-    observer.observe(trigger);
-    return () => observer.disconnect();
-  }, [hasMore, loadingMore, loading, loadMore]);
-
-  // IntersectionObserver for infinite scroll (upward - load previous)
-  useEffect(() => {
-    const trigger = loadPreviousTriggerRef.current;
-    if (!trigger) return;
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        const entry = entries[0];
-        if (entry?.isIntersecting && hasPrevious && !loadingPrevious && !loading) {
-          loadPrevious();
-        }
-      },
-      {
-        root: tableContainerRef.current,
-        rootMargin: "50px",
-        threshold: 0,
-      }
-    );
-
-    observer.observe(trigger);
-    return () => observer.disconnect();
-  }, [hasPrevious, loadingPrevious, loading, loadPrevious]);
-
   // Track Globe position for full-screen particles
   // Only update on resize (not scroll) - particles don't need to follow scroll
   useEffect(() => {
@@ -893,6 +1250,178 @@ export default function LeaderboardPage() {
   const handleClosePanel = () => {
     setIsPanelOpen(false);
   };
+
+  // Handle posts click from ProfileSidePanel - filter community feed by author
+  const handlePostsClick = (userId: string) => {
+    // Find author info from community posts
+    const post = communityPosts.find((p: FeedPost) => p.author.id === userId);
+    if (post) {
+      setAuthorFilter(userId);
+      setAuthorFilterInfo({
+        username: post.author.username,
+        displayName: post.author.display_name,
+      });
+      // Switch to community view if not already
+      if (viewMode !== "community") {
+        setViewMode("community");
+      }
+    }
+  };
+
+  // Clear author filter
+  const handleClearAuthorFilter = () => {
+    setAuthorFilter(null);
+    setAuthorFilterInfo(null);
+  };
+
+  // =====================================================
+  // Community API Functions
+  // =====================================================
+
+  // Fetch community posts
+  // TODO: Remove USE_MOCK_DATA flag when API is ready for production
+  const USE_MOCK_DATA = true; // Set to false when API is production-ready
+
+  const fetchCommunityPosts = useCallback(
+    async (tab: string = "all") => {
+      setCommunityLoading(true);
+      try {
+        // Use mock data for development to test comment UI
+        if (USE_MOCK_DATA) {
+          setCommunityPosts(MOCK_COMMUNITY_POSTS);
+          setCommunityLoading(false);
+          return;
+        }
+
+        const params = new URLSearchParams();
+        if (tab !== "all") {
+          params.set("tab", tab);
+        }
+        if (authorFilter) {
+          params.set("author", authorFilter);
+        }
+        const res = await fetch(`/api/community/posts?${params.toString()}`);
+        if (!res.ok) throw new Error("Failed to fetch posts");
+        const data = await res.json();
+
+        // Transform API response to match FeedPost interface
+        const transformedPosts: FeedPost[] = (data.posts || []).map(
+          (post: {
+            id: string;
+            author: {
+              id: string;
+              username: string;
+              display_name: string | null;
+              avatar_url: string | null;
+              current_level: number;
+              country_code: string | null;
+            };
+            content: string;
+            tab: string;
+            original_language: string;
+            is_translated: boolean;
+            created_at: string;
+            likes_count: number;
+            comments_count: number;
+            is_liked: boolean;
+          }) => ({
+            id: post.id,
+            author: {
+              id: post.author.id,
+              username: post.author.username,
+              display_name: post.author.display_name,
+              avatar_url: post.author.avatar_url,
+              level: post.author.current_level || 1,
+              country_code: post.author.country_code,
+            },
+            content: post.content,
+            original_language: post.original_language || "en",
+            is_translated: post.is_translated || false,
+            created_at: post.created_at,
+            likes_count: post.likes_count || 0,
+            comments_count: post.comments_count || 0,
+            is_liked: post.is_liked || false,
+            comments: [], // Comments are fetched separately when viewing post
+          })
+        );
+
+        // Use mock data if API returns fewer posts than our mock (for development with realistic data)
+        // Once production has enough posts, this will naturally switch to API data
+        setCommunityPosts(
+          transformedPosts.length >= MOCK_COMMUNITY_POSTS.length
+            ? transformedPosts
+            : MOCK_COMMUNITY_POSTS
+        );
+      } catch (err) {
+        console.error("Error fetching community posts:", err);
+        // Keep mock data on error (development fallback)
+        setCommunityPosts(MOCK_COMMUNITY_POSTS);
+      } finally {
+        setCommunityLoading(false);
+      }
+    },
+    [authorFilter]
+  );
+
+  // Handle post creation
+  const handleCreatePost = useCallback(
+    async (content: string, tab: string) => {
+      try {
+        const res = await fetch("/api/community/posts", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ content, tab }),
+        });
+
+        if (!res.ok) {
+          const data = await res.json();
+          console.error("Failed to create post:", data.error);
+          return;
+        }
+
+        // Refresh posts after creation
+        fetchCommunityPosts(communityTab);
+      } catch (err) {
+        console.error("Error creating post:", err);
+      }
+    },
+    [fetchCommunityPosts, communityTab]
+  );
+
+  // Handle like toggle
+  const handleLikePost = useCallback(async (postId: string) => {
+    try {
+      const res = await fetch(`/api/community/posts/${postId}/like`, {
+        method: "POST",
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        console.error("Failed to toggle like:", data.error);
+        return;
+      }
+
+      const data = await res.json();
+
+      // Update local state optimistically
+      setCommunityPosts((prev) =>
+        prev.map((post) =>
+          post.id === postId
+            ? { ...post, is_liked: data.liked, likes_count: data.likes_count }
+            : post
+        )
+      );
+    } catch (err) {
+      console.error("Error toggling like:", err);
+    }
+  }, []);
+
+  // Fetch community posts when switching to community mode or tab changes
+  useEffect(() => {
+    if (viewMode === "community") {
+      fetchCommunityPosts(communityTab);
+    }
+  }, [viewMode, communityTab, fetchCommunityPosts]);
 
   // Use compact ratio only when: viewport < 1200px AND panel is open
   // Above 1200px: Globe remains visible alongside panel
@@ -970,7 +1499,10 @@ export default function LeaderboardPage() {
           style={PARTICLE_CONTAINER_STYLE}
         >
           <div className="absolute" style={particleInnerStyle}>
-            <GlobeParticles size={isTablet ? 280 : 320} />
+            <GlobeParticles
+              size={isTablet ? 280 : 320}
+              speed={viewMode === "community" ? 0.4 : 1}
+            />
           </div>
         </div>
       )}
@@ -980,29 +1512,33 @@ export default function LeaderboardPage() {
           style={containerStyle}
         >
           {/* Header */}
-          <header className="mb-4 md:mb-8">
+          <header className="mb-4 md:mb-6">
+            {/* Context Header with Timezone Clock */}
             <div className="flex items-center justify-between">
-              <h1 className="text-2xl font-bold text-[var(--color-text-primary)] flex items-center gap-2">
-                {scopeFilter === "global" ? (
-                  <>🌍 Global Leaderboard</>
-                ) : (
-                  <>
-                    <ReactCountryFlag
-                      countryCode={currentUserCountry}
-                      svg
-                      style={{ width: "20px", height: "20px" }}
-                    />
-                    Country Leaderboard
-                  </>
-                )}
-              </h1>
+              <div>
+                <h1 className="text-xl font-bold text-[var(--color-text-primary)] flex items-center gap-2">
+                  {viewMode === "leaderboard" ? (
+                    scopeFilter === "global" ? (
+                      <>🌍 Global Leaderboard</>
+                    ) : (
+                      <>
+                        <FlagIcon countryCode={currentUserCountry} size="sm" />
+                        Country Leaderboard
+                      </>
+                    )
+                  ) : (
+                    <>💬 Community</>
+                  )}
+                </h1>
+                <p className="text-xs text-[var(--color-text-secondary)] mt-0.5">
+                  {viewMode === "leaderboard"
+                    ? `Top Claude Code developers ranked by ${sortBy === "tokens" ? "token usage" : "spending"}`
+                    : "Connect with Claude Code developers worldwide"}
+                </p>
+              </div>
               {/* Live timezone clock - tablet and desktop only (768px+) */}
               <TimezoneClock className="hidden md:inline-flex" />
             </div>
-            <p className="text-sm text-[var(--color-text-secondary)] mt-1">
-              Top Claude Code developers ranked by{" "}
-              {sortBy === "tokens" ? "token usage" : "spending"}
-            </p>
           </header>
 
           {/* Mobile timezone clock - centered between title and filters (below 768px) */}
@@ -1030,39 +1566,100 @@ export default function LeaderboardPage() {
                 <div
                   className={`flex items-center gap-1.5 text-xs ${isTablet ? "text-[10px]" : ""}`}
                 >
-                  <span className="flex items-center gap-1 text-[var(--color-text-primary)]">
-                    <span>🌍</span>
-                  </span>
-                  <span className="text-[var(--color-text-muted)]">·</span>
-                  <span
-                    className={`flex items-center gap-1 ${
-                      sortBy === "tokens"
-                        ? "text-[var(--color-text-muted)]"
-                        : "text-[var(--color-cost)]"
-                    }`}
-                  >
-                    <span>💰</span>
-                    <span className="font-semibold">
-                      ${totalGlobalCost.toLocaleString(undefined, { maximumFractionDigits: 0 })}
-                    </span>
-                  </span>
-                  <span className="text-[var(--color-text-muted)]">·</span>
-                  <span
-                    className={`flex items-center gap-1 ${
-                      sortBy === "cost"
-                        ? "text-[var(--color-text-muted)]"
-                        : "text-[var(--color-claude-coral)]"
-                    }`}
-                  >
-                    <span>⚡</span>
-                    <span className="font-semibold">{totalGlobalTokens.toLocaleString()}</span>
-                  </span>
+                  {viewMode === "community" ? (
+                    /* Community Stats: members, posts, likes - 1초에 약 1씩 천천히 롤링 */
+                    <>
+                      <span className="flex items-center gap-1 text-[var(--color-accent-cyan)]">
+                        <span>👥</span>
+                        <AnimatedNumber
+                          value={communityStats.members}
+                          perUnitDuration={800}
+                          maxDuration={20000}
+                          easing="linear"
+                          className="font-semibold"
+                          storageKey="community_members"
+                        />
+                        <span className="text-[var(--color-text-muted)] font-normal">members</span>
+                      </span>
+                      <span className="text-[var(--color-text-muted)]">·</span>
+                      <span className="flex items-center gap-1 text-[var(--color-claude-coral)]">
+                        <span>📝</span>
+                        <AnimatedNumber
+                          value={communityStats.posts}
+                          perUnitDuration={800}
+                          maxDuration={20000}
+                          easing="linear"
+                          className="font-semibold"
+                          storageKey="community_posts"
+                        />
+                        <span className="text-[var(--color-text-muted)] font-normal">posts</span>
+                      </span>
+                      <span className="text-[var(--color-text-muted)]">·</span>
+                      <span className="flex items-center gap-1 text-[var(--color-accent-red)]">
+                        <span>❤️</span>
+                        <AnimatedNumber
+                          value={communityStats.likes}
+                          perUnitDuration={800}
+                          maxDuration={20000}
+                          easing="linear"
+                          className="font-semibold"
+                          storageKey="community_likes"
+                        />
+                        <span className="text-[var(--color-text-muted)] font-normal">likes</span>
+                      </span>
+                    </>
+                  ) : (
+                    /* Leaderboard Stats: cost & tokens - 느린 linear 애니메이션으로 real-time 느낌 */
+                    <>
+                      <span className="flex items-center gap-1 text-[var(--color-text-primary)]">
+                        <span>🌍</span>
+                      </span>
+                      <span className="text-[var(--color-text-muted)]">·</span>
+                      <span
+                        className={`flex items-center gap-1 ${
+                          sortBy === "tokens"
+                            ? "text-[var(--color-text-muted)]"
+                            : "text-[var(--color-cost)]"
+                        }`}
+                      >
+                        <span>💰</span>
+                        <AnimatedNumber
+                          value={Math.round(totalGlobalCost)}
+                          duration={8000}
+                          easing="linear"
+                          className="font-semibold"
+                          formatter={(n) => `$${n.toLocaleString()}`}
+                          storageKey="leaderboard_cost"
+                        />
+                      </span>
+                      <span className="text-[var(--color-text-muted)]">·</span>
+                      <span
+                        className={`flex items-center gap-1 ${
+                          sortBy === "cost"
+                            ? "text-[var(--color-text-muted)]"
+                            : "text-[var(--color-claude-coral)]"
+                        }`}
+                      >
+                        <span>⚡</span>
+                        <AnimatedNumber
+                          value={totalGlobalTokens}
+                          duration={10000}
+                          easing="linear"
+                          className="font-semibold"
+                          storageKey="leaderboard_tokens"
+                        />
+                      </span>
+                    </>
+                  )}
                 </div>
 
-                {/* Scope Filter - right aligned */}
+                {/* Scope Filter - right aligned (Both Leaderboard and Community) */}
                 <div className="flex h-[34px] glass rounded-lg overflow-hidden">
                   <button
-                    onClick={() => setScopeFilter("global")}
+                    onClick={() => {
+                      setScopeFilter("global");
+                      setGlobePulse(true);
+                    }}
                     className={`h-[34px] w-[34px] text-[11px] leading-none font-medium transition-colors flex items-center justify-center ${
                       scopeFilter === "global"
                         ? "bg-[var(--color-claude-coral)]/50 text-[var(--color-claude-coral)]"
@@ -1072,7 +1669,10 @@ export default function LeaderboardPage() {
                     🌍
                   </button>
                   <button
-                    onClick={() => setScopeFilter("country")}
+                    onClick={() => {
+                      setScopeFilter("country");
+                      setGlobePulse(true);
+                    }}
                     className={`h-[34px] w-[34px] text-[11px] leading-none font-medium transition-colors flex items-center justify-center ${
                       scopeFilter === "country"
                         ? "bg-emerald-500/50 text-emerald-400"
@@ -1080,10 +1680,9 @@ export default function LeaderboardPage() {
                     }`}
                   >
                     {currentUserCountry && (
-                      <ReactCountryFlag
+                      <FlagIcon
                         countryCode={currentUserCountry}
-                        svg
-                        style={{ width: "14px", height: "14px" }}
+                        size="xs"
                         className="flex-shrink-0"
                       />
                     )}
@@ -1113,9 +1712,10 @@ export default function LeaderboardPage() {
                   >
                     {/* GlobeParticles moved to full-screen background layer */}
                     {/* Globe - fades to 10% when sticky locked or on scroll */}
+                    {/* pointer-events-none when stickyLocked to allow interaction with Hall of Fame */}
                     <div
                       ref={globeContainerRef}
-                      className="transition-opacity duration-300 pointer-events-auto"
+                      className={`transition-opacity duration-300 ${stickyLocked ? "pointer-events-none" : "pointer-events-auto"} ${globePulse ? "animate-globe-pulse" : ""}`}
                       style={{
                         opacity: stickyLocked
                           ? 0.1
@@ -1142,27 +1742,80 @@ export default function LeaderboardPage() {
                   style={{ height: stickyLocked ? 0 : isTablet ? 380 : 420 }}
                 />
 
-                {/* Top Countries Section with sticky header - fills remaining space */}
-                <div
-                  className={`glass !border-0 rounded-t-2xl flex-1 flex flex-col ${stickyLocked ? "" : isTablet ? "mt-2" : "mt-4"}`}
-                >
-                  {/* Sticky Header - extends 2px above to cover rounded corner gap */}
+                {/* Left Column Content - changes based on viewMode */}
+                {viewMode === "leaderboard" ? (
+                  /* Top Countries Section with sticky header - z-20 to be above Globe (z-10) */
                   <div
-                    className={`sticky top-0 z-20 h-[42px] flex items-center gap-2 bg-[var(--glass-bg)] backdrop-blur-md rounded-t-2xl border-b border-[var(--color-text-muted)]/30 px-3`}
-                    style={{ marginTop: -2, paddingTop: 2 }}
+                    className={`glass !border-0 rounded-t-2xl flex-1 flex flex-col pointer-events-auto relative z-20 ${stickyLocked ? "" : isTablet ? "mt-2" : "mt-4"}`}
                   >
-                    {/* Trophy - aligned with rank column */}
-                    <span className="w-6 text-xs text-center flex-shrink-0">🏆</span>
-                    {/* Spacer for flag column */}
-                    <span className="w-4 flex-shrink-0"></span>
-                    {/* Title - aligned with country name */}
-                    <span className="flex-1 text-xs font-medium text-[var(--color-text-secondary)]">
-                      Top Countries
-                    </span>
-                    {/* Right side controls */}
-                    <div className="flex items-center gap-2 flex-shrink-0">
-                      <span className="text-[10px] text-[var(--color-text-muted)]">
-                        by {sortBy === "tokens" ? "Token Usage" : "Cost"}
+                    {/* Sticky Header - extends 2px above to cover rounded corner gap */}
+                    <div
+                      className={`sticky top-0 z-20 h-[42px] flex items-center gap-2 bg-[var(--glass-bg)] backdrop-blur-md rounded-t-2xl border-b border-[var(--color-text-muted)]/30 px-3`}
+                      style={{ marginTop: -2, paddingTop: 2 }}
+                    >
+                      {/* Trophy - aligned with rank column */}
+                      <span className="w-6 text-xs text-center flex-shrink-0">🏆</span>
+                      {/* Spacer for flag column */}
+                      <span className="w-4 flex-shrink-0"></span>
+                      {/* Title - aligned with country name */}
+                      <span className="flex-1 text-xs font-medium text-[var(--color-text-secondary)]">
+                        Top Countries
+                      </span>
+                      {/* Right side controls */}
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        <span className="text-[10px] text-[var(--color-text-muted)]">
+                          by {sortBy === "tokens" ? "Token Usage" : "Cost"}
+                        </span>
+                        {stickyLocked && (
+                          <button
+                            onClick={handleExpandGlobe}
+                            className={`w-6 h-6 flex items-center justify-center rounded text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] hover:bg-white/10 transition-all ${
+                              shakeExpandButton
+                                ? "animate-shake bg-[var(--color-claude-coral)]/30 text-[var(--color-claude-coral)] ring-1 ring-[var(--color-claude-coral)]/50"
+                                : ""
+                            }`}
+                            title="Show Globe"
+                          >
+                            <ChevronDown size={16} />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                    {/* Country List - flex-1 to fill remaining space */}
+                    <div className={`${isTablet ? "p-3 pt-2" : "p-4 pt-3"} flex-1`}>
+                      {countryStats.length > 0 && (
+                        <TopCountriesSection
+                          ref={topCountriesSectionRef}
+                          stats={countryStats}
+                          totalTokens={totalGlobalTokens}
+                          totalCost={totalGlobalCost}
+                          sortBy={sortBy}
+                          userCountryCode={currentUserCountry}
+                          compact={viewportWidth < 860}
+                          hideHeader
+                          onUserCountryVisibilityChange={handleUserCountryVisibilityChange}
+                          scrollContainerRef={leftColumnRef}
+                        />
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  /* Community Stats Section - z-20 to be above Globe (z-10), pointer-events-auto to block Globe interaction */
+                  /* Always maintain sufficient height to allow scrolling */
+                  <div
+                    className={`glass !border-0 rounded-t-2xl flex flex-col pointer-events-auto relative z-20 ${stickyLocked ? "" : isTablet ? "mt-2" : "mt-4"}`}
+                    style={{
+                      minHeight: "calc(100vh - 64px - 156px)",
+                    }}
+                  >
+                    {/* Sticky Header */}
+                    <div
+                      className={`sticky top-0 z-20 h-[42px] flex items-center gap-2 bg-[var(--glass-bg)] backdrop-blur-md rounded-t-2xl border-b border-[var(--color-text-muted)]/30 px-3`}
+                      style={{ marginTop: -2, paddingTop: 2 }}
+                    >
+                      <span className="w-6 text-xs text-center flex-shrink-0">🌐</span>
+                      <span className="flex-1 text-xs font-medium text-[var(--color-text-secondary)]">
+                        Community Stats
                       </span>
                       {stickyLocked && (
                         <button
@@ -1178,177 +1831,189 @@ export default function LeaderboardPage() {
                         </button>
                       )}
                     </div>
-                  </div>
-                  {/* Country List - flex-1 to fill remaining space */}
-                  <div className={`${isTablet ? "p-3 pt-2" : "p-4 pt-3"} flex-1`}>
-                    {countryStats.length > 0 && (
-                      <TopCountriesSection
-                        ref={topCountriesSectionRef}
-                        stats={countryStats}
-                        totalTokens={totalGlobalTokens}
-                        totalCost={totalGlobalCost}
-                        sortBy={sortBy}
-                        userCountryCode={currentUserCountry}
-                        compact={viewportWidth < 860}
-                        hideHeader
-                        onUserCountryVisibilityChange={handleUserCountryVisibilityChange}
-                        scrollContainerRef={leftColumnRef}
+                    {/* Hall of Fame Content */}
+                    <div className={`${isTablet ? "p-3 pt-2" : "p-4 pt-3"} flex-1`}>
+                      <HallOfFame
+                        mostLiked={EMPTY_HALL_OF_FAME}
+                        mostReplied={EMPTY_HALL_OF_FAME}
+                        onUserClick={(userId) => {
+                          // Find author from community posts
+                          const post = communityPosts.find((p: FeedPost) => p.author.id === userId);
+                          if (post) {
+                            const postUser: DisplayUser = {
+                              id: userId,
+                              username: post.author.username,
+                              display_name: post.author.display_name || null,
+                              avatar_url: post.author.avatar_url || null,
+                              country_code: post.author.country_code || null,
+                              total_tokens: 0,
+                              total_cost: 0,
+                              rank: 0,
+                              current_level: post.author.level,
+                              global_rank: null,
+                              country_rank: null,
+                            };
+                            setSelectedUser(postUser);
+                            setIsPanelOpen(true);
+                          }
+                        }}
+                        onPostClick={(postId) => {
+                          setFeaturedPostId(postId);
+                        }}
                       />
-                    )}
-                  </div>
-                </div>
-
-                {/* 📍 Your Country - Sticky Top (when scrolled below user's country) */}
-                {!userCountryVisible && userCountryData && userCountryDirection === "above" && (
-                  <div
-                    onClick={jumpToUserCountry}
-                    className="sticky top-[42px] z-30 bg-[var(--glass-bg)] backdrop-blur-md cursor-pointer hover:bg-[var(--glass-bg-hover)] active:bg-[var(--glass-bg-hover)] transition-colors"
-                  >
-                    <div className="text-[10px] text-[var(--color-text-muted)] uppercase tracking-wide px-3 pt-2 pb-1 flex items-center gap-1">
-                      <span>📍 Your Country</span>
-                      <span className="text-[var(--color-text-muted)]/50">↑</span>
-                    </div>
-                    <div className="flex items-center gap-2 px-3 h-10 bg-[var(--user-country-bg)] border-b border-[var(--color-text-muted)]/30">
-                      <span className="w-6 text-xs font-mono text-[var(--color-text-muted)] flex-shrink-0">
-                        #{userCountryRank}
-                      </span>
-                      <div className="w-4 flex-shrink-0">
-                        <ReactCountryFlag
-                          countryCode={userCountryData.code}
-                          svg
-                          style={{ width: "16px", height: "16px" }}
-                        />
-                      </div>
-                      <div className="flex-1 min-w-0 flex items-center gap-1.5">
-                        <span className="text-xs font-medium text-[var(--user-country-text)] truncate">
-                          {userCountryData.name}
-                          <span className="ml-1 text-[10px]">🟢</span>
-                        </span>
-                        <span className="text-[10px] font-mono text-[var(--color-text-muted)] flex-shrink-0">
-                          {(
-                            (sortBy === "tokens"
-                              ? userCountryData.tokens / totalGlobalTokens
-                              : userCountryData.cost / totalGlobalCost) * 100
-                          ).toFixed(1)}
-                          %
-                        </span>
-                      </div>
-                      <div
-                        className={`flex items-center font-mono flex-shrink-0 ${viewportWidth < 860 ? "gap-2 text-[10px]" : "gap-3 text-xs"}`}
-                      >
-                        {viewportWidth < 860 ? (
-                          sortBy === "tokens" ? (
-                            <span className="min-w-[40px] text-right text-[var(--color-cost)]">
-                              $
-                              {userCountryData.cost >= 1000
-                                ? `${(userCountryData.cost / 1000).toFixed(1)}K`
-                                : userCountryData.cost.toFixed(0)}
-                            </span>
-                          ) : (
-                            <span className="min-w-[45px] text-right text-[var(--color-claude-coral)]">
-                              {formatTokens(userCountryData.tokens)}
-                            </span>
-                          )
-                        ) : (
-                          <>
-                            <span
-                              className={`min-w-[40px] text-right ${sortBy === "tokens" ? "text-[var(--color-text-muted)]" : "text-[var(--color-cost)]"}`}
-                            >
-                              $
-                              {userCountryData.cost >= 1000
-                                ? `${(userCountryData.cost / 1000).toFixed(1)}K`
-                                : userCountryData.cost.toFixed(0)}
-                            </span>
-                            <span
-                              className={`min-w-[45px] text-right ${sortBy === "cost" ? "text-[var(--color-text-muted)]" : "text-[var(--color-claude-coral)]"}`}
-                            >
-                              {formatTokens(userCountryData.tokens)}
-                            </span>
-                          </>
-                        )}
-                      </div>
                     </div>
                   </div>
                 )}
 
-                {/* 📍 Your Country - Sticky Bottom (when scrolled above user's country) */}
-                {!userCountryVisible && userCountryData && userCountryDirection === "below" && (
-                  <div
-                    onClick={jumpToUserCountry}
-                    className="sticky bottom-0 z-30 bg-[var(--glass-bg)] backdrop-blur-md border-t border-[var(--color-text-muted)]/30 rounded-b-2xl cursor-pointer hover:bg-[var(--glass-bg-hover)] active:bg-[var(--glass-bg-hover)] transition-colors pb-4"
-                  >
-                    <div className="text-[10px] text-[var(--color-text-muted)] uppercase tracking-wide px-3 pt-2 pb-1 flex items-center gap-1">
-                      <span>📍 Your Country</span>
-                      <span className="text-[var(--color-text-muted)]/50">↓</span>
-                    </div>
-                    <div className="flex items-center gap-2 px-3 h-10 bg-[var(--user-country-bg)]">
-                      <span className="w-6 text-xs font-mono text-[var(--color-text-muted)] flex-shrink-0">
-                        #{userCountryRank}
-                      </span>
-                      <div className="w-4 flex-shrink-0">
-                        <ReactCountryFlag
-                          countryCode={userCountryData.code}
-                          svg
-                          style={{ width: "16px", height: "16px" }}
-                        />
+                {/* 📍 Your Country - Sticky Top (when scrolled below user's country) - Only in leaderboard mode */}
+                {viewMode === "leaderboard" &&
+                  !userCountryVisible &&
+                  userCountryData &&
+                  userCountryDirection === "above" && (
+                    <div
+                      onClick={jumpToUserCountry}
+                      className="sticky top-[42px] z-30 bg-[var(--glass-bg)] backdrop-blur-md cursor-pointer hover:bg-[var(--glass-bg-hover)] active:bg-[var(--glass-bg-hover)] transition-colors"
+                    >
+                      <div className="text-[10px] text-[var(--color-text-muted)] uppercase tracking-wide px-3 pt-2 pb-1 flex items-center gap-1">
+                        <span>📍 Your Country</span>
+                        <span className="text-[var(--color-text-muted)]/50">↑</span>
                       </div>
-                      <div className="flex-1 min-w-0 flex items-center gap-1.5">
-                        <span className="text-xs font-medium text-[var(--user-country-text)] truncate">
-                          {userCountryData.name}
-                          <span className="ml-1 text-[10px]">🟢</span>
+                      <div className="flex items-center gap-2 px-3 h-10 bg-[var(--user-country-bg)] border-b border-[var(--color-text-muted)]/30">
+                        <span className="w-6 text-xs font-mono text-[var(--color-text-muted)] flex-shrink-0">
+                          #{userCountryRank}
                         </span>
-                        <span className="text-[10px] font-mono text-[var(--color-text-muted)] flex-shrink-0">
-                          {(
-                            (sortBy === "tokens"
-                              ? userCountryData.tokens / totalGlobalTokens
-                              : userCountryData.cost / totalGlobalCost) * 100
-                          ).toFixed(1)}
-                          %
-                        </span>
-                      </div>
-                      <div
-                        className={`flex items-center font-mono flex-shrink-0 ${viewportWidth < 860 ? "gap-2 text-[10px]" : "gap-3 text-xs"}`}
-                      >
-                        {viewportWidth < 860 ? (
-                          sortBy === "tokens" ? (
-                            <span className="min-w-[40px] text-right text-[var(--color-cost)]">
-                              $
-                              {userCountryData.cost >= 1000
-                                ? `${(userCountryData.cost / 1000).toFixed(1)}K`
-                                : userCountryData.cost.toFixed(0)}
-                            </span>
+                        <div className="w-4 flex-shrink-0">
+                          <FlagIcon countryCode={userCountryData.code} size="xs" />
+                        </div>
+                        <div className="flex-1 min-w-0 flex items-center gap-1.5">
+                          <span className="text-xs font-medium text-[var(--user-country-text)] truncate">
+                            {userCountryData.name}
+                            <span className="ml-1 text-[10px]">🟢</span>
+                          </span>
+                          <span className="text-[10px] font-mono text-[var(--color-text-muted)] flex-shrink-0">
+                            {(
+                              (sortBy === "tokens"
+                                ? userCountryData.tokens / totalGlobalTokens
+                                : userCountryData.cost / totalGlobalCost) * 100
+                            ).toFixed(1)}
+                            %
+                          </span>
+                        </div>
+                        <div
+                          className={`flex items-center font-mono flex-shrink-0 ${viewportWidth < 860 ? "gap-2 text-[10px]" : "gap-3 text-xs"}`}
+                        >
+                          {viewportWidth < 860 ? (
+                            sortBy === "tokens" ? (
+                              <span className="min-w-[40px] text-right text-[var(--color-cost)]">
+                                $
+                                {userCountryData.cost >= 1000
+                                  ? `${(userCountryData.cost / 1000).toFixed(1)}K`
+                                  : userCountryData.cost.toFixed(0)}
+                              </span>
+                            ) : (
+                              <span className="min-w-[45px] text-right text-[var(--color-claude-coral)]">
+                                {formatTokens(userCountryData.tokens)}
+                              </span>
+                            )
                           ) : (
-                            <span className="min-w-[45px] text-right text-[var(--color-claude-coral)]">
-                              {formatTokens(userCountryData.tokens)}
-                            </span>
-                          )
-                        ) : (
-                          <>
-                            <span
-                              className={`min-w-[40px] text-right ${sortBy === "tokens" ? "text-[var(--color-text-muted)]" : "text-[var(--color-cost)]"}`}
-                            >
-                              $
-                              {userCountryData.cost >= 1000
-                                ? `${(userCountryData.cost / 1000).toFixed(1)}K`
-                                : userCountryData.cost.toFixed(0)}
-                            </span>
-                            <span
-                              className={`min-w-[45px] text-right ${sortBy === "cost" ? "text-[var(--color-text-muted)]" : "text-[var(--color-claude-coral)]"}`}
-                            >
-                              {formatTokens(userCountryData.tokens)}
-                            </span>
-                          </>
-                        )}
+                            <>
+                              <span
+                                className={`min-w-[40px] text-right ${sortBy === "tokens" ? "text-[var(--color-text-muted)]" : "text-[var(--color-cost)]"}`}
+                              >
+                                $
+                                {userCountryData.cost >= 1000
+                                  ? `${(userCountryData.cost / 1000).toFixed(1)}K`
+                                  : userCountryData.cost.toFixed(0)}
+                              </span>
+                              <span
+                                className={`min-w-[45px] text-right ${sortBy === "cost" ? "text-[var(--color-text-muted)]" : "text-[var(--color-claude-coral)]"}`}
+                              >
+                                {formatTokens(userCountryData.tokens)}
+                              </span>
+                            </>
+                          )}
+                        </div>
                       </div>
                     </div>
-                    {/* Safe area padding for mobile */}
-                    <div className="h-[env(safe-area-inset-bottom,0px)]" />
-                  </div>
-                )}
+                  )}
+
+                {/* 📍 Your Country - Sticky Bottom (when scrolled above user's country) - Only in leaderboard mode */}
+                {viewMode === "leaderboard" &&
+                  !userCountryVisible &&
+                  userCountryData &&
+                  userCountryDirection === "below" && (
+                    <div
+                      onClick={jumpToUserCountry}
+                      className="sticky bottom-0 z-30 bg-[var(--glass-bg)] backdrop-blur-md border-t border-[var(--color-text-muted)]/30 rounded-b-2xl cursor-pointer hover:bg-[var(--glass-bg-hover)] active:bg-[var(--glass-bg-hover)] transition-colors pb-4"
+                    >
+                      <div className="text-[10px] text-[var(--color-text-muted)] uppercase tracking-wide px-3 pt-2 pb-1 flex items-center gap-1">
+                        <span>📍 Your Country</span>
+                        <span className="text-[var(--color-text-muted)]/50">↓</span>
+                      </div>
+                      <div className="flex items-center gap-2 px-3 h-10 bg-[var(--user-country-bg)]">
+                        <span className="w-6 text-xs font-mono text-[var(--color-text-muted)] flex-shrink-0">
+                          #{userCountryRank}
+                        </span>
+                        <div className="w-4 flex-shrink-0">
+                          <FlagIcon countryCode={userCountryData.code} size="xs" />
+                        </div>
+                        <div className="flex-1 min-w-0 flex items-center gap-1.5">
+                          <span className="text-xs font-medium text-[var(--user-country-text)] truncate">
+                            {userCountryData.name}
+                            <span className="ml-1 text-[10px]">🟢</span>
+                          </span>
+                          <span className="text-[10px] font-mono text-[var(--color-text-muted)] flex-shrink-0">
+                            {(
+                              (sortBy === "tokens"
+                                ? userCountryData.tokens / totalGlobalTokens
+                                : userCountryData.cost / totalGlobalCost) * 100
+                            ).toFixed(1)}
+                            %
+                          </span>
+                        </div>
+                        <div
+                          className={`flex items-center font-mono flex-shrink-0 ${viewportWidth < 860 ? "gap-2 text-[10px]" : "gap-3 text-xs"}`}
+                        >
+                          {viewportWidth < 860 ? (
+                            sortBy === "tokens" ? (
+                              <span className="min-w-[40px] text-right text-[var(--color-cost)]">
+                                $
+                                {userCountryData.cost >= 1000
+                                  ? `${(userCountryData.cost / 1000).toFixed(1)}K`
+                                  : userCountryData.cost.toFixed(0)}
+                              </span>
+                            ) : (
+                              <span className="min-w-[45px] text-right text-[var(--color-claude-coral)]">
+                                {formatTokens(userCountryData.tokens)}
+                              </span>
+                            )
+                          ) : (
+                            <>
+                              <span
+                                className={`min-w-[40px] text-right ${sortBy === "tokens" ? "text-[var(--color-text-muted)]" : "text-[var(--color-cost)]"}`}
+                              >
+                                $
+                                {userCountryData.cost >= 1000
+                                  ? `${(userCountryData.cost / 1000).toFixed(1)}K`
+                                  : userCountryData.cost.toFixed(0)}
+                              </span>
+                              <span
+                                className={`min-w-[45px] text-right ${sortBy === "cost" ? "text-[var(--color-text-muted)]" : "text-[var(--color-claude-coral)]"}`}
+                              >
+                                {formatTokens(userCountryData.tokens)}
+                              </span>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                      {/* Safe area padding for mobile */}
+                      <div className="h-[env(safe-area-inset-bottom,0px)]" />
+                    </div>
+                  )}
               </div>
             </div>
 
-            {/* Right Column: User Table */}
+            {/* Right Column: User Table or Community Feed */}
             {/* Mobile (<768px): 100% width */}
             {/* Tablet (768-1039px): 55% width, PC (>=1040px): 50% width */}
             {/* When panel opens: expand to 65% (Globe shrinks to 35%) */}
@@ -1358,7 +2023,70 @@ export default function LeaderboardPage() {
               style={rightColumnStyle}
             >
               {/* Filters - Above Table (height: 34px + mb-4 to match left column header) */}
-              <div className="flex items-center justify-between gap-2 mb-4" style={{ height: 34 }}>
+              {/* Community mode: Feed/Help tabs + Post button */}
+              {viewMode === "community" && (
+                <div
+                  className="flex items-center justify-between gap-2 mb-4"
+                  style={{ height: 34 }}
+                >
+                  {/* Left side: Community Stats + Tab Buttons */}
+                  <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-hide">
+                    {/* Community Stats Button - Mobile only */}
+                    <button
+                      onClick={() => setIsGlobePanelOpen(true)}
+                      className="md:hidden rounded-lg glass text-[11px] leading-none font-medium transition-colors flex items-center justify-center text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] hover:bg-white/10 flex-shrink-0"
+                      style={{ width: 34, height: 34 }}
+                      title="View Hall of Fame"
+                    >
+                      🔥
+                    </button>
+                    {/* Tab Buttons - Outline style, each independent */}
+                    {COMMUNITY_TABS.map((tab) => {
+                      const isActive = communityTab === tab.id;
+                      return (
+                        <button
+                          key={tab.id}
+                          onClick={() => setCommunityTab(tab.id)}
+                          className={`h-[34px] px-3.5 text-xs font-medium rounded-lg transition-all whitespace-nowrap flex-shrink-0 border ${
+                            isActive
+                              ? "border-[var(--color-text-muted)]/40 text-[var(--color-text-primary)]"
+                              : "border-transparent text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)]"
+                          }`}
+                        >
+                          {tab.emoji} {tab.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {/* +Post Button - Outline style */}
+                  <button
+                    onClick={() => {
+                      if (!currentUsername) {
+                        // Not logged in - show login modal
+                        setLoginModalType("community_post");
+                        setIsLoginModalOpen(true);
+                        return;
+                      }
+                      if ((currentUserData?.total_tokens || 0) === 0) {
+                        // No submission history - show guide modal first
+                        setIsSubmissionGuideOpen(true);
+                        return;
+                      }
+                      // Has submission history - open post modal
+                      setIsPostModalOpen(true);
+                    }}
+                    className="h-[34px] px-3.5 flex items-center gap-1 text-xs font-medium rounded-lg transition-all border border-[var(--color-text-muted)]/40 text-[var(--color-text-muted)] hover:border-[var(--color-text-primary)]/50 hover:text-[var(--color-text-primary)] flex-shrink-0"
+                  >
+                    <span className="text-sm">+</span>
+                    Post
+                  </button>
+                </div>
+              )}
+              {/* Leaderboard mode: Period filters */}
+              <div
+                className={`flex items-center justify-between gap-2 mb-4 ${viewMode === "community" ? "hidden" : ""}`}
+                style={{ height: 34 }}
+              >
                 <div className="flex items-center gap-1.5 flex-shrink-0">
                   {/* Mini Globe Button - Mobile or when Globe is hidden */}
                   <button
@@ -1399,10 +2127,9 @@ export default function LeaderboardPage() {
                       }`}
                       style={{ width: 34, height: 34 }}
                     >
-                      <ReactCountryFlag
+                      <FlagIcon
                         countryCode={currentUserCountry}
-                        svg
-                        style={{ width: "14px", height: "14px" }}
+                        size="xs"
                         className="flex-shrink-0"
                       />
                     </button>
@@ -1535,8 +2262,8 @@ export default function LeaderboardPage() {
                 </div>
               )}
 
-              {/* Leaderboard Table - Always visible to maintain layout */}
-              {!error && (
+              {/* Leaderboard Table - Only in leaderboard mode */}
+              {viewMode === "leaderboard" && !error && (
                 <div className="flex-1 min-h-0 flex flex-col relative">
                   {/* Subtle loading indicator - thin progress bar at top */}
                   {loading && users.length > 0 && (
@@ -1553,8 +2280,8 @@ export default function LeaderboardPage() {
                       className="overflow-y-auto overflow-x-hidden scrollbar-hide flex-1 md:flex-none"
                       style={scrollContainerStyle}
                     >
-                      {/* Load previous trigger (for bidirectional infinite scroll) */}
-                      <div ref={loadPreviousTriggerRef} className="py-1">
+                      {/* Load previous indicator */}
+                      <div className="py-1">
                         {loadingPrevious && (
                           <div className="flex items-center justify-center gap-2 py-2">
                             <div className="w-4 h-4 border-2 border-[var(--color-claude-coral)] border-t-transparent rounded-full animate-spin" />
@@ -1603,14 +2330,10 @@ export default function LeaderboardPage() {
                                 </div>
                                 <div className="w-[36px] md:w-[44px] text-center">
                                   {user.country_code && (
-                                    <ReactCountryFlag
-                                      countryCode={user.country_code}
-                                      svg
-                                      style={{ width: "16px", height: "16px" }}
-                                    />
+                                    <FlagIcon countryCode={user.country_code} size="xs" />
                                   )}
                                 </div>
-                                <div className="flex-1 flex items-center gap-1.5 px-1 md:px-2">
+                                <div className="flex-1 min-w-[100px] flex items-center gap-1.5 px-1 md:px-2">
                                   <div className="w-6 lg:w-8 flex items-center justify-center flex-shrink-0">
                                     {user.avatar_url ? (
                                       <Image
@@ -1636,14 +2359,14 @@ export default function LeaderboardPage() {
                                     <LevelBadge tokens={user.total_tokens} />
                                   </div>
                                 )}
-                                <div className="w-[60px] md:w-[70px] text-right px-0.5 md:px-1">
+                                <div className="w-[55px] md:w-[65px] text-right px-0.5 md:px-1">
                                   <span
                                     className={`font-mono text-xs ${sortBy === "tokens" ? "text-[var(--color-text-muted)]" : "text-[var(--color-cost)]"}`}
                                   >
                                     {costDisplay}
                                   </span>
                                 </div>
-                                <div className="w-[60px] md:w-[70px] text-right pl-0.5 pr-2 md:pr-3">
+                                <div className="w-[55px] md:w-[65px] text-right pl-0.5 pr-2 md:pr-3">
                                   <span
                                     className={`font-mono text-xs ${sortBy === "cost" ? "text-[var(--color-text-muted)]" : "text-[var(--color-claude-coral)]"}`}
                                   >
@@ -1655,162 +2378,194 @@ export default function LeaderboardPage() {
                           );
                         })()}
 
-                      <table className="w-full table-fixed">
-                        <colgroup>
-                          <col className="w-[36px] md:w-[44px]" />
-                          <col className="w-[36px] md:w-[44px]" />
-                          <col />
-                          <col style={{ width: showLevelColumn ? 70 : 0 }} />
-                          <col className="w-[60px] md:w-[70px]" />
-                          <col className="w-[60px] md:w-[70px]" />
-                        </colgroup>
-                        <thead
-                          className="sticky top-0 z-10 bg-[var(--glass-bg)] backdrop-blur-md"
-                          style={{
-                            boxShadow: "inset 0 -1px 0 0 rgba(113, 113, 122, 0.3)",
-                            marginTop: -2,
-                          }}
-                        >
-                          <tr className="h-10">
-                            <th
-                              className="text-center align-middle text-text-secondary font-medium text-xs px-0.5 md:px-1"
-                              title="Rank"
+                      {/* Loading State - Table Skeleton */}
+                      {loading && users.length === 0 && (
+                        <div className="w-full">
+                          {/* Skeleton Header */}
+                          <div className="h-10 flex items-center border-b border-[var(--border-default)]/30 bg-[var(--color-bg-primary)]">
+                            <div className="w-[36px] md:w-[44px] flex justify-center">
+                              <div className="w-5 h-5 rounded bg-[var(--color-bg-tertiary)] animate-pulse" />
+                            </div>
+                            <div className="w-[36px] md:w-[44px] flex justify-center">
+                              <div className="w-5 h-5 rounded bg-[var(--color-bg-tertiary)] animate-pulse" />
+                            </div>
+                            <div className="flex-1 px-2">
+                              <div className="w-8 h-5 rounded bg-[var(--color-bg-tertiary)] animate-pulse" />
+                            </div>
+                            <div className="w-[55px] md:w-[65px] flex justify-end px-1">
+                              <div className="w-5 h-5 rounded bg-[var(--color-bg-tertiary)] animate-pulse" />
+                            </div>
+                            <div className="w-[55px] md:w-[65px] flex justify-end px-2">
+                              <div className="w-5 h-5 rounded bg-[var(--color-bg-tertiary)] animate-pulse" />
+                            </div>
+                          </div>
+                          {/* Skeleton Rows */}
+                          {Array.from({ length: 10 }).map((_, i) => (
+                            <div
+                              key={i}
+                              className="h-10 flex items-center border-b border-[var(--border-default)]/30"
+                              style={{ opacity: 1 - i * 0.08 }}
                             >
-                              🏆
-                            </th>
-                            <th
-                              className="text-center align-middle text-text-secondary font-medium text-xs px-0.5 md:px-1"
-                              title="Country"
-                            >
-                              🌍
-                            </th>
-                            <th
-                              className="align-middle text-text-secondary font-medium text-xs px-1 md:px-2"
-                              title="User"
-                            >
-                              <div className="flex items-center">
-                                <div className="w-6 lg:w-8 flex justify-center">👤</div>
+                              <div className="w-[36px] md:w-[44px] flex justify-center">
+                                <div className="w-6 h-4 rounded bg-[var(--color-bg-tertiary)] animate-pulse" />
                               </div>
-                            </th>
-                            <th
-                              className="text-center align-middle text-text-secondary font-medium text-xs"
-                              style={{
-                                width: showLevelColumn ? 70 : 0,
-                                padding: showLevelColumn ? undefined : 0,
-                                visibility: showLevelColumn ? "visible" : "hidden",
-                              }}
-                              title="Level"
-                            >
-                              ⭐
-                            </th>
-                            {/* Cost column */}
-                            <th
-                              className="text-right align-middle text-text-secondary font-medium text-xs px-0.5 md:px-1"
-                              title="Cost"
-                            >
-                              💰
-                            </th>
-                            {/* Tokens column */}
-                            <th
-                              className="text-right align-middle text-text-secondary font-medium text-xs pl-0.5 pr-2 md:pr-4"
-                              title="Tokens"
-                            >
-                              ⚡
-                            </th>
-                          </tr>
-                        </thead>
+                              <div className="w-[36px] md:w-[44px] flex justify-center">
+                                <div className="w-5 h-4 rounded bg-[var(--color-bg-tertiary)] animate-pulse" />
+                              </div>
+                              <div className="flex-1 flex items-center gap-2 px-2">
+                                <div className="w-6 h-6 rounded-full bg-[var(--color-bg-tertiary)] animate-pulse flex-shrink-0" />
+                                <div className="w-20 md:w-28 h-4 rounded bg-[var(--color-bg-tertiary)] animate-pulse" />
+                              </div>
+                              <div className="w-[55px] md:w-[65px] flex justify-end px-1">
+                                <div className="w-10 h-4 rounded bg-[var(--color-bg-tertiary)] animate-pulse" />
+                              </div>
+                              <div className="w-[55px] md:w-[65px] flex justify-end px-2">
+                                <div className="w-12 h-4 rounded bg-[var(--color-bg-tertiary)] animate-pulse" />
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
 
-                        <tbody>
-                          {/* Loading State - inside table to maintain layout */}
-                          {loading && users.length === 0 && (
-                            <tr>
-                              <td colSpan={6} className="py-20">
-                                <div className="flex flex-col items-center gap-3 text-center">
-                                  <div className="w-8 h-8 border-2 border-[var(--color-claude-coral)] border-t-transparent rounded-full animate-spin" />
-                                  <p className="text-sm text-[var(--color-text-muted)]">
-                                    Loading leaderboard...
-                                  </p>
+                      {/* Empty State */}
+                      {!loading && users.length === 0 && (
+                        <div className="flex flex-col items-center gap-3 py-20 text-center">
+                          <span className="text-4xl">📭</span>
+                          <p className="text-sm text-[var(--color-text-muted)]">No users found</p>
+                          <p className="text-xs text-[var(--color-text-muted)]">
+                            Be the first to join the leaderboard!
+                          </p>
+                        </div>
+                      )}
+
+                      {/* Virtualized Table */}
+                      {users.length > 0 && (
+                        <TableVirtuoso
+                          style={{ height: "100%" }}
+                          data={users}
+                          overscan={200}
+                          className="scrollbar-hide"
+                          components={{
+                            Table: ({ style, ...props }) => (
+                              <table
+                                {...props}
+                                className="w-full table-fixed"
+                                style={{ ...style, tableLayout: "fixed" }}
+                              />
+                            ),
+                            TableHead: React.forwardRef(function TableHead(props, ref) {
+                              return (
+                                <thead
+                                  {...props}
+                                  ref={ref}
+                                  className="sticky top-0 z-10 bg-[var(--glass-bg)] backdrop-blur-md"
+                                  style={{ boxShadow: "inset 0 -1px 0 0 rgba(113, 113, 122, 0.3)" }}
+                                />
+                              );
+                            }),
+                            TableRow: ({ item: user, ...props }) => {
+                              const index = users.findIndex((u) => u.id === user.id);
+                              return (
+                                <tr
+                                  {...props}
+                                  ref={user.isCurrentUser ? currentUserRowRef : undefined}
+                                  data-user-id={user.id}
+                                  onClick={() => handleRowClick(user)}
+                                  className={`h-10 transition-colors cursor-pointer hover:!bg-[var(--color-table-row-hover)] border-b border-[var(--border-default)]/30 ${
+                                    user.isCurrentUser ? "bg-[var(--user-country-bg)]" : ""
+                                  } ${selectedUser?.id === user.id && isPanelOpen ? "!bg-[var(--color-table-row-hover)]" : ""} ${
+                                    user.isCurrentUser && highlightMyRank
+                                      ? "!bg-[var(--color-claude-coral)]/50 ring-2 ring-[var(--color-claude-coral)]"
+                                      : ""
+                                  } ${
+                                    highlightedUsername &&
+                                    user.username.toLowerCase() === highlightedUsername
+                                      ? "!bg-[var(--color-claude-coral)]/50 ring-2 ring-[var(--color-claude-coral)] animate-pulse"
+                                      : ""
+                                  }`}
+                                  style={{
+                                    backgroundColor:
+                                      !user.isCurrentUser &&
+                                      !(selectedUser?.id === user.id && isPanelOpen) &&
+                                      !highlightMyRank &&
+                                      !(
+                                        highlightedUsername &&
+                                        user.username.toLowerCase() === highlightedUsername
+                                      ) &&
+                                      index % 2 === 1
+                                        ? "var(--color-table-row-even)"
+                                        : undefined,
+                                  }}
+                                />
+                              );
+                            },
+                          }}
+                          fixedHeaderContent={() => (
+                            <tr className="h-10">
+                              <th
+                                className="w-[36px] md:w-[44px] text-center align-middle text-text-secondary font-medium text-xs px-0.5 md:px-1"
+                                title="Rank"
+                              >
+                                🏆
+                              </th>
+                              <th
+                                className="w-[36px] md:w-[44px] text-center align-middle text-text-secondary font-medium text-xs px-0.5 md:px-1"
+                                title="Country"
+                              >
+                                🌍
+                              </th>
+                              <th
+                                className="min-w-[100px] align-middle text-text-secondary font-medium text-xs px-1 md:px-2"
+                                title="User"
+                              >
+                                <div className="flex items-center">
+                                  <div className="w-6 lg:w-8 flex justify-center">👤</div>
                                 </div>
-                              </td>
+                              </th>
+                              <th
+                                className="text-center align-middle text-text-secondary font-medium text-xs"
+                                style={{
+                                  width: showLevelColumn ? 70 : 0,
+                                  padding: showLevelColumn ? undefined : 0,
+                                  visibility: showLevelColumn ? "visible" : "hidden",
+                                }}
+                                title="Level"
+                              >
+                                ⭐
+                              </th>
+                              <th
+                                className="w-[55px] md:w-[65px] text-right align-middle text-text-secondary font-medium text-xs px-0.5 md:px-1"
+                                title="Cost"
+                              >
+                                💰
+                              </th>
+                              <th
+                                className="w-[55px] md:w-[65px] text-right align-middle text-text-secondary font-medium text-xs pl-0.5 pr-2 md:pr-4"
+                                title="Tokens"
+                              >
+                                ⚡
+                              </th>
                             </tr>
                           )}
-                          {/* Empty State - inside table to maintain layout */}
-                          {!loading && users.length === 0 && (
-                            <tr>
-                              <td colSpan={6} className="py-20">
-                                <div className="flex flex-col items-center gap-3 text-center">
-                                  <span className="text-4xl">📭</span>
-                                  <p className="text-sm text-[var(--color-text-muted)]">
-                                    No users found
-                                  </p>
-                                  <p className="text-xs text-[var(--color-text-muted)]">
-                                    Be the first to join the leaderboard!
-                                  </p>
-                                </div>
-                              </td>
-                            </tr>
-                          )}
-                          {users.map((user, index) => {
-                            const avatarSize = "w-6 h-6";
-                            const avatarText = "text-xs";
-                            const nameSize = "text-xs";
-                            const rankSize = "text-xs";
-                            const flagSize = 16;
-                            const valueSize = "text-xs";
-
+                          itemContent={(_index, user) => {
                             const periodTokens = user.period_tokens ?? user.total_tokens;
                             const periodCost = user.period_cost ?? user.total_cost;
 
                             return (
-                              <tr
-                                key={user.id}
-                                ref={user.isCurrentUser ? currentUserRowRef : undefined}
-                                data-user-id={user.id}
-                                onClick={() => handleRowClick(user)}
-                                className={`h-10 transition-colors cursor-pointer hover:!bg-[var(--color-table-row-hover)] border-b border-[var(--border-default)]/30 ${
-                                  user.isCurrentUser ? "bg-[var(--user-country-bg)]" : ""
-                                } ${selectedUser?.id === user.id && isPanelOpen ? "!bg-[var(--color-table-row-hover)]" : ""} ${
-                                  user.isCurrentUser && highlightMyRank
-                                    ? "!bg-[var(--color-claude-coral)]/50 ring-2 ring-[var(--color-claude-coral)]"
-                                    : ""
-                                } ${
-                                  highlightedUsername &&
-                                  user.username.toLowerCase() === highlightedUsername
-                                    ? "!bg-[var(--color-claude-coral)]/50 ring-2 ring-[var(--color-claude-coral)] animate-pulse"
-                                    : ""
-                                }`}
-                                style={{
-                                  backgroundColor:
-                                    !user.isCurrentUser &&
-                                    !(selectedUser?.id === user.id && isPanelOpen) &&
-                                    !highlightMyRank &&
-                                    !(
-                                      highlightedUsername &&
-                                      user.username.toLowerCase() === highlightedUsername
-                                    ) &&
-                                    index % 2 === 1
-                                      ? "var(--color-table-row-even)"
-                                      : undefined,
-                                }}
-                              >
-                                <td className={`px-1 md:px-2 text-center align-middle`}>
-                                  <span
-                                    className={`text-[var(--color-text-muted)] font-mono ${rankSize} leading-none`}
-                                  >
+                              <>
+                                <td className="w-[36px] md:w-[44px] px-1 md:px-2 text-center align-middle">
+                                  <span className="text-[var(--color-text-muted)] font-mono text-xs leading-none">
                                     #{user.rank}
                                   </span>
                                 </td>
-                                <td className={`px-1 text-center align-middle`}>
+                                <td className="w-[36px] md:w-[44px] px-1 text-center align-middle">
                                   {user.country_code && (
                                     <span className="inline-block translate-y-[3px] dark:brightness-[0.85]">
-                                      <CountryFlag
-                                        countryCode={user.country_code}
-                                        size={flagSize}
-                                      />
+                                      <CountryFlag countryCode={user.country_code} size={16} />
                                     </span>
                                   )}
                                 </td>
-                                <td className={`px-1 md:px-2`}>
+                                <td className="min-w-[100px] px-1 md:px-2">
                                   <div className="flex items-center gap-1.5">
                                     <div className="w-6 lg:w-8 flex items-center justify-center flex-shrink-0">
                                       {user.avatar_url ? (
@@ -1819,25 +2574,21 @@ export default function LeaderboardPage() {
                                           alt={user.username}
                                           width={32}
                                           height={32}
-                                          className={`${avatarSize} rounded-full object-cover dark:brightness-90`}
+                                          className="w-6 h-6 rounded-full object-cover dark:brightness-90"
                                         />
                                       ) : (
-                                        <div
-                                          className={`${avatarSize} rounded-full bg-gradient-to-br from-primary to-[#F7931E] flex items-center justify-center text-white ${avatarText} font-semibold`}
-                                        >
+                                        <div className="w-6 h-6 rounded-full bg-gradient-to-br from-primary to-[#F7931E] flex items-center justify-center text-white text-xs font-semibold">
                                           {user.username.charAt(0).toUpperCase()}
                                         </div>
                                       )}
                                     </div>
-                                    <span
-                                      className={`${nameSize} font-medium text-text-primary dark:text-text-primary/90 truncate`}
-                                    >
+                                    <span className="text-xs font-medium text-text-primary dark:text-text-primary/90 truncate">
                                       {user.display_name || user.username}
                                     </span>
                                   </div>
                                 </td>
                                 <td
-                                  className={`text-center`}
+                                  className="text-center"
                                   style={{
                                     width: showLevelColumn ? 70 : 0,
                                     padding: showLevelColumn ? undefined : 0,
@@ -1847,14 +2598,9 @@ export default function LeaderboardPage() {
                                 >
                                   <LevelBadge tokens={user.total_tokens} />
                                 </td>
-                                {/* Cost cell */}
-                                <td className={`px-0.5 md:px-1 text-right`}>
+                                <td className="w-[55px] md:w-[65px] px-0.5 md:px-1 text-right">
                                   <span
-                                    className={`font-mono ${valueSize} ${
-                                      sortBy === "tokens"
-                                        ? "text-[var(--color-text-muted)]"
-                                        : "text-[var(--color-cost)]"
-                                    }`}
+                                    className={`font-mono text-xs ${sortBy === "tokens" ? "text-[var(--color-text-muted)]" : "text-[var(--color-cost)]"}`}
                                   >
                                     $
                                     {periodCost >= 1_000_000
@@ -1864,46 +2610,48 @@ export default function LeaderboardPage() {
                                         : periodCost.toFixed(0)}
                                   </span>
                                 </td>
-                                {/* Tokens cell */}
-                                <td className={`pl-0.5 pr-2 md:pr-3 text-right`}>
+                                <td className="w-[55px] md:w-[65px] pl-0.5 pr-2 md:pr-3 text-right">
                                   <span
-                                    className={`font-mono ${valueSize} ${
-                                      sortBy === "cost"
-                                        ? "text-[var(--color-text-muted)]"
-                                        : "text-[var(--color-claude-coral)]"
-                                    }`}
+                                    className={`font-mono text-xs ${sortBy === "cost" ? "text-[var(--color-text-muted)]" : "text-[var(--color-claude-coral)]"}`}
                                   >
                                     {formatTokens(periodTokens)}
                                   </span>
                                 </td>
-                              </tr>
+                              </>
                             );
-                          })}
-                        </tbody>
-                      </table>
+                          }}
+                          endReached={() => {
+                            if (hasMore && !loadingMore && !loading) {
+                              loadMore();
+                            }
+                          }}
+                          startReached={() => {
+                            if (hasPrevious && !loadingPrevious && !loading) {
+                              loadPrevious();
+                            }
+                          }}
+                        />
+                      )}
 
-                      {/* Infinite scroll trigger & indicators */}
-                      <div ref={loadMoreTriggerRef} className="py-2">
-                        {loadingMore && (
-                          <div className="flex items-center justify-center gap-2">
-                            <div className="w-4 h-4 border-2 border-[var(--color-claude-coral)] border-t-transparent rounded-full animate-spin" />
-                            <span className="text-xs text-[var(--color-text-muted)]">
-                              Loading more...
-                            </span>
-                          </div>
-                        )}
-                        {!hasMore && users.length > 0 && (
-                          <div className="flex flex-col items-center gap-2">
-                            <div className="w-16 h-px bg-gradient-to-r from-transparent via-[var(--color-text-muted)]/30 to-transparent" />
-                            <span className="text-[10px] text-[var(--color-text-muted)]/50">
-                              End of list ({total} users)
-                            </span>
-                          </div>
-                        )}
-                        {hasMore && !loadingMore && (
-                          <div className="h-4" /> // Spacer for IntersectionObserver trigger
-                        )}
-                      </div>
+                      {/* Load More Indicator */}
+                      {loadingMore && (
+                        <div className="flex items-center justify-center gap-2 py-2">
+                          <div className="w-4 h-4 border-2 border-[var(--color-claude-coral)] border-t-transparent rounded-full animate-spin" />
+                          <span className="text-xs text-[var(--color-text-muted)]">
+                            Loading more...
+                          </span>
+                        </div>
+                      )}
+
+                      {/* End of List Indicator */}
+                      {!hasMore && users.length > 0 && !loadingMore && (
+                        <div className="flex flex-col items-center gap-2 py-2">
+                          <div className="w-16 h-px bg-gradient-to-r from-transparent via-[var(--color-text-muted)]/30 to-transparent" />
+                          <span className="text-[10px] text-[var(--color-text-muted)]/50">
+                            End of list ({total} users)
+                          </span>
+                        </div>
+                      )}
 
                       {/* 📍 My Position - Sticky (position based on scroll direction) */}
                       {!myPositionVisible &&
@@ -1936,14 +2684,10 @@ export default function LeaderboardPage() {
                                 </div>
                                 <div className="w-[36px] md:w-[44px] text-center">
                                   {user.country_code && (
-                                    <ReactCountryFlag
-                                      countryCode={user.country_code}
-                                      svg
-                                      style={{ width: "16px", height: "16px" }}
-                                    />
+                                    <FlagIcon countryCode={user.country_code} size="xs" />
                                   )}
                                 </div>
-                                <div className="flex-1 flex items-center gap-1.5 px-1 md:px-2">
+                                <div className="flex-1 min-w-[100px] flex items-center gap-1.5 px-1 md:px-2">
                                   <div className="w-6 lg:w-8 flex items-center justify-center flex-shrink-0">
                                     {user.avatar_url ? (
                                       <Image
@@ -1969,14 +2713,14 @@ export default function LeaderboardPage() {
                                     <LevelBadge tokens={user.total_tokens} />
                                   </div>
                                 )}
-                                <div className="w-[60px] md:w-[70px] text-right px-0.5 md:px-1">
+                                <div className="w-[55px] md:w-[65px] text-right px-0.5 md:px-1">
                                   <span
                                     className={`font-mono text-xs ${sortBy === "tokens" ? "text-[var(--color-text-muted)]" : "text-[var(--color-cost)]"}`}
                                   >
                                     {costDisplay}
                                   </span>
                                 </div>
-                                <div className="w-[60px] md:w-[70px] text-right pl-0.5 pr-2 md:pr-3">
+                                <div className="w-[55px] md:w-[65px] text-right pl-0.5 pr-2 md:pr-3">
                                   <span
                                     className={`font-mono text-xs ${sortBy === "cost" ? "text-[var(--color-text-muted)]" : "text-[var(--color-claude-coral)]"}`}
                                   >
@@ -1993,6 +2737,66 @@ export default function LeaderboardPage() {
                   </div>
                 </div>
               )}
+
+              {/* Community Feed - Only in community mode */}
+              {viewMode === "community" && !error && (
+                <div className="flex-1 min-h-0 flex flex-col">
+                  <CommunityFeedSection
+                    posts={communityPosts}
+                    currentTab={communityTab}
+                    onAuthorClick={(authorId) => {
+                      // Find user from posts and open profile panel
+                      const post = communityPosts.find((p) => p.author.id === authorId);
+                      const postUser: DisplayUser = {
+                        id: authorId,
+                        username: post?.author.username || authorId,
+                        display_name: post?.author.display_name || null,
+                        avatar_url: post?.author.avatar_url || null,
+                        country_code: post?.author.country_code || null,
+                        total_tokens: 0,
+                        total_cost: 0,
+                        rank: 0,
+                        current_level: post?.author.level || 1,
+                        global_rank: null,
+                        country_rank: null,
+                      };
+                      setSelectedUser(postUser);
+                      setIsPanelOpen(true);
+                    }}
+                    isSignedIn={!!currentUsername}
+                    hasSubmissionHistory={(currentUserData?.total_tokens || 0) > 0}
+                    canPost={!!currentUsername && (currentUserData?.total_tokens || 0) > 0}
+                    userAvatar={currentUserData?.avatar_url}
+                    userName={currentUserData?.display_name || currentUserData?.username}
+                    userLevel={
+                      currentUserData ? Math.floor(currentUserData.total_tokens / 1000000) + 1 : 1
+                    }
+                    isLoading={communityLoading}
+                    isPostModalOpen={isPostModalOpen}
+                    onPostModalClose={() => setIsPostModalOpen(false)}
+                    onPost={(content, tab) => {
+                      handleCreatePost(content, tab);
+                      setIsPostModalOpen(false);
+                    }}
+                    onLike={handleLikePost}
+                    onLoginRequired={(action) => {
+                      setLoginModalType(action === "like" ? "community_like" : "community_comment");
+                      setIsLoginModalOpen(true);
+                    }}
+                    onSubmissionRequired={() => {
+                      setIsSubmissionGuideOpen(true);
+                    }}
+                    variant="plain"
+                    featuredPostId={featuredPostId}
+                    onClearFeatured={() => setFeaturedPostId(null)}
+                    authorFilter={authorFilter}
+                    authorFilterInfo={authorFilterInfo}
+                    onClearAuthorFilter={handleClearAuthorFilter}
+                    countryFilter={scopeFilter}
+                    userCountryCode={currentUserCountry}
+                  />
+                </div>
+              )}
             </div>
           </div>
 
@@ -2007,9 +2811,10 @@ export default function LeaderboardPage() {
         onClose={handleClosePanel}
         periodFilter={periodFilter}
         scopeFilter={scopeFilter}
+        onPostsClick={handlePostsClick}
       />
 
-      {/* Mobile Globe Panel - Left Slide */}
+      {/* Mobile Globe Panel - Left Slide (also used for Community Stats in mobile) */}
       <MobileGlobePanel
         isOpen={isGlobePanelOpen}
         onClose={() => setIsGlobePanelOpen(false)}
@@ -2020,6 +2825,46 @@ export default function LeaderboardPage() {
         onSortByChange={setSortBy}
         userCountryCode={currentUserCountry}
         scopeFilter={scopeFilter}
+        viewMode={viewMode}
+        communityStats={communityStats}
+        hallOfFameData={{
+          mostLiked: EMPTY_HALL_OF_FAME,
+          mostReplied: EMPTY_HALL_OF_FAME,
+        }}
+        onHallOfFameUserClick={(userId) => {
+          // Find author from community posts
+          const post = communityPosts.find((p: FeedPost) => p.author.id === userId);
+          if (post) {
+            const postUser: DisplayUser = {
+              id: userId,
+              username: post.author.username,
+              display_name: post.author.display_name || null,
+              avatar_url: post.author.avatar_url || null,
+              country_code: post.author.country_code || null,
+              total_tokens: 0,
+              total_cost: 0,
+              rank: 0,
+              current_level: post.author.level,
+              global_rank: null,
+              country_rank: null,
+            };
+            setSelectedUser(postUser);
+            setIsPanelOpen(true);
+            // Also apply author filter to show their posts
+            setAuthorFilter(userId);
+            setAuthorFilterInfo({
+              username: post.author.username,
+              displayName: post.author.display_name,
+            });
+          }
+          // Close the mobile panel after opening profile
+          setIsGlobePanelOpen(false);
+        }}
+        onHallOfFamePostClick={(postId) => {
+          setFeaturedPostId(postId);
+          // Close the mobile panel after selecting featured post
+          setIsGlobePanelOpen(false);
+        }}
       />
 
       {/* Date Range Picker Modal */}
@@ -2031,6 +2876,88 @@ export default function LeaderboardPage() {
           setPeriodFilter("custom");
         }}
         initialRange={customDateRange}
+      />
+
+      {/* Submission Guide Modal - Explains why submission is needed */}
+      {isSubmissionGuideOpen && (
+        <>
+          {/* Backdrop */}
+          <div
+            className="fixed inset-0 z-[60] bg-black/60 backdrop-blur-sm animate-in fade-in duration-200"
+            onClick={() => setIsSubmissionGuideOpen(false)}
+          />
+
+          {/* Modal */}
+          <div className="fixed inset-0 z-[61] flex items-center justify-center p-4">
+            <div
+              className="relative w-full max-w-sm bg-[var(--color-bg-secondary)] border border-[var(--border-default)] rounded-2xl shadow-2xl animate-in zoom-in-95 duration-200"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Close button */}
+              <button
+                onClick={() => setIsSubmissionGuideOpen(false)}
+                className="absolute top-3 right-3 p-1.5 rounded-lg hover:bg-white/10 transition-colors text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]"
+              >
+                <span className="sr-only">Close</span>
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M6 18L18 6M6 6l12 12"
+                  />
+                </svg>
+              </button>
+
+              {/* Content */}
+              <div className="p-6 pt-8 text-center">
+                <div className="text-4xl mb-3">🚀</div>
+                <h3 className="text-lg font-semibold text-[var(--color-text-primary)] mb-2">
+                  Join the conversation!
+                </h3>
+                <p className="text-sm text-[var(--color-text-secondary)] mb-6">
+                  Submit your Claude Code usage data to unlock posting and connect with fellow
+                  developers.
+                </p>
+
+                {/* CTA Button - Opens CLI Modal */}
+                <button
+                  onClick={() => {
+                    setIsSubmissionGuideOpen(false);
+                    setIsCLIModalOpen(true);
+                  }}
+                  className="w-full px-4 py-2.5 bg-gradient-to-r from-[var(--color-claude-coral)] to-[var(--color-claude-rust)] hover:opacity-90 text-white rounded-lg font-medium transition-opacity"
+                >
+                  Get Started with CLI
+                </button>
+
+                <button
+                  onClick={() => setIsSubmissionGuideOpen(false)}
+                  className="mt-4 text-sm text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] transition-colors"
+                >
+                  Maybe later
+                </button>
+              </div>
+
+              {/* Footer */}
+              <div className="px-6 py-3 border-t border-[var(--border-default)] bg-white/[0.02] rounded-b-2xl">
+                <p className="text-[10px] text-[var(--color-text-muted)] text-center">
+                  Track your AI coding journey and earn community privileges
+                </p>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* CLI Modal - Shows how to use CLI */}
+      <CLIModal isOpen={isCLIModalOpen} onClose={() => setIsCLIModalOpen(false)} />
+
+      {/* Login Modal - For non-logged-in users */}
+      <LoginPromptModal
+        isOpen={isLoginModalOpen}
+        onClose={() => setIsLoginModalOpen(false)}
+        type={loginModalType}
       />
     </div>
   );

@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils";
 interface GlobeParticlesProps {
   size: number; // Globe size to match
   className?: string;
+  speed?: number; // Speed multiplier (1 = normal, 0.5 = half speed, etc.)
 }
 
 // Leaderboard signature colors (Coral weighted higher ~40%)
@@ -32,18 +33,35 @@ function getParticleCount(viewportWidth: number): number {
   return 60; // Mobile: 60 particles
 }
 
-export const GlobeParticles: React.FC<GlobeParticlesProps> = ({ size, className }) => {
+export const GlobeParticles: React.FC<GlobeParticlesProps> = ({ size, className, speed = 1 }) => {
   // Use mounted state to prevent hydration mismatch
   const [mounted, setMounted] = useState(false);
   const [viewportWidth, setViewportWidth] = useState(1024); // Default to desktop
+  // Fade-in state for smooth appearance (only on initial load)
+  const [isVisible, setIsVisible] = useState(false);
+  const [initialFadeComplete, setInitialFadeComplete] = useState(false);
 
   useEffect(() => {
     setMounted(true);
     setViewportWidth(window.innerWidth);
 
+    // Immediate visibility - synced with globe fadeIn (no delay)
+    // Using requestAnimationFrame to ensure DOM is ready
+    requestAnimationFrame(() => {
+      setIsVisible(true);
+    });
+
+    // Mark initial fade complete after transition finishes
+    const fadeCompleteTimer = setTimeout(() => {
+      setInitialFadeComplete(true);
+    }, 400); // 300ms transition + 100ms buffer (synced with globe)
+
     const handleResize = () => setViewportWidth(window.innerWidth);
     window.addEventListener("resize", handleResize);
-    return () => window.removeEventListener("resize", handleResize);
+    return () => {
+      window.removeEventListener("resize", handleResize);
+      clearTimeout(fadeCompleteTimer);
+    };
   }, []);
 
   // Second wave target directions (2시, 4시, 6시)
@@ -99,9 +117,9 @@ export const GlobeParticles: React.FC<GlobeParticlesProps> = ({ size, className 
           : random(-Math.PI, Math.PI);
     }
 
-    // Start from globe center (particles hidden behind globe initially)
-    const startRadius = 0;
+    // Start from inside globe to create emergence effect
     const globeRadius = size / 2;
+    const startRadius = globeRadius * 0.65; // Start at 65% of globe radius (inside globe)
 
     // Particles travel: globe radius (hidden) + visible distance beyond globe
     // Longer travel for right-bottom direction (where more screen space)
@@ -109,15 +127,16 @@ export const GlobeParticles: React.FC<GlobeParticlesProps> = ({ size, className 
     const isDownward = startAngle > 0 && startAngle < Math.PI; // 0° to 180°
     const isRightBottom = isRightward && isDownward; // 0° to 90° (3시~6시)
 
-    let visibleDistance: number;
+    // Travel distance is just the visible distance beyond start point
+    // (no longer need to add globeRadius since we start near the edge)
+    let travelDistance: number;
     if (isRightBottom) {
-      visibleDistance = random(200, 500); // Longest: right-bottom
+      travelDistance = random(200, 500); // Longest: right-bottom
     } else if (isRightward || isDownward) {
-      visibleDistance = random(150, 350); // Medium: right or bottom
+      travelDistance = random(150, 350); // Medium: right or bottom
     } else {
-      visibleDistance = random(60, 150); // Shortest: left-top (less screen space)
+      travelDistance = random(60, 150); // Shortest: left-top (less screen space)
     }
-    const travelDistance = globeRadius + visibleDistance;
 
     // Calculate travel direction (total distance from center)
     const distanceX = Math.cos(startAngle) * travelDistance;
@@ -128,6 +147,7 @@ export const GlobeParticles: React.FC<GlobeParticlesProps> = ({ size, className 
     const startY = Math.sin(startAngle) * startRadius;
 
     // Slower animation for smooth, relaxing effect
+    // Base duration stored in particle, speed applied via CSS
     const duration = wave === 2 ? random(80, 130) : random(90, 150);
     // Spread particles evenly across animation cycle
     const animationProgress = seededRandom();
@@ -212,7 +232,7 @@ export const GlobeParticles: React.FC<GlobeParticlesProps> = ({ size, className 
     }
 
     return [...firstWave, ...thirdWave];
-  }, [size, mounted, viewportWidth]);
+  }, [size, mounted, viewportWidth]); // speed removed - applied via CSS only
 
   // Don't render particles until mounted to prevent hydration mismatch
   if (!mounted) {
@@ -220,7 +240,15 @@ export const GlobeParticles: React.FC<GlobeParticlesProps> = ({ size, className 
   }
 
   return (
-    <div className={cn("absolute inset-0 pointer-events-none", className)}>
+    <div
+      className={cn(
+        "absolute inset-0 pointer-events-none",
+        // Only apply transition during initial fade-in (synced with globe 0.3s)
+        !initialFadeComplete && "transition-opacity duration-300 ease-out",
+        isVisible ? "opacity-100" : "opacity-0",
+        className
+      )}
+    >
       {particles.map(
         ({
           index,
@@ -246,8 +274,8 @@ export const GlobeParticles: React.FC<GlobeParticlesProps> = ({ size, className 
               ["--distance-x" as string]: distanceX,
               ["--distance-y" as string]: distanceY,
               ["--particle-color" as string]: color,
-              animationDuration: `${duration}s, ${duration}s`,
-              animationDelay: `${delay}s, ${delay}s`,
+              animationDuration: `${duration / speed}s, ${duration / speed}s`,
+              animationDelay: `${delay / speed}s, ${delay / speed}s`,
             }}
           />
         )

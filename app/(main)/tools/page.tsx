@@ -1,7 +1,82 @@
 import { Suspense } from "react";
 import { Metadata } from "next";
+import { ExternalLink } from "lucide-react";
+import Image from "next/image";
 import ToolsContent from "./ToolsContent";
-import { CATEGORY_META, TOOL_CATEGORIES, type ToolCategory } from "@/types/tools";
+import { CATEGORY_META, TOOL_CATEGORIES, type ToolCategory } from "@/lib/types/tools";
+
+// =====================================================
+// Quick Links (from News page)
+// =====================================================
+
+const QUICK_LINKS = [
+  {
+    title: "Claude Code Changelog",
+    description: "Official release notes",
+    url: "https://docs.anthropic.com/en/docs/claude-code/changelog",
+    logo: "/logos/claude-symbol-clay.svg",
+    color: "claude" as const,
+  },
+  {
+    title: "Anthropic News",
+    description: "Official announcements",
+    url: "https://www.anthropic.com/news",
+    logo: "/logos/anthropic-icon-ivory.svg",
+    color: "anthropic" as const,
+  },
+  {
+    title: "Claude Code Docs",
+    description: "Documentation & guides",
+    url: "https://docs.anthropic.com/en/docs/claude-code",
+    logo: "/logos/claude-symbol-clay.svg",
+    color: "claude" as const,
+  },
+];
+
+const COLOR_CLASSES = {
+  claude:
+    "bg-[#D97757]/20 dark:bg-[#D97757]/25 hover:border-[#D97757]/50 hover:bg-[#D97757]/30 dark:hover:bg-[#D97757]/35",
+  anthropic:
+    "bg-black/10 dark:bg-white/15 hover:border-black/20 dark:hover:border-white/30 hover:bg-black/15 dark:hover:bg-white/20",
+} as const;
+
+const LOGO_BG_CLASSES = {
+  claude: "bg-[#D97757]/20 dark:bg-[#D97757]/25",
+  anthropic: "bg-black/10 dark:bg-white/10",
+} as const;
+
+function QuickLinkCard({ link }: { link: (typeof QUICK_LINKS)[number] }) {
+  return (
+    <a
+      href={link.url}
+      target="_blank"
+      rel="noopener noreferrer"
+      className={`group flex items-center gap-3 p-3 rounded-xl border border-[var(--border-default)] transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#D97757] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--color-bg-primary)] ${COLOR_CLASSES[link.color]}`}
+      aria-label={`${link.title} - ${link.description} (opens in new tab)`}
+    >
+      <div className={`p-2 rounded-lg ${LOGO_BG_CLASSES[link.color]} transition-colors`}>
+        <Image
+          src={link.logo}
+          alt=""
+          width={18}
+          height={18}
+          className="w-[18px] h-[18px]"
+          aria-hidden="true"
+        />
+      </div>
+      <div className="flex-1 min-w-0">
+        <h3 className="font-semibold text-[var(--color-text-primary)] text-xs group-hover:text-white transition-colors">
+          {link.title}
+        </h3>
+        <p className="text-[10px] text-text-muted">{link.description}</p>
+      </div>
+      <ExternalLink
+        className="w-3.5 h-3.5 text-text-muted group-hover:text-white/60 transition-colors flex-shrink-0"
+        aria-hidden="true"
+      />
+    </a>
+  );
+}
 
 // =====================================================
 // Dynamic Metadata for SEO
@@ -138,6 +213,15 @@ export default function ToolsPage() {
             Discover and share tools loved by Claude Code developers
           </p>
         </header>
+
+        {/* Quick Links */}
+        <section className="mb-8">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+            {QUICK_LINKS.map((link) => (
+              <QuickLinkCard key={link.title} link={link} />
+            ))}
+          </div>
+        </section>
 
         {/* Main Content */}
         <Suspense fallback={<ToolsSkeleton />}>

@@ -20,13 +20,8 @@ import {
   error,
   link,
   progressBar,
-  sleep,
   getLevelProgress,
-  slotMachineRank,
-  animatedProgressBar,
-  suspenseDots,
-  printAnimatedBox,
-  printAnimatedLines,
+  createBox,
 } from "../lib/ui.js";
 
 interface UsageData {
@@ -218,43 +213,28 @@ function formatBadgeDate(dateStr?: string): string {
 }
 
 /**
- * Display newly earned badges with animation
+ * Display newly earned badges (instant, no delays)
  */
-async function displayNewBadges(badges: BadgeInfo[]): Promise<void> {
+function displayNewBadges(badges: BadgeInfo[]): void {
   if (badges.length === 0) return;
 
   console.log();
 
-  // Show suspense before revealing badges
-  await suspenseDots("Checking achievements", 800);
-
-  for (let i = 0; i < badges.length; i++) {
-    const badge = badges[i];
+  for (const badge of badges) {
     const rarityColor = getRarityColor(badge.rarity);
     const rarityLabel = badge.rarity.toUpperCase();
 
-    // Dramatic pause before each badge
-    if (i > 0) {
-      await sleep(300);
-    }
-
-    // Badge name with sparkle effect
     console.log(
       `     ✨ ${badge.icon} ${colors.white.bold(badge.name)} ${rarityColor(`[${rarityLabel}]`)}`
     );
-    await sleep(100);
     console.log(`        ${colors.muted(badge.description)}`);
-    await sleep(80);
 
     if (badge.praise) {
       console.log(`        ${colors.cyan(`"${badge.praise}"`)}`);
-      await sleep(80);
     }
 
-    // Show achieved date for rank badges
     if (badge.category === "rank") {
       console.log(`        ${colors.dim(`📅 Achieved: ${formatBadgeDate(badge.earnedAt)}`)}`);
-      await sleep(80);
     }
   }
 }
@@ -412,27 +392,35 @@ export async function submit(options: SubmitOptions): Promise<void> {
     },
   });
 
-  // Clear progress bar line
+  // Clear progress bar line and show processing message
   if (lastProgress > 0) {
     process.stdout.write("\r" + " ".repeat(60) + "\r");
   }
+  process.stdout.write(`  ${colors.muted("Processing...")}`);
 
   if (!scannedData) {
+    process.stdout.write("\r" + " ".repeat(40) + "\r");
     console.log(`  ${colors.error("✗")} ${colors.error("No usage data found.")}`);
     console.log(`  ${colors.muted("Make sure you have used Claude Code at least once.")}\n`);
     process.exit(1);
   }
 
+  // Data processing (synchronous)
   const usageData = ccgatherToUsageData(scannedData);
 
-  console.log(`  ${colors.success("✔")} ${colors.success("Scan complete!")}`);
+  // Clear processing message and start submit spinner
+  process.stdout.write("\r" + " ".repeat(40) + "\r");
+  const submitSpinner = ora({
+    text: "Submitting to CCgather...",
+    color: "cyan",
+  }).start();
+
+  const result = await submitToServer(usageData);
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // DISPLAY SUMMARY
+  // DISPLAY SUMMARY (after submission)
   // Plan is shown as badge only (not used for league placement)
   // ═══════════════════════════════════════════════════════════════════════════
-
-  console.log();
 
   // Format date range (YYMMDD format)
   const formatDate = (dateStr: string | null): string => {
@@ -478,23 +466,8 @@ export async function submit(options: SubmitOptions): Promise<void> {
     summaryLines.push(`${colors.muted("Models")}         ${colors.max("✦ Opus User")}`);
   }
 
-  await printAnimatedBox(summaryLines, 52, 60);
-  console.log();
-
-  // Show project count
+  // Project count for display
   const projectCount = Object.keys(scannedData.projects).length;
-  console.log(
-    `  ${colors.dim(`Scanned ${projectCount} project(s), ${usageData.dailyUsage.length} day(s) of data`)}`
-  );
-  console.log();
-
-  // Submit to server (no confirmation needed - user already chose "Submit")
-  const submitSpinner = ora({
-    text: "Submitting to CCgather...",
-    color: "cyan",
-  }).start();
-
-  const result = await submitToServer(usageData);
 
   if (result.success) {
     submitSpinner.succeed(colors.success("Successfully submitted!"));
@@ -508,13 +481,20 @@ export async function submit(options: SubmitOptions): Promise<void> {
     };
 
     // ═══════════════════════════════════════
-    // 0. SERVER ACCUMULATED STATS
+    // 0. LOCAL SCAN SUMMARY
+    // ═══════════════════════════════════════
+    console.log(createBox(summaryLines, 52));
+    console.log(
+      `  ${colors.dim(`Scanned ${projectCount} project(s), ${usageData.dailyUsage.length} day(s) of data`)}`
+    );
+
+    // ═══════════════════════════════════════
+    // 1. SERVER ACCUMULATED STATS
     // ═══════════════════════════════════════
     if (result.previous) {
       const prev = result.previous;
-
+      console.log();
       console.log(sectionHeader("📦", "Server Records"));
-      await sleep(40);
       console.log();
 
       // Server cumulative total (before this submission)
@@ -523,22 +503,10 @@ export async function submit(options: SubmitOptions): Promise<void> {
       console.log(
         `     ${colors.muted("Accumulated")} ⚡ ${colors.primary(formatNumber(prevTokens))} ${colors.dim("│")} 💰 ${colors.warning(formatCost(prevCost))}`
       );
-      await sleep(50);
-
-      console.log();
-      await sleep(60);
-
-      // Quick loading animation before ranking
-      const rankSpinner = ora({
-        text: colors.dim("Calculating ranking..."),
-        color: "cyan",
-      }).start();
-      await sleep(400);
-      rankSpinner.stop();
     }
 
     // ═══════════════════════════════════════
-    // 1. RANK (Most Important) - Slot Machine Animation
+    // 1. RANK (Most Important)
     // ═══════════════════════════════════════
     if (result.rank || result.countryRank) {
       console.log();
@@ -548,6 +516,14 @@ export async function submit(options: SubmitOptions): Promise<void> {
       // Get previous ranks for change display
       const prevGlobalRank = result.previous?.previousGlobalRank;
       const prevCountryRank = result.previous?.previousCountryRank;
+
+      // Helper to format rank change
+      const formatRankChange = (current: number, previous?: number | null): string => {
+        if (!previous || previous === current) return "";
+        const change = previous - current;
+        if (change > 0) return ` ${colors.success(`↑${change}`)}`;
+        return ` ${colors.error(`↓${Math.abs(change)}`)}`;
+      };
 
       if (result.rank) {
         const medal =
@@ -560,49 +536,53 @@ export async function submit(options: SubmitOptions): Promise<void> {
                 : result.rank <= 10
                   ? "🏅"
                   : "🌍";
-        await slotMachineRank(result.rank, "Global:", medal, 12, prevGlobalRank);
+        console.log(
+          `     ${medal} ${colors.muted("Global:")} ${colors.primary.bold(`#${result.rank}`)}${formatRankChange(result.rank, prevGlobalRank)}`
+        );
       }
       if (result.countryRank) {
         const countryMedal =
           result.countryRank === 1 ? "🥇" : result.countryRank <= 3 ? "🏆" : "🏠";
-        await slotMachineRank(result.countryRank, "Country:", countryMedal, 10, prevCountryRank);
+        console.log(
+          `     ${countryMedal} ${colors.muted("Country:")} ${colors.primary.bold(`#${result.countryRank}`)}${formatRankChange(result.countryRank, prevCountryRank)}`
+        );
       }
     }
 
     // ═══════════════════════════════════════
-    // 2. LEVEL PROGRESS - Animated Progress Bar
+    // 2. LEVEL PROGRESS
     // ═══════════════════════════════════════
     console.log();
     console.log(sectionHeader("⬆️", "Level Progress"));
     console.log();
 
     // Show current level
-    await sleep(200);
     console.log(
       `     ${colors.muted("Lv.")}${colors.white(String(currentLevel.level))} ${currentLevel.icon} ${currentLevel.color(currentLevel.name)}`
     );
 
     if (!levelProgress.isMaxLevel && levelProgress.next) {
-      // Animated progress bar filling up
-      await animatedProgressBar(levelProgress.progress, 20, 30);
-      console.log(); // New line after progress bar animation
+      // Progress bar (instant)
+      const barWidth = 20;
+      const filled = Math.round((levelProgress.progress / 100) * barWidth);
+      const empty = barWidth - filled;
+      const bar = colors.primary("█".repeat(filled)) + colors.dim("░".repeat(empty));
+      console.log(`     [${bar}] ${colors.white(`${levelProgress.progress}%`)}`);
 
-      await sleep(150);
       console.log(
         `     ${colors.dim("→")} ${levelProgress.next.icon} ${colors.white(levelProgress.next.name)} ${colors.muted("in")} ${colors.primary(formatNumber(levelProgress.tokensToNext))}`
       );
     } else {
-      await sleep(300);
       console.log(`     ${colors.max("★")} ${colors.max("MAX LEVEL ACHIEVED!")}`);
     }
 
     // ═══════════════════════════════════════
-    // 3. BADGES - Only show when newly earned (Animated)
+    // 3. BADGES - Only show when newly earned
     // ═══════════════════════════════════════
     if (result.newBadges && result.newBadges.length > 0) {
       console.log();
       console.log(sectionHeader("🎉", "New Badge Unlocked"));
-      await displayNewBadges(result.newBadges);
+      displayNewBadges(result.newBadges);
     }
 
     // ═══════════════════════════════════════
@@ -621,15 +601,23 @@ export async function submit(options: SubmitOptions): Promise<void> {
     console.log(`     ${colors.muted("Submit regularly to preserve your full history!")}`);
     console.log();
   } else {
-    submitSpinner.fail(colors.error("Failed to submit"));
-    console.log(`\n  ${error(result.error || "Unknown error")}`);
-
-    // Handle rate limit error with retry time
+    // Handle rate limit error with friendly message
     if (result.retryAfterMinutes) {
+      submitSpinner.fail(colors.warning("Submission limit reached"));
       console.log();
       console.log(
-        `  ${colors.warning("⏳")} ${colors.muted("Try again in")} ${colors.white(`${result.retryAfterMinutes} minute${result.retryAfterMinutes !== 1 ? "s" : ""}`)}`
+        `  ${colors.muted("To keep our service stable, you can submit up to 2 times per hour.")}`
       );
+      console.log(
+        `  ${colors.muted("Your data is safely stored locally - submit anytime later!")}`
+      );
+      console.log();
+      console.log(
+        `  ${colors.warning("⏳")} ${colors.white("Ready to submit again in")} ${colors.primary(`${result.retryAfterMinutes} minute${result.retryAfterMinutes !== 1 ? "s" : ""}`)}`
+      );
+    } else {
+      submitSpinner.fail(colors.error("Failed to submit"));
+      console.log(`\n  ${error(result.error || "Unknown error")}`);
     }
     console.log();
     process.exit(1);

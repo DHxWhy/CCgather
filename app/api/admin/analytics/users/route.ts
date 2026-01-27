@@ -8,7 +8,7 @@ import { isAdmin } from "@/lib/admin/guard";
 import { posthogApi } from "@/lib/posthog/api-client";
 import { calculateTotalWithTrend } from "@/lib/posthog/utils";
 import { createServiceClient } from "@/lib/supabase/server";
-import type { AnalyticsUsersResponse } from "@/types/analytics";
+import type { AnalyticsUsersResponse } from "@/lib/types/analytics";
 
 export async function GET(request: Request) {
   try {

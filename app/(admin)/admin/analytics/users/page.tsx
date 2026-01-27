@@ -1,9 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { useAnalyticsUsers } from "@/hooks/useAdminAnalytics";
+import { useAnalyticsUsers } from "@/lib/hooks/useAdminAnalytics";
 import { InfoPopover, METRIC_INFO } from "@/components/admin/InfoPopover";
-import type { MetricWithTrend } from "@/types/analytics";
+import type { MetricWithTrend } from "@/lib/types/analytics";
 
 const DATE_RANGES = [
   { label: "7일", value: "-7d" },

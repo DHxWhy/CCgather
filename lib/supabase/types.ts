@@ -706,6 +706,8 @@ export type Database = {
           has_opus_usage: boolean | null;
           hide_profile_on_invite: boolean | null;
           id: string;
+          integrity_agreed: boolean | null;
+          integrity_agreed_at: string | null;
           is_admin: boolean | null;
           last_submission_at: string | null;
           marketing_consent: boolean | null;
@@ -748,6 +750,8 @@ export type Database = {
           has_opus_usage?: boolean | null;
           hide_profile_on_invite?: boolean | null;
           id?: string;
+          integrity_agreed?: boolean | null;
+          integrity_agreed_at?: string | null;
           is_admin?: boolean | null;
           last_submission_at?: string | null;
           marketing_consent?: boolean | null;
@@ -790,6 +794,8 @@ export type Database = {
           has_opus_usage?: boolean | null;
           hide_profile_on_invite?: boolean | null;
           id?: string;
+          integrity_agreed?: boolean | null;
+          integrity_agreed_at?: string | null;
           is_admin?: boolean | null;
           last_submission_at?: string | null;
           marketing_consent?: boolean | null;
@@ -830,7 +836,6 @@ export type Database = {
       calculate_level: { Args: { tokens: number }; Returns: number };
       cleanup_deleted_users: { Args: Record<string, never>; Returns: Json };
       cleanup_expired_device_codes: { Args: Record<string, never>; Returns: undefined };
-      generate_news_slug: { Args: { content_id: string; title: string }; Returns: string };
       generate_referral_code: { Args: { p_username: string }; Returns: string };
       get_pending_deletion_info: { Args: { target_clerk_id: string }; Returns: Json };
       is_admin_user: { Args: Record<string, never>; Returns: boolean };
@@ -864,9 +869,7 @@ export type UsageStatsUpdate = Database["public"]["Tables"]["usage_stats"]["Upda
 export type UserBadge = Database["public"]["Tables"]["user_badges"]["Row"];
 export type BadgeDisplay = Database["public"]["Tables"]["badge_display"]["Row"];
 export type CountryStats = Database["public"]["Tables"]["country_stats"]["Row"];
-export type NewsItem = Database["public"]["Tables"]["news_items"]["Row"];
 export type DailySnapshot = Database["public"]["Tables"]["daily_snapshots"]["Row"];
-export type Content = Database["public"]["Tables"]["contents"]["Row"];
 export type Tool = Database["public"]["Tables"]["tools"]["Row"];
 export type SubmittedSession = Database["public"]["Tables"]["submitted_sessions"]["Row"];
 

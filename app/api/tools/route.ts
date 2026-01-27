@@ -10,7 +10,7 @@ import type {
   ToolPeriod,
   ToolSortOption,
   ToolWithVoters,
-} from "@/types/tools";
+} from "@/lib/types/tools";
 import {
   calculateTrustTier,
   checkSuggestionEligibility,

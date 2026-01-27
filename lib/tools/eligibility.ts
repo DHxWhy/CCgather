@@ -6,7 +6,7 @@
  * - Path 2: 7+ unique data days - Consistent participants
  */
 
-import type { TrustTier } from "@/types/tools";
+import type { TrustTier } from "@/lib/types/tools";
 import { getLevelByNumber } from "@/lib/constants/levels";
 
 // =====================================================

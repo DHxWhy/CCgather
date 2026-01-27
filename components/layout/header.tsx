@@ -10,6 +10,7 @@ import { cn } from "@/lib/utils";
 import { ThemeSwitcher } from "@/components/ui/theme-switcher";
 import { MobileDrawer } from "./MobileDrawer";
 import { Button } from "@/components/ui/Button";
+import NotificationBell from "@/components/community/NotificationBell";
 
 // Modal 컴포넌트 지연 로딩 - 초기 번들 크기 감소
 const CLIModal = lazy(() =>
@@ -25,8 +26,8 @@ const AuthModal = lazy(() =>
 
 const navLinks = [
   { href: "/leaderboard", label: "Leaderboard" },
-  { href: "/news", label: "News" },
-  { href: "/tools", label: "Tools" },
+  { href: "/community", label: "Community" },
+  { href: "/together", label: "Together" },
 ];
 
 // ============================================
@@ -47,7 +48,7 @@ function NavLink({ href, label, isActive, onClick, className }: NavLinkProps) {
       href={href}
       onClick={onClick}
       className={cn(
-        "relative text-sm font-medium transition-colors duration-200",
+        "relative text-[13px] font-medium transition-colors duration-200",
         "group",
         isActive
           ? "text-[var(--color-text-primary)]"
@@ -59,7 +60,7 @@ function NavLink({ href, label, isActive, onClick, className }: NavLinkProps) {
       {/* Underline animation */}
       <span
         className={cn(
-          "absolute -bottom-1 left-0 h-0.5 rounded-full",
+          "absolute -bottom-0.5 left-0 h-0.5 rounded-full",
           "bg-gradient-to-r from-[var(--color-claude-coral)] to-[var(--color-claude-rust)]",
           "transition-all duration-300",
           isActive ? "w-full" : "w-0 group-hover:w-full"
@@ -142,21 +143,21 @@ export function Header() {
         />
 
         {/* Content */}
-        <nav className="relative mx-auto flex h-14 md:h-16 max-w-[1000px] items-center justify-between px-4">
+        <nav className="relative mx-auto flex h-12 max-w-[1000px] items-center justify-between px-4">
           {/* Logo */}
-          <Link href="/" className="flex items-center gap-2 md:gap-2.5 group">
+          <Link href="/" className="flex items-center gap-2 group">
             {/* Logo Image */}
             <Image
               src="/logo.png"
               alt="CCgather Logo"
-              width={32}
-              height={32}
+              width={24}
+              height={24}
               priority
-              className="w-7 h-7 md:w-8 md:h-8 rounded-md transition-all duration-300 group-hover:shadow-[var(--glow-primary)]"
+              className="w-6 h-6 rounded-md transition-all duration-300 group-hover:shadow-[var(--glow-primary)]"
             />
             {/* Logo Text - Space Grotesk */}
             <span
-              className="text-base md:text-lg font-semibold text-[var(--color-text-primary)]"
+              className="text-sm font-semibold text-[var(--color-text-primary)]"
               style={{ fontFamily: "var(--font-logo)" }}
             >
               CCgather
@@ -164,7 +165,7 @@ export function Header() {
           </Link>
 
           {/* Desktop Navigation */}
-          <div className="hidden md:flex items-center gap-6 xl:gap-8">
+          <div className="hidden md:flex items-center gap-5">
             {navLinks.map((link) => (
               <NavLink
                 key={link.href}
@@ -177,7 +178,7 @@ export function Header() {
             <button
               onClick={() => setCLIModalOpen(true)}
               className={cn(
-                "relative text-sm font-medium transition-colors duration-200",
+                "relative text-[13px] font-medium transition-colors duration-200",
                 "text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]",
                 "group"
               )}
@@ -185,7 +186,7 @@ export function Header() {
               CLI
               <span
                 className={cn(
-                  "absolute -bottom-1 left-0 h-0.5 rounded-full",
+                  "absolute -bottom-0.5 left-0 h-0.5 rounded-full",
                   "bg-gradient-to-r from-[var(--color-claude-coral)] to-[var(--color-claude-rust)]",
                   "transition-all duration-300",
                   "w-0 group-hover:w-full"
@@ -196,8 +197,6 @@ export function Header() {
 
           {/* Desktop Right Section */}
           <div className="hidden md:flex items-center gap-3">
-            <ThemeSwitcher size="sm" />
-
             {/* Sign In 버튼: Clerk 로드 전/실패/로그아웃 상태에서 표시 */}
             {showSignInButton && (
               <Button variant="primary" size="sm" onClick={() => setAuthModalOpen(true)}>
@@ -207,26 +206,38 @@ export function Header() {
 
             {/* 로그인 상태: Clerk 로드 완료 + 로그인됨 */}
             {isLoaded && isSignedIn && !clerkFailed && (
-              <Link
-                href="/settings"
-                className={cn(
-                  "flex items-center justify-center w-8 h-8 rounded-full border transition-colors group",
-                  pathname.startsWith("/settings")
-                    ? "border-[var(--color-claude-coral)] bg-[var(--color-claude-coral)]/10"
-                    : "border-[var(--border-default)] hover:border-[var(--color-text-muted)]"
-                )}
-                aria-label="Settings"
-              >
-                <Settings
-                  size={14}
+              <>
+                {/* Notification Bell */}
+                <NotificationBell />
+              </>
+            )}
+
+            <ThemeSwitcher size="sm" />
+
+            {/* 로그인 상태: Settings */}
+            {isLoaded && isSignedIn && !clerkFailed && (
+              <>
+                <Link
+                  href="/settings"
                   className={cn(
-                    "transition-colors",
+                    "flex items-center justify-center w-8 h-8 rounded-full border transition-colors group",
                     pathname.startsWith("/settings")
-                      ? "text-[var(--color-claude-coral)]"
-                      : "text-[var(--color-text-muted)] group-hover:text-[var(--color-text-secondary)]"
+                      ? "border-[var(--color-claude-coral)] bg-[var(--color-claude-coral)]/10"
+                      : "border-[var(--border-default)] hover:border-[var(--color-text-muted)]"
                   )}
-                />
-              </Link>
+                  aria-label="Settings"
+                >
+                  <Settings
+                    size={14}
+                    className={cn(
+                      "transition-colors",
+                      pathname.startsWith("/settings")
+                        ? "text-[var(--color-claude-coral)]"
+                        : "text-[var(--color-text-muted)] group-hover:text-[var(--color-text-secondary)]"
+                    )}
+                  />
+                </Link>
+              </>
             )}
           </div>
 
@@ -286,7 +297,7 @@ export function Header() {
           </div>
 
           {/* Auth Section */}
-          <div className="px-4 pt-4">
+          <div className="px-4 pt-4 space-y-2">
             {showSignInButton ? (
               <Button
                 variant="primary"
@@ -300,20 +311,28 @@ export function Header() {
                 Sign In
               </Button>
             ) : (
-              <Link
-                href="/settings"
-                onClick={closeMobileMenu}
-                className={cn(
-                  "w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl",
-                  "text-base font-medium transition-all duration-200",
-                  pathname.startsWith("/settings")
-                    ? "text-[var(--color-claude-coral)] bg-[var(--color-claude-coral)]/10 border border-[var(--color-claude-coral)]"
-                    : "text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] border border-[var(--border-default)] hover:border-[var(--color-text-muted)]"
-                )}
-              >
-                <Settings size={18} />
-                Settings
-              </Link>
+              <>
+                {/* Notifications - Mobile */}
+                <div className="flex items-center justify-between px-4 py-2">
+                  <span className="text-sm text-[var(--color-text-secondary)]">Notifications</span>
+                  <NotificationBell />
+                </div>
+
+                <Link
+                  href="/settings"
+                  onClick={closeMobileMenu}
+                  className={cn(
+                    "w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl",
+                    "text-base font-medium transition-all duration-200",
+                    pathname.startsWith("/settings")
+                      ? "text-[var(--color-claude-coral)] bg-[var(--color-claude-coral)]/10 border border-[var(--color-claude-coral)]"
+                      : "text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] border border-[var(--border-default)] hover:border-[var(--color-text-muted)]"
+                  )}
+                >
+                  <Settings size={18} />
+                  Settings
+                </Link>
+              </>
             )}
           </div>
         </div>

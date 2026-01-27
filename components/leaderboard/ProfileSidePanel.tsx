@@ -3,8 +3,9 @@
 import { useEffect, useRef, useState, useMemo, useCallback } from "react";
 import { createPortal } from "react-dom";
 import Image from "next/image";
-import { Github, Linkedin, Globe } from "lucide-react";
-import ReactCountryFlag from "react-country-flag";
+import { Github, Linkedin, Globe, Newspaper } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { FlagIcon } from "@/components/ui/FlagIcon";
 import { useUser } from "@clerk/nextjs";
 import { LoginPromptModal } from "./LoginPromptModal";
 import {
@@ -481,13 +482,15 @@ function SocialLinksQuickAccess({
   socialLinks,
   isSignedIn,
   onLoginRequired,
+  userId,
+  onPostsClick,
 }: {
   socialLinks: SocialLinks | null | undefined;
   isSignedIn: boolean;
   onLoginRequired: (url: string) => void;
+  userId?: string;
+  onPostsClick?: (userId: string) => void;
 }) {
-  if (!socialLinks) return null;
-
   const links = [
     {
       key: "github",
@@ -519,12 +522,12 @@ function SocialLinksQuickAccess({
     },
   ] as const;
 
-  const activeLinks = links.filter((link) => {
-    const value = socialLinks[link.key as keyof SocialLinks];
-    return value && value.trim() !== "";
-  });
-
-  if (activeLinks.length === 0) return null;
+  const activeLinks = socialLinks
+    ? links.filter((link) => {
+        const value = socialLinks[link.key as keyof SocialLinks];
+        return value && value.trim() !== "";
+      })
+    : [];
 
   const getFullUrl = (link: (typeof links)[number], value: string): string => {
     if (link.key === "website") {
@@ -541,10 +544,19 @@ function SocialLinksQuickAccess({
     }
   };
 
+  const handlePostsClick = () => {
+    if (userId && onPostsClick) {
+      onPostsClick(userId);
+    }
+  };
+
+  // Show nothing if no social links AND no posts button
+  if (activeLinks.length === 0 && !userId) return null;
+
   return (
     <div className="flex items-center gap-0.5">
       {activeLinks.map((link) => {
-        const value = socialLinks[link.key as keyof SocialLinks] || "";
+        const value = socialLinks?.[link.key as keyof SocialLinks] || "";
         const Icon = link.icon;
         const url = getFullUrl(link, value);
 
@@ -562,6 +574,16 @@ function SocialLinksQuickAccess({
           </a>
         );
       })}
+      {/* Posts link - always visible */}
+      {userId && onPostsClick && (
+        <button
+          onClick={handlePostsClick}
+          className="p-1.5 rounded-md transition-all text-[var(--color-claude-coral)] hover:bg-[var(--color-claude-coral)]/20"
+          title="View posts"
+        >
+          <Newspaper className="w-3.5 h-3.5" />
+        </button>
+      )}
     </div>
   );
 }
@@ -643,6 +665,7 @@ interface ProfileSidePanelProps {
   onClose: () => void;
   periodFilter: PeriodFilter;
   scopeFilter: ScopeFilter;
+  onPostsClick?: (userId: string) => void;
 }
 
 // Profile view tracking for non-logged-in users
@@ -684,8 +707,10 @@ export function ProfileSidePanel({
   onClose,
   periodFilter,
   scopeFilter,
+  onPostsClick: externalPostsClick,
 }: ProfileSidePanelProps) {
   const { isSignedIn } = useUser();
+  const router = useRouter();
   const panelRef = useRef<HTMLDivElement>(null);
   const statsRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -724,6 +749,19 @@ export function ProfileSidePanel({
     setShowLoginModal(false);
     setPendingSocialUrl(null);
   }, [pendingSocialUrl]);
+
+  // Handle posts click - use external handler if provided, otherwise navigate
+  const handlePostsClick = useCallback(
+    (userId: string) => {
+      onClose(); // Close panel first for smooth transition
+      if (externalPostsClick) {
+        externalPostsClick(userId);
+      } else {
+        router.push(`/community?author=${userId}`);
+      }
+    },
+    [onClose, externalPostsClick, router]
+  );
 
   // Check profile view limit for non-logged-in users
   useEffect(() => {
@@ -1013,12 +1051,14 @@ export function ProfileSidePanel({
                     )}
                   </div>
                   {/* Social Links - shown on tablet/desktop only (right of name) */}
-                  {!isMobile && (freshSocialLinks || currentUser.social_links) && (
+                  {!isMobile && (
                     <div className="flex-shrink-0">
                       <SocialLinksQuickAccess
                         socialLinks={freshSocialLinks || currentUser.social_links}
                         isSignedIn={!!isSignedIn}
                         onLoginRequired={handleSocialLinkLoginRequired}
+                        userId={currentUser.id}
+                        onPostsClick={handlePostsClick}
                       />
                     </div>
                   )}
@@ -1026,23 +1066,21 @@ export function ProfileSidePanel({
                 {/* Username row */}
                 <p className="text-[10px] text-[var(--color-text-muted)] flex items-center gap-1.5 mt-0.5">
                   {currentUser.country_code && (
-                    <ReactCountryFlag
-                      countryCode={currentUser.country_code}
-                      svg
-                      style={{ width: "11px", height: "11px" }}
-                    />
+                    <FlagIcon countryCode={currentUser.country_code} size="xs" />
                   )}
                   <span>@{currentUser.username.toLowerCase().replace(/\s+/g, "")}</span>
                 </p>
               </div>
             </div>
             {/* Social Links - mobile only, full width below profile */}
-            {isMobile && (freshSocialLinks || currentUser.social_links) && (
+            {isMobile && (
               <div className="mt-3 pt-3 border-t border-[var(--border-default)]">
                 <SocialLinksQuickAccess
                   socialLinks={freshSocialLinks || currentUser.social_links}
                   isSignedIn={!!isSignedIn}
                   onLoginRequired={handleSocialLinkLoginRequired}
+                  userId={currentUser.id}
+                  onPostsClick={handlePostsClick}
                 />
               </div>
             )}
@@ -1064,11 +1102,7 @@ export function ProfileSidePanel({
                 </div>
                 <div className="flex-1 flex items-center justify-center gap-1">
                   {currentUser.country_code && (
-                    <ReactCountryFlag
-                      countryCode={currentUser.country_code}
-                      svg
-                      style={{ width: "11px", height: "11px" }}
-                    />
+                    <FlagIcon countryCode={currentUser.country_code} size="xs" />
                   )}
                   <span className="font-medium text-[var(--color-text-primary)]">
                     #{countryRank}
@@ -1141,11 +1175,7 @@ export function ProfileSidePanel({
             >
               <div className="text-[10px] text-[var(--color-text-muted)] mb-0.5 flex items-center gap-1">
                 {currentUser.country_code && (
-                  <ReactCountryFlag
-                    countryCode={currentUser.country_code}
-                    svg
-                    style={{ width: "10px", height: "10px" }}
-                  />
+                  <FlagIcon countryCode={currentUser.country_code} size="xs" />
                 )}
                 Country
               </div>

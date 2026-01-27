@@ -5,7 +5,7 @@ import * as Flags from "country-flag-icons/react/3x2";
 
 interface FlagIconProps {
   countryCode: string;
-  size?: "xs" | "sm" | "md" | "lg" | "xl";
+  size?: "xs" | "sm" | "md" | "lg" | "xl" | "2xl";
   className?: string;
   fallbackEmoji?: string;
 }
@@ -16,6 +16,7 @@ const sizeMap = {
   md: { width: 28, height: 19, fontSize: "text-lg" },
   lg: { width: 40, height: 27, fontSize: "text-2xl" },
   xl: { width: 56, height: 38, fontSize: "text-3xl" },
+  "2xl": { width: 80, height: 54, fontSize: "text-4xl" },
 };
 
 // Convert country code to flag emoji

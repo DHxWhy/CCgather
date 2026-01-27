@@ -3,9 +3,9 @@ import type { Metadata } from "next";
 import { createClient, createServiceClient } from "@/lib/supabase/server";
 import { auth } from "@clerk/nextjs/server";
 import ToolDetailClient from "./ToolDetailClient";
-import { CATEGORY_META, PRICING_META } from "@/types/tools";
+import { CATEGORY_META, PRICING_META } from "@/lib/types/tools";
 import { calculateTrustTier } from "@/lib/tools/eligibility";
-import type { ToolWithInteraction } from "@/types/tools";
+import type { ToolWithInteraction } from "@/lib/types/tools";
 
 // ===========================================
 // Types

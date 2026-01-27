@@ -8,7 +8,7 @@ import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { ToolCard, ToolListItem, CategoryTabs, PeriodFilter } from "@/components/tools";
 import { EligibilityModal } from "@/components/tools/EligibilityModal";
-import type { ToolWithVoters, ToolCategory, ToolPeriod, ToolSortOption } from "@/types/tools";
+import type { ToolWithVoters, ToolCategory, ToolPeriod, ToolSortOption } from "@/lib/types/tools";
 
 // =====================================================
 // Types

@@ -19,9 +19,9 @@ import {
 import { useAuth } from "@clerk/nextjs";
 import { cn } from "@/lib/utils";
 import { ProfileSidePanel } from "@/components/leaderboard/ProfileSidePanel";
-import type { ToolWithInteraction } from "@/types/tools";
+import type { ToolWithInteraction } from "@/lib/types/tools";
 import type { LeaderboardUser } from "@/lib/types";
-import { CATEGORY_META, PRICING_META, isNewTool, isHotTool } from "@/types/tools";
+import { CATEGORY_META, PRICING_META, isNewTool, isHotTool } from "@/lib/types/tools";
 
 // =====================================================
 // Types

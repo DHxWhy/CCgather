@@ -9,6 +9,7 @@ import {
   useMemo,
   useCallback,
 } from "react";
+import { Virtuoso, VirtuosoHandle } from "react-virtuoso";
 import { FlagIcon } from "@/components/ui/FlagIcon";
 import { formatNumber, formatCost } from "@/lib/utils/format";
 import { GetStartedButton } from "@/components/auth/GetStartedButton";
@@ -43,10 +44,6 @@ interface TopCountriesSectionProps {
   scrollContainerRef?: React.RefObject<HTMLDivElement | null>; // For IntersectionObserver root
 }
 
-// Initial visible count and increment
-const INITIAL_VISIBLE_COUNT = 5;
-const LOAD_INCREMENT = 10;
-
 // Type for combined visibility state
 interface VisibilityState {
   isVisible: boolean;
@@ -70,15 +67,13 @@ export const TopCountriesSection = forwardRef<TopCountriesSectionRef, TopCountri
     },
     ref
   ) {
-    const [visibleCount, setVisibleCount] = useState(INITIAL_VISIBLE_COUNT);
     // Combined visibility state to prevent double updates
     const [visibilityState, setVisibilityState] = useState<VisibilityState>({
       isVisible: false,
       direction: null,
     });
-    const loadMoreRef = useRef<HTMLDivElement>(null);
+    const virtuosoRef = useRef<VirtuosoHandle>(null);
     const userCountryRowRef = useRef<HTMLDivElement>(null);
-    const pendingScrollRef = useRef(false);
 
     // Sort stats based on selected criteria (memoized to prevent infinite loops)
     const sortedStats = useMemo(
@@ -98,60 +93,22 @@ export const TopCountriesSection = forwardRef<TopCountriesSectionRef, TopCountri
       (s) => userCountryCode && s.code.toUpperCase() === userCountryCode.toUpperCase()
     );
     const userCountryStat = userCountryIndex >= 0 ? sortedStats[userCountryIndex] : null;
-    const isUserInTopVisible = userCountryIndex >= 0 && userCountryIndex < visibleCount;
 
-    // Determine which items to show
-    const visibleStats = sortedStats.slice(0, visibleCount);
-    const hasMoreItems = visibleCount < sortedStats.length;
-
-    // Expose scrollToUserCountry method via ref
+    // Expose scrollToUserCountry method via ref (using Virtuoso scrollToIndex)
     useImperativeHandle(
       ref,
       () => ({
         scrollToUserCountry: () => {
           if (userCountryIndex < 0) return;
-
-          // If user's country is not yet visible, expand to show it first
-          if (userCountryIndex >= visibleCount) {
-            setVisibleCount(userCountryIndex + 1);
-            pendingScrollRef.current = true;
-          } else {
-            // Already visible, scroll directly
-            userCountryRowRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
-          }
+          virtuosoRef.current?.scrollToIndex({
+            index: userCountryIndex,
+            align: "center",
+            behavior: "smooth",
+          });
         },
       }),
-      [userCountryIndex, visibleCount]
+      [userCountryIndex]
     );
-
-    // Handle pending scroll after visibleCount expansion
-    useEffect(() => {
-      if (pendingScrollRef.current && userCountryRowRef.current) {
-        // Small delay to ensure DOM is updated
-        requestAnimationFrame(() => {
-          userCountryRowRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
-          pendingScrollRef.current = false;
-        });
-      }
-    }, [visibleCount]);
-
-    // IntersectionObserver for auto-load on scroll
-    useEffect(() => {
-      const trigger = loadMoreRef.current;
-      if (!trigger || !hasMoreItems) return;
-
-      const observer = new IntersectionObserver(
-        (entries) => {
-          if (entries[0]?.isIntersecting) {
-            setVisibleCount((prev) => Math.min(prev + LOAD_INCREMENT, sortedStats.length));
-          }
-        },
-        { rootMargin: "100px", threshold: 0 }
-      );
-
-      observer.observe(trigger);
-      return () => observer.disconnect();
-    }, [hasMoreItems, sortedStats.length]);
 
     // Refs for tracking previous values to prevent unnecessary updates
     const lastVisibilityRef = useRef<VisibilityState>({ isVisible: false, direction: null });
@@ -214,7 +171,7 @@ export const TopCountriesSection = forwardRef<TopCountriesSectionRef, TopCountri
       const callback = callbackRef.current;
       if (!callback) return;
 
-      const actuallyVisible = isUserInTopVisible && visibilityState.isVisible;
+      const actuallyVisible = visibilityState.isVisible;
       const newRank = userCountryIndex + 1;
       const direction = visibilityState.direction;
 
@@ -231,7 +188,7 @@ export const TopCountriesSection = forwardRef<TopCountriesSectionRef, TopCountri
 
       lastNotifiedRef.current = { visible: actuallyVisible, rank: newRank, direction };
       callback(actuallyVisible, newRank, userCountryStat ?? null, direction);
-    }, [isUserInTopVisible, visibilityState, userCountryIndex, userCountryStat]);
+    }, [visibilityState, userCountryIndex, userCountryStat]);
 
     // Call notifyParent when relevant values change
     useEffect(() => {
@@ -357,21 +314,19 @@ export const TopCountriesSection = forwardRef<TopCountriesSectionRef, TopCountri
           </div>
         )}
 
-        {/* Country List */}
-        <div className="flex flex-col">
-          {visibleStats.map((stat, index) => {
+        {/* Virtualized Country List */}
+        <Virtuoso
+          ref={virtuosoRef}
+          style={{ height: Math.min(sortedStats.length * 40, 300) }}
+          data={sortedStats}
+          overscan={100}
+          className="scrollbar-hide"
+          itemContent={(index, stat) => {
             const isUserCountry =
               userCountryCode && stat.code.toUpperCase() === userCountryCode.toUpperCase();
             return renderCountryRow(stat, index, !!isUserCountry);
-          })}
-        </div>
-
-        {/* Scroll trigger for auto-load */}
-        {hasMoreItems && (
-          <div ref={loadMoreRef} className="h-4 flex items-center justify-center">
-            <div className="w-4 h-4 border-2 border-[var(--color-claude-coral)]/30 border-t-[var(--color-claude-coral)] rounded-full animate-spin" />
-          </div>
-        )}
+          }}
+        />
 
         {/* Onboarding Copy */}
         <p className="text-center text-[11px] text-[var(--color-text-muted)]/60 mt-4">

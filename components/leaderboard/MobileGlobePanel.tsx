@@ -2,9 +2,11 @@
 
 import { useEffect, useRef, useState, useCallback } from "react";
 import dynamic from "next/dynamic";
-import ReactCountryFlag from "react-country-flag";
+import { FlagIcon } from "@/components/ui/FlagIcon";
 import { TopCountriesSection, TopCountriesSectionRef } from "./TopCountriesSection";
 import type { CountryStat } from "./TopCountriesSection";
+import HallOfFame, { type HallOfFameEntry } from "@/components/community/HallOfFame";
+import AnimatedNumber from "@/components/ui/AnimatedNumber";
 
 // Format tokens for display
 function formatTokens(num: number): string {
@@ -26,6 +28,13 @@ const GlobeParticles = dynamic(
   { ssr: false }
 );
 
+interface CommunityStats {
+  members: number;
+  posts: number;
+  likes: number;
+  contributors: number;
+}
+
 interface MobileGlobePanelProps {
   isOpen: boolean;
   onClose: () => void;
@@ -36,6 +45,15 @@ interface MobileGlobePanelProps {
   onSortByChange?: (sortBy: "tokens" | "cost") => void;
   userCountryCode?: string;
   scopeFilter: "global" | "country";
+  // Community mode support
+  viewMode?: "leaderboard" | "community";
+  communityStats?: CommunityStats;
+  hallOfFameData?: {
+    mostLiked: HallOfFameEntry[];
+    mostReplied: HallOfFameEntry[];
+  };
+  onHallOfFameUserClick?: (userId: string) => void;
+  onHallOfFamePostClick?: (postId: string) => void;
 }
 
 export function MobileGlobePanel({
@@ -48,6 +66,11 @@ export function MobileGlobePanel({
   onSortByChange,
   userCountryCode,
   scopeFilter,
+  viewMode = "leaderboard",
+  communityStats,
+  hallOfFameData,
+  onHallOfFameUserClick,
+  onHallOfFamePostClick,
 }: MobileGlobePanelProps) {
   const panelRef = useRef<HTMLDivElement>(null);
   const countryListRef = useRef<HTMLDivElement>(null);
@@ -180,222 +203,290 @@ export function MobileGlobePanel({
           {/* Title Section */}
           <div className="text-center pt-2 flex-shrink-0">
             <h2 className="text-xl font-bold text-[var(--color-text-primary)] flex items-center justify-center gap-2">
-              <span>🌍</span>
-              Global Usage
+              <span>{viewMode === "community" ? "🏆" : "🌍"}</span>
+              {viewMode === "community" ? "Community Stats" : "Global Usage"}
             </h2>
             <p className="text-sm text-[var(--color-text-muted)] mt-1">
-              Unite at the country level!
+              {viewMode === "community"
+                ? "Top contributors this period"
+                : "Unite at the country level!"}
             </p>
           </div>
 
-          {/* Globe with Filter Buttons */}
-          <div className="relative flex justify-center flex-shrink-0">
-            {/* Filter Buttons - Top Right of Globe */}
-            {onSortByChange && (
-              <div className="absolute top-0 right-0 z-10 flex h-[34px] glass rounded-lg overflow-hidden">
-                <button
-                  onClick={() => onSortByChange("cost")}
-                  className={`h-[34px] w-[34px] text-sm font-medium transition-colors flex items-center justify-center ${
-                    sortBy === "cost"
-                      ? "bg-[var(--color-cost)]/30 text-[var(--color-cost)]"
-                      : "text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-filter-hover)]"
-                  }`}
-                  title="Sort by Cost"
-                >
-                  💰
-                </button>
-                <button
-                  onClick={() => onSortByChange("tokens")}
-                  className={`h-[34px] w-[34px] text-sm font-medium transition-colors flex items-center justify-center ${
-                    sortBy === "tokens"
-                      ? "bg-[var(--color-claude-coral)]/30 text-[var(--color-claude-coral)]"
-                      : "text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-filter-hover)]"
-                  }`}
-                  title="Sort by Tokens"
-                >
-                  ⚡
-                </button>
-              </div>
-            )}
-            <div
-              className="relative overflow-visible"
-              style={{ width: globeSize, height: globeSize }}
-            >
-              <GlobeParticles size={globeSize} className="z-0" />
-              <Globe
-                size={globeSize}
-                userCountryCode={userCountryCode}
-                scopeFilter={scopeFilter}
-                className="relative z-10"
-              />
-            </div>
-          </div>
-
-          {/* Global Stats - Total Cost & Tokens */}
-          <div className="flex items-center justify-center gap-3 py-2 flex-shrink-0">
-            <span className="text-base">🌍</span>
-            <span className="text-[var(--color-text-muted)]">·</span>
-            <div className="flex items-center gap-1.5">
-              <span className="text-base">💰</span>
-              <span className="text-sm font-semibold text-[var(--color-cost)]">
-                ${totalCost >= 1000 ? `${(totalCost / 1000).toFixed(1)}K` : totalCost.toFixed(0)}
-              </span>
-            </div>
-            <span className="text-[var(--color-text-muted)]">·</span>
-            <div className="flex items-center gap-1.5">
-              <span className="text-base">⚡</span>
-              <span className="text-sm font-semibold text-[var(--color-claude-coral)]">
-                {totalTokens >= 1_000_000_000
-                  ? `${(totalTokens / 1_000_000_000).toFixed(2)}B`
-                  : totalTokens >= 1_000_000
-                    ? `${(totalTokens / 1_000_000).toFixed(1)}M`
-                    : totalTokens.toLocaleString()}
-              </span>
-            </div>
-          </div>
-
-          {/* Top Countries - fills remaining space to bottom */}
-          <div className="glass rounded-xl border border-[var(--border-default)] flex-1 min-h-0 relative flex flex-col">
-            {/* 📍 Your Country - Top (when scrolled below user's country) */}
-            {!userCountryVisible && userCountryData && userCountryDirection === "above" && (
-              <div
-                onClick={jumpToUserCountry}
-                className="absolute top-0 left-0 right-0 z-30 bg-[var(--glass-bg)] backdrop-blur-md rounded-t-xl cursor-pointer active:bg-[var(--glass-bg-hover)] transition-colors"
-              >
-                <div className="text-[10px] text-[var(--color-text-muted)] uppercase tracking-wide px-3 pt-2 pb-1 flex items-center gap-1">
-                  <span>📍 Your Country</span>
-                  <span className="text-[var(--color-text-muted)]/50">↑</span>
-                </div>
-                <div className="flex items-center gap-2 px-3 h-10 bg-[var(--user-country-bg)] border-b border-[var(--color-text-muted)]/30">
-                  <span className="w-6 text-xs font-mono text-[var(--color-text-muted)] flex-shrink-0">
-                    #{userCountryRank}
-                  </span>
-                  <div className="w-4 flex-shrink-0">
-                    <ReactCountryFlag
-                      countryCode={userCountryData.code}
-                      svg
-                      style={{ width: "16px", height: "16px" }}
-                    />
-                  </div>
-                  <div className="flex-1 min-w-0 flex items-center gap-1.5">
-                    <span className="text-xs font-medium text-[var(--user-country-text)] truncate">
-                      {userCountryData.name}
-                      <span className="ml-1 text-[10px]">🟢</span>
+          {/* Conditional Content based on viewMode */}
+          {viewMode === "community" ? (
+            /* Community Mode: Stats + Hall of Fame */
+            <div className="flex-1 min-h-0 overflow-y-auto flex flex-col gap-4">
+              {/* Community Stats Bar with rolling animation */}
+              {communityStats && (
+                <div className="glass rounded-xl border border-[var(--border-default)] p-4 flex-shrink-0">
+                  <div className="flex items-center justify-center gap-4 text-sm">
+                    <span className="flex items-center gap-1.5 text-[var(--color-accent-cyan)]">
+                      <span>👥</span>
+                      <AnimatedNumber
+                        value={communityStats.members}
+                        perUnitDuration={800}
+                        maxDuration={20000}
+                        easing="linear"
+                        className="font-semibold"
+                        storageKey="community_members"
+                      />
+                      <span className="text-[var(--color-text-muted)] text-xs">members</span>
                     </span>
-                    <span className="text-[10px] font-mono text-[var(--color-text-muted)] flex-shrink-0">
-                      {(
-                        (sortBy === "tokens"
-                          ? userCountryData.tokens / totalTokens
-                          : userCountryData.cost / totalCost) * 100
-                      ).toFixed(1)}
-                      %
+                    <span className="text-[var(--color-text-muted)]">·</span>
+                    <span className="flex items-center gap-1.5 text-[var(--color-claude-coral)]">
+                      <span>📝</span>
+                      <AnimatedNumber
+                        value={communityStats.posts}
+                        perUnitDuration={800}
+                        maxDuration={20000}
+                        easing="linear"
+                        className="font-semibold"
+                        storageKey="community_posts"
+                      />
+                      <span className="text-[var(--color-text-muted)] text-xs">posts</span>
+                    </span>
+                    <span className="text-[var(--color-text-muted)]">·</span>
+                    <span className="flex items-center gap-1.5 text-[var(--color-accent-red)]">
+                      <span>❤️</span>
+                      <AnimatedNumber
+                        value={communityStats.likes}
+                        perUnitDuration={800}
+                        maxDuration={20000}
+                        easing="linear"
+                        className="font-semibold"
+                        storageKey="community_likes"
+                      />
+                      <span className="text-[var(--color-text-muted)] text-xs">likes</span>
                     </span>
                   </div>
-                  <div className="flex items-center font-mono flex-shrink-0 gap-2 text-[10px]">
-                    {sortBy === "tokens" ? (
-                      <span className="min-w-[40px] text-right text-[var(--color-cost)]">
-                        $
-                        {userCountryData.cost >= 1000
-                          ? `${(userCountryData.cost / 1000).toFixed(1)}K`
-                          : userCountryData.cost.toFixed(0)}
-                      </span>
-                    ) : (
-                      <span className="min-w-[45px] text-right text-[var(--color-claude-coral)]">
-                        {formatTokens(userCountryData.tokens)}
-                      </span>
-                    )}
-                  </div>
                 </div>
-              </div>
-            )}
-
-            <div
-              ref={countryListRef}
-              className="p-3 pb-0 flex-1 min-h-0 overflow-y-auto"
-              style={{
-                overscrollBehavior: "contain",
-                paddingTop:
-                  !userCountryVisible && userCountryData && userCountryDirection === "above"
-                    ? "68px"
-                    : undefined,
-              }}
-            >
-              {countryStats.length > 0 ? (
-                <TopCountriesSection
-                  ref={topCountriesSectionRef}
-                  stats={countryStats}
-                  totalTokens={totalTokens}
-                  totalCost={totalCost}
-                  sortBy={sortBy}
-                  userCountryCode={userCountryCode}
-                  compact={true}
-                  onUserCountryVisibilityChange={handleUserCountryVisibilityChange}
-                  scrollContainerRef={countryListRef}
-                />
-              ) : (
-                <div className="h-full" />
               )}
-              {/* Spacer for sticky section */}
+              {/* Hall of Fame */}
+              <div className="glass rounded-xl border border-[var(--border-default)] p-4 flex-1">
+                {hallOfFameData ? (
+                  <HallOfFame
+                    mostLiked={hallOfFameData.mostLiked}
+                    mostReplied={hallOfFameData.mostReplied}
+                    onUserClick={onHallOfFameUserClick}
+                    onPostClick={onHallOfFamePostClick}
+                  />
+                ) : (
+                  <div className="flex flex-col items-center gap-3 py-8 text-center">
+                    <span className="text-3xl">🏆</span>
+                    <p className="text-sm text-[var(--color-text-muted)]">No data available</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          ) : (
+            /* Leaderboard Mode: Globe and Countries */
+            <>
+              {/* Globe with Filter Buttons */}
+              <div className="relative flex justify-center flex-shrink-0">
+                {/* Filter Buttons - Top Right of Globe */}
+                {onSortByChange && (
+                  <div className="absolute top-0 right-0 z-10 flex h-[34px] glass rounded-lg overflow-hidden">
+                    <button
+                      onClick={() => onSortByChange("cost")}
+                      className={`h-[34px] w-[34px] text-sm font-medium transition-colors flex items-center justify-center ${
+                        sortBy === "cost"
+                          ? "bg-[var(--color-cost)]/30 text-[var(--color-cost)]"
+                          : "text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-filter-hover)]"
+                      }`}
+                      title="Sort by Cost"
+                    >
+                      💰
+                    </button>
+                    <button
+                      onClick={() => onSortByChange("tokens")}
+                      className={`h-[34px] w-[34px] text-sm font-medium transition-colors flex items-center justify-center ${
+                        sortBy === "tokens"
+                          ? "bg-[var(--color-claude-coral)]/30 text-[var(--color-claude-coral)]"
+                          : "text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-filter-hover)]"
+                      }`}
+                      title="Sort by Tokens"
+                    >
+                      ⚡
+                    </button>
+                  </div>
+                )}
+                <div
+                  className="relative overflow-visible"
+                  style={{ width: globeSize, height: globeSize }}
+                >
+                  <GlobeParticles size={globeSize} className="z-0" />
+                  <Globe
+                    size={globeSize}
+                    userCountryCode={userCountryCode}
+                    scopeFilter={scopeFilter}
+                    className="relative z-10"
+                  />
+                </div>
+              </div>
+
+              {/* Global Stats - Total Cost & Tokens */}
+              <div className="flex items-center justify-center gap-3 py-2 flex-shrink-0">
+                <span className="text-base">🌍</span>
+                <span className="text-[var(--color-text-muted)]">·</span>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-base">💰</span>
+                  <span className="text-sm font-semibold text-[var(--color-cost)]">
+                    $
+                    {totalCost >= 1000 ? `${(totalCost / 1000).toFixed(1)}K` : totalCost.toFixed(0)}
+                  </span>
+                </div>
+                <span className="text-[var(--color-text-muted)]">·</span>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-base">⚡</span>
+                  <span className="text-sm font-semibold text-[var(--color-claude-coral)]">
+                    {totalTokens >= 1_000_000_000
+                      ? `${(totalTokens / 1_000_000_000).toFixed(2)}B`
+                      : totalTokens >= 1_000_000
+                        ? `${(totalTokens / 1_000_000).toFixed(1)}M`
+                        : totalTokens.toLocaleString()}
+                  </span>
+                </div>
+              </div>
+            </>
+          )}
+
+          {/* Top Countries - fills remaining space to bottom (only in leaderboard mode) */}
+          {viewMode === "leaderboard" && (
+            <div className="glass rounded-xl border border-[var(--border-default)] flex-1 min-h-0 relative flex flex-col">
+              {/* 📍 Your Country - Top (when scrolled below user's country) */}
+              {!userCountryVisible && userCountryData && userCountryDirection === "above" && (
+                <div
+                  onClick={jumpToUserCountry}
+                  className="absolute top-0 left-0 right-0 z-30 bg-[var(--glass-bg)] backdrop-blur-md rounded-t-xl cursor-pointer active:bg-[var(--glass-bg-hover)] transition-colors"
+                >
+                  <div className="text-[10px] text-[var(--color-text-muted)] uppercase tracking-wide px-3 pt-2 pb-1 flex items-center gap-1">
+                    <span>📍 Your Country</span>
+                    <span className="text-[var(--color-text-muted)]/50">↑</span>
+                  </div>
+                  <div className="flex items-center gap-2 px-3 h-10 bg-[var(--user-country-bg)] border-b border-[var(--color-text-muted)]/30">
+                    <span className="w-6 text-xs font-mono text-[var(--color-text-muted)] flex-shrink-0">
+                      #{userCountryRank}
+                    </span>
+                    <div className="w-4 flex-shrink-0">
+                      <FlagIcon countryCode={userCountryData.code} size="xs" />
+                    </div>
+                    <div className="flex-1 min-w-0 flex items-center gap-1.5">
+                      <span className="text-xs font-medium text-[var(--user-country-text)] truncate">
+                        {userCountryData.name}
+                        <span className="ml-1 text-[10px]">🟢</span>
+                      </span>
+                      <span className="text-[10px] font-mono text-[var(--color-text-muted)] flex-shrink-0">
+                        {(
+                          (sortBy === "tokens"
+                            ? userCountryData.tokens / totalTokens
+                            : userCountryData.cost / totalCost) * 100
+                        ).toFixed(1)}
+                        %
+                      </span>
+                    </div>
+                    <div className="flex items-center font-mono flex-shrink-0 gap-2 text-[10px]">
+                      {sortBy === "tokens" ? (
+                        <span className="min-w-[40px] text-right text-[var(--color-cost)]">
+                          $
+                          {userCountryData.cost >= 1000
+                            ? `${(userCountryData.cost / 1000).toFixed(1)}K`
+                            : userCountryData.cost.toFixed(0)}
+                        </span>
+                      ) : (
+                        <span className="min-w-[45px] text-right text-[var(--color-claude-coral)]">
+                          {formatTokens(userCountryData.tokens)}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <div
+                ref={countryListRef}
+                className="p-3 pb-0 flex-1 min-h-0 overflow-y-auto"
+                style={{
+                  overscrollBehavior: "contain",
+                  paddingTop:
+                    !userCountryVisible && userCountryData && userCountryDirection === "above"
+                      ? "68px"
+                      : undefined,
+                }}
+              >
+                {countryStats.length > 0 ? (
+                  <TopCountriesSection
+                    ref={topCountriesSectionRef}
+                    stats={countryStats}
+                    totalTokens={totalTokens}
+                    totalCost={totalCost}
+                    sortBy={sortBy}
+                    userCountryCode={userCountryCode}
+                    compact={true}
+                    onUserCountryVisibilityChange={handleUserCountryVisibilityChange}
+                    scrollContainerRef={countryListRef}
+                  />
+                ) : (
+                  <div className="h-full" />
+                )}
+                {/* Spacer for sticky section */}
+                {!userCountryVisible && userCountryData && userCountryDirection === "below" && (
+                  <div className="h-16" />
+                )}
+              </div>
+
+              {/* 📍 Your Country - Bottom (when scrolled above user's country) */}
               {!userCountryVisible && userCountryData && userCountryDirection === "below" && (
-                <div className="h-16" />
+                <div
+                  onClick={jumpToUserCountry}
+                  className="absolute bottom-0 left-0 right-0 z-30 bg-[var(--glass-bg)] backdrop-blur-md border-t border-[var(--color-text-muted)]/30 rounded-b-xl cursor-pointer active:bg-[var(--glass-bg-hover)] transition-colors pb-4"
+                >
+                  <div className="text-[10px] text-[var(--color-text-muted)] uppercase tracking-wide px-3 pt-2 pb-1 flex items-center gap-1">
+                    <span>📍 Your Country</span>
+                    <span className="text-[var(--color-text-muted)]/50">↓</span>
+                  </div>
+                  <div className="flex items-center gap-2 px-3 h-10 bg-[var(--user-country-bg)]">
+                    <span className="w-6 text-xs font-mono text-[var(--color-text-muted)] flex-shrink-0">
+                      #{userCountryRank}
+                    </span>
+                    <div className="w-4 flex-shrink-0">
+                      <FlagIcon countryCode={userCountryData.code} size="xs" />
+                    </div>
+                    <div className="flex-1 min-w-0 flex items-center gap-1.5">
+                      <span className="text-xs font-medium text-[var(--user-country-text)] truncate">
+                        {userCountryData.name}
+                        <span className="ml-1 text-[10px]">🟢</span>
+                      </span>
+                      <span className="text-[10px] font-mono text-[var(--color-text-muted)] flex-shrink-0">
+                        {(
+                          (sortBy === "tokens"
+                            ? userCountryData.tokens / totalTokens
+                            : userCountryData.cost / totalCost) * 100
+                        ).toFixed(1)}
+                        %
+                      </span>
+                    </div>
+                    <div className="flex items-center font-mono flex-shrink-0 gap-2 text-[10px]">
+                      {sortBy === "tokens" ? (
+                        <span className="min-w-[40px] text-right text-[var(--color-cost)]">
+                          $
+                          {userCountryData.cost >= 1000
+                            ? `${(userCountryData.cost / 1000).toFixed(1)}K`
+                            : userCountryData.cost.toFixed(0)}
+                        </span>
+                      ) : (
+                        <span className="min-w-[45px] text-right text-[var(--color-claude-coral)]">
+                          {formatTokens(userCountryData.tokens)}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  {/* Safe area padding for mobile */}
+                  <div className="h-[env(safe-area-inset-bottom,0px)]" />
+                </div>
               )}
             </div>
-
-            {/* 📍 Your Country - Bottom (when scrolled above user's country) */}
-            {!userCountryVisible && userCountryData && userCountryDirection === "below" && (
-              <div
-                onClick={jumpToUserCountry}
-                className="absolute bottom-0 left-0 right-0 z-30 bg-[var(--glass-bg)] backdrop-blur-md border-t border-[var(--color-text-muted)]/30 rounded-b-xl cursor-pointer active:bg-[var(--glass-bg-hover)] transition-colors pb-4"
-              >
-                <div className="text-[10px] text-[var(--color-text-muted)] uppercase tracking-wide px-3 pt-2 pb-1 flex items-center gap-1">
-                  <span>📍 Your Country</span>
-                  <span className="text-[var(--color-text-muted)]/50">↓</span>
-                </div>
-                <div className="flex items-center gap-2 px-3 h-10 bg-[var(--user-country-bg)]">
-                  <span className="w-6 text-xs font-mono text-[var(--color-text-muted)] flex-shrink-0">
-                    #{userCountryRank}
-                  </span>
-                  <div className="w-4 flex-shrink-0">
-                    <ReactCountryFlag
-                      countryCode={userCountryData.code}
-                      svg
-                      style={{ width: "16px", height: "16px" }}
-                    />
-                  </div>
-                  <div className="flex-1 min-w-0 flex items-center gap-1.5">
-                    <span className="text-xs font-medium text-[var(--user-country-text)] truncate">
-                      {userCountryData.name}
-                      <span className="ml-1 text-[10px]">🟢</span>
-                    </span>
-                    <span className="text-[10px] font-mono text-[var(--color-text-muted)] flex-shrink-0">
-                      {(
-                        (sortBy === "tokens"
-                          ? userCountryData.tokens / totalTokens
-                          : userCountryData.cost / totalCost) * 100
-                      ).toFixed(1)}
-                      %
-                    </span>
-                  </div>
-                  <div className="flex items-center font-mono flex-shrink-0 gap-2 text-[10px]">
-                    {sortBy === "tokens" ? (
-                      <span className="min-w-[40px] text-right text-[var(--color-cost)]">
-                        $
-                        {userCountryData.cost >= 1000
-                          ? `${(userCountryData.cost / 1000).toFixed(1)}K`
-                          : userCountryData.cost.toFixed(0)}
-                      </span>
-                    ) : (
-                      <span className="min-w-[45px] text-right text-[var(--color-claude-coral)]">
-                        {formatTokens(userCountryData.tokens)}
-                      </span>
-                    )}
-                  </div>
-                </div>
-                {/* Safe area padding for mobile */}
-                <div className="h-[env(safe-area-inset-bottom,0px)]" />
-              </div>
-            )}
-          </div>
+          )}
         </div>
       </div>
     </>

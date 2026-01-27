@@ -486,6 +486,26 @@ button,
   animation: fadeIn 0.3s ease-out forwards;
 }
 
+/* Globe pulse effect for filter change */
+@keyframes globe-pulse {
+  0% {
+    transform: scale(1);
+    filter: brightness(1);
+  }
+  50% {
+    transform: scale(1.03);
+    filter: brightness(1.2);
+  }
+  100% {
+    transform: scale(1);
+    filter: brightness(1);
+  }
+}
+
+.animate-globe-pulse {
+  animation: globe-pulse 0.4s ease-out;
+}
+
 /* Fade Slide In (for table rows) */
 @keyframes fadeSlideIn {
   from {
@@ -653,6 +673,147 @@ button,
 
 .animate-blink {
   animation: blink 1.5s ease-in-out infinite;
+}
+
+/* Terminal cursor blink animation */
+@keyframes terminal-blink {
+  0%,
+  50% {
+    opacity: 1;
+  }
+  51%,
+  100% {
+    opacity: 0;
+  }
+}
+
+.animate-terminal-blink {
+  animation: terminal-blink 1s step-end infinite;
+}
+
+/* Like button animations */
+@keyframes like-pop {
+  0% {
+    transform: scale(1);
+  }
+  25% {
+    transform: scale(1.4);
+  }
+  50% {
+    transform: scale(0.9);
+  }
+  75% {
+    transform: scale(1.15);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+@keyframes like-ring {
+  0% {
+    transform: scale(0.8);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(2.5);
+    opacity: 0;
+  }
+}
+
+@keyframes like-particle {
+  0% {
+    transform: translate(0, 0) scale(1);
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+.animate-like-pop {
+  animation: like-pop 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.animate-like-ring {
+  animation: like-ring 0.5s ease-out forwards;
+}
+
+.animate-like-particle-1 {
+  animation: like-particle 0.5s ease-out forwards;
+  --tw-translate-x: 0;
+  --tw-translate-y: -10px;
+  animation-name: like-particle;
+  transform: translate(0, -10px) scale(0);
+}
+
+.animate-like-particle-2 {
+  animation: like-particle 0.5s ease-out forwards;
+  transform: translate(8px, -6px) scale(0);
+}
+
+.animate-like-particle-3 {
+  animation: like-particle 0.5s ease-out forwards;
+  transform: translate(0, 10px) scale(0);
+}
+
+.animate-like-particle-4 {
+  animation: like-particle 0.5s ease-out forwards;
+  transform: translate(-8px, -6px) scale(0);
+}
+
+@keyframes like-particle-1 {
+  0% {
+    transform: translate(0, 0) scale(1);
+    opacity: 1;
+  }
+  100% {
+    transform: translate(-3px, -12px) scale(0);
+    opacity: 0;
+  }
+}
+@keyframes like-particle-2 {
+  0% {
+    transform: translate(0, 0) scale(1);
+    opacity: 1;
+  }
+  100% {
+    transform: translate(10px, -8px) scale(0);
+    opacity: 0;
+  }
+}
+@keyframes like-particle-3 {
+  0% {
+    transform: translate(0, 0) scale(1);
+    opacity: 1;
+  }
+  100% {
+    transform: translate(3px, 12px) scale(0);
+    opacity: 0;
+  }
+}
+@keyframes like-particle-4 {
+  0% {
+    transform: translate(0, 0) scale(1);
+    opacity: 1;
+  }
+  100% {
+    transform: translate(-10px, -8px) scale(0);
+    opacity: 0;
+  }
+}
+
+.animate-like-particle-1 {
+  animation: like-particle-1 0.5s ease-out forwards;
+}
+.animate-like-particle-2 {
+  animation: like-particle-2 0.5s ease-out forwards;
+}
+.animate-like-particle-3 {
+  animation: like-particle-3 0.5s ease-out forwards;
+}
+.animate-like-particle-4 {
+  animation: like-particle-4 0.5s ease-out forwards;
 }
 
 /* Shake Animation - for expand button hint */
@@ -1200,10 +1361,8 @@ button,
    ======================================== */
 :root:not(.light) img[alt*="flag" i],
 :root:not(.light) [class*="flag"],
-:root:not(.light) .react-country-flag,
 .dark img[alt*="flag" i],
-.dark [class*="flag"],
-.dark .react-country-flag {
+.dark [class*="flag"] {
   filter: brightness(0.9);
 }
 
@@ -1576,4 +1735,141 @@ button,
 
 .date-range-picker .rdp-button:hover .rdp-chevron {
   fill: var(--color-text-primary);
+}
+
+/* ============================================
+   Lite YouTube Embed Styles
+   ============================================ */
+lite-youtube {
+  background-color: #000;
+  position: relative;
+  display: block;
+  contain: content;
+  background-position: center center;
+  background-size: cover;
+  cursor: pointer;
+  aspect-ratio: 16 / 9;
+  width: 100%;
+  border-radius: 0.5rem;
+}
+
+lite-youtube::before {
+  content: attr(data-title);
+  display: block;
+  position: absolute;
+  top: 0;
+  background-image: linear-gradient(
+    180deg,
+    rgb(0 0 0 / 67%) 0%,
+    rgb(0 0 0 / 54%) 14%,
+    rgb(0 0 0 / 15%) 54%,
+    rgb(0 0 0 / 5%) 72%,
+    rgb(0 0 0 / 0%) 94%
+  );
+  height: 99px;
+  width: 100%;
+  font-family: "YouTube Noto", Roboto, Arial, Helvetica, sans-serif;
+  color: hsl(0deg 0% 93.33%);
+  text-shadow: 0 0 2px rgba(0, 0, 0, 0.5);
+  font-size: 18px;
+  padding: 25px 20px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  box-sizing: border-box;
+}
+
+lite-youtube:hover::before {
+  color: white;
+}
+
+lite-youtube::after {
+  content: "";
+  display: block;
+  padding-bottom: calc(100% / (16 / 9));
+}
+
+lite-youtube > iframe {
+  width: 100%;
+  height: 100%;
+  position: absolute;
+  top: 0;
+  left: 0;
+  border: 0;
+}
+
+lite-youtube > .lty-playbtn {
+  display: block;
+  width: 68px;
+  height: 48px;
+  position: absolute;
+  cursor: pointer;
+  transform: translate3d(-50%, -50%, 0);
+  top: 50%;
+  left: 50%;
+  z-index: 1;
+  background-color: transparent;
+  background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 68 48"><path d="M66.52 7.74c-.78-2.93-2.49-5.41-5.42-6.19C55.79.13 34 0 34 0S12.21.13 6.9 1.55c-2.93.78-4.63 3.26-5.42 6.19C.06 13.05 0 24 0 24s.06 10.95 1.48 16.26c.78 2.93 2.49 5.41 5.42 6.19C12.21 47.87 34 48 34 48s21.79-.13 27.1-1.55c2.93-.78 4.64-3.26 5.42-6.19C67.94 34.95 68 24 68 24s-.06-10.95-1.48-16.26z" fill="red"/><path d="M45 24 27 14v20" fill="white"/></svg>');
+  filter: grayscale(100%);
+  transition: filter 0.1s cubic-bezier(0, 0, 0.2, 1);
+  border: none;
+}
+
+lite-youtube:hover > .lty-playbtn,
+lite-youtube .lty-playbtn:focus {
+  filter: none;
+}
+
+lite-youtube.lyt-activated {
+  cursor: unset;
+}
+
+lite-youtube.lyt-activated::before,
+lite-youtube.lyt-activated > .lty-playbtn {
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* ========================================
+   STAGGERED LIST ANIMATION
+   Initial load only - rows fade in sequentially
+   ======================================== */
+
+@keyframes row-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-row-stagger {
+  animation: row-fade-in 0.3s ease-out forwards;
+  opacity: 0;
+}
+
+/* CSS custom property for stagger delay - set via inline style */
+.animate-row-stagger {
+  animation-delay: calc(var(--stagger-index, 0) * 30ms);
+}
+
+/* Feed card stagger animation */
+@keyframes feed-card-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.animate-feed-stagger {
+  animation: feed-card-in 0.35s ease-out forwards;
+  opacity: 0;
+  animation-delay: calc(var(--stagger-index, 0) * 50ms);
 }

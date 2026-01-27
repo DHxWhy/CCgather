@@ -7,7 +7,7 @@ import { NextResponse } from "next/server";
 import { isAdmin } from "@/lib/admin/guard";
 import { posthogApi } from "@/lib/posthog/api-client";
 import { calculateTotalWithTrend } from "@/lib/posthog/utils";
-import type { AnalyticsOverviewResponse } from "@/types/analytics";
+import type { AnalyticsOverviewResponse } from "@/lib/types/analytics";
 
 export async function GET(request: Request) {
   try {

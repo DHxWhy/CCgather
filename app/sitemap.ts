@@ -28,12 +28,6 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       priority: 0.9,
     },
     {
-      url: `${BASE_URL}/news`,
-      lastModified: new Date(),
-      changeFrequency: "daily",
-      priority: 0.8,
-    },
-    {
       url: `${BASE_URL}/tools`,
       lastModified: new Date(),
       changeFrequency: "daily",
@@ -50,33 +44,6 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     changeFrequency: "daily" as const,
     priority: 0.7,
   }));
-
-  // ===========================================
-  // Dynamic News Article Pages
-  // ===========================================
-  let newsPages: MetadataRoute.Sitemap = [];
-  try {
-    const { data: newsArticles } = await supabase
-      .from("contents")
-      .select("slug, updated_at, published_at")
-      .eq("type", "news")
-      .eq("status", "published")
-      .order("published_at", { ascending: false })
-      .limit(500); // Limit to most recent 500 articles
-
-    if (newsArticles) {
-      newsPages = newsArticles.map(
-        (article: { slug: string; updated_at: string | null; published_at: string }) => ({
-          url: `${BASE_URL}/news/${article.slug}`,
-          lastModified: new Date(article.updated_at || article.published_at),
-          changeFrequency: "weekly" as const,
-          priority: 0.6,
-        })
-      );
-    }
-  } catch (error) {
-    console.error("Error fetching news for sitemap:", error);
-  }
 
   // ===========================================
   // Dynamic Tool Pages
@@ -104,5 +71,5 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     console.error("Error fetching tools for sitemap:", error);
   }
 
-  return [...staticPages, ...countryPages, ...newsPages, ...toolPages];
+  return [...staticPages, ...countryPages, ...toolPages];
 }

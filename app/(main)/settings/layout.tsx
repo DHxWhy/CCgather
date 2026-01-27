@@ -4,11 +4,12 @@ import { useEffect, useRef } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { useUser, useClerk } from "@clerk/nextjs";
 import Link from "next/link";
-import { User, BarChart3, LogOut, ChevronLeft } from "lucide-react";
+import { User, BarChart3, Bell, LogOut, ChevronLeft } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const NAV_ITEMS = [
   { href: "/settings", label: "Profile", icon: User },
+  { href: "/settings/notifications", label: "Notifications", icon: Bell },
   { href: "/settings/usage", label: "Heatmap", icon: BarChart3 },
 ];
 

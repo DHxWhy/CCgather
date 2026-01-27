@@ -6,8 +6,8 @@ import Link from "next/link";
 import { motion } from "framer-motion";
 import { ExternalLink } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { ToolWithVoters, ToolCardVariant } from "@/types/tools";
-import { CATEGORY_META, PRICING_META, isNewTool, isHotTool } from "@/types/tools";
+import type { ToolWithVoters, ToolCardVariant } from "@/lib/types/tools";
+import { CATEGORY_META, PRICING_META, isNewTool, isHotTool } from "@/lib/types/tools";
 import VoteButton from "./VoteButton";
 import VoterPreview from "./VoterPreview";
 

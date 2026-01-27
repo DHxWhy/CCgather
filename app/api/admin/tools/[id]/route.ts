@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/server";
 import { auth } from "@clerk/nextjs/server";
-import type { AdminUpdateToolRequest } from "@/types/tools";
+import type { AdminUpdateToolRequest } from "@/lib/types/tools";
 
 // =====================================================
 // PATCH /api/admin/tools/[id] - 도구 수정 (상태 변경 포함)

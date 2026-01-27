@@ -3,8 +3,8 @@
 import { memo, useRef, useEffect } from "react";
 import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
-import type { ToolCategory } from "@/types/tools";
-import { CATEGORY_META } from "@/types/tools";
+import type { ToolCategory } from "@/lib/types/tools";
+import { CATEGORY_META } from "@/lib/types/tools";
 
 // =====================================================
 // Types

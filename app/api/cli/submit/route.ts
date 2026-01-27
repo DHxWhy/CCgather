@@ -2,7 +2,14 @@ import { NextRequest, NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
 import { createServiceClient } from "@/lib/supabase/server";
 import { checkAndAwardBadges } from "@/lib/services/badgeService";
-import { calculateLevel } from "@/lib/types/leaderboard";
+import { calculateLevel, getLevelInfo } from "@/lib/types/leaderboard";
+import {
+  sendPushNotificationToUser,
+  createSubmissionCompleteNotification,
+  createRankChangeNotification,
+  createLevelUpNotification,
+  createBadgeEarnedNotification,
+} from "@/lib/push/send-notification";
 
 interface DailyUsage {
   date: string;
@@ -522,6 +529,76 @@ export async function POST(request: NextRequest) {
       // Cache invalidation failure should not block the submission
       console.error("[CLI Submit] Cache invalidation error:", cacheError);
     }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // STEP 5: Send Push Notifications (non-blocking)
+    // ═══════════════════════════════════════════════════════════════════════════
+    (async () => {
+      try {
+        // Get user's notification settings
+        const { data: notifySettings } = await supabase
+          .from("user_notification_settings")
+          .select(
+            "push_enabled, notify_submissions, notify_rank_updates, notify_level_up, notify_badges"
+          )
+          .eq("user_id", authenticatedUser.id)
+          .single();
+
+        // Default to enabled if no settings found
+        const settings = notifySettings || {
+          push_enabled: true,
+          notify_submissions: true,
+          notify_rank_updates: true,
+          notify_level_up: true,
+          notify_badges: true,
+        };
+
+        // Skip if push notifications are disabled globally
+        if (!settings.push_enabled) {
+          return;
+        }
+
+        // 1. Submission complete notification
+        if (settings.notify_submissions && rank) {
+          await sendPushNotificationToUser(
+            authenticatedUser.id,
+            createSubmissionCompleteNotification(finalTotalTokens, rank)
+          );
+        }
+
+        // 2. Rank change notification (only if improved)
+        const prevGlobalRank = authenticatedUser.global_rank;
+        if (settings.notify_rank_updates && rank && prevGlobalRank && rank < prevGlobalRank) {
+          await sendPushNotificationToUser(
+            authenticatedUser.id,
+            createRankChangeNotification(rank, prevGlobalRank)
+          );
+        }
+
+        // 3. Level up notification
+        const prevLevel = authenticatedUser.current_level || 1;
+        if (settings.notify_level_up && level > prevLevel) {
+          const levelInfo = getLevelInfo(level);
+          await sendPushNotificationToUser(
+            authenticatedUser.id,
+            createLevelUpNotification(level, levelInfo.name)
+          );
+        }
+
+        // 4. Badge earned notifications
+        if (settings.notify_badges && newBadges.length > 0) {
+          for (const badge of newBadges) {
+            await sendPushNotificationToUser(
+              authenticatedUser.id,
+              createBadgeEarnedNotification(badge.name, badge.icon, badge.rarity)
+            );
+          }
+        }
+      } catch (notifyError) {
+        // Non-blocking: don't fail submission due to notification errors
+        console.error("[CLI Submit] Notification error:", notifyError);
+      }
+    })();
 
     // Build response with previous submission info (for CLI UX)
     const response: Record<string, unknown> = {

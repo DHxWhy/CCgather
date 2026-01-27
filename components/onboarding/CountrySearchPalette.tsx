@@ -139,14 +139,14 @@ export function CountrySearchPalette({
 
             {/* Palette */}
             <motion.div
-              className="relative w-full max-w-lg bg-bg-primary border border-white/[0.1] rounded-2xl shadow-2xl shadow-black/50 overflow-hidden"
+              className="relative w-full max-w-lg bg-[var(--color-bg-secondary)] border border-[var(--border-default)] rounded-2xl shadow-2xl overflow-hidden"
               initial={{ opacity: 0, scale: 0.95, y: -20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: -20 }}
               transition={{ duration: 0.2, ease: [0.25, 0.46, 0.45, 0.94] }}
             >
               {/* Header */}
-              <div className="relative border-b border-white/[0.08]">
+              <div className="relative border-b border-[var(--border-default)]">
                 <div className="flex items-center px-4">
                   <Search className="w-5 h-5 text-text-muted" />
                   <input
@@ -160,7 +160,7 @@ export function CountrySearchPalette({
                   {query && (
                     <button
                       onClick={() => setQuery("")}
-                      className="p-1.5 rounded-lg hover:bg-white/[0.05] text-text-muted hover:text-text-primary transition-colors"
+                      className="p-1.5 rounded-lg hover:bg-[var(--color-bg-tertiary)] text-text-muted hover:text-text-primary transition-colors"
                     >
                       <X className="w-4 h-4" />
                     </button>
@@ -196,8 +196,8 @@ export function CountrySearchPalette({
                           highlightedIndex === index
                             ? "bg-primary/10 text-text-primary"
                             : selectedCountry === country.code
-                              ? "bg-white/[0.05] text-text-primary"
-                              : "text-text-secondary hover:bg-white/[0.03]"
+                              ? "bg-[var(--color-bg-tertiary)] text-text-primary"
+                              : "text-text-secondary hover:bg-[var(--color-bg-card-hover)]"
                         }
                       `}
                     >

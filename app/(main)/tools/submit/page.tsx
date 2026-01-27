@@ -26,7 +26,7 @@ import {
   PRICING_META,
   type ToolCategory,
   type ToolPricingType,
-} from "@/types/tools";
+} from "@/lib/types/tools";
 
 // =====================================================
 // Types

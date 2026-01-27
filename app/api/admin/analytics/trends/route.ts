@@ -6,7 +6,7 @@
 import { NextResponse } from "next/server";
 import { isAdmin } from "@/lib/admin/guard";
 import { posthogApi } from "@/lib/posthog/api-client";
-import type { AnalyticsTrendsResponse } from "@/types/analytics";
+import type { AnalyticsTrendsResponse } from "@/lib/types/analytics";
 
 export async function GET(request: Request) {
   try {

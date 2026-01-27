@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from "react";
 import Image from "next/image";
-import { useSubmitLogs, type SubmitLogItem } from "@/hooks/useAdminAnalytics";
+import { useSubmitLogs, type SubmitLogItem } from "@/lib/hooks/useAdminAnalytics";
 import { Search, ChevronLeft, ChevronRight } from "lucide-react";
 
 const SOURCE_OPTIONS = [

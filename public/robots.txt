@@ -9,16 +9,17 @@ Disallow: /onboarding
 Disallow: /settings
 Disallow: /cli/
 Disallow: /internal/
+Disallow: /news
 
 User-agent: Googlebot
 Allow: /
 Allow: /_next/static/
 Allow: /api/tools
-Allow: /api/news
 Allow: /api/leaderboard
 Disallow: /api/
 Disallow: /admin/
 Disallow: /internal/
+Disallow: /news
 
 Sitemap: https://ccgather.com/sitemap.xml
 Host: https://ccgather.com

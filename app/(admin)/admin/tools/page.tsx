@@ -15,7 +15,7 @@ import {
   type AdminToolListItem,
   type AdminToolStats,
   type TrustTier,
-} from "@/types/tools";
+} from "@/lib/types/tools";
 
 // =====================================================
 // Status Styles

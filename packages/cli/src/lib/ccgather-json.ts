@@ -1203,11 +1203,6 @@ export function scanAllProjects(options: ScanOptions = {}): CCGatherData | null 
 
   for (let i = 0; i < allJsonlFiles.length; i++) {
     const filePath = allJsonlFiles[i];
-
-    if (onProgress) {
-      onProgress(i + 1, allJsonlFiles.length);
-    }
-
     const projectName = extractProjectName(filePath);
 
     if (!projects[projectName]) {
@@ -1303,6 +1298,11 @@ export function scanAllProjects(options: ScanOptions = {}): CCGatherData | null 
       }
     } catch {
       // Skip unreadable files
+    }
+
+    // Progress callback after file processing (not before)
+    if (onProgress) {
+      onProgress(i + 1, allJsonlFiles.length);
     }
   }
 

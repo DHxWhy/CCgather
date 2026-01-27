@@ -1,7 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/server";
 import { auth } from "@clerk/nextjs/server";
-import type { AdminToolListItem, AdminToolStats, ToolCategory, ToolStatus } from "@/types/tools";
+import type {
+  AdminToolListItem,
+  AdminToolStats,
+  ToolCategory,
+  ToolStatus,
+} from "@/lib/types/tools";
 import { calculateTrustTier } from "@/lib/tools/eligibility";
 
 // =====================================================

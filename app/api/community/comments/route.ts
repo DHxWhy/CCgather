@@ -1,0 +1,394 @@
+import { NextRequest, NextResponse } from "next/server";
+import { auth } from "@clerk/nextjs/server";
+import { createServiceClient } from "@/lib/supabase/server";
+import { z } from "zod";
+
+// =====================================================
+// Types
+// =====================================================
+
+interface CommentAuthor {
+  id: string;
+  username: string;
+  display_name: string | null;
+  avatar_url: string | null;
+  current_level: number;
+}
+
+interface CommentResponse {
+  id: string;
+  author: CommentAuthor;
+  content: string;
+  parent_comment_id: string | null;
+  created_at: string;
+  likes_count: number;
+  is_liked: boolean;
+  replies?: CommentResponse[];
+}
+
+// =====================================================
+// Validation Schemas
+// =====================================================
+
+const CreateCommentSchema = z.object({
+  post_id: z.string().uuid(),
+  content: z
+    .string()
+    .min(1, "Content is required")
+    .max(1000, "Content must be 1000 characters or less"),
+  parent_comment_id: z.string().uuid().optional(),
+});
+
+// =====================================================
+// GET /api/community/comments - 댓글 목록 조회
+// =====================================================
+export async function GET(request: NextRequest) {
+  try {
+    const supabase = createServiceClient();
+    const { searchParams } = new URL(request.url);
+    const { userId: clerkId } = await auth();
+
+    const postId = searchParams.get("post_id");
+    if (!postId) {
+      return NextResponse.json({ error: "post_id is required" }, { status: 400 });
+    }
+
+    const limit = Math.min(parseInt(searchParams.get("limit") || "50"), 100);
+    const offset = parseInt(searchParams.get("offset") || "0");
+
+    // Get current user's database ID if authenticated
+    let currentUserDbId: string | null = null;
+    if (clerkId) {
+      const { data: dbUser } = await supabase
+        .from("users")
+        .select("id")
+        .eq("clerk_id", clerkId)
+        .single();
+      currentUserDbId = dbUser?.id || null;
+    }
+
+    // Get top-level comments (no parent)
+    const {
+      data: comments,
+      error,
+      count,
+    } = await supabase
+      .from("comments")
+      .select(
+        `
+        id,
+        content,
+        parent_comment_id,
+        likes_count,
+        created_at,
+        author:users!author_id (
+          id,
+          username,
+          display_name,
+          avatar_url,
+          current_level
+        )
+      `,
+        { count: "exact" }
+      )
+      .eq("post_id", postId)
+      .is("deleted_at", null)
+      .is("parent_comment_id", null)
+      .order("created_at", { ascending: true })
+      .range(offset, offset + limit - 1);
+
+    if (error) {
+      console.error("Error fetching comments:", error);
+      return NextResponse.json({ error: "Failed to fetch comments" }, { status: 500 });
+    }
+
+    // Get all replies for these comments
+    const commentIds = comments?.map((c: { id: string }) => c.id) || [];
+    const repliesMap: Record<string, CommentResponse[]> = {};
+
+    if (commentIds.length > 0) {
+      const { data: replies } = await supabase
+        .from("comments")
+        .select(
+          `
+          id,
+          content,
+          parent_comment_id,
+          likes_count,
+          created_at,
+          author:users!author_id (
+            id,
+            username,
+            display_name,
+            avatar_url,
+            current_level
+          )
+        `
+        )
+        .eq("post_id", postId)
+        .is("deleted_at", null)
+        .in("parent_comment_id", commentIds)
+        .order("created_at", { ascending: true });
+
+      // Get liked reply IDs
+      let likedReplyIds: string[] = [];
+      if (currentUserDbId && replies && replies.length > 0) {
+        const replyIds = replies.map((r: { id: string }) => r.id);
+        const { data: likes } = await supabase
+          .from("comment_likes")
+          .select("comment_id")
+          .eq("user_id", currentUserDbId)
+          .in("comment_id", replyIds);
+        likedReplyIds = likes?.map((l: { comment_id: string }) => l.comment_id) || [];
+      }
+
+      // Group replies by parent
+      replies?.forEach(
+        (reply: {
+          id: string;
+          content: string;
+          parent_comment_id: string;
+          likes_count: number;
+          created_at: string;
+          author: CommentAuthor;
+        }) => {
+          const parentId = reply.parent_comment_id!;
+          if (!repliesMap[parentId]) {
+            repliesMap[parentId] = [];
+          }
+          const author = reply.author as CommentAuthor;
+          repliesMap[parentId].push({
+            id: reply.id,
+            author: {
+              id: author.id,
+              username: author.username,
+              display_name: author.display_name,
+              avatar_url: author.avatar_url,
+              current_level: author.current_level,
+            },
+            content: reply.content,
+            parent_comment_id: reply.parent_comment_id,
+            created_at: reply.created_at,
+            likes_count: reply.likes_count,
+            is_liked: likedReplyIds.includes(reply.id),
+          });
+        }
+      );
+    }
+
+    // Get liked comment IDs for current user
+    let likedCommentIds: string[] = [];
+    if (currentUserDbId && commentIds.length > 0) {
+      const { data: likes } = await supabase
+        .from("comment_likes")
+        .select("comment_id")
+        .eq("user_id", currentUserDbId)
+        .in("comment_id", commentIds);
+      likedCommentIds = likes?.map((l: { comment_id: string }) => l.comment_id) || [];
+    }
+
+    // Transform response
+    const transformedComments: CommentResponse[] =
+      comments?.map(
+        (comment: {
+          id: string;
+          content: string;
+          parent_comment_id: string | null;
+          likes_count: number;
+          created_at: string;
+          author: CommentAuthor;
+        }) => {
+          const author = comment.author as CommentAuthor;
+          return {
+            id: comment.id,
+            author: {
+              id: author.id,
+              username: author.username,
+              display_name: author.display_name,
+              avatar_url: author.avatar_url,
+              current_level: author.current_level,
+            },
+            content: comment.content,
+            parent_comment_id: comment.parent_comment_id,
+            created_at: comment.created_at,
+            likes_count: comment.likes_count,
+            is_liked: likedCommentIds.includes(comment.id),
+            replies: repliesMap[comment.id] || [],
+          };
+        }
+      ) || [];
+
+    return NextResponse.json({
+      comments: transformedComments,
+      total: count || 0,
+      hasMore: offset + limit < (count || 0),
+    });
+  } catch (error) {
+    console.error("Error in GET /api/community/comments:", error);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+  }
+}
+
+// =====================================================
+// POST /api/community/comments - 댓글 작성
+// =====================================================
+export async function POST(request: NextRequest) {
+  try {
+    const { userId: clerkId } = await auth();
+
+    if (!clerkId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const supabase = createServiceClient();
+
+    // Get user from database
+    const { data: user } = await supabase
+      .from("users")
+      .select("id, username, display_name, avatar_url, current_level")
+      .eq("clerk_id", clerkId)
+      .single();
+
+    if (!user) {
+      return NextResponse.json({ error: "User not found" }, { status: 404 });
+    }
+
+    // Check if user has submission history (required to comment)
+    const { count: submissionCount } = await supabase
+      .from("usage_stats")
+      .select("*", { count: "exact", head: true })
+      .eq("user_id", user.id);
+
+    if (!submissionCount || submissionCount === 0) {
+      return NextResponse.json(
+        {
+          error: "Submission required",
+          message: "You need to submit data at least once before commenting.",
+        },
+        { status: 403 }
+      );
+    }
+
+    // Parse and validate request body
+    const body = await request.json();
+    const parsed = CreateCommentSchema.safeParse(body);
+
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: "Invalid request body", details: parsed.error.issues },
+        { status: 400 }
+      );
+    }
+
+    // Check if post exists
+    const { data: post } = await supabase
+      .from("posts")
+      .select("id, author_id")
+      .eq("id", parsed.data.post_id)
+      .is("deleted_at", null)
+      .single();
+
+    if (!post) {
+      return NextResponse.json({ error: "Post not found" }, { status: 404 });
+    }
+
+    // If replying to a comment, verify parent exists and check depth limit
+    let parentCommentAuthorId: string | null = null;
+    if (parsed.data.parent_comment_id) {
+      const { data: parentComment } = await supabase
+        .from("comments")
+        .select("id, author_id, parent_comment_id")
+        .eq("id", parsed.data.parent_comment_id)
+        .eq("post_id", parsed.data.post_id)
+        .is("deleted_at", null)
+        .single();
+
+      if (!parentComment) {
+        return NextResponse.json({ error: "Parent comment not found" }, { status: 404 });
+      }
+
+      // Depth limit: Only allow replies to top-level comments (max 2 levels)
+      if (parentComment.parent_comment_id !== null) {
+        return NextResponse.json(
+          { error: "Cannot reply to a reply. Maximum comment depth is 2." },
+          { status: 400 }
+        );
+      }
+
+      parentCommentAuthorId = parentComment.author_id;
+    }
+
+    // Insert comment
+    const { data: comment, error: insertError } = await supabase
+      .from("comments")
+      .insert({
+        post_id: parsed.data.post_id,
+        author_id: user.id,
+        content: parsed.data.content.trim(),
+        parent_comment_id: parsed.data.parent_comment_id || null,
+      })
+      .select()
+      .single();
+
+    if (insertError) {
+      console.error("Error inserting comment:", insertError);
+      return NextResponse.json({ error: "Failed to create comment" }, { status: 500 });
+    }
+
+    // Create notifications
+    const notifications = [];
+
+    // Notify post author (if not self-comment)
+    if (post.author_id !== user.id) {
+      notifications.push({
+        user_id: post.author_id,
+        type: parsed.data.parent_comment_id ? "comment_reply" : "post_comment",
+        actor_id: user.id,
+        post_id: parsed.data.post_id,
+        comment_id: comment.id,
+      });
+    }
+
+    // Notify parent comment author (if reply and not self-reply)
+    if (
+      parentCommentAuthorId &&
+      parentCommentAuthorId !== user.id &&
+      parentCommentAuthorId !== post.author_id
+    ) {
+      notifications.push({
+        user_id: parentCommentAuthorId,
+        type: "comment_reply",
+        actor_id: user.id,
+        post_id: parsed.data.post_id,
+        comment_id: comment.id,
+      });
+    }
+
+    if (notifications.length > 0) {
+      await supabase.from("notifications").insert(notifications);
+    }
+
+    // Return created comment with author info
+    const response: CommentResponse = {
+      id: comment.id,
+      author: {
+        id: user.id,
+        username: user.username,
+        display_name: user.display_name,
+        avatar_url: user.avatar_url,
+        current_level: user.current_level,
+      },
+      content: comment.content,
+      parent_comment_id: comment.parent_comment_id,
+      created_at: comment.created_at,
+      likes_count: 0,
+      is_liked: false,
+      replies: [],
+    };
+
+    return NextResponse.json({ comment: response }, { status: 201 });
+  } catch (error) {
+    console.error("Error in POST /api/community/comments:", error);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+  }
+}

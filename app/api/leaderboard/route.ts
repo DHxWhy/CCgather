@@ -68,9 +68,9 @@ function getPeriodDateRange(
   return { startDate, endDate };
 }
 
-// ============ TEST MOCK DATA FLAG - REMOVE AFTER TESTING ============
-const USE_MOCK_DATA = false; // Set to false to use real database
-const MOCK_TOTAL_USERS = 150; // For testing bidirectional scroll
+// ============ TEST MOCK DATA FLAG ============
+const USE_MOCK_DATA = false; // Set to true for testing with mock data
+const MOCK_TOTAL_USERS = 1600; // For testing bidirectional scroll
 
 // Generate mock users for testing
 function generateMockUsers(page: number, limit: number, total: number) {
@@ -179,6 +179,7 @@ export async function GET(request: NextRequest) {
       .from("users")
       .select("id, username, global_rank, country_rank, country_code")
       .eq("onboarding_completed", true)
+      .is("deleted_at", null)
       .gt("total_tokens", 0)
       .ilike("username", findUser)
       .single();
@@ -216,6 +217,7 @@ export async function GET(request: NextRequest) {
       .from("users")
       .select("id", { count: "exact", head: true })
       .eq("onboarding_completed", true)
+      .is("deleted_at", null)
       .gt("total_tokens", 0);
 
     // Find user's rank by counting users with more tokens
@@ -236,6 +238,7 @@ export async function GET(request: NextRequest) {
       .from("users")
       .select("id", { count: "exact", head: true })
       .eq("onboarding_completed", true)
+      .is("deleted_at", null)
       .gt("total_tokens", currentUserData.total_tokens);
 
     if (country) {
@@ -281,6 +284,7 @@ export async function GET(request: NextRequest) {
         { count: "exact" }
       )
       .eq("onboarding_completed", true)
+      .is("deleted_at", null)
       .gt("total_tokens", 0);
 
     if (country) {
@@ -384,7 +388,8 @@ export async function GET(request: NextRequest) {
     `
     )
     .in("id", userIds)
-    .eq("onboarding_completed", true);
+    .eq("onboarding_completed", true)
+    .is("deleted_at", null);
 
   if (country) {
     usersQuery = usersQuery.eq("country_code", country.toUpperCase());

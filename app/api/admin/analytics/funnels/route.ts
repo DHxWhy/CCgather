@@ -7,7 +7,7 @@ import { NextResponse } from "next/server";
 import { isAdmin } from "@/lib/admin/guard";
 import { posthogApi } from "@/lib/posthog/api-client";
 import { calculateFunnelConversion, processFunnelSteps } from "@/lib/posthog/utils";
-import type { AnalyticsFunnelResponse } from "@/types/analytics";
+import type { AnalyticsFunnelResponse } from "@/lib/types/analytics";
 
 // Predefined funnel configurations
 const FUNNELS = {

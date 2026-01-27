@@ -2,7 +2,7 @@
  * PostHog Analytics Utility Functions
  */
 
-import type { MetricWithTrend, TrendDataPoint } from "@/types/analytics";
+import type { MetricWithTrend, TrendDataPoint } from "@/lib/types/analytics";
 import type { TrendsQueryResult } from "./api-client";
 
 /**

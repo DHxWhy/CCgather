@@ -6,7 +6,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
 
   const supabase = await createClient();
 
-  // Fetch user profile data
+  // Fetch user profile data (including deleted_at for status check)
   const { data: user, error: userError } = await supabase
     .from("users")
     .select(
@@ -22,7 +22,8 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
       total_tokens,
       total_cost,
       social_links,
-      ccplan
+      ccplan,
+      deleted_at
     `
     )
     .eq("id", id)
@@ -31,6 +32,27 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
   if (userError || !user) {
     console.error("User profile query error:", userError);
     return NextResponse.json({ error: "User not found" }, { status: 404 });
+  }
+
+  // Check if user has requested account deletion
+  if (user.deleted_at) {
+    return NextResponse.json({
+      user: {
+        id: user.id,
+        username: "deleted_user",
+        display_name: "Deleted User",
+        avatar_url: null,
+        country_code: null,
+        current_level: 0,
+        global_rank: null,
+        country_rank: null,
+        total_tokens: 0,
+        total_cost: 0,
+        social_links: null,
+        ccplan: null,
+        is_deleted: true,
+      },
+    });
   }
 
   // Return user profile in LeaderboardUser-compatible format

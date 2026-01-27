@@ -6,8 +6,8 @@ import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import { MessageCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { ToolWithVoters } from "@/types/tools";
-import { CATEGORY_META, PRICING_META, isNewTool, isHotTool } from "@/types/tools";
+import type { ToolWithVoters } from "@/lib/types/tools";
+import { CATEGORY_META, PRICING_META, isNewTool, isHotTool } from "@/lib/types/tools";
 import VoteButton from "./VoteButton";
 
 // =====================================================
