@@ -39,7 +39,6 @@
     "@clerk/nextjs": "^6.36.5",
     "@clerk/themes": "^2.4.47",
     "@ducanh2912/next-pwa": "^10.2.9",
-    "@google/genai": "^1.35.0",
     "@google/generative-ai": "^0.24.1",
     "@radix-ui/react-popover": "^1.1.15",
     "@radix-ui/react-slot": "^1.2.3",
