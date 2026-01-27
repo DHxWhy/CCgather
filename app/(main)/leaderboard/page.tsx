@@ -277,20 +277,6 @@ export default function LeaderboardPage() {
   // Community posts state (API-driven)
   const [communityPosts, setCommunityPosts] = useState<FeedPost[]>([]);
   const [communityLoading, setCommunityLoading] = useState(false);
-  // Community stats for display (mock data for now, can be fetched from API later)
-  const communityStats = useMemo(() => {
-    const totalPosts = communityPosts.length;
-    const totalLikes = communityPosts.reduce((sum, post) => sum + post.likes_count, 0);
-    const uniqueAuthors = new Set(communityPosts.map((post) => post.author.id)).size;
-    // Mock member count (in production, fetch from API)
-    const mockMemberCount = 1234;
-    return {
-      members: mockMemberCount,
-      posts: totalPosts,
-      likes: totalLikes,
-      contributors: uniqueAuthors,
-    };
-  }, [communityPosts]);
 
   const [selectedUser, setSelectedUser] = useState<DisplayUser | null>(null);
   const [isPanelOpen, setIsPanelOpen] = useState(false);
@@ -337,6 +323,19 @@ export default function LeaderboardPage() {
     }
     return result;
   }, [pagesData, loadedPageRange]);
+
+  // Community stats derived from real data (must be after users definition)
+  const communityStats = useMemo(() => {
+    const totalPosts = communityPosts.length;
+    const totalLikes = communityPosts.reduce((sum, post) => sum + post.likes_count, 0);
+    const uniqueAuthors = new Set(communityPosts.map((post) => post.author.id)).size;
+    return {
+      members: users.length, // Real member count from leaderboard
+      posts: totalPosts,
+      likes: totalLikes,
+      contributors: uniqueAuthors,
+    };
+  }, [communityPosts, users.length]);
 
   // Check if there are more pages to load
   const hasMore = loadedPageRange.end < totalPages;
