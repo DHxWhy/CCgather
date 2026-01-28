@@ -94,37 +94,36 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       });
     }
 
-    if (action === "restore") {
-      if (!comment.deleted_at) {
-        return NextResponse.json({ error: "Comment not hidden" }, { status: 400 });
-      }
-
-      // Restore comment
-      await supabase.from("comments").update({ deleted_at: null }).eq("id", id);
-
-      // Restore replies that were deleted at the same time (within 1 second)
-      let restoredReplies = 0;
-      if (comment.parent_comment_id === null) {
-        const deletedAt = new Date(comment.deleted_at);
-        const deletedAtMin = new Date(deletedAt.getTime() - 1000).toISOString();
-        const deletedAtMax = new Date(deletedAt.getTime() + 1000).toISOString();
-
-        const { data: restored } = await supabase
-          .from("comments")
-          .update({ deleted_at: null })
-          .eq("parent_comment_id", id)
-          .gte("deleted_at", deletedAtMin)
-          .lte("deleted_at", deletedAtMax)
-          .select("id");
-        restoredReplies = restored?.length || 0;
-      }
-
-      return NextResponse.json({
-        success: true,
-        message: "Comment restored",
-        restored_replies: restoredReplies,
-      });
+    // action === "restore" (validated above)
+    if (!comment.deleted_at) {
+      return NextResponse.json({ error: "Comment not hidden" }, { status: 400 });
     }
+
+    // Restore comment
+    await supabase.from("comments").update({ deleted_at: null }).eq("id", id);
+
+    // Restore replies that were deleted at the same time (within 1 second)
+    let restoredReplies = 0;
+    if (comment.parent_comment_id === null) {
+      const deletedAt = new Date(comment.deleted_at);
+      const deletedAtMin = new Date(deletedAt.getTime() - 1000).toISOString();
+      const deletedAtMax = new Date(deletedAt.getTime() + 1000).toISOString();
+
+      const { data: restored } = await supabase
+        .from("comments")
+        .update({ deleted_at: null })
+        .eq("parent_comment_id", id)
+        .gte("deleted_at", deletedAtMin)
+        .lte("deleted_at", deletedAtMax)
+        .select("id");
+      restoredReplies = restored?.length || 0;
+    }
+
+    return NextResponse.json({
+      success: true,
+      message: "Comment restored",
+      restored_replies: restoredReplies,
+    });
   } catch (error) {
     console.error("Error in PATCH /api/admin/community/comments/[id]:", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });

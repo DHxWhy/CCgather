@@ -87,33 +87,32 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       });
     }
 
-    if (action === "restore") {
-      if (!post.deleted_at) {
-        return NextResponse.json({ error: "Post not hidden" }, { status: 400 });
-      }
-
-      // Restore post
-      await supabase.from("posts").update({ deleted_at: null }).eq("id", id);
-
-      // Restore comments that were deleted at the same time (within 1 second)
-      const deletedAt = new Date(post.deleted_at);
-      const deletedAtMin = new Date(deletedAt.getTime() - 1000).toISOString();
-      const deletedAtMax = new Date(deletedAt.getTime() + 1000).toISOString();
-
-      const { data: restoredComments } = await supabase
-        .from("comments")
-        .update({ deleted_at: null })
-        .eq("post_id", id)
-        .gte("deleted_at", deletedAtMin)
-        .lte("deleted_at", deletedAtMax)
-        .select("id");
-
-      return NextResponse.json({
-        success: true,
-        message: "Post restored",
-        restored_comments: restoredComments?.length || 0,
-      });
+    // action === "restore" (validated above)
+    if (!post.deleted_at) {
+      return NextResponse.json({ error: "Post not hidden" }, { status: 400 });
     }
+
+    // Restore post
+    await supabase.from("posts").update({ deleted_at: null }).eq("id", id);
+
+    // Restore comments that were deleted at the same time (within 1 second)
+    const deletedAt = new Date(post.deleted_at);
+    const deletedAtMin = new Date(deletedAt.getTime() - 1000).toISOString();
+    const deletedAtMax = new Date(deletedAt.getTime() + 1000).toISOString();
+
+    const { data: restoredComments } = await supabase
+      .from("comments")
+      .update({ deleted_at: null })
+      .eq("post_id", id)
+      .gte("deleted_at", deletedAtMin)
+      .lte("deleted_at", deletedAtMax)
+      .select("id");
+
+    return NextResponse.json({
+      success: true,
+      message: "Post restored",
+      restored_comments: restoredComments?.length || 0,
+    });
   } catch (error) {
     console.error("Error in PATCH /api/admin/community/posts/[id]:", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });

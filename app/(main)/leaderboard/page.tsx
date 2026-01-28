@@ -2461,6 +2461,7 @@ export default function LeaderboardPage() {
                     isSignedIn={!!currentUsername}
                     hasSubmissionHistory={(currentUserData?.total_tokens || 0) > 0}
                     canPost={!!currentUsername && (currentUserData?.total_tokens || 0) > 0}
+                    currentUserId={currentUserData?.id}
                     userAvatar={currentUserData?.avatar_url}
                     userName={currentUserData?.display_name || currentUserData?.username}
                     userLevel={

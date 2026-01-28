@@ -98,6 +98,7 @@ function CommunityFeedSectionComponent({
   isSignedIn,
   hasSubmissionHistory,
   canPost: _canPost,
+  currentUserId,
   userAvatar,
   userName,
   userLevel,
@@ -264,6 +265,7 @@ function CommunityFeedSectionComponent({
                 hideLevelBadge={true}
                 variant={variant}
                 isFeatured={true}
+                currentUserId={currentUserId || undefined}
               />
             </div>
           </div>
@@ -318,6 +320,7 @@ function CommunityFeedSectionComponent({
                     onSubmissionRequired={onSubmissionRequired}
                     hideLevelBadge={true}
                     variant={variant}
+                    currentUserId={currentUserId || undefined}
                   />
                 )}
               />
