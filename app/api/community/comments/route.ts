@@ -2,6 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { createServiceClient } from "@/lib/supabase/server";
 import { z } from "zod";
+import {
+  sendPushNotificationToUser,
+  createCommentNotification,
+  createCommentReplyNotification,
+} from "@/lib/push/send-notification";
 
 // =====================================================
 // Types
@@ -366,6 +371,30 @@ export async function POST(request: NextRequest) {
 
     if (notifications.length > 0) {
       await supabase.from("notifications").insert(notifications);
+
+      // Send push notifications (async, don't block response)
+      const actorDisplayName = user.display_name || user.username;
+      notifications.forEach((notif) => {
+        const payload =
+          notif.type === "comment_reply"
+            ? createCommentReplyNotification(
+                actorDisplayName,
+                parsed.data.content.trim(),
+                parsed.data.post_id,
+                comment.id
+              )
+            : createCommentNotification(
+                actorDisplayName,
+                parsed.data.content.trim(),
+                parsed.data.post_id,
+                comment.id
+              );
+
+        // Fire and forget - don't await to avoid blocking response
+        sendPushNotificationToUser(notif.user_id, payload).catch((err) =>
+          console.error("Failed to send push notification:", err)
+        );
+      });
     }
 
     // Return created comment with author info

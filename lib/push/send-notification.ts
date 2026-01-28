@@ -180,6 +180,27 @@ export function createCommentNotification(
   };
 }
 
+export function createCommentLikeNotification(
+  actorUsername: string,
+  commentContent: string,
+  postId: string,
+  commentId: string
+): PushNotificationPayload {
+  return {
+    title: "Comment Liked",
+    body: `${actorUsername} liked your comment: "${commentContent.slice(0, 40)}${commentContent.length > 40 ? "..." : ""}"`,
+    icon: "/icons/icon-192x192.png",
+    badge: "/icons/badge-72x72.png",
+    tag: `comment-like-${commentId}`,
+    data: {
+      url: `/community?post=${postId}#comment-${commentId}`,
+      type: "comment_like",
+      postId,
+      commentId,
+    },
+  };
+}
+
 export function createCommentReplyNotification(
   actorUsername: string,
   replyContent: string,

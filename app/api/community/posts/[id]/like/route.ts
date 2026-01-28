@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { createServiceClient } from "@/lib/supabase/server";
+import {
+  sendPushNotificationToUser,
+  createPostLikeNotification,
+} from "@/lib/push/send-notification";
 
 // =====================================================
 // POST /api/community/posts/[id]/like - 좋아요 토글
@@ -19,7 +23,7 @@ export async function POST(_request: NextRequest, { params }: { params: Promise<
     // Get user from database
     const { data: user } = await supabase
       .from("users")
-      .select("id")
+      .select("id, username, display_name")
       .eq("clerk_id", clerkId)
       .single();
 
@@ -46,7 +50,7 @@ export async function POST(_request: NextRequest, { params }: { params: Promise<
     // Check if post exists
     const { data: post } = await supabase
       .from("posts")
-      .select("id, author_id, likes_count")
+      .select("id, author_id, likes_count, content")
       .eq("id", postId)
       .is("deleted_at", null)
       .single();
@@ -114,6 +118,13 @@ export async function POST(_request: NextRequest, { params }: { params: Promise<
           actor_id: user.id,
           post_id: postId,
         });
+
+        // Send push notification (async, don't block response)
+        const actorDisplayName = user.display_name || user.username;
+        const payload = createPostLikeNotification(actorDisplayName, post.content || "", postId);
+        sendPushNotificationToUser(post.author_id, payload).catch((err) =>
+          console.error("Failed to send push notification:", err)
+        );
       }
 
       // Get updated count (trigger should have updated it)
