@@ -1318,16 +1318,16 @@ export default function LeaderboardPage() {
                         <span>💰</span>
                         <AnimatedNumber
                           value={Math.round(totalGlobalCost)}
-                          duration={2000}
+                          duration={1200}
                           easing="easeOut"
                           className="font-semibold"
                           formatter={(n) => `$${n.toLocaleString()}`}
                           storageKey="leaderboard_cost"
-                          smartStart={0.95}
+                          smartStart={0.97}
                           simulateRealtime={{
-                            interval: 4000,
-                            minIncrement: 1,
-                            maxIncrement: 5,
+                            interval: 5000,
+                            minIncrement: 0,
+                            maxIncrement: 2,
                           }}
                         />
                       </span>
@@ -1342,15 +1342,15 @@ export default function LeaderboardPage() {
                         <span>⚡</span>
                         <AnimatedNumber
                           value={totalGlobalTokens}
-                          duration={2000}
+                          duration={1200}
                           easing="easeOut"
                           className="font-semibold"
                           storageKey="leaderboard_tokens"
-                          smartStart={0.95}
+                          smartStart={0.97}
                           simulateRealtime={{
-                            interval: 3000,
-                            minIncrement: 10000,
-                            maxIncrement: 50000,
+                            interval: 4000,
+                            minIncrement: 1000,
+                            maxIncrement: 8000,
                           }}
                         />
                       </span>
