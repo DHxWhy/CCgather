@@ -62,17 +62,17 @@ export default function AnimatedNumber({
   const isFirstMount = useRef(true);
   const baseValueRef = useRef<number>(value); // 실제 API 값 저장
 
-  // Realtime simulation effect
+  // Realtime simulation effect - starts when value is loaded (> 0)
   useEffect(() => {
-    if (!simulateRealtime) return;
+    if (!simulateRealtime || value === 0) return;
 
     // Clear existing interval
     if (realtimeIntervalRef.current) {
       clearInterval(realtimeIntervalRef.current);
     }
 
-    // Start realtime simulation after initial animation
-    const startDelay = duration + 500; // 초기 애니메이션 후 시작
+    // Start realtime simulation after a short delay
+    const startDelay = 2500; // 페이지 로드 후 2.5초 뒤 시작
 
     const timeoutId = setTimeout(() => {
       realtimeIntervalRef.current = setInterval(() => {
@@ -102,7 +102,7 @@ export default function AnimatedNumber({
         clearInterval(realtimeIntervalRef.current);
       }
     };
-  }, [simulateRealtime, duration, storageKey]);
+  }, [simulateRealtime, value, storageKey]);
 
   // Main animation effect
   useEffect(() => {
