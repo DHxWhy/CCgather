@@ -1,6 +1,6 @@
 "use client";
 
-import { memo, useState, useCallback, useMemo, useEffect } from "react";
+import { memo, useState, useCallback, useMemo, useRef, useEffect } from "react";
 import Image from "next/image";
 import {
   Heart,
@@ -12,6 +12,7 @@ import {
   Reply,
   Trash2,
   Loader2,
+  MoreHorizontal,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { FlagIcon } from "@/components/ui/FlagIcon";
@@ -65,9 +66,9 @@ export interface FeedPost {
   comments_count: number;
   created_at: string;
   is_liked?: boolean;
-  // Mock data for UI
   liked_by?: LikedByUser[];
   comments?: FeedComment[];
+  has_more_comments?: boolean; // True if there are more comments to load
 }
 
 interface FeedCardProps {
@@ -142,6 +143,30 @@ const CommentItem = memo(function CommentItem({
 }: CommentItemProps) {
   const [isDeleting, setIsDeleting] = useState(false);
   const [isDeleted, setIsDeleted] = useState(false);
+  const [showMenu, setShowMenu] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  // Close menu on outside click
+  useEffect(() => {
+    if (!showMenu) return;
+    const handleClickOutside = (event: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setShowMenu(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [showMenu]);
+
+  // Close menu on escape
+  useEffect(() => {
+    if (!showMenu) return;
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setShowMenu(false);
+    };
+    document.addEventListener("keydown", handleEscape);
+    return () => document.removeEventListener("keydown", handleEscape);
+  }, [showMenu]);
 
   const authorName = comment.author.display_name || comment.author.username;
   const avatarUrl = comment.author.avatar_url;
@@ -229,7 +254,7 @@ const CommentItem = memo(function CommentItem({
   }
 
   return (
-    <div className="flex items-start gap-2">
+    <div className="flex items-start gap-2 group/comment">
       {avatarUrl ? (
         <Image
           src={avatarUrl}
@@ -249,18 +274,77 @@ const CommentItem = memo(function CommentItem({
         </div>
       )}
       <div className="flex-1 min-w-0">
-        <div className="flex items-baseline gap-1.5">
-          <button
-            onClick={() => onAuthorClick?.(comment.author.id)}
-            className={cn(textSize, "font-medium text-[var(--color-text-primary)] hover:underline")}
-          >
-            {authorName}
-          </button>
-          <span
-            className={cn(isReply ? "text-[9px]" : "text-[10px]", "text-[var(--color-text-muted)]")}
-          >
-            {timeAgo(comment.created_at)}
-          </span>
+        <div className="flex items-center justify-between">
+          <div className="flex items-baseline gap-1.5">
+            <button
+              onClick={() => onAuthorClick?.(comment.author.id)}
+              className={cn(
+                textSize,
+                "font-medium text-[var(--color-text-primary)] hover:underline"
+              )}
+            >
+              {authorName}
+            </button>
+            <span
+              className={cn(
+                isReply ? "text-[9px]" : "text-[10px]",
+                "text-[var(--color-text-muted)]"
+              )}
+            >
+              {timeAgo(comment.created_at)}
+            </span>
+          </div>
+          {/* More menu - only visible to owner on hover */}
+          {isOwner && (
+            <div ref={menuRef} className="relative">
+              <button
+                onClick={() => setShowMenu((prev) => !prev)}
+                className={cn(
+                  "p-1 rounded transition-all",
+                  "opacity-0 group-hover/comment:opacity-100",
+                  showMenu && "opacity-100",
+                  "text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] hover:bg-white/10"
+                )}
+                aria-label="더 보기"
+              >
+                <MoreHorizontal size={isReply ? 12 : 14} />
+              </button>
+              {/* Dropdown menu */}
+              {showMenu && (
+                <div
+                  className={cn(
+                    "absolute right-0 top-full mt-1 z-50",
+                    "min-w-[80px] py-1",
+                    "bg-[var(--color-bg-secondary)] border border-[var(--border-default)]",
+                    "rounded-lg shadow-xl overflow-hidden",
+                    "animate-fadeIn"
+                  )}
+                >
+                  <button
+                    onClick={() => {
+                      setShowMenu(false);
+                      handleDeleteClick();
+                    }}
+                    disabled={isDeleting}
+                    className={cn(
+                      "w-full px-3 py-1.5 text-left flex items-center gap-2",
+                      isReply ? "text-[10px]" : "text-[11px]",
+                      "text-rose-400 hover:bg-rose-500/10",
+                      "transition-colors",
+                      isDeleting && "opacity-50 cursor-not-allowed"
+                    )}
+                  >
+                    {isDeleting ? (
+                      <Loader2 size={12} className="animate-spin" />
+                    ) : (
+                      <Trash2 size={12} />
+                    )}
+                    <span>Delete</span>
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
         </div>
         <p className={cn(textSize, "text-[var(--color-text-secondary)] leading-relaxed")}>
           {comment.content}
@@ -291,26 +375,6 @@ const CommentItem = memo(function CommentItem({
             >
               <Reply size={iconSize} />
               <span>답글</span>
-            </button>
-          )}
-          {/* Delete button - only visible to owner */}
-          {isOwner && (
-            <button
-              onClick={handleDeleteClick}
-              disabled={isDeleting}
-              className={cn(
-                "flex items-center gap-1 transition-colors",
-                isReply ? "text-[9px]" : "text-[10px]",
-                "text-[var(--color-text-muted)] hover:text-rose-400",
-                isDeleting && "opacity-50 cursor-not-allowed"
-              )}
-              title="삭제"
-            >
-              {isDeleting ? (
-                <Loader2 size={iconSize} className="animate-spin" />
-              ) : (
-                <Trash2 size={iconSize} />
-              )}
             </button>
           )}
         </div>
@@ -372,32 +436,54 @@ function FeedCardComponent({
   const [isDeleted, setIsDeleted] = useState(false);
   const [localComments, setLocalComments] = useState<FeedComment[]>(post.comments || []);
   const [commentsCount, setCommentsCount] = useState(post.comments_count);
-  const [commentsLoaded, setCommentsLoaded] = useState(false);
+  const [hasMoreComments, setHasMoreComments] = useState(post.has_more_comments ?? false);
   const [commentsLoading, setCommentsLoading] = useState(false);
+  const [showMenu, setShowMenu] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
 
   // Check if current user is the post author
   const isOwner = currentUserId && post.author.id === currentUserId;
 
-  // Fetch comments when comments section is opened
+  // Close menu on outside click
   useEffect(() => {
-    if (showComments && !commentsLoaded && !commentsLoading) {
-      setCommentsLoading(true);
-      fetch(`/api/community/comments?post_id=${post.id}`)
-        .then((res) => res.json())
-        .then((data) => {
-          if (data.comments) {
-            setLocalComments(data.comments);
-          }
-          setCommentsLoaded(true);
-        })
-        .catch((err) => {
-          console.error("Failed to load comments:", err);
-        })
-        .finally(() => {
-          setCommentsLoading(false);
-        });
+    if (!showMenu) return;
+    const handleClickOutside = (event: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setShowMenu(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [showMenu]);
+
+  // Close menu on escape
+  useEffect(() => {
+    if (!showMenu) return;
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setShowMenu(false);
+    };
+    document.addEventListener("keydown", handleEscape);
+    return () => document.removeEventListener("keydown", handleEscape);
+  }, [showMenu]);
+
+  // Load more comments (called when "더 보기" button is clicked)
+  const loadMoreComments = useCallback(async () => {
+    if (commentsLoading || !hasMoreComments) return;
+
+    setCommentsLoading(true);
+    try {
+      const res = await fetch(`/api/community/comments?post_id=${post.id}`);
+      const data = await res.json();
+      if (data.comments) {
+        setLocalComments(data.comments);
+        setHasMoreComments(false); // All comments loaded
+      }
+    } catch (err) {
+      console.error("Failed to load comments:", err);
+    } finally {
+      setCommentsLoading(false);
     }
-  }, [showComments, commentsLoaded, commentsLoading, post.id]);
+  }, [commentsLoading, hasMoreComments, post.id]);
 
   const displayName = post.author.display_name || post.author.username;
   const displayContent = showOriginal ? post.content : post.translated_content || post.content;
@@ -598,7 +684,7 @@ function FeedCardComponent({
   return (
     <article
       className={cn(
-        "relative transition-all duration-200",
+        "relative transition-all duration-200 group",
         variant === "card" && [
           "p-3 rounded-xl border",
           "bg-[var(--color-bg-secondary)]/50 backdrop-blur-sm",
@@ -617,12 +703,62 @@ function FeedCardComponent({
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
     >
+      {/* More menu (dropdown) - positioned at top-right of card */}
+      {isOwner && (
+        <div ref={menuRef} className="absolute top-3 right-3 z-10">
+          <button
+            onClick={() => setShowMenu((prev) => !prev)}
+            className={cn(
+              "p-1.5 rounded-lg transition-all",
+              showMenu
+                ? "bg-white/10 text-[var(--color-text-primary)]"
+                : "text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] hover:bg-white/10",
+              "opacity-0 group-hover:opacity-100",
+              showMenu && "opacity-100"
+            )}
+            aria-label="더 보기"
+          >
+            <MoreHorizontal size={16} />
+          </button>
+          {/* Dropdown menu */}
+          {showMenu && (
+            <div
+              className={cn(
+                "absolute right-0 top-full mt-1",
+                "min-w-[100px] py-1",
+                "bg-[var(--color-bg-secondary)] border border-[var(--border-default)]",
+                "rounded-lg shadow-xl overflow-hidden",
+                "animate-fadeIn"
+              )}
+            >
+              <button
+                onClick={() => {
+                  setShowMenu(false);
+                  handleDelete();
+                }}
+                disabled={isDeleting}
+                className={cn(
+                  "w-full px-3 py-2 text-left flex items-center gap-2",
+                  "text-[11px] font-medium",
+                  "text-rose-400 hover:bg-rose-500/10",
+                  "transition-colors",
+                  isDeleting && "opacity-50 cursor-not-allowed"
+                )}
+              >
+                {isDeleting ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
+                <span>Delete</span>
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Header: Author info */}
       <div className="flex items-start gap-2">
         {/* Avatar with flag overlay */}
         <button
           onClick={handleAuthorClick}
-          className="flex-shrink-0 group relative"
+          className="flex-shrink-0 group/avatar relative"
           aria-label={`View ${displayName}'s profile`}
         >
           {post.author.avatar_url ? (
@@ -827,27 +963,6 @@ function FeedCardComponent({
                 {shareSuccess ? <Check size={12} /> : <Share2 size={12} />}
               </button>
 
-              {/* Delete button - only visible to owner */}
-              {isOwner && (
-                <button
-                  onClick={handleDelete}
-                  disabled={isDeleting}
-                  className={cn(
-                    "flex items-center gap-1 px-2 py-1 rounded-full text-[11px] transition-all",
-                    "text-[var(--color-text-muted)] hover:text-rose-400 hover:bg-rose-500/10",
-                    isDeleting && "opacity-50 cursor-not-allowed"
-                  )}
-                  aria-label="Delete"
-                  title="삭제"
-                >
-                  {isDeleting ? (
-                    <Loader2 size={12} className="animate-spin" />
-                  ) : (
-                    <Trash2 size={12} />
-                  )}
-                </button>
-              )}
-
               {/* Comment button */}
               <button
                 onClick={handleCommentClick}
@@ -915,6 +1030,30 @@ function FeedCardComponent({
                 <p className="text-[11px] text-[var(--color-text-muted)] mb-3">
                   No comments yet. Be the first to comment!
                 </p>
+              )}
+
+              {/* Load More Comments Button */}
+              {hasMoreComments && (
+                <button
+                  onClick={loadMoreComments}
+                  disabled={commentsLoading}
+                  className={cn(
+                    "w-full py-2 text-[11px] font-medium rounded-lg transition-colors mb-3",
+                    "text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]",
+                    "bg-[var(--color-bg-card)] hover:bg-[var(--color-bg-secondary)]",
+                    "border border-[var(--border-default)]",
+                    commentsLoading && "opacity-50 cursor-not-allowed"
+                  )}
+                >
+                  {commentsLoading ? (
+                    <span className="flex items-center justify-center gap-2">
+                      <Loader2 size={12} className="animate-spin" />
+                      로딩 중...
+                    </span>
+                  ) : (
+                    `댓글 ${commentsCount - localComments.length}개 더 보기`
+                  )}
+                </button>
               )}
 
               {/* Comment Input */}

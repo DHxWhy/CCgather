@@ -1030,6 +1030,21 @@ export default function LeaderboardPage() {
               display_name: string | null;
               avatar_url: string | null;
             }[];
+            preview_comments?: {
+              id: string;
+              author: {
+                id: string;
+                username: string;
+                display_name: string | null;
+                avatar_url: string | null;
+                current_level: number;
+              };
+              content: string;
+              likes_count: number;
+              created_at: string;
+              is_liked: boolean;
+            }[];
+            has_more_comments?: boolean;
           }) => ({
             id: post.id,
             author: {
@@ -1048,7 +1063,22 @@ export default function LeaderboardPage() {
             comments_count: post.comments_count || 0,
             is_liked: post.is_liked || false,
             liked_by: post.liked_by || [],
-            comments: [], // Comments are fetched separately when viewing post
+            // Use preview_comments as initial comments (pre-fetched for instant display)
+            comments: (post.preview_comments || []).map((c) => ({
+              id: c.id,
+              author: {
+                id: c.author.id,
+                username: c.author.username,
+                display_name: c.author.display_name,
+                avatar_url: c.author.avatar_url,
+              },
+              content: c.content,
+              likes_count: c.likes_count,
+              is_liked: c.is_liked,
+              created_at: c.created_at,
+              replies: [],
+            })),
+            has_more_comments: post.has_more_comments || false,
           })
         );
 

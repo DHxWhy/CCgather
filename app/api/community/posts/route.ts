@@ -23,6 +23,21 @@ interface LikedByUser {
   avatar_url: string | null;
 }
 
+interface PreviewComment {
+  id: string;
+  author: {
+    id: string;
+    username: string;
+    display_name: string | null;
+    avatar_url: string | null;
+    current_level: number;
+  };
+  content: string;
+  likes_count: number;
+  created_at: string;
+  is_liked: boolean;
+}
+
 interface PostResponse {
   id: string;
   author: PostAuthor;
@@ -35,6 +50,8 @@ interface PostResponse {
   comments_count: number;
   is_liked: boolean;
   liked_by: LikedByUser[];
+  preview_comments: PreviewComment[];
+  has_more_comments: boolean;
 }
 
 // =====================================================
@@ -179,6 +196,83 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    // Get preview comments for posts with comments (up to 3 per post)
+    const postsWithComments =
+      posts?.filter((p: { comments_count: number }) => p.comments_count > 0) || [];
+    const postIdsWithComments = postsWithComments.map((p: { id: string }) => p.id);
+    const previewCommentsMap: Record<string, PreviewComment[]> = {};
+
+    if (postIdsWithComments.length > 0) {
+      // Fetch recent comments for posts that have comments
+      const { data: previewComments } = await supabase
+        .from("comments")
+        .select(
+          `
+          id,
+          post_id,
+          content,
+          likes_count,
+          created_at,
+          author:users!author_id (
+            id,
+            username,
+            display_name,
+            avatar_url,
+            current_level
+          )
+        `
+        )
+        .in("post_id", postIdsWithComments)
+        .is("deleted_at", null)
+        .is("parent_comment_id", null) // Only top-level comments
+        .order("created_at", { ascending: false });
+
+      // Get liked comment IDs for current user
+      let likedCommentIds: string[] = [];
+      if (currentUserDbId && previewComments && previewComments.length > 0) {
+        const commentIds = previewComments.map((c: { id: string }) => c.id);
+        const { data: commentLikes } = await supabase
+          .from("comment_likes")
+          .select("comment_id")
+          .eq("user_id", currentUserDbId)
+          .in("comment_id", commentIds);
+        likedCommentIds = commentLikes?.map((l: { comment_id: string }) => l.comment_id) || [];
+      }
+
+      // Group by post_id, limit to 3 per post
+      previewComments?.forEach(
+        (comment: {
+          id: string;
+          post_id: string;
+          content: string;
+          likes_count: number;
+          created_at: string;
+          author: {
+            id: string;
+            username: string;
+            display_name: string | null;
+            avatar_url: string | null;
+            current_level: number;
+          };
+        }) => {
+          if (!previewCommentsMap[comment.post_id]) {
+            previewCommentsMap[comment.post_id] = [];
+          }
+          const postComments = previewCommentsMap[comment.post_id];
+          if (postComments && postComments.length < 3) {
+            postComments.push({
+              id: comment.id,
+              author: comment.author,
+              content: comment.content,
+              likes_count: comment.likes_count,
+              created_at: comment.created_at,
+              is_liked: likedCommentIds.includes(comment.id),
+            });
+          }
+        }
+      );
+    }
+
     // Transform response
     const transformedPosts: PostResponse[] =
       posts?.map(
@@ -212,6 +306,8 @@ export async function GET(request: NextRequest) {
             comments_count: post.comments_count,
             is_liked: likedPostIds.includes(post.id),
             liked_by: likedByMap[post.id] || [],
+            preview_comments: previewCommentsMap[post.id] || [],
+            has_more_comments: post.comments_count > 3,
           };
         }
       ) || [];
@@ -318,6 +414,8 @@ export async function POST(request: NextRequest) {
       comments_count: 0,
       is_liked: false,
       liked_by: [],
+      preview_comments: [],
+      has_more_comments: false,
     };
 
     return NextResponse.json({ post: response }, { status: 201 });
