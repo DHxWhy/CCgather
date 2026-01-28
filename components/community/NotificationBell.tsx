@@ -14,7 +14,7 @@ import {
 import { cn } from "@/lib/utils";
 import { formatDistanceToNow } from "date-fns";
 import { ko } from "date-fns/locale";
-import { useNotificationSound } from "@/hooks/useNotificationSound";
+import { useNotificationSound } from "@/hooks/use-notification-sound";
 
 // =====================================================
 // Types

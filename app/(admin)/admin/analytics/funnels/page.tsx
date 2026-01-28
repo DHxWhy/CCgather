@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useAnalyticsFunnels } from "@/lib/hooks/useAdminAnalytics";
+import { useAnalyticsFunnels } from "@/hooks/use-admin-analytics";
 import { InfoPopover, METRIC_INFO } from "@/components/admin/InfoPopover";
 
 const DATE_RANGES = [

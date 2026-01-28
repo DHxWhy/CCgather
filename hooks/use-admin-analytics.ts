@@ -1,19 +1,11 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import type {
-  AnalyticsOverviewResponse,
-  AnalyticsTrendsResponse,
-  AnalyticsUsersResponse,
-  AnalyticsFunnelResponse,
-  AnalyticsRetentionResponse,
-} from "@/lib/types/analytics";
+import type { AnalyticsUsersResponse, AnalyticsFunnelResponse } from "@/lib/types/analytics";
 
 interface AnalyticsQueryOptions {
   dateFrom?: string;
   dateTo?: string;
-  interval?: "hour" | "day" | "week" | "month";
-  events?: string[];
   funnel?: "signup" | "engagement";
   enabled?: boolean;
 }
@@ -48,44 +40,6 @@ async function fetchAnalytics<T>(
 }
 
 /**
- * Fetch analytics overview metrics
- */
-export function useAnalyticsOverview(options: AnalyticsQueryOptions = {}) {
-  const { dateFrom = "-7d", dateTo, enabled = true } = options;
-
-  return useQuery<AnalyticsOverviewResponse>({
-    queryKey: ["analytics", "overview", dateFrom, dateTo],
-    queryFn: () =>
-      fetchAnalytics<AnalyticsOverviewResponse>("overview", {
-        date_from: dateFrom,
-        date_to: dateTo,
-      }),
-    staleTime: 60 * 1000, // 1 minute
-    enabled,
-  });
-}
-
-/**
- * Fetch analytics trends data
- */
-export function useAnalyticsTrends(options: AnalyticsQueryOptions = {}) {
-  const { dateFrom = "-7d", dateTo, interval = "day", events, enabled = true } = options;
-
-  return useQuery<AnalyticsTrendsResponse>({
-    queryKey: ["analytics", "trends", dateFrom, dateTo, interval, events],
-    queryFn: () =>
-      fetchAnalytics<AnalyticsTrendsResponse>("trends", {
-        date_from: dateFrom,
-        date_to: dateTo,
-        interval,
-        events: events?.join(","),
-      }),
-    staleTime: 60 * 1000,
-    enabled,
-  });
-}
-
-/**
  * Fetch user analytics metrics
  */
 export function useAnalyticsUsers(options: AnalyticsQueryOptions = {}) {
@@ -116,24 +70,6 @@ export function useAnalyticsFunnels(options: AnalyticsQueryOptions = {}) {
         date_from: dateFrom,
         date_to: dateTo,
         funnel,
-      }),
-    staleTime: 60 * 1000,
-    enabled,
-  });
-}
-
-/**
- * Fetch retention analytics
- */
-export function useAnalyticsRetention(options: AnalyticsQueryOptions = {}) {
-  const { dateFrom = "-30d", dateTo, enabled = true } = options;
-
-  return useQuery<AnalyticsRetentionResponse>({
-    queryKey: ["analytics", "retention", dateFrom, dateTo],
-    queryFn: () =>
-      fetchAnalytics<AnalyticsRetentionResponse>("retention", {
-        date_from: dateFrom,
-        date_to: dateTo,
       }),
     staleTime: 60 * 1000,
     enabled,

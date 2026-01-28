@@ -16,7 +16,7 @@ import {
   Send,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { usePushNotifications } from "@/hooks/usePushNotifications";
+import { usePushNotifications } from "@/hooks/use-push-notifications";
 
 // =====================================================
 // Types
@@ -152,6 +152,105 @@ function MobilePushPreview({ isEnabled }: { isEnabled: boolean }) {
         {isEnabled ? <Bell size={8} /> : <BellOff size={8} />}
         <span>{isEnabled ? "On" : "Off"}</span>
       </motion.div>
+    </div>
+  );
+}
+
+// =====================================================
+// Desktop Push Preview Component (Windows-style)
+// =====================================================
+
+function DesktopPushPreview({ isEnabled }: { isEnabled: boolean }) {
+  return (
+    <div className="relative select-none hidden sm:block">
+      {/* Desktop Screen Frame */}
+      <div className="relative bg-zinc-800 rounded-lg p-1 shadow-xl ring-1 ring-white/10 w-[200px]">
+        {/* Screen Content */}
+        <div className="relative bg-gradient-to-br from-[#1a1a2e] to-[#16162a] rounded overflow-hidden h-[120px]">
+          {/* Desktop Icons (simplified) */}
+          <div className="absolute top-2 left-2 space-y-2">
+            <div className="w-3 h-3 rounded bg-white/10" />
+            <div className="w-3 h-3 rounded bg-white/10" />
+          </div>
+
+          {/* Taskbar */}
+          <div className="absolute bottom-0 left-0 right-0 h-4 bg-black/60 backdrop-blur-sm flex items-center px-1">
+            <div className="flex gap-0.5">
+              <div className="w-2 h-2 rounded-sm bg-blue-500/60" />
+              <div className="w-2 h-2 rounded-sm bg-white/20" />
+            </div>
+            <div className="ml-auto text-[5px] text-white/40 mr-1">9:41</div>
+          </div>
+
+          {/* Windows Toast Notification (Bottom Right) */}
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={`desktop-notif-${isEnabled}`}
+              initial={{ opacity: 0, x: 20, y: 10 }}
+              animate={
+                isEnabled
+                  ? {
+                      opacity: 1,
+                      x: 0,
+                      y: 0,
+                      transition: { type: "spring", stiffness: 300, damping: 25 },
+                    }
+                  : { opacity: 0.2, x: 10, y: 5 }
+              }
+              className="absolute bottom-5 right-1 w-[90px] bg-zinc-900/95 rounded shadow-lg border border-white/10 overflow-hidden"
+            >
+              {/* App Header */}
+              <div className="flex items-center gap-1 px-1.5 py-1 border-b border-white/5">
+                <div className="w-2.5 h-2.5 rounded bg-gradient-to-br from-[#00D4AA] to-[#0099CC] flex items-center justify-center">
+                  <span className="text-[4px] font-bold text-white">CC</span>
+                </div>
+                <span className="text-[5px] text-white/60 font-medium">CCgather</span>
+              </div>
+              {/* Notification Content */}
+              <div className="px-1.5 py-1.5">
+                <p className="text-[6px] font-medium text-white/90 mb-0.5">
+                  vibelabs liked your...
+                </p>
+                <p className="text-[5px] text-white/50">Just now</p>
+              </div>
+            </motion.div>
+          </AnimatePresence>
+
+          {/* Second Toast (stacked) */}
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={`desktop-notif-2-${isEnabled}`}
+              initial={{ opacity: 0, x: 20 }}
+              animate={
+                isEnabled
+                  ? {
+                      opacity: 0.6,
+                      x: 0,
+                      transition: { type: "spring", stiffness: 300, damping: 25, delay: 0.1 },
+                    }
+                  : { opacity: 0.1, x: 10 }
+              }
+              className="absolute bottom-[72px] right-1 w-[90px] bg-zinc-900/90 rounded shadow-lg border border-white/5 overflow-hidden"
+            >
+              <div className="flex items-center gap-1 px-1.5 py-1 border-b border-white/5">
+                <div className="w-2.5 h-2.5 rounded bg-gradient-to-br from-[#00D4AA] to-[#0099CC] flex items-center justify-center">
+                  <span className="text-[4px] font-bold text-white">CC</span>
+                </div>
+                <span className="text-[5px] text-white/60 font-medium">CCgather</span>
+              </div>
+              <div className="px-1.5 py-1.5">
+                <p className="text-[6px] font-medium text-white/80 mb-0.5">🏆 Rank #48 (+4)</p>
+                <p className="text-[5px] text-white/40">2 min ago</p>
+              </div>
+            </motion.div>
+          </AnimatePresence>
+        </div>
+      </div>
+
+      {/* Label */}
+      <div className="text-center mt-1.5">
+        <span className="text-[8px] text-[var(--color-text-muted)]">Desktop (Windows)</span>
+      </div>
     </div>
   );
 }
@@ -327,8 +426,11 @@ export default function NotificationSection() {
         {/* Main Toggle Section */}
         <div className="p-4">
           <div className="flex items-center gap-4">
-            {/* Mobile Preview */}
-            <MobilePushPreview isEnabled={isSubscribed} />
+            {/* Device Previews */}
+            <div className="flex items-end gap-3">
+              <MobilePushPreview isEnabled={isSubscribed} />
+              <DesktopPushPreview isEnabled={isSubscribed} />
+            </div>
 
             {/* Status & Button */}
             <div className="flex-1 min-w-0">
@@ -367,7 +469,7 @@ export default function NotificationSection() {
                 onClick={handlePushToggle}
                 disabled={!canEnablePush || isPushLoading}
                 className={cn(
-                  "w-full py-2.5 rounded-xl text-xs font-medium transition-all",
+                  "px-6 py-2 rounded-xl text-xs font-medium transition-all",
                   isSubscribed
                     ? "bg-white/10 text-[var(--color-text-primary)] hover:bg-white/15"
                     : "bg-[var(--color-accent-cyan)] text-black hover:bg-[var(--color-accent-cyan)]/90",
@@ -410,7 +512,7 @@ export default function NotificationSection() {
                 <Loader2 className="w-5 h-5 animate-spin text-[var(--color-text-muted)]" />
               </div>
             ) : (
-              <div className="px-3 pb-3 grid grid-cols-2 gap-x-4 gap-y-0">
+              <div className="px-3 pb-3 grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-0">
                 {PREFERENCE_ITEMS.map((item) => (
                   <PreferenceItem
                     key={item.key}

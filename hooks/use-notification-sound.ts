@@ -22,13 +22,12 @@ export function useNotificationSound() {
       audio.volume = Math.min(1, Math.max(0, volume));
       audio.currentTime = 0;
 
-      // Play and handle errors silently
-      audio.play().catch((error) => {
-        // Autoplay might be blocked by browser policy
-        console.debug("Notification sound blocked:", error.message);
+      // Play and handle errors silently (autoplay might be blocked)
+      audio.play().catch(() => {
+        // Silently ignore - browser may block autoplay
       });
-    } catch (error) {
-      console.debug("Error playing notification sound:", error);
+    } catch {
+      // Silently ignore audio errors
     }
   }, []);
 

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useAnalyticsUsers } from "@/lib/hooks/useAdminAnalytics";
+import { useAnalyticsUsers } from "@/hooks/use-admin-analytics";
 import { InfoPopover, METRIC_INFO } from "@/components/admin/InfoPopover";
 import type { MetricWithTrend } from "@/lib/types/analytics";
 

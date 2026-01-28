@@ -47,3 +47,33 @@ export async function checkAdmin(): Promise<string | null> {
 export async function isAdmin(): Promise<boolean> {
   return (await checkAdmin()) !== null;
 }
+
+/**
+ * Check if current user has admin access (boolean)
+ * @returns true if user is admin, false otherwise
+ */
+export async function checkAdminAccess(): Promise<boolean> {
+  const { userId } = await auth();
+  if (!userId) return false;
+
+  // Development mode: allow all authenticated users
+  if (process.env.NODE_ENV === "development") return true;
+
+  // Production: verify is_admin flag in database
+  const supabase = await createClient();
+  const { data } = await supabase.from("users").select("is_admin").eq("clerk_id", userId).single();
+
+  return data?.is_admin === true;
+}
+
+/**
+ * Require admin access, throws error if not admin
+ * @throws Error if user is not admin
+ */
+export async function requireAdmin(): Promise<true> {
+  const hasAccess = await checkAdminAccess();
+  if (!hasAccess) {
+    throw new Error("Unauthorized: Admin access required");
+  }
+  return true;
+}

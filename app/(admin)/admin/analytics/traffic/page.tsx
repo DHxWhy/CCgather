@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, Fragment } from "react";
-import { useTrafficSources } from "@/lib/hooks/useAdminAnalytics";
+import { useTrafficSources } from "@/hooks/use-admin-analytics";
 
 const DATE_RANGES = [
   { label: "7일", value: "-7d" },

@@ -4,7 +4,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { isAdmin } from "@/lib/admin/guard";
+import { isAdmin } from "@/lib/admin";
 import { createServiceClient } from "@/lib/supabase/server";
 
 interface SubmitLogRow {

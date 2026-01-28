@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useCoreKPI, useRetentionDB, useAnalyticsHealth } from "@/lib/hooks/useAdminAnalytics";
+import { useCoreKPI, useRetentionDB, useAnalyticsHealth } from "@/hooks/use-admin-analytics";
 import { InfoPopover, METRIC_INFO } from "@/components/admin/InfoPopover";
 
 const PERIOD_OPTIONS = [
