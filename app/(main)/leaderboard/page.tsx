@@ -325,17 +325,18 @@ export default function LeaderboardPage() {
   }, [pagesData, loadedPageRange]);
 
   // Community stats derived from real data (must be after users definition)
+  const usersCount = users.length;
   const communityStats = useMemo(() => {
     const totalPosts = communityPosts.length;
     const totalLikes = communityPosts.reduce((sum, post) => sum + post.likes_count, 0);
     const uniqueAuthors = new Set(communityPosts.map((post) => post.author.id)).size;
     return {
-      members: users.length, // Real member count from leaderboard
+      members: usersCount, // Real member count from leaderboard
       posts: totalPosts,
       likes: totalLikes,
       contributors: uniqueAuthors,
     };
-  }, [communityPosts, users.length]);
+  }, [communityPosts, usersCount]);
 
   // Check if there are more pages to load
   const hasMore = loadedPageRange.end < totalPages;
@@ -1317,11 +1318,17 @@ export default function LeaderboardPage() {
                         <span>💰</span>
                         <AnimatedNumber
                           value={Math.round(totalGlobalCost)}
-                          duration={8000}
-                          easing="linear"
+                          duration={2000}
+                          easing="easeOut"
                           className="font-semibold"
                           formatter={(n) => `$${n.toLocaleString()}`}
                           storageKey="leaderboard_cost"
+                          smartStart={0.95}
+                          simulateRealtime={{
+                            interval: 4000,
+                            minIncrement: 1,
+                            maxIncrement: 5,
+                          }}
                         />
                       </span>
                       <span className="text-[var(--color-text-muted)]">·</span>
@@ -1335,10 +1342,16 @@ export default function LeaderboardPage() {
                         <span>⚡</span>
                         <AnimatedNumber
                           value={totalGlobalTokens}
-                          duration={10000}
-                          easing="linear"
+                          duration={2000}
+                          easing="easeOut"
                           className="font-semibold"
                           storageKey="leaderboard_tokens"
+                          smartStart={0.95}
+                          simulateRealtime={{
+                            interval: 3000,
+                            minIncrement: 10000,
+                            maxIncrement: 50000,
+                          }}
                         />
                       </span>
                     </>

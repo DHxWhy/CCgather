@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 
 interface AnimatedNumberProps {
   value: number;
@@ -12,6 +12,14 @@ interface AnimatedNumberProps {
   formatter?: (value: number) => string;
   storageKey?: string; // sessionStorage 키 (이전 값 기억용)
   easing?: "easeOut" | "linear"; // 이징 함수 선택
+  // Smart start: 큰 숫자를 90%에서 시작하여 부담 감소
+  smartStart?: number; // 시작점 비율 (0.9 = 90%, 0 = 비활성화)
+  // Realtime simulation: 애니메이션 후 천천히 증가하는 효과
+  simulateRealtime?: {
+    interval: number; // 증가 간격 (ms), 예: 3000 = 3초마다
+    minIncrement: number; // 최소 증가량
+    maxIncrement: number; // 최대 증가량
+  };
 }
 
 /**
@@ -21,7 +29,7 @@ interface AnimatedNumberProps {
  *
  * 사용 예시:
  * - 커뮤니티 (작은 숫자): perUnitDuration={800} maxDuration={20000}
- * - 리더보드 (큰 숫자): duration={8000} easing="linear"
+ * - 리더보드 (큰 숫자): duration={2000} smartStart={0.9} simulateRealtime={{ interval: 5000, minIncrement: 1, maxIncrement: 10 }}
  */
 export default function AnimatedNumber({
   value,
@@ -33,33 +41,95 @@ export default function AnimatedNumber({
   formatter = (n) => n.toLocaleString(),
   storageKey,
   easing = "easeOut",
+  smartStart = 0,
+  simulateRealtime,
 }: AnimatedNumberProps) {
   // sessionStorage에서 이전 값 읽기
-  const getStoredValue = (): number => {
-    if (!storageKey || typeof window === "undefined") return value;
+  const getStoredValue = useCallback((): number | null => {
+    if (!storageKey || typeof window === "undefined") return null;
     try {
       const stored = sessionStorage.getItem(`animNum_${storageKey}`);
-      return stored ? parseInt(stored, 10) : value;
+      return stored ? parseInt(stored, 10) : null;
     } catch {
-      return value;
+      return null;
     }
-  };
+  }, [storageKey]);
 
   const [displayValue, setDisplayValue] = useState(value);
   const previousValueRef = useRef<number | null>(null);
   const animationRef = useRef<number | null>(null);
+  const realtimeIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const isFirstMount = useRef(true);
+  const baseValueRef = useRef<number>(value); // 실제 API 값 저장
 
+  // Realtime simulation effect
   useEffect(() => {
-    // 첫 마운트 시 이전 값 가져오기
+    if (!simulateRealtime) return;
+
+    // Clear existing interval
+    if (realtimeIntervalRef.current) {
+      clearInterval(realtimeIntervalRef.current);
+    }
+
+    // Start realtime simulation after initial animation
+    const startDelay = duration + 500; // 초기 애니메이션 후 시작
+
+    const timeoutId = setTimeout(() => {
+      realtimeIntervalRef.current = setInterval(() => {
+        const increment =
+          Math.floor(
+            Math.random() * (simulateRealtime.maxIncrement - simulateRealtime.minIncrement + 1)
+          ) + simulateRealtime.minIncrement;
+
+        setDisplayValue((prev) => {
+          const newValue = prev + increment;
+          // sessionStorage 업데이트
+          if (storageKey && typeof window !== "undefined") {
+            try {
+              sessionStorage.setItem(`animNum_${storageKey}`, newValue.toString());
+            } catch {
+              // 무시
+            }
+          }
+          return newValue;
+        });
+      }, simulateRealtime.interval);
+    }, startDelay);
+
+    return () => {
+      clearTimeout(timeoutId);
+      if (realtimeIntervalRef.current) {
+        clearInterval(realtimeIntervalRef.current);
+      }
+    };
+  }, [simulateRealtime, duration, storageKey]);
+
+  // Main animation effect
+  useEffect(() => {
+    // 값이 0이면 애니메이션 하지 않음 (아직 로드 안됨)
+    if (value === 0) return;
+
+    // 실제 API 값 저장
+    baseValueRef.current = value;
+
+    // 첫 마운트 시 이전 값 결정
     if (isFirstMount.current) {
-      previousValueRef.current = getStoredValue();
+      const storedValue = getStoredValue();
+      if (storedValue !== null) {
+        // 저장된 값이 있으면 그걸 사용
+        previousValueRef.current = storedValue;
+      } else if (smartStart > 0 && value > 100) {
+        // 저장된 값이 없고 smartStart가 활성화되면 90%에서 시작
+        previousValueRef.current = Math.floor(value * smartStart);
+      } else {
+        // 그 외에는 현재 값 (애니메이션 없음)
+        previousValueRef.current = value;
+      }
       isFirstMount.current = false;
     }
 
     const previousValue = previousValueRef.current ?? value;
     const difference = value - previousValue;
-    const absDifference = Math.abs(difference);
 
     // 값이 같으면 애니메이션 불필요
     if (difference === 0) {
@@ -71,6 +141,7 @@ export default function AnimatedNumber({
     let actualDuration: number;
     if (perUnitDuration) {
       // 1단위당 시간 기반 계산
+      const absDifference = Math.abs(difference);
       actualDuration = absDifference * perUnitDuration;
       actualDuration = Math.min(actualDuration, maxDuration);
       actualDuration = Math.max(actualDuration, minDuration);
@@ -120,7 +191,17 @@ export default function AnimatedNumber({
         cancelAnimationFrame(animationRef.current);
       }
     };
-  }, [value, duration, perUnitDuration, maxDuration, minDuration, storageKey, easing]);
+  }, [
+    value,
+    duration,
+    perUnitDuration,
+    maxDuration,
+    minDuration,
+    storageKey,
+    easing,
+    smartStart,
+    getStoredValue,
+  ]);
 
   return <span className={className}>{formatter(displayValue)}</span>;
 }

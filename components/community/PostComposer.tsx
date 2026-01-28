@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useCallback, useMemo, useEffect } from "react";
+import { useState, useRef, useCallback, useMemo } from "react";
 import Image from "next/image";
 import { ImagePlus, Link2, Send, Globe, Sparkles, X } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -39,57 +39,7 @@ export default function PostComposer({
   const [isFocused, setIsFocused] = useState(false);
   const [isPosting, setIsPosting] = useState(false);
   const [dismissedPreview, setDismissedPreview] = useState(false);
-  const [cursorPos, setCursorPos] = useState({ x: 0, y: 0 });
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const cursorMeasureRef = useRef<HTMLSpanElement>(null);
-
-  // Measure cursor position for block cursor overlay
-  useEffect(() => {
-    if (cursorMeasureRef.current && textareaRef.current) {
-      const textarea = textareaRef.current;
-      const measureSpan = cursorMeasureRef.current;
-
-      // Get text up to cursor (for textarea, we use selectionStart)
-      const cursorIndex = textarea.selectionStart ?? content.length;
-      const textBeforeCursor = content.substring(0, cursorIndex);
-
-      // Split by lines to get current line
-      const lines = textBeforeCursor.split("\n");
-      const currentLine = lines[lines.length - 1];
-      const lineNumber = lines.length - 1;
-
-      // Measure current line width
-      measureSpan.textContent = currentLine || "\u200B"; // zero-width space for empty
-      const x = measureSpan.offsetWidth;
-
-      // Calculate y position based on line number (approx 20px line height)
-      const lineHeight = 20;
-      const y = lineNumber * lineHeight;
-
-      setCursorPos({ x, y });
-    }
-  }, [content]);
-
-  // Update cursor position on selection change
-  const handleSelect = useCallback(() => {
-    if (cursorMeasureRef.current && textareaRef.current) {
-      const textarea = textareaRef.current;
-      const measureSpan = cursorMeasureRef.current;
-
-      const cursorIndex = textarea.selectionStart ?? content.length;
-      const textBeforeCursor = content.substring(0, cursorIndex);
-      const lines = textBeforeCursor.split("\n");
-      const currentLine = lines[lines.length - 1];
-      const lineNumber = lines.length - 1;
-
-      measureSpan.textContent = currentLine || "\u200B";
-      const x = measureSpan.offsetWidth;
-      const lineHeight = 20;
-      const y = lineNumber * lineHeight;
-
-      setCursorPos({ x, y });
-    }
-  }, [content]);
 
   // Detect embeddable URL in content
   const detectedUrl: ParsedUrl | null = useMemo(() => {
@@ -208,25 +158,8 @@ export default function PostComposer({
               </div>
             )}
 
-            {/* Textarea with terminal cursor */}
+            {/* Textarea */}
             <div className="relative">
-              {/* Hidden span for cursor measurement */}
-              <span
-                ref={cursorMeasureRef}
-                className="absolute invisible whitespace-pre text-[13px] leading-relaxed"
-                style={{ fontFamily: "inherit" }}
-                aria-hidden="true"
-              />
-              {/* Block cursor overlay */}
-              {isFocused && (
-                <span
-                  className="absolute w-[7px] h-[15px] bg-[var(--color-text-primary)] opacity-70 pointer-events-none animate-terminal-blink"
-                  style={{
-                    left: `${cursorPos.x}px`,
-                    top: `${cursorPos.y + 2}px`,
-                  }}
-                />
-              )}
               {/* Custom placeholder */}
               {!content && !isFocused && (
                 <span className="absolute left-0 top-0 text-[13px] text-[var(--color-text-muted)] pointer-events-none">
@@ -243,11 +176,10 @@ export default function PostComposer({
                 }}
                 onFocus={() => setIsFocused(true)}
                 onKeyDown={handleKeyDown}
-                onSelect={handleSelect}
-                onClick={handleSelect}
                 rows={1}
+                placeholder={isFocused ? placeholder : ""}
                 className={cn(
-                  "w-full resize-none bg-transparent caret-transparent",
+                  "w-full resize-none bg-transparent",
                   "text-[var(--color-text-primary)]",
                   "focus:outline-none",
                   "text-[13px] leading-relaxed",

@@ -68,6 +68,7 @@ interface FeedCardProps {
   onComment?: (postId: string) => void;
   onCommentLike?: (commentId: string) => void;
   onCommentReply?: (commentId: string, parentAuthor: string) => void;
+  onCommentSubmit?: (postId: string, comment: FeedComment) => void; // New: callback when comment is submitted
   className?: string;
   // Auth props
   isSignedIn?: boolean;
@@ -260,6 +261,7 @@ function FeedCardComponent({
   onComment,
   onCommentLike,
   onCommentReply,
+  onCommentSubmit,
   className,
   isSignedIn = false,
   hasSubmissionHistory = false,
@@ -276,18 +278,10 @@ function FeedCardComponent({
   const [showComments, setShowComments] = useState(false);
   const [commentText, setCommentText] = useState("");
   const [shareSuccess, setShareSuccess] = useState(false);
-  const [isFocused, setIsFocused] = useState(false);
-  const [cursorOffset, setCursorOffset] = useState(0);
   const [likeAnimating, setLikeAnimating] = useState(false);
-  const textMeasureRef = useRef<HTMLSpanElement>(null);
-
-  // Measure text width for cursor positioning
-  useEffect(() => {
-    if (textMeasureRef.current) {
-      textMeasureRef.current.textContent = commentText;
-      setCursorOffset(textMeasureRef.current.offsetWidth);
-    }
-  }, [commentText]);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [localComments, setLocalComments] = useState<FeedComment[]>(post.comments || []);
+  const [commentsCount, setCommentsCount] = useState(post.comments_count);
 
   const displayName = post.author.display_name || post.author.username;
   const displayContent = showOriginal ? post.content : post.translated_content || post.content;
@@ -369,7 +363,7 @@ function FeedCardComponent({
   }, [post.id, post.content, displayName]);
 
   // Handle comment submit
-  const handleCommentSubmit = useCallback(() => {
+  const handleCommentSubmit = useCallback(async () => {
     if (!isSignedIn) {
       onLoginRequired?.("comment");
       return;
@@ -378,11 +372,60 @@ function FeedCardComponent({
       onSubmissionRequired?.();
       return;
     }
-    if (!commentText.trim()) return;
-    // TODO: API call to post comment
-    console.log("Submit comment:", commentText);
-    setCommentText("");
-  }, [isSignedIn, hasSubmissionHistory, commentText, onLoginRequired, onSubmissionRequired]);
+    if (!commentText.trim() || isSubmitting) return;
+
+    setIsSubmitting(true);
+    try {
+      const response = await fetch("/api/community/comments", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          post_id: post.id,
+          content: commentText.trim(),
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        console.error("Failed to post comment:", error);
+        return;
+      }
+
+      const { comment } = await response.json();
+
+      // Add to local comments
+      const newComment: FeedComment = {
+        id: comment.id,
+        author: comment.author,
+        content: comment.content,
+        likes_count: 0,
+        is_liked: false,
+        created_at: comment.created_at,
+        replies: [],
+      };
+
+      setLocalComments((prev) => [...prev, newComment]);
+      setCommentsCount((prev) => prev + 1);
+      setCommentText("");
+      setShowComments(true);
+
+      // Notify parent
+      onCommentSubmit?.(post.id, newComment);
+    } catch (error) {
+      console.error("Error posting comment:", error);
+    } finally {
+      setIsSubmitting(false);
+    }
+  }, [
+    isSignedIn,
+    hasSubmissionHistory,
+    commentText,
+    isSubmitting,
+    post.id,
+    onLoginRequired,
+    onSubmissionRequired,
+    onCommentSubmit,
+  ]);
 
   // Handle author click to open profile panel
   const handleAuthorClick = useCallback(() => {
@@ -633,7 +676,7 @@ function FeedCardComponent({
                 aria-label="Comments"
               >
                 <MessageCircle size={12} />
-                <span className="tabular-nums">{post.comments_count}</span>
+                <span className="tabular-nums">{commentsCount}</span>
               </button>
             </div>
           </div>
@@ -642,9 +685,9 @@ function FeedCardComponent({
           {showComments && (
             <div className="mt-3 pt-3 border-t border-[var(--border-default)]/50 animate-fadeIn">
               {/* Comments List - Using CommentItem to avoid Turbopack variable mangling */}
-              {post.comments && post.comments.length > 0 ? (
+              {localComments && localComments.length > 0 ? (
                 <div className="space-y-3 mb-3">
-                  {post.comments.map((comment) => (
+                  {localComments.map((comment) => (
                     <div key={comment.id} className="space-y-2">
                       {/* Top-level comment */}
                       <CommentItem
@@ -684,11 +727,11 @@ function FeedCardComponent({
                 </p>
               )}
 
-              {/* Comment Input - Terminal style with blinking cursor */}
+              {/* Comment Input */}
               <div className="flex items-center gap-2">
                 <div
                   className={cn(
-                    "flex-1 relative group",
+                    "flex-1 relative",
                     (!isSignedIn || !hasSubmissionHistory) && "cursor-pointer"
                   )}
                   onClick={() => {
@@ -699,70 +742,49 @@ function FeedCardComponent({
                     }
                   }}
                 >
-                  {/* Hidden span for measuring text width */}
-                  <span
-                    ref={textMeasureRef}
-                    className="absolute invisible whitespace-pre text-[12px] font-mono"
-                    aria-hidden="true"
-                  />
-                  {/* Terminal prompt */}
-                  <span
-                    className={cn(
-                      "absolute left-2.5 top-1/2 -translate-y-1/2 text-[12px] font-mono pointer-events-none select-none transition-colors",
-                      isFocused
-                        ? "text-[var(--color-claude-coral)]"
-                        : "text-[var(--color-text-muted)]"
-                    )}
-                  >
-                    &gt;
-                  </span>
-                  {/* Blinking block cursor - follows text */}
-                  <span
-                    className={cn(
-                      "absolute top-1/2 -translate-y-1/2 w-[7px] h-[13px] bg-[var(--color-text-primary)] pointer-events-none",
-                      isFocused ? "opacity-70" : "opacity-0",
-                      "animate-terminal-blink"
-                    )}
-                    style={{ left: `calc(1.5rem + ${cursorOffset}px)` }}
-                  />
-                  {/* Placeholder - only when not focused and empty */}
-                  {!isFocused && !commentText && (
-                    <span className="absolute left-6 top-1/2 -translate-y-1/2 text-[11px] text-[var(--color-text-muted)] pointer-events-none">
-                      {!isSignedIn
-                        ? "Sign in to comment"
-                        : !hasSubmissionHistory
-                          ? "Submit data to comment"
-                          : "Write a comment..."}
-                    </span>
-                  )}
                   <input
                     type="text"
                     value={commentText}
                     onChange={(e) => setCommentText(e.target.value)}
-                    onFocus={() => setIsFocused(true)}
-                    onBlur={() => setIsFocused(false)}
-                    onKeyDown={(e) => e.key === "Enter" && handleCommentSubmit()}
-                    disabled={!isSignedIn || !hasSubmissionHistory}
+                    onKeyDown={(e) =>
+                      e.key === "Enter" && !e.nativeEvent.isComposing && handleCommentSubmit()
+                    }
+                    disabled={!isSignedIn || !hasSubmissionHistory || isSubmitting}
+                    placeholder={
+                      !isSignedIn
+                        ? "Sign in to comment"
+                        : !hasSubmissionHistory
+                          ? "Submit data to comment"
+                          : "Write a comment..."
+                    }
                     className={cn(
-                      "w-full pl-6 pr-3 py-1.5 text-[12px] font-mono caret-transparent",
+                      "w-full px-3 py-1.5 text-[12px] rounded-lg",
                       "bg-[var(--color-bg-card)] border border-[var(--border-default)]",
+                      "placeholder:text-[var(--color-text-muted)]",
                       "focus:outline-none focus:border-[var(--color-claude-coral)]",
+                      "text-[var(--color-text-primary)]",
                       (!isSignedIn || !hasSubmissionHistory) && "pointer-events-none"
                     )}
                   />
                 </div>
                 <button
                   onClick={handleCommentSubmit}
-                  disabled={!isSignedIn || !hasSubmissionHistory || !commentText.trim()}
+                  disabled={
+                    !isSignedIn || !hasSubmissionHistory || !commentText.trim() || isSubmitting
+                  }
                   className={cn(
-                    "p-1.5 transition-colors",
+                    "p-1.5 transition-colors rounded-lg",
                     "text-[var(--color-text-muted)]",
                     "hover:text-[var(--color-claude-coral)] hover:bg-[var(--color-claude-coral)]/10",
                     "disabled:opacity-50 disabled:cursor-not-allowed"
                   )}
                   aria-label="Send comment"
                 >
-                  <Send size={14} />
+                  {isSubmitting ? (
+                    <div className="w-[14px] h-[14px] border-2 border-[var(--color-claude-coral)] border-t-transparent rounded-full animate-spin" />
+                  ) : (
+                    <Send size={14} />
+                  )}
                 </button>
               </div>
             </div>
