@@ -5,7 +5,7 @@ import dynamic from "next/dynamic";
 import { FlagIcon } from "@/components/ui/FlagIcon";
 import { TopCountriesSection, TopCountriesSectionRef } from "./TopCountriesSection";
 import type { CountryStat } from "./TopCountriesSection";
-import HallOfFame, { type HallOfFameEntry } from "@/components/community/HallOfFame";
+import HallOfFame from "@/components/community/HallOfFame";
 import AnimatedNumber from "@/components/ui/AnimatedNumber";
 
 // Format tokens for display
@@ -48,10 +48,6 @@ interface MobileGlobePanelProps {
   // Community mode support
   viewMode?: "leaderboard" | "community";
   communityStats?: CommunityStats;
-  hallOfFameData?: {
-    mostLiked: HallOfFameEntry[];
-    mostReplied: HallOfFameEntry[];
-  };
   onHallOfFameUserClick?: (userId: string) => void;
   onHallOfFamePostClick?: (postId: string) => void;
 }
@@ -68,7 +64,6 @@ export function MobileGlobePanel({
   scopeFilter,
   viewMode = "leaderboard",
   communityStats,
-  hallOfFameData,
   onHallOfFameUserClick,
   onHallOfFamePostClick,
 }: MobileGlobePanelProps) {
@@ -264,19 +259,10 @@ export function MobileGlobePanel({
               )}
               {/* Hall of Fame */}
               <div className="glass rounded-xl border border-[var(--border-default)] p-4 flex-1">
-                {hallOfFameData ? (
-                  <HallOfFame
-                    mostLiked={hallOfFameData.mostLiked}
-                    mostReplied={hallOfFameData.mostReplied}
-                    onUserClick={onHallOfFameUserClick}
-                    onPostClick={onHallOfFamePostClick}
-                  />
-                ) : (
-                  <div className="flex flex-col items-center gap-3 py-8 text-center">
-                    <span className="text-3xl">🏆</span>
-                    <p className="text-sm text-[var(--color-text-muted)]">No data available</p>
-                  </div>
-                )}
+                <HallOfFame
+                  onUserClick={onHallOfFameUserClick}
+                  onPostClick={onHallOfFamePostClick}
+                />
               </div>
             </div>
           ) : (

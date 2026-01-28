@@ -29,7 +29,6 @@ import AnimatedNumber from "@/components/ui/AnimatedNumber";
 import { format } from "date-fns";
 import type { LeaderboardUser, PeriodFilter, ScopeFilter, SortByFilter } from "@/lib/types";
 import type { FeedPost } from "@/components/community/FeedCard";
-import type { HallOfFameEntry } from "@/components/community/HallOfFame";
 
 // View mode type for tab switching
 type ViewMode = "leaderboard" | "community";
@@ -211,9 +210,6 @@ const LevelInfoPopover = React.memo(function LevelInfoPopover({ isOpen }: { isOp
 });
 
 const ITEMS_PER_PAGE = 50;
-
-// Empty arrays for Community features (API integration pending)
-const EMPTY_HALL_OF_FAME: HallOfFameEntry[] = [];
 
 // Static style object (no need for useMemo - defined outside component)
 const PARTICLE_CONTAINER_STYLE = {
@@ -1566,8 +1562,6 @@ export default function LeaderboardPage() {
                     {/* Hall of Fame Content */}
                     <div className={`${isTablet ? "p-3 pt-2" : "p-4 pt-3"} flex-1`}>
                       <HallOfFame
-                        mostLiked={EMPTY_HALL_OF_FAME}
-                        mostReplied={EMPTY_HALL_OF_FAME}
                         onUserClick={(userId) => {
                           // Find author from community posts
                           const post = communityPosts.find((p: FeedPost) => p.author.id === userId);
@@ -2560,10 +2554,6 @@ export default function LeaderboardPage() {
         scopeFilter={scopeFilter}
         viewMode={viewMode}
         communityStats={communityStats}
-        hallOfFameData={{
-          mostLiked: EMPTY_HALL_OF_FAME,
-          mostReplied: EMPTY_HALL_OF_FAME,
-        }}
         onHallOfFameUserClick={(userId) => {
           // Find author from community posts
           const post = communityPosts.find((p: FeedPost) => p.author.id === userId);
