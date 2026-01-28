@@ -1,6 +1,6 @@
 "use client";
 
-import { memo, useState, useCallback, useMemo, useEffect } from "react";
+import { memo, useState, useCallback, useMemo } from "react";
 import Image from "next/image";
 import {
   Heart,
