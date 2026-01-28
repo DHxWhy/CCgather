@@ -22,6 +22,7 @@ interface CommunityFeedSectionProps {
   isSignedIn: boolean;
   hasSubmissionHistory: boolean;
   canPost: boolean;
+  currentUserId?: string | null; // For delete button visibility
   userAvatar?: string | null;
   userName?: string | null;
   userLevel?: number;

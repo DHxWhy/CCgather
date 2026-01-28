@@ -2,7 +2,17 @@
 
 import { memo, useState, useCallback, useMemo, useRef, useEffect } from "react";
 import Image from "next/image";
-import { Heart, MessageCircle, Globe, Send, Share2, Check, Reply } from "lucide-react";
+import {
+  Heart,
+  MessageCircle,
+  Globe,
+  Send,
+  Share2,
+  Check,
+  Reply,
+  Trash2,
+  Loader2,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import { FlagIcon } from "@/components/ui/FlagIcon";
 import LinkPreview from "./LinkPreview";
@@ -69,10 +79,12 @@ interface FeedCardProps {
   onCommentLike?: (commentId: string) => void;
   onCommentReply?: (commentId: string, parentAuthor: string) => void;
   onCommentSubmit?: (postId: string, comment: FeedComment) => void; // New: callback when comment is submitted
+  onPostDelete?: (postId: string) => void; // Callback when post is deleted
   className?: string;
   // Auth props
   isSignedIn?: boolean;
   hasSubmissionHistory?: boolean;
+  currentUserId?: string; // Current user's database ID for ownership check
   onLoginRequired?: (action: "like" | "comment") => void;
   onSubmissionRequired?: () => void;
   // Display options
@@ -262,9 +274,11 @@ function FeedCardComponent({
   onCommentLike,
   onCommentReply,
   onCommentSubmit,
+  onPostDelete,
   className,
   isSignedIn = false,
   hasSubmissionHistory = false,
+  currentUserId,
   onLoginRequired,
   onSubmissionRequired,
   hideLevelBadge = false,
@@ -280,8 +294,13 @@ function FeedCardComponent({
   const [shareSuccess, setShareSuccess] = useState(false);
   const [likeAnimating, setLikeAnimating] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [isDeleted, setIsDeleted] = useState(false);
   const [localComments, setLocalComments] = useState<FeedComment[]>(post.comments || []);
   const [commentsCount, setCommentsCount] = useState(post.comments_count);
+
+  // Check if current user is the post author
+  const isOwner = currentUserId && post.author.id === currentUserId;
 
   const displayName = post.author.display_name || post.author.username;
   const displayContent = showOriginal ? post.content : post.translated_content || post.content;
@@ -431,6 +450,53 @@ function FeedCardComponent({
   const handleAuthorClick = useCallback(() => {
     onAuthorClick?.(post.author.id);
   }, [onAuthorClick, post.author.id]);
+
+  // Handle post delete
+  const handleDelete = useCallback(async () => {
+    if (!isOwner || isDeleting) return;
+
+    // Confirm before delete
+    if (!window.confirm("이 게시물을 삭제하시겠습니까? 관련 댓글도 함께 삭제됩니다.")) {
+      return;
+    }
+
+    setIsDeleting(true);
+    try {
+      const response = await fetch(`/api/community/posts/${post.id}`, {
+        method: "DELETE",
+      });
+
+      if (response.ok) {
+        setIsDeleted(true);
+        onPostDelete?.(post.id);
+      } else {
+        const error = await response.json();
+        console.error("Failed to delete post:", error);
+        alert("삭제에 실패했습니다.");
+      }
+    } catch (error) {
+      console.error("Error deleting post:", error);
+      alert("삭제 중 오류가 발생했습니다.");
+    } finally {
+      setIsDeleting(false);
+    }
+  }, [isOwner, isDeleting, post.id, onPostDelete]);
+
+  // If deleted, show placeholder
+  if (isDeleted) {
+    return (
+      <article
+        className={cn(
+          "relative p-4 rounded-xl border border-dashed",
+          "border-[var(--border-default)] bg-[var(--color-bg-secondary)]/30",
+          "text-center text-sm text-[var(--color-text-muted)]",
+          className
+        )}
+      >
+        삭제된 게시물입니다.
+      </article>
+    );
+  }
 
   return (
     <article
@@ -663,6 +729,27 @@ function FeedCardComponent({
               >
                 {shareSuccess ? <Check size={12} /> : <Share2 size={12} />}
               </button>
+
+              {/* Delete button - only visible to owner */}
+              {isOwner && (
+                <button
+                  onClick={handleDelete}
+                  disabled={isDeleting}
+                  className={cn(
+                    "flex items-center gap-1 px-2 py-1 rounded-full text-[11px] transition-all",
+                    "text-[var(--color-text-muted)] hover:text-rose-400 hover:bg-rose-500/10",
+                    isDeleting && "opacity-50 cursor-not-allowed"
+                  )}
+                  aria-label="Delete"
+                  title="삭제"
+                >
+                  {isDeleting ? (
+                    <Loader2 size={12} className="animate-spin" />
+                  ) : (
+                    <Trash2 size={12} />
+                  )}
+                </button>
+              )}
 
               {/* Comment button */}
               <button

@@ -1324,11 +1324,6 @@ export default function LeaderboardPage() {
                           formatter={(n) => `$${n.toLocaleString()}`}
                           storageKey="leaderboard_cost"
                           smartStart={0.97}
-                          simulateRealtime={{
-                            interval: 5000,
-                            minIncrement: 0,
-                            maxIncrement: 2,
-                          }}
                         />
                       </span>
                       <span className="text-[var(--color-text-muted)]">·</span>
@@ -1347,11 +1342,6 @@ export default function LeaderboardPage() {
                           className="font-semibold"
                           storageKey="leaderboard_tokens"
                           smartStart={0.97}
-                          simulateRealtime={{
-                            interval: 4000,
-                            minIncrement: 1000,
-                            maxIncrement: 8000,
-                          }}
                         />
                       </span>
                     </>

@@ -108,6 +108,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
 
 // =====================================================
 // DELETE /api/community/posts/[id] - 포스트 삭제 (Soft Delete)
+// Cascade: 해당 포스트의 모든 댓글도 soft delete
 // =====================================================
 export async function DELETE(
   _request: NextRequest,
@@ -134,10 +135,20 @@ export async function DELETE(
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
-    // Get post to check ownership
+    // Get post with full content for snapshot
     const { data: post } = await supabase
       .from("posts")
-      .select("author_id")
+      .select(
+        `
+        id,
+        author_id,
+        content,
+        tab,
+        likes_count,
+        comments_count,
+        created_at
+      `
+      )
       .eq("id", id)
       .is("deleted_at", null)
       .single();
@@ -147,14 +158,28 @@ export async function DELETE(
     }
 
     // Check if user owns the post or is admin
-    if (post.author_id !== user.id && !user.is_admin) {
+    const isOwner = post.author_id === user.id;
+    const isAdmin = user.is_admin;
+    if (!isOwner && !isAdmin) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
-    // Soft delete - set deleted_at timestamp
+    const now = new Date().toISOString();
+
+    // 1. Cascade soft delete all comments on this post
+    const { data: deletedComments } = await supabase
+      .from("comments")
+      .update({ deleted_at: now })
+      .eq("post_id", id)
+      .is("deleted_at", null)
+      .select("id");
+
+    const cascadeDeletedCount = deletedComments?.length || 0;
+
+    // 2. Soft delete the post
     const { error: deleteError } = await supabase
       .from("posts")
-      .update({ deleted_at: new Date().toISOString() })
+      .update({ deleted_at: now })
       .eq("id", id);
 
     if (deleteError) {
@@ -162,9 +187,26 @@ export async function DELETE(
       return NextResponse.json({ error: "Failed to delete post" }, { status: 500 });
     }
 
+    // 3. Log deletion for admin review
+    await supabase.from("content_deletion_logs").insert({
+      content_type: "post",
+      content_id: id,
+      content_snapshot: {
+        content: post.content,
+        tab: post.tab,
+        likes_count: post.likes_count,
+        comments_count: post.comments_count,
+        created_at: post.created_at,
+      },
+      deleted_by: user.id,
+      deleted_by_role: isAdmin && !isOwner ? "admin" : "owner",
+      cascade_deleted_comments: cascadeDeletedCount,
+    });
+
     return NextResponse.json({
       success: true,
       message: "Post deleted. It will be permanently removed after 30 days.",
+      cascade_deleted_comments: cascadeDeletedCount,
     });
   } catch (error) {
     console.error("Error in DELETE /api/community/posts/[id]:", error);
