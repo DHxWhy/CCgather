@@ -1024,6 +1024,12 @@ export default function LeaderboardPage() {
             likes_count: number;
             comments_count: number;
             is_liked: boolean;
+            liked_by?: {
+              id: string;
+              username: string;
+              display_name: string | null;
+              avatar_url: string | null;
+            }[];
           }) => ({
             id: post.id,
             author: {
@@ -1041,6 +1047,7 @@ export default function LeaderboardPage() {
             likes_count: post.likes_count || 0,
             comments_count: post.comments_count || 0,
             is_liked: post.is_liked || false,
+            liked_by: post.liked_by || [],
             comments: [], // Comments are fetched separately when viewing post
           })
         );

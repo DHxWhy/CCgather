@@ -1,6 +1,6 @@
 "use client";
 
-import { memo, useState, useCallback, useMemo } from "react";
+import { memo, useState, useCallback, useMemo, useEffect } from "react";
 import Image from "next/image";
 import {
   Heart,
@@ -118,9 +118,11 @@ interface CommentItemProps {
   isReply?: boolean;
   isSignedIn: boolean;
   hasSubmissionHistory: boolean;
+  currentUserId?: string; // For ownership check
   onAuthorClick?: (authorId: string) => void;
   onCommentLike?: (commentId: string) => void;
   onCommentReply?: (commentId: string, parentAuthor: string) => void;
+  onCommentDelete?: (commentId: string) => void; // Delete callback
   onLoginRequired?: (action: "like" | "comment") => void;
   onSubmissionRequired?: () => void;
 }
@@ -130,17 +132,23 @@ const CommentItem = memo(function CommentItem({
   isReply = false,
   isSignedIn,
   hasSubmissionHistory,
+  currentUserId,
   onAuthorClick,
   onCommentLike,
   onCommentReply,
+  onCommentDelete,
   onLoginRequired,
   onSubmissionRequired,
 }: CommentItemProps) {
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [isDeleted, setIsDeleted] = useState(false);
+
   const authorName = comment.author.display_name || comment.author.username;
   const avatarUrl = comment.author.avatar_url;
   const likesCount = comment.likes_count ?? 0;
   const isLiked = comment.is_liked ?? false;
   const hasParent = !!comment.parent_comment_id;
+  const isOwner = currentUserId && comment.author.id === currentUserId;
 
   const handleLikeClick = useCallback(() => {
     if (!isSignedIn) {
@@ -170,9 +178,55 @@ const CommentItem = memo(function CommentItem({
     authorName,
   ]);
 
+  const handleDeleteClick = useCallback(async () => {
+    if (!isOwner || isDeleting) return;
+
+    const confirmMessage = isReply
+      ? "이 답글을 삭제하시겠습니까?"
+      : "이 댓글을 삭제하시겠습니까? 관련 답글도 함께 삭제됩니다.";
+    if (!window.confirm(confirmMessage)) return;
+
+    setIsDeleting(true);
+    try {
+      const response = await fetch(`/api/community/comments/${comment.id}`, {
+        method: "DELETE",
+      });
+
+      if (response.ok) {
+        setIsDeleted(true);
+        onCommentDelete?.(comment.id);
+      } else {
+        const error = await response.json();
+        console.error("Failed to delete comment:", error);
+        alert("삭제에 실패했습니다.");
+      }
+    } catch (error) {
+      console.error("Error deleting comment:", error);
+      alert("삭제 중 오류가 발생했습니다.");
+    } finally {
+      setIsDeleting(false);
+    }
+  }, [isOwner, isDeleting, isReply, comment.id, onCommentDelete]);
+
   const avatarSize = isReply ? 20 : 24;
   const textSize = isReply ? "text-[11px]" : "text-[12px]";
   const iconSize = isReply ? 9 : 10;
+
+  // Show deleted placeholder
+  if (isDeleted) {
+    return (
+      <div
+        className={cn(
+          "py-2 px-3 rounded-lg border border-dashed",
+          "border-[var(--border-default)]/50 bg-[var(--color-bg-secondary)]/20",
+          isReply ? "text-[10px]" : "text-[11px]",
+          "text-[var(--color-text-muted)] italic"
+        )}
+      >
+        삭제된 {isReply ? "답글" : "댓글"}입니다.
+      </div>
+    );
+  }
 
   return (
     <div className="flex items-start gap-2">
@@ -239,6 +293,26 @@ const CommentItem = memo(function CommentItem({
               <span>답글</span>
             </button>
           )}
+          {/* Delete button - only visible to owner */}
+          {isOwner && (
+            <button
+              onClick={handleDeleteClick}
+              disabled={isDeleting}
+              className={cn(
+                "flex items-center gap-1 transition-colors",
+                isReply ? "text-[9px]" : "text-[10px]",
+                "text-[var(--color-text-muted)] hover:text-rose-400",
+                isDeleting && "opacity-50 cursor-not-allowed"
+              )}
+              title="삭제"
+            >
+              {isDeleting ? (
+                <Loader2 size={iconSize} className="animate-spin" />
+              ) : (
+                <Trash2 size={iconSize} />
+              )}
+            </button>
+          )}
         </div>
       </div>
     </div>
@@ -298,9 +372,32 @@ function FeedCardComponent({
   const [isDeleted, setIsDeleted] = useState(false);
   const [localComments, setLocalComments] = useState<FeedComment[]>(post.comments || []);
   const [commentsCount, setCommentsCount] = useState(post.comments_count);
+  const [commentsLoaded, setCommentsLoaded] = useState(false);
+  const [commentsLoading, setCommentsLoading] = useState(false);
 
   // Check if current user is the post author
   const isOwner = currentUserId && post.author.id === currentUserId;
+
+  // Fetch comments when comments section is opened
+  useEffect(() => {
+    if (showComments && !commentsLoaded && !commentsLoading) {
+      setCommentsLoading(true);
+      fetch(`/api/community/comments?post_id=${post.id}`)
+        .then((res) => res.json())
+        .then((data) => {
+          if (data.comments) {
+            setLocalComments(data.comments);
+          }
+          setCommentsLoaded(true);
+        })
+        .catch((err) => {
+          console.error("Failed to load comments:", err);
+        })
+        .finally(() => {
+          setCommentsLoading(false);
+        });
+    }
+  }, [showComments, commentsLoaded, commentsLoading, post.id]);
 
   const displayName = post.author.display_name || post.author.username;
   const displayContent = showOriginal ? post.content : post.translated_content || post.content;
@@ -772,7 +869,11 @@ function FeedCardComponent({
           {showComments && (
             <div className="mt-3 pt-3 border-t border-[var(--border-default)]/50 animate-fadeIn">
               {/* Comments List - Using CommentItem to avoid Turbopack variable mangling */}
-              {localComments && localComments.length > 0 ? (
+              {commentsLoading ? (
+                <div className="flex items-center justify-center py-4">
+                  <Loader2 size={16} className="animate-spin text-[var(--color-text-muted)]" />
+                </div>
+              ) : localComments && localComments.length > 0 ? (
                 <div className="space-y-3 mb-3">
                   {localComments.map((comment) => (
                     <div key={comment.id} className="space-y-2">
@@ -781,6 +882,7 @@ function FeedCardComponent({
                         comment={comment}
                         isSignedIn={isSignedIn}
                         hasSubmissionHistory={hasSubmissionHistory}
+                        currentUserId={currentUserId}
                         onAuthorClick={onAuthorClick}
                         onCommentLike={onCommentLike}
                         onCommentReply={onCommentReply}
@@ -798,6 +900,7 @@ function FeedCardComponent({
                               isReply={true}
                               isSignedIn={isSignedIn}
                               hasSubmissionHistory={hasSubmissionHistory}
+                              currentUserId={currentUserId}
                               onAuthorClick={onAuthorClick}
                               onCommentLike={onCommentLike}
                               onLoginRequired={onLoginRequired}

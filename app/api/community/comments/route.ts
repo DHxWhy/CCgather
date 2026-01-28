@@ -107,35 +107,52 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Failed to fetch comments" }, { status: 500 });
     }
 
-    // Get all replies for these comments
+    // Get all replies and liked IDs in parallel
     const commentIds = comments?.map((c: { id: string }) => c.id) || [];
     const repliesMap: Record<string, CommentResponse[]> = {};
+    let likedCommentIds: string[] = [];
 
     if (commentIds.length > 0) {
-      const { data: replies } = await supabase
-        .from("comments")
-        .select(
-          `
-          id,
-          content,
-          parent_comment_id,
-          likes_count,
-          created_at,
-          author:users!author_id (
+      // Run replies query and comment likes query in parallel
+      const [repliesResult, commentLikesResult] = await Promise.all([
+        // Get replies
+        supabase
+          .from("comments")
+          .select(
+            `
             id,
-            username,
-            display_name,
-            avatar_url,
-            current_level
+            content,
+            parent_comment_id,
+            likes_count,
+            created_at,
+            author:users!author_id (
+              id,
+              username,
+              display_name,
+              avatar_url,
+              current_level
+            )
+          `
           )
-        `
-        )
-        .eq("post_id", postId)
-        .is("deleted_at", null)
-        .in("parent_comment_id", commentIds)
-        .order("created_at", { ascending: true });
+          .eq("post_id", postId)
+          .is("deleted_at", null)
+          .in("parent_comment_id", commentIds)
+          .order("created_at", { ascending: true }),
+        // Get liked comment IDs for current user
+        currentUserDbId
+          ? supabase
+              .from("comment_likes")
+              .select("comment_id")
+              .eq("user_id", currentUserDbId)
+              .in("comment_id", commentIds)
+          : Promise.resolve({ data: null }),
+      ]);
 
-      // Get liked reply IDs
+      const replies = repliesResult.data;
+      likedCommentIds =
+        commentLikesResult.data?.map((l: { comment_id: string }) => l.comment_id) || [];
+
+      // Get liked reply IDs (only if there are replies and user is logged in)
       let likedReplyIds: string[] = [];
       if (currentUserDbId && replies && replies.length > 0) {
         const replyIds = replies.map((r: { id: string }) => r.id);
@@ -179,17 +196,6 @@ export async function GET(request: NextRequest) {
           });
         }
       );
-    }
-
-    // Get liked comment IDs for current user
-    let likedCommentIds: string[] = [];
-    if (currentUserDbId && commentIds.length > 0) {
-      const { data: likes } = await supabase
-        .from("comment_likes")
-        .select("comment_id")
-        .eq("user_id", currentUserDbId)
-        .in("comment_id", commentIds);
-      likedCommentIds = likes?.map((l: { comment_id: string }) => l.comment_id) || [];
     }
 
     // Transform response

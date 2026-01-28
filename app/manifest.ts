@@ -20,7 +20,7 @@ export default function manifest(): MetadataRoute.Manifest {
         purpose: "any",
       },
       {
-        src: "/CCgather_logo_512_black.png",
+        src: "/CCgather_logo_512_black_xs.png",
         sizes: "512x512",
         type: "image/png",
         purpose: "maskable",

@@ -16,6 +16,13 @@ interface PostAuthor {
   country_code: string | null;
 }
 
+interface LikedByUser {
+  id: string;
+  username: string;
+  display_name: string | null;
+  avatar_url: string | null;
+}
+
 interface PostResponse {
   id: string;
   author: PostAuthor;
@@ -27,6 +34,7 @@ interface PostResponse {
   likes_count: number;
   comments_count: number;
   is_liked: boolean;
+  liked_by: LikedByUser[];
 }
 
 // =====================================================
@@ -116,14 +124,59 @@ export async function GET(request: NextRequest) {
 
     // Get liked post IDs for current user
     let likedPostIds: string[] = [];
-    if (currentUserDbId && posts && posts.length > 0) {
-      const postIds = posts.map((p: { id: string }) => p.id);
+    const postIds = posts?.map((p: { id: string }) => p.id) || [];
+
+    if (currentUserDbId && postIds.length > 0) {
       const { data: likes } = await supabase
         .from("post_likes")
         .select("post_id")
         .eq("user_id", currentUserDbId)
         .in("post_id", postIds);
       likedPostIds = likes?.map((l: { post_id: string }) => l.post_id) || [];
+    }
+
+    // Get liked_by users for each post (up to 5 per post for avatar display)
+    const likedByMap: Record<
+      string,
+      { id: string; username: string; display_name: string | null; avatar_url: string | null }[]
+    > = {};
+    if (postIds.length > 0) {
+      const { data: allLikes } = await supabase
+        .from("post_likes")
+        .select(
+          `
+          post_id,
+          user:users!user_id (
+            id,
+            username,
+            display_name,
+            avatar_url
+          )
+        `
+        )
+        .in("post_id", postIds)
+        .order("created_at", { ascending: false });
+
+      // Group by post_id, limit to 5 per post
+      allLikes?.forEach(
+        (like: {
+          post_id: string;
+          user: {
+            id: string;
+            username: string;
+            display_name: string | null;
+            avatar_url: string | null;
+          };
+        }) => {
+          if (!likedByMap[like.post_id]) {
+            likedByMap[like.post_id] = [];
+          }
+          const postLikes = likedByMap[like.post_id];
+          if (postLikes && postLikes.length < 5) {
+            postLikes.push(like.user);
+          }
+        }
+      );
     }
 
     // Transform response
@@ -158,6 +211,7 @@ export async function GET(request: NextRequest) {
             likes_count: post.likes_count,
             comments_count: post.comments_count,
             is_liked: likedPostIds.includes(post.id),
+            liked_by: likedByMap[post.id] || [],
           };
         }
       ) || [];
@@ -263,6 +317,7 @@ export async function POST(request: NextRequest) {
       likes_count: 0,
       comments_count: 0,
       is_liked: false,
+      liked_by: [],
     };
 
     return NextResponse.json({ post: response }, { status: 201 });

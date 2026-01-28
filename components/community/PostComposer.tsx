@@ -2,7 +2,7 @@
 
 import { useState, useRef, useCallback, useMemo } from "react";
 import Image from "next/image";
-import { ImagePlus, Link2, Send, Globe, Sparkles, X } from "lucide-react";
+import { Send, Globe, Sparkles, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/Button";
 import type { CommunityFilterTag } from "./community-tags";
@@ -209,42 +209,16 @@ export default function PostComposer({
         {/* Footer: Actions + Character count + Post button */}
         {isFocused && (
           <div className="flex items-center justify-between mt-2 pt-2 border-t border-[var(--border-default)] animate-fadeIn">
-            {/* Left actions */}
-            <div className="flex items-center gap-0.5">
-              <button
-                type="button"
-                className={cn(
-                  "p-1.5 rounded-lg transition-colors",
-                  "text-[var(--color-text-muted)] hover:text-[var(--color-claude-coral)]",
-                  "hover:bg-[var(--color-claude-coral)]/10"
-                )}
-                title="Add image"
-              >
-                <ImagePlus size={16} />
-              </button>
-              <button
-                type="button"
-                className={cn(
-                  "p-1.5 rounded-lg transition-colors",
-                  "text-[var(--color-text-muted)] hover:text-[var(--color-accent-blue)]",
-                  "hover:bg-[var(--color-accent-blue)]/10"
-                )}
-                title="Add link"
-              >
-                <Link2 size={16} />
-              </button>
-
-              {/* Language indicator */}
-              <div
-                className={cn(
-                  "flex items-center gap-1 px-1.5 py-0.5 rounded ml-1",
-                  "text-[9px] text-[var(--color-text-muted)]",
-                  "bg-[var(--glass-bg)]"
-                )}
-              >
-                <Globe size={10} />
-                <span>Auto-translate</span>
-              </div>
+            {/* Left: Language indicator */}
+            <div
+              className={cn(
+                "flex items-center gap-1 px-1.5 py-0.5 rounded",
+                "text-[9px] text-[var(--color-text-muted)]",
+                "bg-[var(--glass-bg)]"
+              )}
+            >
+              <Globe size={10} />
+              <span>Auto-translate · Paste URL for preview</span>
             </div>
 
             {/* Right: Character count + Post button */}
