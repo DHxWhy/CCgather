@@ -15,6 +15,8 @@
 
 ![CCgather Hero](assets/images/hero.gif)
 
+<sub>📎 hero.gif — GIF compression may affect smoothness</sub>
+
 </div>
 
 ---
@@ -73,6 +75,8 @@ See your passion among developers worldwide. Track your ranking by token usage a
 
 ![CCgather Leaderboard](assets/images/leaderboard.gif)
 
+<sub>📎 leaderboard.gif</sub>
+
 ### 🌐 3D Globe Visualization
 
 Visualize developer activity worldwide in real-time. See at a glance which countries are actively coding.
@@ -82,6 +86,8 @@ Visualize developer activity worldwide in real-time. See at a glance which count
 **Write in your native language.** Posts are automatically translated by AI and displayed in the reader's language. Share posts, comments, and celebrate top contributors in the Hall of Fame.
 
 ![CCgather Community](assets/images/community.gif)
+
+<sub>📎 community.gif</sub>
 
 ### More Features
 
@@ -156,6 +162,8 @@ npx ccgather
 ```
 
 ![CCgather CLI](assets/images/cli.gif)
+
+<sub>📎 cli.gif</sub>
 
 <table>
 <tr>
