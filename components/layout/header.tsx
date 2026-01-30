@@ -125,8 +125,9 @@ export function Header() {
   const closeMobileMenu = () => setMobileMenuOpen(false);
 
   // Sign In 버튼을 보여줄지 결정
-  // Clerk 로드 전, 로드 실패, 또는 로그아웃 상태일 때 표시
-  const showSignInButton = !isLoaded || clerkFailed || !isSignedIn;
+  // Clerk 로드 완료 후 로그아웃 상태이거나, 로드 실패 시에만 표시
+  // (로드 중에는 표시하지 않아 깜빡임 방지)
+  const showSignInButton = (isLoaded && !isSignedIn) || clerkFailed;
 
   return (
     <>
