@@ -62,18 +62,18 @@ export function getCCPlanConfig(ccplan: string | null | undefined): CCPlanBadgeC
 // Simple level progression based on total token usage
 // ═══════════════════════════════════════════════════════════════════════════
 
-// Level thresholds (tokens required)
+// Level thresholds (tokens required) - Synced with CLI v2.0.31
 export const LEVEL_THRESHOLDS = [
-  { level: 1, min: 0, max: 10_000_000, name: "Rookie", icon: "🌱" },
-  { level: 2, min: 10_000_000, max: 50_000_000, name: "Coder", icon: "⚡" },
-  { level: 3, min: 50_000_000, max: 200_000_000, name: "Builder", icon: "🔨" },
-  { level: 4, min: 200_000_000, max: 500_000_000, name: "Architect", icon: "🏗️" },
-  { level: 5, min: 500_000_000, max: 1_000_000_000, name: "Expert", icon: "💎" },
-  { level: 6, min: 1_000_000_000, max: 3_000_000_000, name: "Master", icon: "🔥" },
-  { level: 7, min: 3_000_000_000, max: 10_000_000_000, name: "Grandmaster", icon: "⚔️" },
-  { level: 8, min: 10_000_000_000, max: 30_000_000_000, name: "Legend", icon: "👑" },
-  { level: 9, min: 30_000_000_000, max: 100_000_000_000, name: "Titan", icon: "🌟" },
-  { level: 10, min: 100_000_000_000, max: Infinity, name: "Immortal", icon: "🏆" },
+  { level: 1, min: 0, max: 50_000_000, name: "Novice", icon: "🌱" },
+  { level: 2, min: 50_000_000, max: 200_000_000, name: "Apprentice", icon: "⚡" },
+  { level: 3, min: 200_000_000, max: 500_000_000, name: "Journeyman", icon: "🔨" },
+  { level: 4, min: 500_000_000, max: 1_000_000_000, name: "Expert", icon: "🏗️" },
+  { level: 5, min: 1_000_000_000, max: 3_000_000_000, name: "Master", icon: "💎" },
+  { level: 6, min: 3_000_000_000, max: 10_000_000_000, name: "Grandmaster", icon: "🔥" },
+  { level: 7, min: 10_000_000_000, max: 30_000_000_000, name: "Legend", icon: "👑" },
+  { level: 8, min: 30_000_000_000, max: 50_000_000_000, name: "Mythic", icon: "⚔️" },
+  { level: 9, min: 50_000_000_000, max: 100_000_000_000, name: "Immortal", icon: "🌟" },
+  { level: 10, min: 100_000_000_000, max: Infinity, name: "Transcendent", icon: "🏆" },
 ] as const;
 
 /**
