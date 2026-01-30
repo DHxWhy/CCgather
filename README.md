@@ -33,19 +33,7 @@
 
 ---
 
-## Why I Built This
-
-### I'm Not a Developer
-
-I started vibe coding in August 2025 with Cursor and Lovable, then discovered Claude Code. For months, I spent 16+ hours daily—not using automation tools, but engaging in every conversation, asking Claude to explain concepts at a 15-year-old's level so I could truly understand.
-
-**CCgather was built in about 3 weeks.**
-
-I aimed for an MVP, but ended up trying many features for the sake of learning—and went through 2 major refactoring overhauls along the way.
-
-Countless trade-offs were made between the 3D globe, animations, visual polish, and rendering performance.
-
-I tried to bring every UX detail I imagined to life.
+## Why CCgather Exists
 
 ### The Problem
 
@@ -57,78 +45,60 @@ Claude Code only keeps usage history for 30 days. The leaderboard service I was 
 
 ### The Vision
 
-Developers worldwide use the same tools, but struggle to communicate due to different languages. **The community feature was built to break down these barriers.**
+> "One tool, one community, no borders."
+
+Developers worldwide use the same tools, but struggle to communicate due to different languages. The community feature breaks down these barriers.
+
+This is just the beginning. CCgather will evolve into a platform where Claude Code developers can showcase projects, share knowledge, and find collaborators—regardless of nationality.
+
+---
+
+## My Story
+
+I started vibe coding in August 2025 with Cursor and Lovable, then discovered Claude Code. For months, I spent 16+ hours daily—not using automation tools, but engaging in every conversation, asking Claude to explain concepts at a 15-year-old's level so I could truly understand. I still can't read code on my own, but I've worked hard to understand how the pieces connect.
+
+**CCgather was built in about 3 weeks.**
+
+Developers spend hours staring at gray text on dark backgrounds—I wanted to give them something worth looking at. I aimed for an MVP, but ended up trying many features for the sake of learning—and went through 2 major refactoring overhauls along the way. Countless trade-offs were made between the 3D globe, animations, visual polish, and rendering performance.
+
+I tried to bring every UX detail I imagined to life.
 
 ---
 
 ## Features
 
-### 🏆 Global Leaderboard
+### 🏆 Global Leaderboard & Country League
 
-See your passion among developers worldwide. Track your ranking by token usage and connect with developers who share your passion.
+See your passion among developers worldwide. Track your ranking by token usage and compete in country-based leagues that give you a sense of belonging.
 
 <!-- 📸 IMAGE: leaderboard.png (리더보드 화면 - 순위, 레벨, 국가 표시) -->
 
-### 🌍 Country League
-
-A country-based league system that gives you a sense of belonging. Cheer each other on with developers connected through Claude Code, regardless of nationality.
-
-### 🌐 3D Globe
+### 🌐 3D Globe Visualization
 
 Visualize developer activity worldwide in real-time. See at a glance which countries are actively coding.
 
 <!-- 📸 IMAGE: globe.gif (3D 지구본 회전 + 마커 표시되는 GIF) -->
 
-### 💬 Global Community
+### 💬 Global Community with AI Translation
 
-**Write in your native language.**
-
-Posts are automatically translated by AI. They're displayed in the reader's language based on their onboarding country setting.
+**Write in your native language.** Posts are automatically translated by AI and displayed in the reader's language. Share posts, comments, and celebrate top contributors in the Hall of Fame.
 
 <!-- 📸 IMAGE: community.png (커뮤니티 피드 - 번역 전/후 보이면 좋음) -->
 
-**Community Features:**
-- Posts and comments
-- Likes and interactions
-- Hall of Fame
-- Link previews
-
-### 📊 Activity Heatmap
-
-Visualize your daily usage patterns with a GitHub-style activity heatmap. See your coding journey at a glance.
-
-<!-- 📸 IMAGE: heatmap.png (프로필의 히트맵 부분) -->
-
-### 📱 PWA App & Push Notifications
-
-**Install it like an app.**
-
-Add to your home screen from your web browser and use it like a native app. Receive push notifications for community activity (comments, likes).
-
-### 🤝 Referral System
-
-Invite friends with your unique invite link. Earn badges when your invited friends sign up.
+### More Features
 
 <table>
 <tr>
-<th width="80">Invites</th>
-<th width="140">Badge</th>
-<th>Tier</th>
+<th width="60">Icon</th>
+<th width="180">Feature</th>
+<th>Description</th>
 </tr>
-<tr><td align="center">5+</td><td>📢 Recruiter</td><td>⚪ Common</td></tr>
-<tr><td align="center">10+</td><td>🔗 Networker</td><td>🔵 Rare</td></tr>
-<tr><td align="center">20+</td><td>📣 Influencer</td><td>🔵 Rare</td></tr>
-<tr><td align="center">30+</td><td>⭐ Social Star</td><td>🟣 Epic</td></tr>
-<tr><td align="center">50+</td><td>👑 Social Legend</td><td>🟡 Legendary</td></tr>
+<tr><td align="center">📊</td><td>Activity Heatmap</td><td>GitHub-style visualization of your daily usage patterns</td></tr>
+<tr><td align="center">📱</td><td>PWA & Push Notifications</td><td>Install like an app, receive notifications for community activity</td></tr>
+<tr><td align="center">🤝</td><td>Referral System</td><td>Invite friends with unique links, earn badges (5→50 invites)</td></tr>
+<tr><td align="center">🎨</td><td>Light/Dark Mode</td><td>Theme switching with system preference support</td></tr>
+<tr><td align="center">📱</td><td>Responsive Design</td><td>Optimized for mobile, tablet, and desktop</td></tr>
 </table>
-
-### 🎨 Light/Dark Mode
-
-Choose your theme to match your environment. Follow system settings or switch manually.
-
-### 📱 Responsive Design
-
-Optimized experience across mobile, tablet, and desktop.
 
 ---
 

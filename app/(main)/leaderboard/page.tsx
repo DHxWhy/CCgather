@@ -346,7 +346,7 @@ export default function LeaderboardPage() {
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [isPanelOpen, setIsPanelOpen] = useState(false);
   const [isGlobePanelOpen, setIsGlobePanelOpen] = useState(false);
-  const [periodFilter, setPeriodFilter] = useState<PeriodFilter>("all");
+  const [periodFilter, setPeriodFilter] = useState<PeriodFilter>("1d");
   const [scopeFilter, setScopeFilter] = useState<ScopeFilter>("global");
   const [globePulse, setGlobePulse] = useState(false);
   const [sortBy, setSortBy] = useState<SortByFilter>("tokens");
@@ -2123,27 +2123,33 @@ export default function LeaderboardPage() {
                   {/* Period Filter - Desktop: buttons, Tablet/Mobile: dropdown */}
                   <div className="hidden lg:flex items-center h-[34px] glass rounded-lg overflow-hidden">
                     {[
-                      { value: "all", label: "All D" },
                       { value: "today", label: "1D" },
                       { value: "7d", label: "7D" },
                       { value: "30d", label: "30D" },
+                      { value: "all", label: "All" },
                     ].map((period) => (
-                      <button
-                        key={period.value}
-                        onClick={() => {
-                          setPeriodFilter(period.value as PeriodFilter);
-                          if (period.value !== "custom") {
-                            setCustomDateRange(null);
-                          }
-                        }}
-                        className={`h-[34px] px-2.5 text-xs font-medium transition-colors ${
-                          periodFilter === period.value
-                            ? "bg-[var(--color-claude-coral)]/50 text-[var(--color-claude-coral)]"
-                            : "text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-filter-hover)]"
-                        }`}
-                      >
-                        {period.label}
-                      </button>
+                      <div key={period.value} className="relative group">
+                        <button
+                          onClick={() => {
+                            setPeriodFilter(period.value as PeriodFilter);
+                            if (period.value !== "custom") {
+                              setCustomDateRange(null);
+                            }
+                          }}
+                          className={`h-[34px] px-2.5 text-xs font-medium transition-colors ${
+                            periodFilter === period.value
+                              ? "bg-[var(--color-claude-coral)]/50 text-[var(--color-claude-coral)]"
+                              : "text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-filter-hover)]"
+                          }`}
+                        >
+                          {period.label}
+                        </button>
+                        {period.value === "today" && (
+                          <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 text-[10px] text-[var(--color-text-muted)] bg-[var(--color-bg-secondary)] border border-[var(--border-default)] rounded-md whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+                            Resets at UTC 00:00
+                          </div>
+                        )}
+                      </div>
                     ))}
                   </div>
                   {/* Custom Date Range Button - Desktop */}
@@ -2171,10 +2177,10 @@ export default function LeaderboardPage() {
                         }
                       }}
                       options={[
-                        { value: "all", label: "All D" },
                         { value: "today", label: "1D" },
                         { value: "7d", label: "7D" },
                         { value: "30d", label: "30D" },
+                        { value: "all", label: "All" },
                       ]}
                       customLabel={
                         customDateRange
