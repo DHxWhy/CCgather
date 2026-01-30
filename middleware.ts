@@ -1,4 +1,5 @@
 import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
+import { NextResponse } from "next/server";
 
 const isPublicRoute = createRouteMatcher([
   "/",
@@ -27,6 +28,15 @@ const isPublicRoute = createRouteMatcher([
 ]);
 
 export default clerkMiddleware(async (auth, req) => {
+  const { userId } = await auth();
+
+  // 로그인한 사용자가 홈페이지 접근 시 → 리더보드로 리디렉트
+  // Edge Runtime에서 처리하여 Cold Start 영향 없음
+  if (userId && req.nextUrl.pathname === "/") {
+    return NextResponse.redirect(new URL("/leaderboard", req.url));
+  }
+
+  // 비공개 라우트는 로그인 필수
   if (!isPublicRoute(req)) {
     await auth.protect();
   }

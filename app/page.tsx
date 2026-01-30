@@ -1,6 +1,4 @@
 import type { Metadata } from "next";
-import { redirect } from "next/navigation";
-import { auth } from "@clerk/nextjs/server";
 import { LandingHeader } from "@/components/layout/LandingHeader";
 import { Footer } from "@/components/layout/footer";
 import { LandingHero, LeaderboardPreview, HowItWorks } from "@/components/landing";
@@ -22,20 +20,8 @@ export const metadata: Metadata = {
 };
 
 export default async function HomePage() {
-  // Redirect logged-in users to leaderboard
-  // Auth 에러 핸들링: Clerk 세션 동기화 실패 시에도 랜딩 페이지 정상 표시
-  let userId: string | null = null;
-  try {
-    const authResult = await auth();
-    userId = authResult.userId;
-  } catch (error) {
-    console.error("[HomePage] Auth check failed:", error);
-    // 인증 실패 시 비로그인 상태로 처리 → 랜딩 페이지 표시
-  }
-
-  if (userId) {
-    redirect("/leaderboard");
-  }
+  // 로그인 사용자 리디렉트는 middleware.ts에서 처리 (Edge Runtime)
+  // 여기서는 랜딩 페이지 렌더링만 담당
 
   // Fetch stats on server for immediate display (zero-latency)
   const stats = await getGlobalStats();
