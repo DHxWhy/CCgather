@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { auth } from "@clerk/nextjs/server";
+import { auth, clerkClient } from "@clerk/nextjs/server";
 import { createServiceClient } from "@/lib/supabase/server";
 
 export async function POST() {
@@ -22,15 +22,18 @@ export async function POST() {
     return NextResponse.json({ error: "User not found" }, { status: 404 });
   }
 
-  // Get GitHub username from social_links
+  // Get GitHub username from Clerk OAuth (most up-to-date source)
+  const clerk = await clerkClient();
+  const clerkUser = await clerk.users.getUser(userId);
+  const githubAccount = clerkUser.externalAccounts?.find(
+    (account) => account.provider === "oauth_github"
+  );
+
+  const githubUsername = githubAccount?.username;
   const socialLinks = (user.social_links as Record<string, string> | null) || {};
-  const githubUsername = socialLinks.github;
 
   if (!githubUsername) {
-    return NextResponse.json(
-      { error: "No GitHub username found in social links" },
-      { status: 400 }
-    );
+    return NextResponse.json({ error: "No GitHub account connected" }, { status: 400 });
   }
 
   try {
