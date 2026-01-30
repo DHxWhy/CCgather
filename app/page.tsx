@@ -23,7 +23,16 @@ export const metadata: Metadata = {
 
 export default async function HomePage() {
   // Redirect logged-in users to leaderboard
-  const { userId } = await auth();
+  // Auth 에러 핸들링: Clerk 세션 동기화 실패 시에도 랜딩 페이지 정상 표시
+  let userId: string | null = null;
+  try {
+    const authResult = await auth();
+    userId = authResult.userId;
+  } catch (error) {
+    console.error("[HomePage] Auth check failed:", error);
+    // 인증 실패 시 비로그인 상태로 처리 → 랜딩 페이지 표시
+  }
+
   if (userId) {
     redirect("/leaderboard");
   }

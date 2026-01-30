@@ -77,7 +77,15 @@ async function getToolBySlug(slug: string): Promise<ToolBasicData | null> {
 async function getFullToolData(slug: string): Promise<ToolWithInteraction | null> {
   try {
     const supabase = createServiceClient();
-    const { userId } = await auth();
+
+    // Auth 에러 핸들링: 인증 실패 시에도 도구 상세 페이지는 정상 표시
+    let userId: string | null = null;
+    try {
+      const authResult = await auth();
+      userId = authResult.userId;
+    } catch {
+      // 인증 실패 시 비로그인 상태로 처리
+    }
 
     // Fetch tool with submitter
     const { data: tool, error: toolError } = await supabase

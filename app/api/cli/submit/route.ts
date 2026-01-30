@@ -576,12 +576,34 @@ export async function POST(request: NextRequest) {
     })();
 
     // Build response with previous submission info (for CLI UX)
+    const levelInfo = getLevelInfo(level);
+    const nextLevelInfo = getLevelInfo(level + 1);
+    const tokensInCurrentLevel = finalTotalTokens - levelInfo.min;
+    const tokensNeededForLevel = levelInfo.max - levelInfo.min;
+    const levelProgress = Math.min(
+      100,
+      Math.floor((tokensInCurrentLevel / tokensNeededForLevel) * 100)
+    );
+    const tokensToNextLevel = levelInfo.max - finalTotalTokens;
+
     const response: Record<string, unknown> = {
       success: true,
       profileUrl: `https://ccgather.com/u/${authenticatedUser.username}`,
       rank: rank || undefined,
       countryRank: countryRank || undefined,
       currentLevel: level,
+      // Accumulated totals for accurate level progress display
+      accumulatedTokens: finalTotalTokens,
+      accumulatedCost: finalTotalCost,
+      // Level progress info
+      levelInfo: {
+        level,
+        name: levelInfo.name,
+        icon: levelInfo.icon,
+        progress: levelProgress,
+        tokensToNextLevel: tokensToNextLevel > 0 ? tokensToNextLevel : 0,
+        nextLevelName: nextLevelInfo?.name || null,
+      },
       // Badge information
       newBadges: newBadges.map((b) => ({
         id: b.id,
