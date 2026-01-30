@@ -3,7 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { formatInTimeZone } from "date-fns-tz";
 import { subDays } from "date-fns";
 
-type Period = "today" | "7d" | "30d" | "all" | "custom";
+type Period = "1d" | "7d" | "30d" | "all" | "custom";
 
 /**
  * Get date range for period filter, respecting user's timezone
@@ -35,7 +35,7 @@ function getPeriodDateRange(
     endDate = formatInTimeZone(now, tz, "yyyy-MM-dd");
 
     switch (period) {
-      case "today":
+      case "1d":
         startDate = endDate;
         break;
       case "7d":
@@ -51,7 +51,7 @@ function getPeriodDateRange(
     // Invalid timezone - fall back to UTC
     endDate = formatInTimeZone(now, "UTC", "yyyy-MM-dd");
     switch (period) {
-      case "today":
+      case "1d":
         startDate = endDate;
         break;
       case "7d":

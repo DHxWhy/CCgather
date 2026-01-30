@@ -121,7 +121,7 @@ test.describe("Leaderboard Responsive UI", () => {
 
     // 5. Verify dropdown has all period options
     await expect(periodDropdown.locator('option[value="all"]')).toHaveCount(1);
-    await expect(periodDropdown.locator('option[value="today"]')).toHaveCount(1);
+    await expect(periodDropdown.locator('option[value="1d"]')).toHaveCount(1);
     await expect(periodDropdown.locator('option[value="7d"]')).toHaveCount(1);
     await expect(periodDropdown.locator('option[value="30d"]')).toHaveCount(1);
 

@@ -1571,7 +1571,7 @@ export default function LeaderboardPage() {
                       <span className="text-[10px] text-[var(--color-text-muted)]">
                         {periodFilter === "all"
                           ? "All Time"
-                          : periodFilter === "today"
+                          : periodFilter === "1d"
                             ? "1D"
                             : periodFilter === "7d"
                               ? "7D"
@@ -2123,7 +2123,7 @@ export default function LeaderboardPage() {
                   {/* Period Filter - Desktop: buttons, Tablet/Mobile: dropdown */}
                   <div className="hidden lg:flex items-center h-[34px] glass rounded-lg overflow-hidden">
                     {[
-                      { value: "today", label: "1D" },
+                      { value: "1d", label: "1D" },
                       { value: "7d", label: "7D" },
                       { value: "30d", label: "30D" },
                       { value: "all", label: "All" },
@@ -2144,7 +2144,7 @@ export default function LeaderboardPage() {
                         >
                           {period.label}
                         </button>
-                        {period.value === "today" && (
+                        {period.value === "1d" && (
                           <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 text-[10px] text-[var(--color-text-muted)] bg-[var(--color-bg-secondary)] border border-[var(--border-default)] rounded-md whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
                             Resets at UTC 00:00
                           </div>
@@ -2177,7 +2177,7 @@ export default function LeaderboardPage() {
                         }
                       }}
                       options={[
-                        { value: "today", label: "1D" },
+                        { value: "1d", label: "1D" },
                         { value: "7d", label: "7D" },
                         { value: "30d", label: "30D" },
                         { value: "all", label: "All" },

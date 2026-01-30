@@ -99,7 +99,7 @@ function UsageChart({
   periodFilter: PeriodFilter;
 }) {
   const days =
-    periodFilter === "today"
+    periodFilter === "1d"
       ? 1
       : periodFilter === "7d"
         ? 7
@@ -137,7 +137,7 @@ function UsageChart({
               tickLine={false}
               tick={{ fill: "#71717A", fontSize: 9 }}
               interval={
-                periodFilter === "today"
+                periodFilter === "1d"
                   ? 0
                   : periodFilter === "7d"
                     ? 0
@@ -1043,7 +1043,7 @@ export function ProfileSidePanel({
 
   // Calculate average from history (this can load async)
   const days =
-    periodFilter === "today"
+    periodFilter === "1d"
       ? 1
       : periodFilter === "7d"
         ? 7
@@ -1286,7 +1286,7 @@ export function ProfileSidePanel({
                 📈 Usage History
               </div>
               <div className="text-[9px] text-[var(--color-text-muted)]">
-                {periodFilter === "today"
+                {periodFilter === "1d"
                   ? "Today"
                   : periodFilter === "7d"
                     ? "Last 7 days"
