@@ -13,7 +13,7 @@
 
 [Website](https://ccgather.com) · [Report Bug](https://github.com/DHxWhy/ccgather/issues) · [Request Feature](https://github.com/DHxWhy/ccgather/issues)
 
-<!-- 📸 IMAGE: hero-screenshot.png (메인 화면 전체 - 3D 지구본 + 리더보드 보이는 풀샷) -->
+![CCgather Hero](assets/images/hero.gif)
 
 </div>
 
@@ -71,19 +71,17 @@ I tried to bring every UX detail I imagined to life.
 
 See your passion among developers worldwide. Track your ranking by token usage and compete in country-based leagues that give you a sense of belonging.
 
-<!-- 📸 IMAGE: leaderboard.png (리더보드 화면 - 순위, 레벨, 국가 표시) -->
+![CCgather Leaderboard](assets/images/leaderboard.gif)
 
 ### 🌐 3D Globe Visualization
 
 Visualize developer activity worldwide in real-time. See at a glance which countries are actively coding.
 
-<!-- 📸 IMAGE: globe.gif (3D 지구본 회전 + 마커 표시되는 GIF) -->
-
 ### 💬 Global Community with AI Translation
 
 **Write in your native language.** Posts are automatically translated by AI and displayed in the reader's language. Share posts, comments, and celebrate top contributors in the Hall of Fame.
 
-<!-- 📸 IMAGE: community.png (커뮤니티 피드 - 번역 전/후 보이면 좋음) -->
+![CCgather Community](assets/images/community.gif)
 
 ### More Features
 
@@ -157,7 +155,7 @@ Visualize developer activity worldwide in real-time. See at a glance which count
 npx ccgather
 ```
 
-<!-- 📸 IMAGE: cli.gif (CLI 실행 → 메뉴 선택 → 제출 완료 GIF) -->
+![CCgather CLI](assets/images/cli.gif)
 
 <table>
 <tr>
