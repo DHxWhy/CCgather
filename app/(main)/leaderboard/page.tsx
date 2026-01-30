@@ -390,18 +390,17 @@ export default function LeaderboardPage() {
   }, [pagesData, loadedPageRange]);
 
   // Community stats derived from real data (must be after users definition)
-  const usersCount = users.length;
   const communityStats = useMemo(() => {
     const totalPosts = communityPosts.length;
     const totalLikes = communityPosts.reduce((sum, post) => sum + post.likes_count, 0);
     const uniqueAuthors = new Set(communityPosts.map((post) => post.author.id)).size;
     return {
-      members: usersCount, // Real member count from leaderboard
+      members: total || users.length, // Use API total, fallback to loaded users
       posts: totalPosts,
       likes: totalLikes,
       contributors: uniqueAuthors,
     };
-  }, [communityPosts, usersCount]);
+  }, [communityPosts, total, users.length]);
 
   // Check if there are more pages to load
   const hasMore = loadedPageRange.end < totalPages;
