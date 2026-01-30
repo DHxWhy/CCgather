@@ -1018,15 +1018,19 @@ export default function LeaderboardPage() {
     setIsPanelOpen(true);
   }, []);
 
-  const handleClosePanel = () => {
+  const handleClosePanel = useCallback(() => {
     setIsPanelOpen(false);
     // Clear selectedUserId after animation completes
+    // Use functional update to check current state (avoid stale closure)
     setTimeout(() => {
-      if (!isPanelOpen) {
-        setSelectedUserId(null);
-      }
+      setIsPanelOpen((currentOpen) => {
+        if (!currentOpen) {
+          setSelectedUserId(null);
+        }
+        return currentOpen;
+      });
     }, 300);
-  };
+  }, []);
 
   // Handle posts click from ProfileSidePanel - filter community feed by author
   const handlePostsClick = (userId: string) => {
