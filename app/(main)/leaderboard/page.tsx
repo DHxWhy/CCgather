@@ -2125,7 +2125,7 @@ export default function LeaderboardPage() {
                     {[
                       { value: "1d", label: "1D" },
                       { value: "7d", label: "7D" },
-                      { value: "30d", label: "30D" },
+                      { value: "30d", label: "30D", badge: "🔥" },
                       { value: "all", label: "All" },
                     ].map((period) => (
                       <div key={period.value} className="relative group">
@@ -2142,6 +2142,7 @@ export default function LeaderboardPage() {
                               : "text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-filter-hover)]"
                           }`}
                         >
+                          {"badge" in period && period.badge}
                           {period.label}
                         </button>
                         {period.value === "1d" && (
@@ -2179,7 +2180,7 @@ export default function LeaderboardPage() {
                       options={[
                         { value: "1d", label: "1D" },
                         { value: "7d", label: "7D" },
-                        { value: "30d", label: "30D" },
+                        { value: "30d", label: "🔥30D" },
                         { value: "all", label: "All" },
                       ]}
                       customLabel={

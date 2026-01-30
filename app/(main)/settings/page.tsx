@@ -35,9 +35,13 @@ export default function SettingsProfilePage() {
   const { signOut } = useClerk();
 
   const [dbCountryCode, setDbCountryCode] = useState<string>("");
+  const [dbUsername, setDbUsername] = useState<string>("");
+  const [dbDisplayName, setDbDisplayName] = useState<string>("");
+  const [dbAvatarUrl, setDbAvatarUrl] = useState<string>("");
   const [socialLinks, setSocialLinks] = useState<SocialLinks>({});
   const [editedLinks, setEditedLinks] = useState<SocialLinks>({});
   const [isSaving, setIsSaving] = useState(false);
+  const [isSyncingGithub, setIsSyncingGithub] = useState(false);
   const [errors, setErrors] = useState<Partial<SocialLinks>>({});
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [isDataLoaded, setIsDataLoaded] = useState(false);
@@ -54,6 +58,9 @@ export default function SettingsProfilePage() {
         if (res.ok) {
           const data = await res.json();
           setDbCountryCode(data.user?.country_code || "");
+          setDbUsername(data.user?.username || "");
+          setDbDisplayName(data.user?.display_name || "");
+          setDbAvatarUrl(data.user?.avatar_url || "");
           setSocialLinks(data.user?.social_links || {});
           setEditedLinks(data.user?.social_links || {});
           setReferralCode(data.user?.referral_code || null);
@@ -216,6 +223,39 @@ export default function SettingsProfilePage() {
     signOut({ redirectUrl: "/" });
   };
 
+  const handleSyncGithub = async () => {
+    setIsSyncingGithub(true);
+    try {
+      const res = await fetch("/api/me/sync-github", { method: "POST" });
+      const data = await res.json();
+
+      if (res.ok && data.synced) {
+        // Update local state with new values
+        if (data.profile) {
+          setDbUsername(data.profile.username || dbUsername);
+          setDbDisplayName(data.profile.display_name || dbDisplayName);
+          setDbAvatarUrl(data.profile.avatar_url || dbAvatarUrl);
+          // Also update social links if GitHub username changed
+          if (data.profile.username) {
+            const newLinks = { ...socialLinks, github: data.profile.username };
+            setSocialLinks(newLinks);
+            setEditedLinks(newLinks);
+          }
+        }
+        alert("Profile synced from GitHub!");
+      } else if (res.ok && !data.synced) {
+        alert("Profile is already up to date.");
+      } else {
+        alert(data.error || "Failed to sync from GitHub");
+      }
+    } catch (error) {
+      console.error("Failed to sync from GitHub:", error);
+      alert("Failed to sync from GitHub");
+    } finally {
+      setIsSyncingGithub(false);
+    }
+  };
+
   if (!isLoaded || !user) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -226,8 +266,14 @@ export default function SettingsProfilePage() {
 
   return (
     <div className="max-w-xl mx-auto p-4 sm:p-6 space-y-6 sm:space-y-8">
-      {/* Profile Card */}
-      <ProfileCard imageUrl={user.imageUrl} fullName={user.fullName} username={user.username} />
+      {/* Profile Card - Use DB data, with GitHub sync */}
+      <ProfileCard
+        imageUrl={dbAvatarUrl || user.imageUrl}
+        fullName={dbDisplayName || user.fullName}
+        username={dbUsername || user.username}
+        onSync={handleSyncGithub}
+        isSyncing={isSyncingGithub}
+      />
 
       {/* Social Links */}
       <section>
