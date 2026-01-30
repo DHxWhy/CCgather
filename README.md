@@ -15,7 +15,7 @@
 
 ![CCgather Hero](assets/images/hero.gif)
 
-<sub>📎 hero.gif — GIF compression may affect smoothness</sub>
+<sub>📎 hero.gif</sub>
 
 </div>
 
