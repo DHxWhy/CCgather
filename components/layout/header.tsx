@@ -197,47 +197,45 @@ export function Header() {
 
           {/* Desktop Right Section */}
           <div className="hidden md:flex items-center gap-3">
-            {/* Sign In 버튼: Clerk 로드 전/실패/로그아웃 상태에서 표시 */}
+            {/* Sign In 버튼: Clerk 로드 완료 + 로그아웃 상태 또는 로드 실패 시 */}
             {showSignInButton && (
               <Button variant="primary" size="sm" onClick={() => setAuthModalOpen(true)}>
                 Sign In
               </Button>
             )}
 
-            {/* 로그인 상태: Clerk 로드 완료 + 로그인됨 */}
-            {isLoaded && isSignedIn && !clerkFailed && (
-              <>
-                {/* Notification Bell */}
+            {/* 로그인 상태: Notification Bell (로딩 중에는 공간 확보) */}
+            {!showSignInButton && (
+              <div className={cn("transition-opacity", isLoaded ? "opacity-100" : "opacity-0")}>
                 <NotificationBell />
-              </>
+              </div>
             )}
 
             <ThemeSwitcher size="sm" />
 
-            {/* 로그인 상태: Settings */}
-            {isLoaded && isSignedIn && !clerkFailed && (
-              <>
-                <Link
-                  href="/settings"
+            {/* 로그인 상태: Settings (로딩 중에는 공간 확보) */}
+            {!showSignInButton && (
+              <Link
+                href="/settings"
+                className={cn(
+                  "flex items-center justify-center w-8 h-8 rounded-full border transition-all group",
+                  isLoaded ? "opacity-100" : "opacity-0",
+                  pathname.startsWith("/settings")
+                    ? "border-[var(--color-claude-coral)] bg-[var(--color-claude-coral)]/10"
+                    : "border-[var(--border-default)] hover:border-[var(--color-text-muted)]"
+                )}
+                aria-label="Settings"
+              >
+                <Settings
+                  size={14}
                   className={cn(
-                    "flex items-center justify-center w-8 h-8 rounded-full border transition-colors group",
+                    "transition-colors",
                     pathname.startsWith("/settings")
-                      ? "border-[var(--color-claude-coral)] bg-[var(--color-claude-coral)]/10"
-                      : "border-[var(--border-default)] hover:border-[var(--color-text-muted)]"
+                      ? "text-[var(--color-claude-coral)]"
+                      : "text-[var(--color-text-muted)] group-hover:text-[var(--color-text-secondary)]"
                   )}
-                  aria-label="Settings"
-                >
-                  <Settings
-                    size={14}
-                    className={cn(
-                      "transition-colors",
-                      pathname.startsWith("/settings")
-                        ? "text-[var(--color-claude-coral)]"
-                        : "text-[var(--color-text-muted)] group-hover:text-[var(--color-text-secondary)]"
-                    )}
-                  />
-                </Link>
-              </>
+                />
+              </Link>
             )}
           </div>
 
