@@ -37,9 +37,10 @@ export async function GET(request: NextRequest) {
     const { supabase } = adminCheck;
 
     const { searchParams } = new URL(request.url);
-    const view = searchParams.get("view") || "overview"; // overview, posts, comments, deletions
+    const view = searchParams.get("view") || "overview"; // overview, posts, comments, deletions, timeline
     const includeDeleted = searchParams.get("includeDeleted") === "true";
     const search = searchParams.get("search") || "";
+    const typeFilter = searchParams.get("type") || "all"; // all, post, comment, deletion
     const limit = Math.min(parseInt(searchParams.get("limit") || "50"), 100);
     const offset = parseInt(searchParams.get("offset") || "0");
 
@@ -216,6 +217,217 @@ export async function GET(request: NextRequest) {
         deletions: deletions || [],
         total: count || 0,
         hasMore: offset + limit < (count || 0),
+      });
+    }
+
+    // ========== TIMELINE VIEW (통합 타임라인) ==========
+    if (view === "timeline") {
+      // Fetch posts, comments, and deletions, then merge and sort by time
+      const shouldFetchPosts = typeFilter === "all" || typeFilter === "post";
+      const shouldFetchComments = typeFilter === "all" || typeFilter === "comment";
+      const shouldFetchDeletions = typeFilter === "all" || typeFilter === "deletion";
+
+      interface TimelineItem {
+        type: "post" | "comment" | "deletion";
+        id: string;
+        content: string;
+        created_at: string;
+        deleted_at: string | null;
+        author: {
+          id: string;
+          username: string;
+          display_name: string | null;
+          avatar_url: string | null;
+        } | null;
+        extra: Record<string, unknown>;
+      }
+
+      const timelineItems: TimelineItem[] = [];
+
+      // Build search filter for content or username
+      const hasSearch = search.trim().length > 0;
+
+      // Fetch posts
+      if (shouldFetchPosts) {
+        let postsQuery = supabase
+          .from("posts")
+          .select(
+            `
+            id,
+            content,
+            tab,
+            likes_count,
+            comments_count,
+            created_at,
+            deleted_at,
+            author:users!author_id (
+              id,
+              username,
+              display_name,
+              avatar_url
+            )
+          `
+          )
+          .order("created_at", { ascending: false })
+          .limit(hasSearch ? 100 : limit);
+
+        if (!includeDeleted) {
+          postsQuery = postsQuery.is("deleted_at", null);
+        }
+
+        const { data: posts } = await postsQuery;
+
+        if (posts) {
+          for (const post of posts) {
+            const author = post.author as TimelineItem["author"];
+            // Filter by search (content or username)
+            if (hasSearch) {
+              const matchesContent = post.content.toLowerCase().includes(search.toLowerCase());
+              const matchesUsername =
+                author?.username?.toLowerCase().includes(search.toLowerCase()) || false;
+              const matchesDisplayName =
+                author?.display_name?.toLowerCase().includes(search.toLowerCase()) || false;
+              if (!matchesContent && !matchesUsername && !matchesDisplayName) continue;
+            }
+
+            timelineItems.push({
+              type: "post",
+              id: post.id,
+              content: post.content,
+              created_at: post.created_at,
+              deleted_at: post.deleted_at,
+              author,
+              extra: {
+                tab: post.tab,
+                likes_count: post.likes_count,
+                comments_count: post.comments_count,
+              },
+            });
+          }
+        }
+      }
+
+      // Fetch comments
+      if (shouldFetchComments) {
+        let commentsQuery = supabase
+          .from("comments")
+          .select(
+            `
+            id,
+            content,
+            post_id,
+            parent_comment_id,
+            likes_count,
+            created_at,
+            deleted_at,
+            author:users!author_id (
+              id,
+              username,
+              display_name,
+              avatar_url
+            )
+          `
+          )
+          .order("created_at", { ascending: false })
+          .limit(hasSearch ? 100 : limit);
+
+        if (!includeDeleted) {
+          commentsQuery = commentsQuery.is("deleted_at", null);
+        }
+
+        const { data: comments } = await commentsQuery;
+
+        if (comments) {
+          for (const comment of comments) {
+            const author = comment.author as TimelineItem["author"];
+            if (hasSearch) {
+              const matchesContent = comment.content.toLowerCase().includes(search.toLowerCase());
+              const matchesUsername =
+                author?.username?.toLowerCase().includes(search.toLowerCase()) || false;
+              const matchesDisplayName =
+                author?.display_name?.toLowerCase().includes(search.toLowerCase()) || false;
+              if (!matchesContent && !matchesUsername && !matchesDisplayName) continue;
+            }
+
+            timelineItems.push({
+              type: "comment",
+              id: comment.id,
+              content: comment.content,
+              created_at: comment.created_at,
+              deleted_at: comment.deleted_at,
+              author,
+              extra: {
+                post_id: comment.post_id,
+                parent_comment_id: comment.parent_comment_id,
+                likes_count: comment.likes_count,
+              },
+            });
+          }
+        }
+      }
+
+      // Fetch deletions
+      if (shouldFetchDeletions) {
+        const { data: deletions } = await supabase
+          .from("content_deletion_logs")
+          .select(
+            `
+            *,
+            deleted_by_user:users!deleted_by (
+              id,
+              username,
+              display_name,
+              avatar_url
+            )
+          `
+          )
+          .order("created_at", { ascending: false })
+          .limit(hasSearch ? 100 : limit);
+
+        if (deletions) {
+          for (const log of deletions) {
+            const deletedByUser = log.deleted_by_user as TimelineItem["author"];
+            if (hasSearch) {
+              const matchesContent =
+                log.content_snapshot?.content?.toLowerCase().includes(search.toLowerCase()) ||
+                false;
+              const matchesUsername =
+                deletedByUser?.username?.toLowerCase().includes(search.toLowerCase()) || false;
+              if (!matchesContent && !matchesUsername) continue;
+            }
+
+            timelineItems.push({
+              type: "deletion",
+              id: log.id,
+              content: log.content_snapshot?.content || "[삭제된 컨텐츠]",
+              created_at: log.created_at,
+              deleted_at: null,
+              author: deletedByUser,
+              extra: {
+                content_type: log.content_type,
+                deleted_by_role: log.deleted_by_role,
+                cascade_deleted_comments: log.cascade_deleted_comments,
+                cascade_deleted_replies: log.cascade_deleted_replies,
+                reason: log.reason,
+                content_snapshot: log.content_snapshot,
+              },
+            });
+          }
+        }
+      }
+
+      // Sort by created_at descending
+      timelineItems.sort(
+        (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      );
+
+      // Apply pagination
+      const paginatedItems = timelineItems.slice(offset, offset + limit);
+
+      return NextResponse.json({
+        timeline: paginatedItems,
+        total: timelineItems.length,
+        hasMore: offset + limit < timelineItems.length,
       });
     }
 

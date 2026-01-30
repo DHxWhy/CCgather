@@ -137,7 +137,7 @@ export function Header() {
             "absolute inset-0",
             "bg-[var(--color-bg-primary)]/80",
             "backdrop-blur-xl",
-            "border-b border-[var(--border-default)]"
+            "border-b border-white/10"
           )}
         />
 
@@ -147,7 +147,7 @@ export function Header() {
           <Link href="/" className="flex items-center gap-2 group">
             {/* Logo Image */}
             <Image
-              src="/logo.png"
+              src="/logos/logo.png"
               alt="CCgather Logo"
               width={24}
               height={24}
@@ -240,20 +240,26 @@ export function Header() {
             )}
           </div>
 
-          {/* Mobile Menu Button */}
-          <button
-            className={cn(
-              "md:hidden p-2 -mr-2 rounded-lg",
-              "text-[var(--color-text-secondary)]",
-              "hover:text-[var(--color-text-primary)]",
-              "hover:bg-[var(--glass-bg)]",
-              "transition-colors duration-200"
-            )}
-            onClick={() => setMobileMenuOpen(true)}
-            aria-label="Open menu"
-          >
-            <Menu size={24} />
-          </button>
+          {/* Mobile Right Section */}
+          <div className="flex md:hidden items-center gap-1">
+            {/* Notification Bell - Mobile (로그인 상태에서만) */}
+            {isLoaded && isSignedIn && !clerkFailed && <NotificationBell />}
+
+            {/* Mobile Menu Button */}
+            <button
+              className={cn(
+                "p-2 -mr-2 rounded-lg",
+                "text-[var(--color-text-secondary)]",
+                "hover:text-[var(--color-text-primary)]",
+                "hover:bg-[var(--glass-bg)]",
+                "transition-colors duration-200"
+              )}
+              onClick={() => setMobileMenuOpen(true)}
+              aria-label="Open menu"
+            >
+              <Menu size={24} />
+            </button>
+          </div>
         </nav>
       </header>
 
@@ -311,12 +317,6 @@ export function Header() {
               </Button>
             ) : (
               <>
-                {/* Notifications - Mobile */}
-                <div className="flex items-center justify-between px-4 py-2">
-                  <span className="text-sm text-[var(--color-text-secondary)]">Notifications</span>
-                  <NotificationBell />
-                </div>
-
                 <Link
                   href="/settings"
                   onClick={closeMobileMenu}

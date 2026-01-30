@@ -126,6 +126,8 @@ export interface LeaderboardUser {
   has_opus_usage?: boolean;
   // Social links
   social_links?: SocialLinks | null;
+  // Post count for community
+  post_count?: number;
 }
 
 export interface LeaderboardResponse {

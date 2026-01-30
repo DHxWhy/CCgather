@@ -21,13 +21,22 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
       country_rank,
       total_tokens,
       total_cost,
+      total_sessions,
       social_links,
       ccplan,
+      has_opus_usage,
       deleted_at
     `
     )
     .eq("id", id)
     .single();
+
+  // Count user's posts
+  const { count: postCount } = await supabase
+    .from("posts")
+    .select("*", { count: "exact", head: true })
+    .eq("author_id", id)
+    .is("deleted_at", null);
 
   if (userError || !user) {
     console.error("User profile query error:", userError);
@@ -68,8 +77,11 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
       country_rank: user.country_rank,
       total_tokens: user.total_tokens || 0,
       total_cost: user.total_cost || 0,
+      total_sessions: user.total_sessions || 0,
       social_links: user.social_links,
       ccplan: user.ccplan,
+      has_opus_usage: user.has_opus_usage || false,
+      post_count: postCount || 0,
     },
   });
 }

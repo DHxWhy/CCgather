@@ -15,7 +15,7 @@ export function Footer() {
       <div className="mx-auto max-w-7xl px-4 flex flex-col md:flex-row items-center justify-between gap-4">
         <div className="flex items-center gap-2">
           <Image
-            src="/logo.png"
+            src="/logos/logo.png"
             alt="CCgather Logo"
             width={24}
             height={24}
@@ -35,7 +35,7 @@ export function Footer() {
             Terms
           </Link>
           <a
-            href="https://github.com/DHxYoon/ccgather"
+            href="https://github.com/DHxWhy/CCgather"
             target="_blank"
             rel="noopener noreferrer"
             className="hover:text-text-primary transition-colors"

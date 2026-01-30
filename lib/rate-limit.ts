@@ -19,15 +19,32 @@ interface RateLimitConfig {
 // In production, use Redis or a distributed cache
 const rateLimitStore = new Map<string, RateLimitEntry>();
 
-// Clean up expired entries periodically
-setInterval(() => {
-  const now = Date.now();
-  for (const [key, entry] of rateLimitStore.entries()) {
-    if (now > entry.resetTime) {
-      rateLimitStore.delete(key);
+// Cleanup interval reference (lazy initialized)
+let cleanupInterval: ReturnType<typeof setInterval> | null = null;
+
+// Start cleanup interval (lazy initialization)
+function ensureCleanupRunning() {
+  if (cleanupInterval) return;
+
+  cleanupInterval = setInterval(() => {
+    const now = Date.now();
+    for (const [key, entry] of rateLimitStore.entries()) {
+      if (now > entry.resetTime) {
+        rateLimitStore.delete(key);
+      }
     }
+    // Auto-stop if store is empty (memory optimization)
+    if (rateLimitStore.size === 0 && cleanupInterval) {
+      clearInterval(cleanupInterval);
+      cleanupInterval = null;
+    }
+  }, 60000); // Clean up every minute
+
+  // Prevent interval from keeping Node.js process alive
+  if (cleanupInterval.unref) {
+    cleanupInterval.unref();
   }
-}, 60000); // Clean up every minute
+}
 
 export interface RateLimitResult {
   success: boolean;
@@ -39,10 +56,10 @@ export interface RateLimitResult {
 /**
  * Check rate limit for a given identifier
  */
-export function checkRateLimit(
-  identifier: string,
-  config: RateLimitConfig
-): RateLimitResult {
+export function checkRateLimit(identifier: string, config: RateLimitConfig): RateLimitResult {
+  // Ensure cleanup is running (lazy init)
+  ensureCleanupRunning();
+
   const now = Date.now();
   const entry = rateLimitStore.get(identifier);
 
@@ -125,26 +142,23 @@ export const rateLimiters = {
  */
 export function createRateLimitHeaders(result: RateLimitResult): HeadersInit {
   return {
-    'X-RateLimit-Limit': result.limit.toString(),
-    'X-RateLimit-Remaining': result.remaining.toString(),
-    'X-RateLimit-Reset': Math.ceil(result.resetTime / 1000).toString(),
+    "X-RateLimit-Limit": result.limit.toString(),
+    "X-RateLimit-Remaining": result.remaining.toString(),
+    "X-RateLimit-Reset": Math.ceil(result.resetTime / 1000).toString(),
   };
 }
 
 /**
  * Get client identifier from request (IP or API key)
  */
-export function getClientIdentifier(
-  request: Request,
-  apiKey?: string
-): string {
+export function getClientIdentifier(request: Request, apiKey?: string): string {
   // Prefer API key if available
   if (apiKey) {
     return `key:${apiKey}`;
   }
 
   // Fallback to IP address
-  const forwarded = request.headers.get('x-forwarded-for');
-  const ip = forwarded?.split(',')[0]?.trim() || 'unknown';
+  const forwarded = request.headers.get("x-forwarded-for");
+  const ip = forwarded?.split(",")[0]?.trim() || "unknown";
   return `ip:${ip}`;
 }

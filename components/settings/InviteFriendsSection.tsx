@@ -40,8 +40,7 @@ export default function InviteFriendsSection({
     setIsMounted(true);
   }, []);
 
-  const inviteUrl =
-    isMounted && referralCode ? `${window.location.origin}/join/${referralCode}` : "";
+  const inviteUrl = isMounted && referralCode ? `${window.location.origin}/j/${referralCode}` : "";
 
   const handleCopy = async () => {
     if (!inviteUrl) return;

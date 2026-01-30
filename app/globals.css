@@ -131,6 +131,12 @@
   --color-section-bg: rgba(255, 255, 255, 0.05);
   --color-section-bg-hover: rgba(255, 255, 255, 0.1);
 
+  /* Badge locked state */
+  --color-badge-locked: rgba(0, 0, 0, 0.4);
+
+  /* Scope filter active state */
+  --color-scope-active-bg: rgba(255, 255, 255, 0.08);
+
   /* Cost Color (Yellow/Gold for dark mode) */
   --color-cost: #fbbf24;
 
@@ -262,6 +268,12 @@
   /* Section/Card inside panels - Light Mode (semi-transparent) */
   --color-section-bg: rgba(235, 225, 210, 0.2);
   --color-section-bg-hover: rgba(225, 212, 195, 0.35);
+
+  /* Badge locked state - Light Mode (lighter gray) */
+  --color-badge-locked: rgba(180, 170, 155, 0.35);
+
+  /* Scope filter active state - Light Mode (warm beige) */
+  --color-scope-active-bg: #f5ebe0;
 
   /* Cost Color (Dark Gold for light mode) */
   --color-cost: #b8860b;
@@ -572,7 +584,7 @@ button,
 }
 
 .animate-shimmer {
-  animation: shimmer 3s ease-in-out infinite;
+  animation: shimmer 1s ease-in-out infinite;
   will-change: background-position;
 }
 
@@ -590,8 +602,29 @@ button,
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;
-  animation: shimmer 3s ease-in-out infinite;
+  animation: shimmer 1s ease-in-out infinite;
   will-change: background-position;
+}
+
+/* Translate Banner Shimmer - Background sweep effect */
+.translate-banner-shimmer::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(34, 211, 238, 0.15) 45%,
+    rgba(34, 211, 238, 0.3) 50%,
+    rgba(34, 211, 238, 0.15) 55%,
+    transparent 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s ease-in-out infinite;
+  pointer-events: none;
 }
 
 /* Slide In Right (for mobile menu) */

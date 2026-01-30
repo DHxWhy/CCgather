@@ -3,6 +3,16 @@ import { headers } from "next/headers";
 import { WebhookEvent } from "@clerk/nextjs/server";
 import { createClient } from "@supabase/supabase-js";
 
+// Generate 5-character alphanumeric referral code
+function generateShortCode(): string {
+  const chars = "abcdefghijklmnopqrstuvwxyz0123456789";
+  let code = "";
+  for (let i = 0; i < 5; i++) {
+    code += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return code;
+}
+
 function getSupabaseAdmin() {
   return createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -76,12 +86,16 @@ export async function POST(req: Request) {
       // Use GitHub avatar if available
       const avatarUrl = githubAccount?.avatar_url || image_url;
 
+      // Generate short 5-character referral code
+      const referralCode = generateShortCode();
+
       const { error } = await getSupabaseAdmin().from("users").insert({
         clerk_id: id,
         username: finalUsername,
         display_name: displayName,
         avatar_url: avatarUrl,
         email: email,
+        referral_code: referralCode,
       });
 
       if (error) {

@@ -29,6 +29,11 @@ import AnimatedNumber from "@/components/ui/AnimatedNumber";
 import { format } from "date-fns";
 import type { LeaderboardUser, PeriodFilter, ScopeFilter, SortByFilter } from "@/lib/types";
 import type { FeedPost } from "@/components/community/FeedCard";
+import {
+  useLazyTranslation,
+  extractTranslationItems,
+  type FeedPostForTranslation,
+} from "@/hooks/useLazyTranslation";
 
 // View mode type for tab switching
 type ViewMode = "leaderboard" | "community";
@@ -69,6 +74,12 @@ const CommunityFeedSection = dynamic(() => import("@/components/community/Commun
 });
 
 const HallOfFame = dynamic(() => import("@/components/community/HallOfFame"), { ssr: false });
+import type { HallOfFamePeriod } from "@/components/community/HallOfFame";
+
+const CommunityCountryStats = dynamic(
+  () => import("@/components/community/CommunityCountryStats"),
+  { ssr: false }
+);
 
 const MobileGlobePanel = dynamic(
   () => import("@/components/leaderboard/MobileGlobePanel").then((mod) => mod.MobileGlobePanel),
@@ -95,6 +106,50 @@ function formatTokens(num: number): string {
   if (num >= 1_000_000) return `${(num / 1_000_000).toFixed(1)}M`;
   if (num >= 1_000) return `${(num / 1_000).toFixed(1)}K`;
   return num.toString();
+}
+
+// Country code to language code mapping for auto-translation
+const COUNTRY_TO_LANGUAGE: Record<string, string> = {
+  KR: "ko", // Korea
+  US: "en",
+  GB: "en",
+  AU: "en",
+  NZ: "en",
+  CA: "en",
+  IE: "en", // English-speaking
+  JP: "ja", // Japan
+  CN: "zh",
+  TW: "zh",
+  HK: "zh",
+  SG: "zh", // Chinese-speaking
+  ES: "es",
+  MX: "es",
+  AR: "es",
+  CO: "es",
+  CL: "es",
+  PE: "es", // Spanish-speaking
+  FR: "fr",
+  BE: "fr",
+  CH: "fr", // French-speaking (CH is multilingual)
+  DE: "de",
+  AT: "de", // German-speaking
+  BR: "pt",
+  PT: "pt", // Portuguese-speaking
+  IT: "it", // Italy
+  NL: "nl", // Netherlands
+  PL: "pl", // Poland
+  RU: "ru", // Russia
+  TR: "tr", // Turkey
+  VN: "vi", // Vietnam
+  TH: "th", // Thailand
+  ID: "id", // Indonesia
+  IN: "en", // India (English as official)
+  PH: "en", // Philippines (English as official)
+};
+
+function getLanguageFromCountry(countryCode: string | null | undefined): string | null {
+  if (!countryCode) return null;
+  return COUNTRY_TO_LANGUAGE[countryCode.toUpperCase()] || "en"; // Default to English
 }
 
 // Country Flag with Popover - Memoized to prevent unnecessary re-renders
@@ -241,6 +296,9 @@ export default function LeaderboardPage() {
   // View mode for tab switching (leaderboard | community)
   const [viewMode, setViewMode] = useState<ViewMode>(getInitialView);
 
+  // Community Stats period filter (shared with Hall of Fame)
+  const [communityStatsPeriod, setCommunityStatsPeriod] = useState<HallOfFamePeriod>("today");
+
   // URL sync: Update URL when viewMode changes (zero-latency, no page reload)
   useEffect(() => {
     const targetUrl = viewMode === "community" ? "/community" : "/leaderboard";
@@ -273,8 +331,19 @@ export default function LeaderboardPage() {
   // Community posts state (API-driven)
   const [communityPosts, setCommunityPosts] = useState<FeedPost[]>([]);
   const [communityLoading, setCommunityLoading] = useState(false);
+  // Infinite scroll state for community posts
+  // Using ref for offset to avoid recreating fetchCommunityPosts on every offset change
+  const communityOffsetRef = useRef(0);
+  const [hasMorePosts, setHasMorePosts] = useState(true);
+  const [loadingMorePosts, setLoadingMorePosts] = useState(false);
+  // Translation state (for lazy loading translations)
+  // Initialize as null to indicate "not loaded yet" - prevents flicker
+  const [preferredLanguage, setPreferredLanguage] = useState<string | null>(null);
+  const [autoTranslateEnabled, setAutoTranslateEnabled] = useState<boolean | null>(null);
+  // Derived: settings are loaded when both values are set
+  const translationSettingsLoaded = preferredLanguage !== null && autoTranslateEnabled !== null;
 
-  const [selectedUser, setSelectedUser] = useState<DisplayUser | null>(null);
+  const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [isPanelOpen, setIsPanelOpen] = useState(false);
   const [isGlobePanelOpen, setIsGlobePanelOpen] = useState(false);
   const [periodFilter, setPeriodFilter] = useState<PeriodFilter>("all");
@@ -428,18 +497,33 @@ export default function LeaderboardPage() {
   const [totalGlobalTokens, setTotalGlobalTokens] = useState(0);
   const [totalGlobalCost, setTotalGlobalCost] = useState(0);
 
-  // Calculate country stats from users data
+  // Calculate country stats from users data (respects period filter)
   useEffect(() => {
-    if (users.length === 0) return;
+    if (users.length === 0) {
+      // Reset stats when no users (e.g., filtered period with no data)
+      setCountryStats([]);
+      setTotalGlobalTokens(0);
+      setTotalGlobalCost(0);
+      return;
+    }
+
+    // Use period-specific values when period filter is active
+    const usePeriodValues = periodFilter !== "all";
 
     // Aggregate by country
     const countryMap = new Map<string, { tokens: number; cost: number }>();
     users.forEach((user) => {
       const code = user.country_code || "XX";
       const existing = countryMap.get(code) || { tokens: 0, cost: 0 };
+      const tokens = usePeriodValues
+        ? (user.period_tokens ?? user.total_tokens ?? 0)
+        : (user.total_tokens ?? 0);
+      const cost = usePeriodValues
+        ? (user.period_cost ?? user.total_cost ?? 0)
+        : (user.total_cost ?? 0);
       countryMap.set(code, {
-        tokens: existing.tokens + (user.total_tokens || 0),
-        cost: existing.cost + (user.total_cost || 0),
+        tokens: existing.tokens + tokens,
+        cost: existing.cost + cost,
       });
     });
 
@@ -457,7 +541,7 @@ export default function LeaderboardPage() {
     setCountryStats(stats);
     setTotalGlobalTokens(totalTokens);
     setTotalGlobalCost(totalCost);
-  }, [users]);
+  }, [users, periodFilter]);
 
   // Handle country stats loaded from GlobeStatsSection (no longer using mock data)
   const handleCountryStatsLoaded = useCallback(
@@ -747,31 +831,6 @@ export default function LeaderboardPage() {
     }
   }, [userInfoLoaded]);
 
-  // Update selectedUser when users array changes (to reflect updated data including period stats)
-  // Use selectedUser.id as dependency to avoid infinite loop
-  const selectedUserId = selectedUser?.id;
-  useEffect(() => {
-    if (selectedUserId && users.length > 0) {
-      const updatedUser = users.find((u) => u.id === selectedUserId);
-      if (updatedUser) {
-        // Only update if data actually changed (compare key fields to avoid infinite loop)
-        setSelectedUser((prev) => {
-          if (!prev) return updatedUser;
-          // Compare key fields that might change
-          const hasChanged =
-            prev.total_tokens !== updatedUser.total_tokens ||
-            prev.total_cost !== updatedUser.total_cost ||
-            prev.period_tokens !== updatedUser.period_tokens ||
-            prev.period_cost !== updatedUser.period_cost ||
-            prev.global_rank !== updatedUser.global_rank ||
-            prev.country_rank !== updatedUser.country_rank ||
-            JSON.stringify(prev.social_links) !== JSON.stringify(updatedUser.social_links);
-          return hasChanged ? updatedUser : prev;
-        });
-      }
-    }
-  }, [users, selectedUserId]);
-
   // Viewport width and panel width tracking for responsive layout
   // Mobile: < 640px | Tablet: 640-1039px | PC: >= 1040px
   useEffect(() => {
@@ -899,7 +958,7 @@ export default function LeaderboardPage() {
       const currentUser = users.find((u) => u.isCurrentUser);
       if (currentUser) {
         // Open the detail panel
-        setSelectedUser(currentUser);
+        setSelectedUserId(currentUser.id);
         setIsPanelOpen(true);
 
         // Scroll to the row
@@ -915,13 +974,14 @@ export default function LeaderboardPage() {
   }, [pendingMyRankScroll, loading, users]);
 
   // Reset pagination state on filter change
+  // Note: sortBy is UI-only (highlight styling), not a data filter, so excluded from deps
   useEffect(() => {
     setPagesData(new Map());
     setLoadedPageRange({ start: 1, end: 1 });
     setTotalPages(1);
     setHighlightMyRank(false);
     setUserTargetPage(null);
-  }, [scopeFilter, periodFilter, sortBy]);
+  }, [scopeFilter, periodFilter]);
 
   // Track Globe position for full-screen particles
   // Only update on resize (not scroll) - particles don't need to follow scroll
@@ -947,13 +1007,25 @@ export default function LeaderboardPage() {
   }, [loading, stickyLocked, viewportWidth]);
 
   const handleRowClick = (user: DisplayUser) => {
-    setSelectedUser(user);
+    setSelectedUserId(user.id);
     setIsPanelOpen(true);
     setHighlightMyRank(false);
   };
 
+  // Open profile for a user by ID (ProfileSidePanel fetches data internally)
+  const handleOpenProfileById = useCallback((userId: string) => {
+    setSelectedUserId(userId);
+    setIsPanelOpen(true);
+  }, []);
+
   const handleClosePanel = () => {
     setIsPanelOpen(false);
+    // Clear selectedUserId after animation completes
+    setTimeout(() => {
+      if (!isPanelOpen) {
+        setSelectedUserId(null);
+      }
+    }, 300);
   };
 
   // Handle posts click from ProfileSidePanel - filter community feed by author
@@ -983,11 +1055,18 @@ export default function LeaderboardPage() {
   // Community API Functions
   // =====================================================
 
-  // Fetch community posts
-
+  // Fetch community posts (supports infinite scroll with append mode)
   const fetchCommunityPosts = useCallback(
-    async (tab: string = "all") => {
-      setCommunityLoading(true);
+    async (tab: string = "all", mode: "replace" | "append" = "replace") => {
+      // Set appropriate loading state
+      if (mode === "replace") {
+        setCommunityLoading(true);
+        communityOffsetRef.current = 0;
+        setHasMorePosts(true); // Reset hasMore for new fetch
+      } else {
+        setLoadingMorePosts(true);
+      }
+
       try {
         const params = new URLSearchParams();
         if (tab !== "all") {
@@ -996,11 +1075,26 @@ export default function LeaderboardPage() {
         if (authorFilter) {
           params.set("author", authorFilter);
         }
+        // Add pagination params (use ref to avoid stale closure)
+        const offset = mode === "append" ? communityOffsetRef.current : 0;
+        params.set("offset", offset.toString());
+        params.set("limit", "20");
+
         const res = await fetch(`/api/community/posts?${params.toString()}`);
         if (!res.ok) throw new Error("Failed to fetch posts");
         const data = await res.json();
 
-        // Transform API response to match FeedPost interface
+        // Update translation settings from API response (only on initial load)
+        if (mode === "replace") {
+          if (data.preferred_language) {
+            setPreferredLanguage(data.preferred_language);
+          }
+          if (typeof data.auto_translate_enabled === "boolean") {
+            setAutoTranslateEnabled(data.auto_translate_enabled);
+          }
+        }
+
+        // Transform API response to match FeedPost interface (original content only)
         const transformedPosts: FeedPost[] = (data.posts || []).map(
           (post: {
             id: string;
@@ -1015,7 +1109,6 @@ export default function LeaderboardPage() {
             content: string;
             tab: string;
             original_language: string;
-            is_translated: boolean;
             created_at: string;
             likes_count: number;
             comments_count: number;
@@ -1036,9 +1129,11 @@ export default function LeaderboardPage() {
                 current_level: number;
               };
               content: string;
+              original_language?: string;
               likes_count: number;
               created_at: string;
               is_liked: boolean;
+              replies_count?: number;
             }[];
             has_more_comments?: boolean;
           }) => ({
@@ -1051,9 +1146,9 @@ export default function LeaderboardPage() {
               level: post.author.current_level || 1,
               country_code: post.author.country_code,
             },
-            content: post.content,
+            content: post.content, // Original content (translations loaded lazily)
             original_language: post.original_language || "en",
-            is_translated: post.is_translated || false,
+            is_translated: false, // Will be updated by lazy translation
             created_at: post.created_at,
             likes_count: post.likes_count || 0,
             comments_count: post.comments_count || 0,
@@ -1068,28 +1163,166 @@ export default function LeaderboardPage() {
                 display_name: c.author.display_name,
                 avatar_url: c.author.avatar_url,
               },
-              content: c.content,
+              content: c.content, // Original content (translations loaded lazily)
+              original_language: c.original_language,
               likes_count: c.likes_count,
               is_liked: c.is_liked,
               created_at: c.created_at,
               replies: [],
+              replies_count: c.replies_count || 0,
             })),
             has_more_comments: post.has_more_comments || false,
           })
         );
 
-        setCommunityPosts(transformedPosts);
+        // Update posts based on mode
+        if (mode === "append") {
+          setCommunityPosts((prev) => [...prev, ...transformedPosts]);
+        } else {
+          setCommunityPosts(transformedPosts);
+        }
+
+        // Update pagination state (use ref for offset)
+        communityOffsetRef.current = offset + transformedPosts.length;
+        setHasMorePosts(data.hasMore ?? false);
       } catch (err) {
         console.error("Error fetching community posts:", err);
-        setCommunityPosts([]);
+        if (mode === "replace") {
+          setCommunityPosts([]);
+          setHasMorePosts(false);
+        }
+        // Keep hasMore unchanged on append error to allow retry
       } finally {
-        setCommunityLoading(false);
+        if (mode === "replace") {
+          setCommunityLoading(false);
+        } else {
+          setLoadingMorePosts(false);
+        }
       }
     },
     [authorFilter]
   );
 
+  // Load more posts (for infinite scroll)
+  const loadMoreCommunityPosts = useCallback(() => {
+    if (loadingMorePosts || !hasMorePosts) return;
+    fetchCommunityPosts(communityTab, "append");
+  }, [loadingMorePosts, hasMorePosts, fetchCommunityPosts, communityTab]);
+
+  // =====================================================
+  // Lazy Translation - Background loading of translations
+  // =====================================================
+
+  // Extract items that need translation
+  // Wait for settings to load before starting translation (prevents flicker)
+  const translationItems = useMemo(() => {
+    if (!translationSettingsLoaded || !autoTranslateEnabled || communityPosts.length === 0)
+      return [];
+    return extractTranslationItems(
+      communityPosts.map((post) => ({
+        id: post.id,
+        content: post.content,
+        original_language: post.original_language,
+        preview_comments: post.comments?.map((c) => ({
+          id: c.id,
+          content: c.content,
+          original_language: (c as { original_language?: string }).original_language,
+        })),
+      })) as FeedPostForTranslation[],
+      preferredLanguage
+    );
+  }, [communityPosts, autoTranslateEnabled, preferredLanguage, translationSettingsLoaded]);
+
+  // Use lazy translation hook
+  // Only enable when settings are loaded and autoTranslate is on
+  const {
+    translations,
+    getTranslation,
+    isLoading: isTranslationLoading,
+  } = useLazyTranslation(translationItems, {
+    enabled: translationSettingsLoaded && autoTranslateEnabled === true,
+    targetLanguage: preferredLanguage || "en", // fallback, but won't be used if not enabled
+    debounceMs: 200,
+  });
+
+  // Calculate pending translation IDs (posts that need translation but haven't received it yet)
+  const pendingTranslationIds = useMemo(() => {
+    if (!translationSettingsLoaded || !autoTranslateEnabled || !isTranslationLoading) {
+      return new Set<string>();
+    }
+    // Posts that are in translationItems but not yet in translations
+    const pendingIds = new Set<string>();
+    translationItems.forEach((item) => {
+      if (item.type === "post" && !translations.has(`post:${item.id}`)) {
+        pendingIds.add(item.id);
+      }
+    });
+    return pendingIds;
+  }, [autoTranslateEnabled, isTranslationLoading, translationItems, translations]);
+
+  // Apply translations to posts (memoized to prevent unnecessary re-renders)
+  const translatedCommunityPosts = useMemo(() => {
+    if (!autoTranslateEnabled || translations.size === 0) {
+      return communityPosts;
+    }
+
+    return communityPosts.map((post) => {
+      const postTranslation = getTranslation(post.id, "post");
+      const translatedComments = post.comments?.map((comment) => {
+        const commentTranslation = getTranslation(comment.id, "comment");
+        if (commentTranslation && commentTranslation !== comment.content) {
+          return {
+            ...comment,
+            content: commentTranslation,
+            original_content: comment.content,
+            is_translated: true,
+          };
+        }
+        return comment;
+      });
+
+      if (postTranslation && postTranslation !== post.content) {
+        return {
+          ...post,
+          // content는 원본 유지 (덮어쓰지 않음)
+          translated_content: postTranslation,
+          is_translated: true,
+          comments: translatedComments || post.comments,
+        };
+      }
+
+      return {
+        ...post,
+        comments: translatedComments || post.comments,
+      };
+    });
+  }, [communityPosts, translations, autoTranslateEnabled, getTranslation]);
+
   // Handle post creation
+  // Handle auto-translate toggle
+  const handleAutoTranslateToggle = useCallback(async (enabled: boolean) => {
+    // Optimistic update
+    setAutoTranslateEnabled(enabled);
+
+    try {
+      const res = await fetch("/api/community/settings", {
+        method: "PATCH", // API uses PATCH, not POST
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ auto_translate: enabled }),
+      });
+
+      if (!res.ok) {
+        // Revert on error
+        setAutoTranslateEnabled(!enabled);
+        console.error("Failed to update auto-translate setting");
+      }
+    } catch (err) {
+      // Revert on error
+      setAutoTranslateEnabled(!enabled);
+      console.error("Error updating auto-translate setting:", err);
+    }
+  }, []);
+
   const handleCreatePost = useCallback(
     async (content: string, tab: string) => {
       try {
@@ -1156,17 +1389,19 @@ export default function LeaderboardPage() {
   // Tablet: 768px <= width < 1040px → use 45:55 ratio
   const isTablet = viewportWidth >= 768 && viewportWidth < 1040;
 
-  // Show level column: always on 860px+, or on narrow when panel is open (table expanded)
-  const showLevelColumn = viewportWidth >= 860 || (viewportWidth >= 768 && isPanelOpen);
+  // Show level column: 860px+ but hide when panel is open in tablet mode (to save space)
+  const showLevelColumn = viewportWidth >= 860 && !(isPanelOpen && viewportWidth < 1200);
 
-  // Memoized style objects to prevent unnecessary re-renders
-  const containerStyle = useMemo(
-    () => ({
-      marginRight:
-        isPanelOpen && panelWidth > 0 && viewportWidth < 1500 ? `${panelWidth}px` : undefined,
-    }),
-    [isPanelOpen, panelWidth, viewportWidth]
-  );
+  // Show single metric column: when panel open and viewport < 1920px, show only the sorted metric
+  const showSingleMetric = isPanelOpen && viewportWidth < 1920;
+
+  // Push layout modes:
+  // Mobile (<640px): overlay mode (panel covers content)
+  // Tablet (640-1199px): Globe hides, table expands left-aligned (paddingRight)
+  // Desktop (1200-1919px): marginRight pushes centered content left
+  // Wide Desktop (>=1920px): no layout change (enough space for 1000px content + 440px panel)
+  const isTabletPush = isPanelOpen && viewportWidth >= 640 && viewportWidth < 1200;
+  const isDesktopPush = isPanelOpen && viewportWidth >= 1200 && viewportWidth < 1920;
 
   const particleInnerStyle = useMemo(() => {
     if (!globePosition) return undefined;
@@ -1177,17 +1412,17 @@ export default function LeaderboardPage() {
     };
   }, [globePosition, viewportWidth]);
 
+  // Column ratios:
+  // Tablet (768-1039px): 45%/55% (always)
+  // Desktop (>=1040px): 50%/50% when panel closed
+  // Community + panel open + >=1040px: 40%/60% (feed needs more space)
+  const isCommunityPanelOpen = viewMode === "community" && isPanelOpen && viewportWidth >= 1040;
+
   const leftColumnStyle = useMemo(
     () => ({
-      width: useCompactRatio
-        ? undefined
-        : isPanelOpen && viewportWidth < 1500
-          ? "40%"
-          : isTablet
-            ? "45%"
-            : "50%",
+      width: useCompactRatio ? undefined : isCommunityPanelOpen ? "40%" : isTablet ? "45%" : "50%",
     }),
-    [useCompactRatio, isPanelOpen, viewportWidth, isTablet]
+    [useCompactRatio, isTablet, isCommunityPanelOpen]
   );
 
   const rightColumnStyle = useMemo(
@@ -1197,13 +1432,13 @@ export default function LeaderboardPage() {
           ? "100%"
           : useCompactRatio
             ? "100%"
-            : isPanelOpen && viewportWidth < 1500
+            : isCommunityPanelOpen
               ? "60%"
               : isTablet
                 ? "55%"
                 : "50%",
     }),
-    [viewportWidth, useCompactRatio, isPanelOpen, isTablet]
+    [viewportWidth, useCompactRatio, isTablet, isCommunityPanelOpen]
   );
 
   const scrollContainerStyle = useMemo(
@@ -1216,7 +1451,7 @@ export default function LeaderboardPage() {
   );
 
   return (
-    <div className="min-h-screen overflow-x-hidden md:fixed md:top-16 md:left-0 md:right-0 md:bottom-0 md:z-10 md:bg-[var(--color-bg-primary)] md:overflow-hidden">
+    <div className="min-h-screen overflow-x-hidden md:fixed md:top-12 md:left-0 md:right-0 md:bottom-0 md:z-10 md:bg-[var(--color-bg-primary)] md:overflow-hidden">
       {/* Globe Particles - within content area (max-width 1000px), below filter */}
       {/* Only show on tablet/desktop (md+), mobile has separate MobileGlobePanel */}
       {viewportWidth >= 768 && globePosition && particleInnerStyle && (
@@ -1232,10 +1467,17 @@ export default function LeaderboardPage() {
           </div>
         </div>
       )}
-      <div className="transition-[height,overflow] duration-300 ease-out h-[calc(100vh-56px)] md:h-auto overflow-hidden md:overflow-visible">
+      <div
+        className="transition-[padding] duration-300 ease-out h-[calc(100vh-56px)] md:h-auto overflow-hidden md:overflow-visible"
+        style={{ paddingRight: isTabletPush && panelWidth > 0 ? `${panelWidth}px` : undefined }}
+      >
         <div
-          className="px-4 pt-4 pb-2 max-w-[1000px] mx-auto transition-[margin] duration-300 h-full md:h-auto flex flex-col"
-          style={containerStyle}
+          className={`px-4 pt-4 pb-2 transition-[max-width,margin] duration-300 h-full md:h-auto flex flex-col ${
+            isTabletPush ? "w-full max-w-none" : "max-w-[1000px] mx-auto"
+          }`}
+          style={{
+            marginRight: isDesktopPush && panelWidth > 0 ? `${panelWidth}px` : undefined,
+          }}
         >
           {/* Header */}
           <header className="mb-4 md:mb-6">
@@ -1293,44 +1535,29 @@ export default function LeaderboardPage() {
                   className={`flex items-center gap-1.5 text-xs ${isTablet ? "text-[10px]" : ""}`}
                 >
                   {viewMode === "community" ? (
-                    /* Community Stats: members, posts, likes - 1초에 약 1씩 천천히 롤링 */
+                    /* Community Stats: members, posts, likes - 즉시 표시 */
                     <>
                       <span className="flex items-center gap-1 text-[var(--color-accent-cyan)]">
                         <span>👥</span>
-                        <AnimatedNumber
-                          value={communityStats.members}
-                          perUnitDuration={800}
-                          maxDuration={20000}
-                          easing="linear"
-                          className="font-semibold"
-                          storageKey="community_members"
-                        />
+                        <span className="font-semibold">
+                          {communityStats.members.toLocaleString()}
+                        </span>
                         <span className="text-[var(--color-text-muted)] font-normal">members</span>
                       </span>
                       <span className="text-[var(--color-text-muted)]">·</span>
                       <span className="flex items-center gap-1 text-[var(--color-claude-coral)]">
                         <span>📝</span>
-                        <AnimatedNumber
-                          value={communityStats.posts}
-                          perUnitDuration={800}
-                          maxDuration={20000}
-                          easing="linear"
-                          className="font-semibold"
-                          storageKey="community_posts"
-                        />
+                        <span className="font-semibold">
+                          {communityStats.posts.toLocaleString()}
+                        </span>
                         <span className="text-[var(--color-text-muted)] font-normal">posts</span>
                       </span>
                       <span className="text-[var(--color-text-muted)]">·</span>
                       <span className="flex items-center gap-1 text-[var(--color-accent-red)]">
                         <span>❤️</span>
-                        <AnimatedNumber
-                          value={communityStats.likes}
-                          perUnitDuration={800}
-                          maxDuration={20000}
-                          easing="linear"
-                          className="font-semibold"
-                          storageKey="community_likes"
-                        />
+                        <span className="font-semibold">
+                          {communityStats.likes.toLocaleString()}
+                        </span>
                         <span className="text-[var(--color-text-muted)] font-normal">likes</span>
                       </span>
                     </>
@@ -1339,6 +1566,20 @@ export default function LeaderboardPage() {
                     <>
                       <span className="flex items-center gap-1 text-[var(--color-text-primary)]">
                         <span>🌍</span>
+                      </span>
+                      <span className="text-[var(--color-text-muted)]">·</span>
+                      <span className="text-[10px] text-[var(--color-text-muted)]">
+                        {periodFilter === "all"
+                          ? "All Time"
+                          : periodFilter === "today"
+                            ? "1D"
+                            : periodFilter === "7d"
+                              ? "7D"
+                              : periodFilter === "30d"
+                                ? "30D"
+                                : customDateRange
+                                  ? `${Math.ceil((new Date(customDateRange.end).getTime() - new Date(customDateRange.start).getTime()) / (1000 * 60 * 60 * 24)) + 1}D`
+                                  : "Custom"}
                       </span>
                       <span className="text-[var(--color-text-muted)]">·</span>
                       <span
@@ -1531,20 +1772,38 @@ export default function LeaderboardPage() {
                   /* Community Stats Section - z-20 to be above Globe (z-10), pointer-events-auto to block Globe interaction */
                   /* Always maintain sufficient height to allow scrolling */
                   <div
-                    className={`glass !border-0 rounded-t-2xl flex flex-col pointer-events-auto relative z-20 ${stickyLocked ? "" : isTablet ? "mt-2" : "mt-4"}`}
+                    className={`glass !border-0 rounded-t-2xl flex flex-col pointer-events-auto relative z-20 overflow-hidden ${stickyLocked ? "" : isTablet ? "mt-2" : "mt-4"}`}
                     style={{
                       minHeight: "calc(100vh - 64px - 156px)",
+                      maxHeight: "calc(100vh - 64px - 80px)",
                     }}
                   >
-                    {/* Sticky Header */}
+                    {/* Sticky Header with Period Filter */}
                     <div
-                      className={`sticky top-0 z-20 h-[42px] flex items-center gap-2 bg-[var(--glass-bg)] backdrop-blur-md rounded-t-2xl border-b border-[var(--color-text-muted)]/30 px-3`}
-                      style={{ marginTop: -2, paddingTop: 2 }}
+                      className={`flex-shrink-0 h-[42px] flex items-center gap-2 bg-[var(--glass-bg)] backdrop-blur-md rounded-t-2xl border-b border-[var(--color-text-muted)]/30 px-3`}
                     >
                       <span className="w-6 text-xs text-center flex-shrink-0">🌐</span>
                       <span className="flex-1 text-xs font-medium text-[var(--color-text-secondary)]">
                         Community Stats
                       </span>
+
+                      {/* Period Filter Toggle */}
+                      <div className="flex items-center h-[26px] glass rounded-lg overflow-hidden">
+                        {(["today", "weekly", "monthly"] as const).map((p) => (
+                          <button
+                            key={p}
+                            onClick={() => setCommunityStatsPeriod(p)}
+                            className={`h-[26px] px-2 text-[10px] font-medium transition-colors ${
+                              communityStatsPeriod === p
+                                ? "bg-[var(--color-claude-coral)]/50 text-[var(--color-claude-coral)]"
+                                : "text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-filter-hover)]"
+                            }`}
+                          >
+                            {p === "today" ? "1D" : p === "weekly" ? "7D" : "30D"}
+                          </button>
+                        ))}
+                      </div>
+
                       {stickyLocked && (
                         <button
                           onClick={handleExpandGlobe}
@@ -1559,34 +1818,34 @@ export default function LeaderboardPage() {
                         </button>
                       )}
                     </div>
-                    {/* Hall of Fame Content */}
-                    <div className={`${isTablet ? "p-3 pt-2" : "p-4 pt-3"} flex-1`}>
-                      <HallOfFame
-                        onUserClick={(userId) => {
-                          // Find author from community posts
-                          const post = communityPosts.find((p: FeedPost) => p.author.id === userId);
-                          if (post) {
-                            const postUser: DisplayUser = {
-                              id: userId,
-                              username: post.author.username,
-                              display_name: post.author.display_name || null,
-                              avatar_url: post.author.avatar_url || null,
-                              country_code: post.author.country_code || null,
-                              total_tokens: 0,
-                              total_cost: 0,
-                              rank: 0,
-                              current_level: post.author.level,
-                              global_rank: null,
-                              country_rank: null,
-                            };
-                            setSelectedUser(postUser);
-                            setIsPanelOpen(true);
-                          }
-                        }}
-                        onPostClick={(postId) => {
-                          setFeaturedPostId(postId);
-                        }}
-                      />
+
+                    {/* Scrollable Content */}
+                    <div className="flex-1 overflow-y-auto scrollbar-hide">
+                      {/* Hall of Fame Content */}
+                      <div className={`${isTablet ? "p-3 pt-2" : "p-4 pt-3"}`}>
+                        <HallOfFame
+                          period={communityStatsPeriod}
+                          hideHeader
+                          onUserClick={(userId) => {
+                            handleOpenProfileById(userId);
+                          }}
+                          onPostClick={(postId) => {
+                            setFeaturedPostId(postId);
+                          }}
+                        />
+                      </div>
+
+                      {/* Divider */}
+                      <div className="border-t border-[var(--border-default)] mx-4" />
+
+                      {/* Top Countries by Community Activity */}
+                      <div className={`${isTablet ? "p-3 pt-3" : "p-4 pt-3"}`}>
+                        <CommunityCountryStats
+                          userCountryCode={currentUserCountry}
+                          compact={isTablet}
+                          maxItems={5}
+                        />
+                      </div>
                     </div>
                   </div>
                 )}
@@ -2085,72 +2344,125 @@ export default function LeaderboardPage() {
                                     <LevelBadge tokens={user.total_tokens} />
                                   </div>
                                 )}
-                                <div className="w-[55px] md:w-[65px] text-right px-0.5 md:px-1">
-                                  <span
-                                    className={`font-mono text-xs ${sortBy === "tokens" ? "text-[var(--color-text-muted)]" : "text-[var(--color-cost)]"}`}
+                                {(showSingleMetric ? sortBy === "cost" : true) && (
+                                  <div
+                                    className={`w-[55px] md:w-[65px] text-right px-0.5 md:px-1 ${showSingleMetric && sortBy === "cost" ? "pr-2 md:pr-3" : ""}`}
                                   >
-                                    {costDisplay}
-                                  </span>
-                                </div>
-                                <div className="w-[55px] md:w-[65px] text-right pl-0.5 pr-2 md:pr-3">
-                                  <span
-                                    className={`font-mono text-xs ${sortBy === "cost" ? "text-[var(--color-text-muted)]" : "text-[var(--color-claude-coral)]"}`}
-                                  >
-                                    {tokenDisplay}
-                                  </span>
-                                </div>
+                                    <span
+                                      className={`font-mono text-xs ${sortBy === "tokens" ? "text-[var(--color-text-muted)]" : "text-[var(--color-cost)]"}`}
+                                    >
+                                      {costDisplay}
+                                    </span>
+                                  </div>
+                                )}
+                                {(showSingleMetric ? sortBy === "tokens" : true) && (
+                                  <div className="w-[55px] md:w-[65px] text-right pl-0.5 pr-2 md:pr-3">
+                                    <span
+                                      className={`font-mono text-xs ${sortBy === "cost" ? "text-[var(--color-text-muted)]" : "text-[var(--color-claude-coral)]"}`}
+                                    >
+                                      {tokenDisplay}
+                                    </span>
+                                  </div>
+                                )}
                               </div>
                             </div>
                           );
                         })()}
 
-                      {/* Loading State - Table Skeleton */}
+                      {/* Loading State - Skeleton UI */}
                       {loading && users.length === 0 && (
-                        <div className="w-full">
-                          {/* Skeleton Header */}
-                          <div className="h-10 flex items-center border-b border-[var(--border-default)]/30 bg-[var(--color-bg-primary)]">
-                            <div className="w-[36px] md:w-[44px] flex justify-center">
-                              <div className="w-5 h-5 rounded bg-[var(--color-bg-tertiary)] animate-pulse" />
-                            </div>
-                            <div className="w-[36px] md:w-[44px] flex justify-center">
-                              <div className="w-5 h-5 rounded bg-[var(--color-bg-tertiary)] animate-pulse" />
-                            </div>
-                            <div className="flex-1 px-2">
-                              <div className="w-8 h-5 rounded bg-[var(--color-bg-tertiary)] animate-pulse" />
-                            </div>
-                            <div className="w-[55px] md:w-[65px] flex justify-end px-1">
-                              <div className="w-5 h-5 rounded bg-[var(--color-bg-tertiary)] animate-pulse" />
-                            </div>
-                            <div className="w-[55px] md:w-[65px] flex justify-end px-2">
-                              <div className="w-5 h-5 rounded bg-[var(--color-bg-tertiary)] animate-pulse" />
-                            </div>
-                          </div>
-                          {/* Skeleton Rows */}
-                          {Array.from({ length: 10 }).map((_, i) => (
-                            <div
-                              key={i}
-                              className="h-10 flex items-center border-b border-[var(--border-default)]/30"
-                              style={{ opacity: 1 - i * 0.08 }}
-                            >
-                              <div className="w-[36px] md:w-[44px] flex justify-center">
-                                <div className="w-6 h-4 rounded bg-[var(--color-bg-tertiary)] animate-pulse" />
-                              </div>
-                              <div className="w-[36px] md:w-[44px] flex justify-center">
-                                <div className="w-5 h-4 rounded bg-[var(--color-bg-tertiary)] animate-pulse" />
-                              </div>
-                              <div className="flex-1 flex items-center gap-2 px-2">
-                                <div className="w-6 h-6 rounded-full bg-[var(--color-bg-tertiary)] animate-pulse flex-shrink-0" />
-                                <div className="w-20 md:w-28 h-4 rounded bg-[var(--color-bg-tertiary)] animate-pulse" />
-                              </div>
-                              <div className="w-[55px] md:w-[65px] flex justify-end px-1">
-                                <div className="w-10 h-4 rounded bg-[var(--color-bg-tertiary)] animate-pulse" />
-                              </div>
-                              <div className="w-[55px] md:w-[65px] flex justify-end px-2">
-                                <div className="w-12 h-4 rounded bg-[var(--color-bg-tertiary)] animate-pulse" />
-                              </div>
-                            </div>
-                          ))}
-                        </div>
+                        <table className="w-full table-fixed">
+                          <thead
+                            className="sticky top-0 z-10 bg-[var(--glass-bg)] backdrop-blur-md"
+                            style={{ boxShadow: "inset 0 -1px 0 0 rgba(113, 113, 122, 0.3)" }}
+                          >
+                            <tr className="h-10">
+                              <th className="w-[36px] md:w-[44px] text-center align-middle text-text-secondary font-medium text-xs px-0.5 md:px-1">
+                                🏆
+                              </th>
+                              <th className="w-[36px] md:w-[44px] text-center align-middle text-text-secondary font-medium text-xs px-0.5 md:px-1">
+                                🌍
+                              </th>
+                              <th className="min-w-[100px] align-middle text-text-secondary font-medium text-xs px-1 md:px-2">
+                                <div className="flex items-center">
+                                  <div className="w-6 lg:w-8 flex justify-center">👤</div>
+                                </div>
+                              </th>
+                              <th
+                                className="text-center align-middle text-text-secondary font-medium text-xs"
+                                style={{
+                                  width: showLevelColumn ? 70 : 0,
+                                  padding: showLevelColumn ? undefined : 0,
+                                  visibility: showLevelColumn ? "visible" : "hidden",
+                                }}
+                              >
+                                ⭐
+                              </th>
+                              {(showSingleMetric ? sortBy === "cost" : true) && (
+                                <th
+                                  className={`w-[55px] md:w-[65px] text-right align-middle text-text-secondary font-medium text-xs px-0.5 md:px-1 ${showSingleMetric && sortBy === "cost" ? "pr-2 md:pr-4" : ""}`}
+                                >
+                                  💰
+                                </th>
+                              )}
+                              {(showSingleMetric ? sortBy === "tokens" : true) && (
+                                <th className="w-[55px] md:w-[65px] text-right align-middle text-text-secondary font-medium text-xs pl-0.5 pr-2 md:pr-4">
+                                  ⚡
+                                </th>
+                              )}
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {Array.from({ length: 15 }).map((_, i) => (
+                              <tr
+                                key={i}
+                                className="h-10 border-b border-[var(--border-default)]/30 animate-pulse"
+                                style={{
+                                  backgroundColor:
+                                    i % 2 === 1 ? "var(--color-table-row-even)" : undefined,
+                                }}
+                              >
+                                <td className="w-[36px] md:w-[44px] px-1 md:px-2 text-center align-middle">
+                                  <div className="h-3 w-6 mx-auto rounded bg-[var(--color-bg-card)]" />
+                                </td>
+                                <td className="w-[36px] md:w-[44px] px-1 text-center align-middle">
+                                  <div className="h-4 w-4 mx-auto rounded bg-[var(--color-bg-card)]" />
+                                </td>
+                                <td className="min-w-[100px] px-1 md:px-2">
+                                  <div className="flex items-center gap-1.5">
+                                    <div className="w-6 h-6 rounded-full bg-[var(--color-bg-card)] flex-shrink-0" />
+                                    <div
+                                      className="h-3 rounded bg-[var(--color-bg-card)]"
+                                      style={{ width: `${60 + ((i * 17) % 40)}%` }}
+                                    />
+                                  </div>
+                                </td>
+                                <td
+                                  className="text-center"
+                                  style={{
+                                    width: showLevelColumn ? 70 : 0,
+                                    padding: showLevelColumn ? undefined : 0,
+                                    visibility: showLevelColumn ? "visible" : "hidden",
+                                  }}
+                                >
+                                  <div className="h-5 w-10 mx-auto rounded-full bg-[var(--color-bg-card)]" />
+                                </td>
+                                {(showSingleMetric ? sortBy === "cost" : true) && (
+                                  <td
+                                    className={`w-[55px] md:w-[65px] px-0.5 md:px-1 text-right ${showSingleMetric && sortBy === "cost" ? "pr-2 md:pr-3" : ""}`}
+                                  >
+                                    <div className="h-3 w-8 ml-auto rounded bg-[var(--color-bg-card)]" />
+                                  </td>
+                                )}
+                                {(showSingleMetric ? sortBy === "tokens" : true) && (
+                                  <td className="w-[55px] md:w-[65px] pl-0.5 pr-2 md:pr-3 text-right">
+                                    <div className="h-3 w-8 ml-auto rounded bg-[var(--color-bg-card)]" />
+                                  </td>
+                                )}
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
                       )}
 
                       {/* Empty State */}
@@ -2199,7 +2511,7 @@ export default function LeaderboardPage() {
                                   onClick={() => handleRowClick(user)}
                                   className={`h-10 transition-colors cursor-pointer hover:!bg-[var(--color-table-row-hover)] border-b border-[var(--border-default)]/30 ${
                                     user.isCurrentUser ? "bg-[var(--user-country-bg)]" : ""
-                                  } ${selectedUser?.id === user.id && isPanelOpen ? "!bg-[var(--color-table-row-hover)]" : ""} ${
+                                  } ${selectedUserId === user.id && isPanelOpen ? "!bg-[var(--color-table-row-hover)]" : ""} ${
                                     user.isCurrentUser && highlightMyRank
                                       ? "!bg-[var(--color-claude-coral)]/50 ring-2 ring-[var(--color-claude-coral)]"
                                       : ""
@@ -2212,7 +2524,7 @@ export default function LeaderboardPage() {
                                   style={{
                                     backgroundColor:
                                       !user.isCurrentUser &&
-                                      !(selectedUser?.id === user.id && isPanelOpen) &&
+                                      !(selectedUserId === user.id && isPanelOpen) &&
                                       !highlightMyRank &&
                                       !(
                                         highlightedUsername &&
@@ -2259,18 +2571,24 @@ export default function LeaderboardPage() {
                               >
                                 ⭐
                               </th>
-                              <th
-                                className="w-[55px] md:w-[65px] text-right align-middle text-text-secondary font-medium text-xs px-0.5 md:px-1"
-                                title="Cost"
-                              >
-                                💰
-                              </th>
-                              <th
-                                className="w-[55px] md:w-[65px] text-right align-middle text-text-secondary font-medium text-xs pl-0.5 pr-2 md:pr-4"
-                                title="Tokens"
-                              >
-                                ⚡
-                              </th>
+                              {/* Show cost column: always when panel closed, or when sorting by cost */}
+                              {(showSingleMetric ? sortBy === "cost" : true) && (
+                                <th
+                                  className={`w-[55px] md:w-[65px] text-right align-middle text-text-secondary font-medium text-xs px-0.5 md:px-1 ${showSingleMetric && sortBy === "cost" ? "pr-2 md:pr-4" : ""}`}
+                                  title="Cost"
+                                >
+                                  💰
+                                </th>
+                              )}
+                              {/* Show tokens column: always when panel closed, or when sorting by tokens */}
+                              {(showSingleMetric ? sortBy === "tokens" : true) && (
+                                <th
+                                  className="w-[55px] md:w-[65px] text-right align-middle text-text-secondary font-medium text-xs pl-0.5 pr-2 md:pr-4"
+                                  title="Tokens"
+                                >
+                                  ⚡
+                                </th>
+                              )}
                             </tr>
                           )}
                           itemContent={(_index, user) => {
@@ -2324,25 +2642,31 @@ export default function LeaderboardPage() {
                                 >
                                   <LevelBadge tokens={user.total_tokens} />
                                 </td>
-                                <td className="w-[55px] md:w-[65px] px-0.5 md:px-1 text-right">
-                                  <span
-                                    className={`font-mono text-xs ${sortBy === "tokens" ? "text-[var(--color-text-muted)]" : "text-[var(--color-cost)]"}`}
+                                {(showSingleMetric ? sortBy === "cost" : true) && (
+                                  <td
+                                    className={`w-[55px] md:w-[65px] px-0.5 md:px-1 text-right ${showSingleMetric && sortBy === "cost" ? "pr-2 md:pr-3" : ""}`}
                                   >
-                                    $
-                                    {periodCost >= 1_000_000
-                                      ? `${(periodCost / 1_000_000).toFixed(1)}M`
-                                      : periodCost >= 1_000
-                                        ? `${(periodCost / 1_000).toFixed(1)}K`
-                                        : periodCost.toFixed(0)}
-                                  </span>
-                                </td>
-                                <td className="w-[55px] md:w-[65px] pl-0.5 pr-2 md:pr-3 text-right">
-                                  <span
-                                    className={`font-mono text-xs ${sortBy === "cost" ? "text-[var(--color-text-muted)]" : "text-[var(--color-claude-coral)]"}`}
-                                  >
-                                    {formatTokens(periodTokens)}
-                                  </span>
-                                </td>
+                                    <span
+                                      className={`font-mono text-xs ${sortBy === "tokens" ? "text-[var(--color-text-muted)]" : "text-[var(--color-cost)]"}`}
+                                    >
+                                      $
+                                      {periodCost >= 1_000_000
+                                        ? `${(periodCost / 1_000_000).toFixed(1)}M`
+                                        : periodCost >= 1_000
+                                          ? `${(periodCost / 1_000).toFixed(1)}K`
+                                          : periodCost.toFixed(0)}
+                                    </span>
+                                  </td>
+                                )}
+                                {(showSingleMetric ? sortBy === "tokens" : true) && (
+                                  <td className="w-[55px] md:w-[65px] pl-0.5 pr-2 md:pr-3 text-right">
+                                    <span
+                                      className={`font-mono text-xs ${sortBy === "cost" ? "text-[var(--color-text-muted)]" : "text-[var(--color-claude-coral)]"}`}
+                                    >
+                                      {formatTokens(periodTokens)}
+                                    </span>
+                                  </td>
+                                )}
                               </>
                             );
                           }}
@@ -2439,20 +2763,26 @@ export default function LeaderboardPage() {
                                     <LevelBadge tokens={user.total_tokens} />
                                   </div>
                                 )}
-                                <div className="w-[55px] md:w-[65px] text-right px-0.5 md:px-1">
-                                  <span
-                                    className={`font-mono text-xs ${sortBy === "tokens" ? "text-[var(--color-text-muted)]" : "text-[var(--color-cost)]"}`}
+                                {(showSingleMetric ? sortBy === "cost" : true) && (
+                                  <div
+                                    className={`w-[55px] md:w-[65px] text-right px-0.5 md:px-1 ${showSingleMetric && sortBy === "cost" ? "pr-2 md:pr-3" : ""}`}
                                   >
-                                    {costDisplay}
-                                  </span>
-                                </div>
-                                <div className="w-[55px] md:w-[65px] text-right pl-0.5 pr-2 md:pr-3">
-                                  <span
-                                    className={`font-mono text-xs ${sortBy === "cost" ? "text-[var(--color-text-muted)]" : "text-[var(--color-claude-coral)]"}`}
-                                  >
-                                    {tokenDisplay}
-                                  </span>
-                                </div>
+                                    <span
+                                      className={`font-mono text-xs ${sortBy === "tokens" ? "text-[var(--color-text-muted)]" : "text-[var(--color-cost)]"}`}
+                                    >
+                                      {costDisplay}
+                                    </span>
+                                  </div>
+                                )}
+                                {(showSingleMetric ? sortBy === "tokens" : true) && (
+                                  <div className="w-[55px] md:w-[65px] text-right pl-0.5 pr-2 md:pr-3">
+                                    <span
+                                      className={`font-mono text-xs ${sortBy === "cost" ? "text-[var(--color-text-muted)]" : "text-[var(--color-claude-coral)]"}`}
+                                    >
+                                      {tokenDisplay}
+                                    </span>
+                                  </div>
+                                )}
                               </div>
                               {/* Safe area padding for mobile */}
                               <div className="h-[env(safe-area-inset-bottom,0px)]" />
@@ -2468,26 +2798,10 @@ export default function LeaderboardPage() {
               {viewMode === "community" && !error && (
                 <div className="flex-1 min-h-0 flex flex-col">
                   <CommunityFeedSection
-                    posts={communityPosts}
+                    posts={translatedCommunityPosts}
                     currentTab={communityTab}
                     onAuthorClick={(authorId) => {
-                      // Find user from posts and open profile panel
-                      const post = communityPosts.find((p) => p.author.id === authorId);
-                      const postUser: DisplayUser = {
-                        id: authorId,
-                        username: post?.author.username || authorId,
-                        display_name: post?.author.display_name || null,
-                        avatar_url: post?.author.avatar_url || null,
-                        country_code: post?.author.country_code || null,
-                        total_tokens: 0,
-                        total_cost: 0,
-                        rank: 0,
-                        current_level: post?.author.level || 1,
-                        global_rank: null,
-                        country_rank: null,
-                      };
-                      setSelectedUser(postUser);
-                      setIsPanelOpen(true);
+                      handleOpenProfileById(authorId);
                     }}
                     isSignedIn={!!currentUsername}
                     hasSubmissionHistory={(currentUserData?.total_tokens || 0) > 0}
@@ -2497,6 +2811,9 @@ export default function LeaderboardPage() {
                     userName={currentUserData?.display_name || currentUserData?.username}
                     userLevel={
                       currentUserData ? Math.floor(currentUserData.total_tokens / 1000000) + 1 : 1
+                    }
+                    userLanguage={
+                      currentUsername ? getLanguageFromCountry(currentUserCountry) : null
                     }
                     isLoading={communityLoading}
                     isPostModalOpen={isPostModalOpen}
@@ -2521,6 +2838,13 @@ export default function LeaderboardPage() {
                     onClearAuthorFilter={handleClearAuthorFilter}
                     countryFilter={scopeFilter}
                     userCountryCode={currentUserCountry}
+                    onLoadMore={loadMoreCommunityPosts}
+                    hasMore={hasMorePosts}
+                    isLoadingMore={loadingMorePosts}
+                    autoTranslateEnabled={autoTranslateEnabled}
+                    onAutoTranslateToggle={handleAutoTranslateToggle}
+                    isTranslationLoading={isTranslationLoading}
+                    pendingTranslationIds={pendingTranslationIds}
                   />
                 </div>
               )}
@@ -2533,7 +2857,7 @@ export default function LeaderboardPage() {
 
       {/* Profile Side Panel */}
       <ProfileSidePanel
-        user={selectedUser}
+        userId={selectedUserId}
         isOpen={isPanelOpen}
         onClose={handleClosePanel}
         periodFilter={periodFilter}
@@ -2555,25 +2879,10 @@ export default function LeaderboardPage() {
         viewMode={viewMode}
         communityStats={communityStats}
         onHallOfFameUserClick={(userId) => {
-          // Find author from community posts
+          handleOpenProfileById(userId);
+          // Also apply author filter to show their posts
           const post = communityPosts.find((p: FeedPost) => p.author.id === userId);
           if (post) {
-            const postUser: DisplayUser = {
-              id: userId,
-              username: post.author.username,
-              display_name: post.author.display_name || null,
-              avatar_url: post.author.avatar_url || null,
-              country_code: post.author.country_code || null,
-              total_tokens: 0,
-              total_cost: 0,
-              rank: 0,
-              current_level: post.author.level,
-              global_rank: null,
-              country_rank: null,
-            };
-            setSelectedUser(postUser);
-            setIsPanelOpen(true);
-            // Also apply author filter to show their posts
             setAuthorFilter(userId);
             setAuthorFilterInfo({
               username: post.author.username,

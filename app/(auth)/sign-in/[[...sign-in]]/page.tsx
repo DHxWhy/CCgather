@@ -115,7 +115,7 @@ export default function SignInPage() {
             <div className="lg:hidden text-center mb-8">
               <Link href="/" className="inline-flex items-center gap-2 mb-6">
                 <Image
-                  src="/logo.png"
+                  src="/logos/logo.png"
                   alt="CCgather Logo"
                   width={40}
                   height={40}
@@ -132,7 +132,7 @@ export default function SignInPage() {
             <div className="hidden lg:block mb-8">
               <Link href="/" className="inline-flex items-center gap-2 mb-4">
                 <Image
-                  src="/logo.png"
+                  src="/logos/logo.png"
                   alt="CCgather Logo"
                   width={32}
                   height={32}

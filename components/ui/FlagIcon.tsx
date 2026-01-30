@@ -21,6 +21,7 @@ const sizeMap = {
 
 // Convert country code to flag emoji
 function countryCodeToEmoji(countryCode: string): string {
+  if (!countryCode) return "🌐";
   const code = countryCode.toUpperCase();
   const offset = 127397; // Regional indicator symbol offset
   return String.fromCodePoint(...[...code].map((c) => c.charCodeAt(0) + offset));
@@ -34,6 +35,22 @@ export function FlagIcon({
 }: FlagIconProps) {
   const [error, setError] = useState(false);
   const { width, height, fontSize } = sizeMap[size];
+
+  // Handle null/undefined country code
+  if (!countryCode) {
+    const emoji = fallbackEmoji || "🌐";
+    return (
+      <span
+        className={`inline-flex items-center justify-center ${fontSize} ${className}`}
+        style={{ width: sizeMap[size].width, height: sizeMap[size].height }}
+        role="img"
+        aria-label="Unknown flag"
+      >
+        {emoji}
+      </span>
+    );
+  }
+
   const code = countryCode.toUpperCase();
 
   // Get the flag component dynamically

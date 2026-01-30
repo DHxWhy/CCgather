@@ -23,6 +23,9 @@ interface CommentAuthor {
 interface CommentResponse {
   id: string;
   author: CommentAuthor;
+  original_content?: string;
+  translated_content?: string;
+  is_translated?: boolean;
   content: string;
   parent_comment_id: string | null;
   created_at: string;
@@ -61,15 +64,47 @@ export async function GET(request: NextRequest) {
     const limit = Math.min(parseInt(searchParams.get("limit") || "50"), 100);
     const offset = parseInt(searchParams.get("offset") || "0");
 
-    // Get current user's database ID if authenticated
+    // Get current user's database ID and language preference if authenticated
     let currentUserDbId: string | null = null;
+    // Language param takes precedence, then country_code mapping
+    let targetLanguage: string | null = searchParams.get("lang");
+
     if (clerkId) {
       const { data: dbUser } = await supabase
         .from("users")
-        .select("id")
+        .select("id, country_code")
         .eq("clerk_id", clerkId)
         .single();
       currentUserDbId = dbUser?.id || null;
+      // Map country code to language (same as posts API) - only if no lang param
+      if (!targetLanguage && dbUser?.country_code) {
+        const countryToLang: Record<string, string> = {
+          KR: "ko",
+          JP: "ja",
+          CN: "zh",
+          TW: "zh",
+          DE: "de",
+          FR: "fr",
+          ES: "es",
+          IT: "it",
+          PT: "pt",
+          BR: "pt",
+          RU: "ru",
+          NL: "nl",
+          PL: "pl",
+          TR: "tr",
+          AR: "ar",
+          TH: "th",
+          VN: "vi",
+          ID: "id",
+          MY: "ms",
+          PH: "tl",
+          IN: "hi",
+          SA: "ar",
+          AE: "ar",
+        };
+        targetLanguage = countryToLang[dbUser.country_code] || null;
+      }
     }
 
     // Get top-level comments (no parent)
@@ -99,7 +134,7 @@ export async function GET(request: NextRequest) {
       .eq("post_id", postId)
       .is("deleted_at", null)
       .is("parent_comment_id", null)
-      .order("created_at", { ascending: true })
+      .order("created_at", { ascending: false }) // 최신순: 새 댓글이 위에
       .range(offset, offset + limit - 1);
 
     if (error) {
@@ -198,7 +233,55 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Transform response
+    // Fetch cached translations if user has a target language
+    const translationsMap = new Map<string, string>();
+    if (targetLanguage && targetLanguage !== "en") {
+      // Collect all comment IDs (top-level + replies)
+      const allCommentIds = [
+        ...(comments?.map((c: { id: string }) => c.id) || []),
+        ...Object.values(repliesMap)
+          .flat()
+          .map((r) => r.id),
+      ];
+
+      if (allCommentIds.length > 0) {
+        const { data: translations } = await supabase
+          .from("translations")
+          .select("content_id, translated_text")
+          .eq("content_type", "comment")
+          .eq("target_language", targetLanguage)
+          .in("content_id", allCommentIds);
+
+        translations?.forEach((t: { content_id: string; translated_text: string }) => {
+          translationsMap.set(t.content_id, t.translated_text);
+        });
+      }
+    }
+
+    // Helper to apply translation to a comment
+    const applyTranslation = (id: string, originalContent: string) => {
+      const translated = translationsMap.get(id);
+      const isTranslated = !!translated && translated !== originalContent;
+      return {
+        content: translated || originalContent,
+        original_content: isTranslated ? originalContent : undefined,
+        translated_content: isTranslated ? translated : undefined,
+        is_translated: isTranslated,
+      };
+    };
+
+    // Apply translations to replies
+    Object.keys(repliesMap).forEach((parentId) => {
+      const replies = repliesMap[parentId];
+      if (replies) {
+        repliesMap[parentId] = replies.map((reply) => ({
+          ...reply,
+          ...applyTranslation(reply.id, reply.content),
+        }));
+      }
+    });
+
+    // Transform response with translations
     const transformedComments: CommentResponse[] =
       comments?.map(
         (comment: {
@@ -210,6 +293,7 @@ export async function GET(request: NextRequest) {
           author: CommentAuthor;
         }) => {
           const author = comment.author as CommentAuthor;
+          const translationInfo = applyTranslation(comment.id, comment.content);
           return {
             id: comment.id,
             author: {
@@ -219,7 +303,7 @@ export async function GET(request: NextRequest) {
               avatar_url: author.avatar_url,
               current_level: author.current_level,
             },
-            content: comment.content,
+            ...translationInfo,
             parent_comment_id: comment.parent_comment_id,
             created_at: comment.created_at,
             likes_count: comment.likes_count,

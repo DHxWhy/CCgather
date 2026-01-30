@@ -2,7 +2,7 @@
 
 import { memo, useState, useEffect, useCallback, type ReactNode } from "react";
 import Image from "next/image";
-import { Heart, MessageCircle, Trophy, Flame, Crown, Loader2 } from "lucide-react";
+import { Heart, MessageCircle, Trophy, Crown, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 // ===========================================
@@ -18,32 +18,36 @@ export interface HallOfFameEntry {
   count: number;
 }
 
+export type HallOfFamePeriod = "today" | "weekly" | "monthly";
+
 interface HallOfFameProps {
   onUserClick?: (userId: string) => void;
   onPostClick?: (postId: string) => void;
   className?: string;
+  /** External period control - hides internal header/filter when provided */
+  period?: HallOfFamePeriod;
+  /** Hide header (when controlled externally) */
+  hideHeader?: boolean;
 }
 
-type TimePeriod = "today" | "weekly" | "monthly";
-
 // ===========================================
-// Rank Badge Component
+// Rank Badge Component (Compact for 2-column)
 // ===========================================
 
 function RankBadge({ rank }: { rank: number }) {
   const badges: Record<number, { icon: ReactNode; color: string; bg: string }> = {
     1: {
-      icon: <Crown size={10} />,
+      icon: <Crown size={8} />,
       color: "text-amber-400",
       bg: "bg-amber-400/20",
     },
     2: {
-      icon: <span className="text-[9px] font-bold">#2</span>,
+      icon: <span className="text-[8px] font-bold">#2</span>,
       color: "text-slate-300",
       bg: "bg-slate-400/20",
     },
     3: {
-      icon: <span className="text-[9px] font-bold">#3</span>,
+      icon: <span className="text-[8px] font-bold">#3</span>,
       color: "text-amber-600",
       bg: "bg-amber-600/20",
     },
@@ -54,7 +58,11 @@ function RankBadge({ rank }: { rank: number }) {
 
   return (
     <div
-      className={cn("w-5 h-5 rounded-full flex items-center justify-center", badge.bg, badge.color)}
+      className={cn(
+        "w-4 h-4 rounded-full flex items-center justify-center flex-shrink-0",
+        badge.bg,
+        badge.color
+      )}
     >
       {badge.icon}
     </div>
@@ -62,10 +70,10 @@ function RankBadge({ rank }: { rank: number }) {
 }
 
 // ===========================================
-// Entry Row Component
+// Compact Entry Row for 2-column layout
 // ===========================================
 
-function EntryRow({
+function CompactEntryRow({
   entry,
   rank,
   type,
@@ -79,8 +87,8 @@ function EntryRow({
   onPostClick?: (postId: string) => void;
 }) {
   return (
-    <div className="flex items-center gap-2 py-1.5 px-2 -mx-2 rounded-lg group hover:bg-white/5 transition-colors cursor-pointer">
-      {/* Rank Badge - clickable to view post */}
+    <div className="flex items-center gap-1.5 py-1 px-1 -mx-1 rounded group hover:bg-white/5 transition-colors cursor-pointer">
+      {/* Rank Badge */}
       <button
         onClick={() => onPostClick?.(entry.postId)}
         className="flex-shrink-0 hover:scale-110 transition-transform"
@@ -89,42 +97,42 @@ function EntryRow({
         <RankBadge rank={rank} />
       </button>
 
-      {/* User Avatar - clickable to view profile */}
+      {/* User Avatar */}
       <button
         onClick={() => onUserClick?.(entry.userId)}
-        className="flex-shrink-0 hover:ring-2 hover:ring-[var(--color-claude-coral)]/50 rounded-full transition-all"
+        className="flex-shrink-0 hover:ring-1 hover:ring-[var(--color-claude-coral)]/50 rounded-full transition-all"
         title="View profile"
       >
         {entry.userAvatar ? (
           <Image
             src={entry.userAvatar}
             alt={entry.userName}
-            width={24}
-            height={24}
-            className="w-6 h-6 rounded-full"
+            width={20}
+            height={20}
+            className="w-5 h-5 rounded-full"
           />
         ) : (
-          <div className="w-6 h-6 rounded-full bg-gradient-to-br from-[var(--color-claude-coral)] to-[var(--color-claude-rust)] flex items-center justify-center text-[10px] font-semibold text-white">
+          <div className="w-5 h-5 rounded-full bg-gradient-to-br from-[var(--color-claude-coral)] to-[var(--color-claude-rust)] flex items-center justify-center text-[8px] font-semibold text-white">
             {entry.userName[0]?.toUpperCase()}
           </div>
         )}
       </button>
 
-      {/* User Name - clickable to view profile */}
+      {/* User Name */}
       <button
         onClick={() => onUserClick?.(entry.userId)}
-        className="flex-1 text-left text-xs text-[var(--color-text-primary)] truncate hover:text-[var(--color-claude-coral)] transition-colors"
-        title="View profile"
+        className="flex-1 text-left text-[10px] text-[var(--color-text-primary)] truncate hover:text-[var(--color-claude-coral)] transition-colors min-w-0"
+        title={entry.userName}
       >
         {entry.userName}
       </button>
 
       {/* Count */}
-      <div className="flex items-center gap-1 text-[10px] text-[var(--color-text-muted)]">
+      <div className="flex items-center gap-0.5 text-[9px] text-[var(--color-text-muted)] flex-shrink-0">
         {type === "liked" ? (
-          <Heart size={10} className="text-rose-400" />
+          <Heart size={8} className="text-rose-400" />
         ) : (
-          <MessageCircle size={10} className="text-[var(--color-accent-cyan)]" />
+          <MessageCircle size={8} className="text-[var(--color-accent-cyan)]" />
         )}
         <span className="tabular-nums font-medium">{entry.count}</span>
       </div>
@@ -136,20 +144,29 @@ function EntryRow({
 // Hall of Fame Component
 // ===========================================
 
-function HallOfFameComponent({ onUserClick, onPostClick, className }: HallOfFameProps) {
-  const [period, setPeriod] = useState<TimePeriod>("today");
+function HallOfFameComponent({
+  onUserClick,
+  onPostClick,
+  className,
+  period: externalPeriod,
+  hideHeader = false,
+}: HallOfFameProps) {
+  const [internalPeriod, setInternalPeriod] = useState<HallOfFamePeriod>("today");
   const [mostLiked, setMostLiked] = useState<HallOfFameEntry[]>([]);
   const [mostReplied, setMostReplied] = useState<HallOfFameEntry[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  const periodLabels: Record<TimePeriod, string> = {
-    today: "Today",
-    weekly: "Weekly",
-    monthly: "Monthly",
+  // Use external period if provided, otherwise use internal state
+  const period = externalPeriod ?? internalPeriod;
+
+  const periodLabels: Record<HallOfFamePeriod, string> = {
+    today: "1D",
+    weekly: "7D",
+    monthly: "30D",
   };
 
   // Fetch data when period changes
-  const fetchData = useCallback(async (selectedPeriod: TimePeriod) => {
+  const fetchData = useCallback(async (selectedPeriod: HallOfFamePeriod) => {
     setIsLoading(true);
     try {
       const response = await fetch(`/api/community/hall-of-fame?period=${selectedPeriod}`);
@@ -170,61 +187,65 @@ function HallOfFameComponent({ onUserClick, onPostClick, className }: HallOfFame
     fetchData(period);
   }, [period, fetchData]);
 
-  const handlePeriodChange = (newPeriod: TimePeriod) => {
-    if (newPeriod !== period) {
-      setPeriod(newPeriod);
+  const handlePeriodChange = (newPeriod: HallOfFamePeriod) => {
+    if (newPeriod !== internalPeriod) {
+      setInternalPeriod(newPeriod);
     }
   };
 
   return (
-    <div className={cn("space-y-4", className)}>
-      {/* Header with Trophy */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <Trophy size={14} className="text-amber-400" />
-          <span className="text-xs font-semibold text-[var(--color-text-primary)]">
-            Hall of Fame
-          </span>
-        </div>
-        <Flame size={12} className="text-[var(--color-claude-coral)] animate-pulse" />
-      </div>
+    <div className={cn("space-y-3", className)}>
+      {/* Header with Trophy + Period Toggle (hidden when externally controlled) */}
+      {!hideHeader && (
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Trophy size={14} className="text-amber-400" />
+            <span className="text-xs font-semibold text-[var(--color-text-primary)]">
+              Hall of Fame
+            </span>
+          </div>
 
-      {/* Time Period Tabs */}
-      <div className="flex gap-1 p-0.5 rounded-lg bg-[var(--color-bg-card)]">
-        {(Object.keys(periodLabels) as TimePeriod[]).map((p) => (
-          <button
-            key={p}
-            onClick={() => handlePeriodChange(p)}
-            disabled={isLoading}
-            className={cn(
-              "flex-1 py-1 px-2 text-[10px] font-medium rounded-md transition-all",
-              period === p
-                ? "bg-[var(--color-claude-coral)] text-white"
-                : "text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]",
-              isLoading && "opacity-50 cursor-not-allowed"
-            )}
-          >
-            {periodLabels[p]}
-          </button>
-        ))}
-      </div>
+          {/* Compact Period Toggle (only when not externally controlled) */}
+          {!externalPeriod && (
+            <div className="flex items-center h-[24px] glass rounded-lg overflow-hidden">
+              {(Object.keys(periodLabels) as HallOfFamePeriod[]).map((p) => (
+                <button
+                  key={p}
+                  onClick={() => handlePeriodChange(p)}
+                  disabled={isLoading}
+                  className={cn(
+                    "h-[24px] px-1.5 text-[9px] font-medium transition-colors",
+                    period === p
+                      ? "bg-[var(--color-claude-coral)]/50 text-[var(--color-claude-coral)]"
+                      : "text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-filter-hover)]",
+                    isLoading && "opacity-50 cursor-not-allowed"
+                  )}
+                >
+                  {periodLabels[p]}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Loading State */}
       {isLoading ? (
-        <div className="flex items-center justify-center py-8">
-          <Loader2 size={20} className="animate-spin text-[var(--color-text-muted)]" />
+        <div className="flex items-center justify-center py-6">
+          <Loader2 size={18} className="animate-spin text-[var(--color-text-muted)]" />
         </div>
       ) : (
-        <>
-          {/* Most Liked Section */}
+        /* 2-Column Layout */
+        <div className="grid grid-cols-2 gap-3">
+          {/* Most Liked Column */}
           <div className="space-y-1">
-            <div className="flex items-center gap-1.5 text-[10px] text-[var(--color-text-muted)] uppercase tracking-wider">
-              <Heart size={10} className="text-rose-400" />
-              <span>Most Liked</span>
+            <div className="flex items-center gap-1 text-[9px] text-[var(--color-text-muted)] uppercase tracking-wider pb-1 border-b border-[var(--border-default)]">
+              <Heart size={9} className="text-rose-400" />
+              <span>Liked</span>
             </div>
-            <div className="space-y-0.5">
+            <div className="space-y-0">
               {mostLiked.slice(0, 3).map((entry, index) => (
-                <EntryRow
+                <CompactEntryRow
                   key={entry.id}
                   entry={entry}
                   rank={index + 1}
@@ -234,25 +255,22 @@ function HallOfFameComponent({ onUserClick, onPostClick, className }: HallOfFame
                 />
               ))}
               {mostLiked.length === 0 && (
-                <p className="text-[10px] text-[var(--color-text-muted)] italic py-2">
+                <p className="text-[9px] text-[var(--color-text-muted)] italic py-2">
                   No posts yet
                 </p>
               )}
             </div>
           </div>
 
-          {/* Divider */}
-          <div className="border-t border-[var(--border-default)]" />
-
-          {/* Most Replied Section */}
+          {/* Most Replied Column */}
           <div className="space-y-1">
-            <div className="flex items-center gap-1.5 text-[10px] text-[var(--color-text-muted)] uppercase tracking-wider">
-              <MessageCircle size={10} className="text-[var(--color-accent-cyan)]" />
-              <span>Most Replied</span>
+            <div className="flex items-center gap-1 text-[9px] text-[var(--color-text-muted)] uppercase tracking-wider pb-1 border-b border-[var(--border-default)]">
+              <MessageCircle size={9} className="text-[var(--color-accent-cyan)]" />
+              <span>Replied</span>
             </div>
-            <div className="space-y-0.5">
+            <div className="space-y-0">
               {mostReplied.slice(0, 3).map((entry, index) => (
-                <EntryRow
+                <CompactEntryRow
                   key={entry.id}
                   entry={entry}
                   rank={index + 1}
@@ -262,13 +280,13 @@ function HallOfFameComponent({ onUserClick, onPostClick, className }: HallOfFame
                 />
               ))}
               {mostReplied.length === 0 && (
-                <p className="text-[10px] text-[var(--color-text-muted)] italic py-2">
+                <p className="text-[9px] text-[var(--color-text-muted)] italic py-2">
                   No posts yet
                 </p>
               )}
             </div>
           </div>
-        </>
+        </div>
       )}
     </div>
   );

@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { useUser } from "@clerk/nextjs";
 import { AccountRecoveryModal } from "./AccountRecoveryModal";
+import { BrandSpinner } from "@/components/shared/BrandSpinner";
 
 interface PendingDeletionInfo {
   pending_deletion: true;
@@ -26,7 +27,10 @@ export function OnboardingGuard({ children }: OnboardingGuardProps) {
   const router = useRouter();
   const pathname = usePathname();
   const { isSignedIn, isLoaded } = useUser();
-  const [isChecking, setIsChecking] = useState(true);
+  // Initialize as false to prevent hydration mismatch (server renders children)
+  const [isChecking, setIsChecking] = useState(false);
+  const [hasMounted, setHasMounted] = useState(false);
+  const [isRedirecting, setIsRedirecting] = useState(false);
   const [pendingDeletionInfo, setPendingDeletionInfo] = useState<PendingDeletionInfo | null>(null);
 
   // Pages that don't require onboarding check (public pages + auth pages)
@@ -68,9 +72,16 @@ export function OnboardingGuard({ children }: OnboardingGuardProps) {
     }
   }, [router]);
 
+  // Set mounted state after hydration
+  useEffect(() => {
+    setHasMounted(true);
+  }, []);
+
   useEffect(() => {
     async function checkOnboardingStatus() {
-      if (!isLoaded) return;
+      // Prevent re-running if already redirecting
+      if (isRedirecting) return;
+      if (!isLoaded || !hasMounted) return;
 
       // Not signed in - no need to check
       if (!isSignedIn) {
@@ -85,82 +96,78 @@ export function OnboardingGuard({ children }: OnboardingGuardProps) {
       }
 
       // Skip check if just completed onboarding (prevents race condition)
-      if (typeof window !== "undefined") {
-        if (sessionStorage.getItem("onboarding_just_completed")) {
-          sessionStorage.removeItem("onboarding_just_completed");
-          setIsChecking(false);
-          return;
-        }
+      if (sessionStorage.getItem("onboarding_just_completed")) {
+        sessionStorage.removeItem("onboarding_just_completed");
+        setIsChecking(false);
+        return;
       }
 
-      try {
-        // First, check for pending deletion
-        const recoveryResponse = await fetch("/api/auth/recovery-check", {
-          cache: "no-store",
-        });
+      // Start checking only after mount (prevents hydration mismatch)
+      setIsChecking(true);
 
+      try {
+        // Parallel fetch for better performance
+        const [recoveryResponse, meResponse] = await Promise.all([
+          fetch("/api/auth/recovery-check", { cache: "no-store" }),
+          fetch("/api/me", { cache: "no-store" }),
+        ]);
+
+        // Check for pending deletion first
         if (recoveryResponse.ok) {
           const recoveryData = await recoveryResponse.json();
           if (recoveryData.pending_deletion) {
-            // Show recovery modal instead of proceeding
             setPendingDeletionInfo(recoveryData);
             setIsChecking(false);
             return;
           }
         }
 
-        const response = await fetch("/api/me", {
-          cache: "no-store",
-          headers: {
-            "Cache-Control": "no-cache",
-          },
-        });
-
-        if (response.status === 404) {
-          // User doesn't exist in DB yet - redirect to onboarding
-          // (Webhook might still be processing)
+        // Check onboarding status
+        if (meResponse.status === 404) {
+          setIsRedirecting(true);
           router.replace("/onboarding");
           return;
         }
 
-        if (response.ok) {
-          const data = await response.json();
+        if (meResponse.ok) {
+          const data = await meResponse.json();
           const hasCountry = !!data.user?.country_code;
           const onboardingDone = data.user?.onboarding_completed === true;
 
-          // User needs onboarding if they don't have a country or haven't completed onboarding
           if (!hasCountry || !onboardingDone) {
+            setIsRedirecting(true);
             router.replace("/onboarding");
             return;
           }
         }
       } catch (error) {
         console.error("Failed to check onboarding status:", error);
-        // On error, let the user through instead of blocking
-        // They can try again if needed
       } finally {
-        setIsChecking(false);
+        if (!isRedirecting) {
+          setIsChecking(false);
+        }
       }
     }
 
     checkOnboardingStatus();
-  }, [isLoaded, isSignedIn, shouldSkipCheck, router]);
+  }, [isLoaded, isSignedIn, shouldSkipCheck, router, hasMounted, isRedirecting]);
 
-  // Show nothing while checking (prevents flash)
-  if (isChecking && isSignedIn && !shouldSkipCheck) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-bg-primary">
-        <div className="flex flex-col items-center gap-4">
-          <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-          <span className="text-text-muted text-sm">Loading...</span>
-        </div>
+  // 모든 훅 호출 후 단일 렌더링 로직 (조건부 early return 제거)
+  // React 훅 규칙: 렌더링 간에 훅 개수가 일정해야 함
+  const showLoading = hasMounted && (isChecking || isRedirecting) && isSignedIn && !shouldSkipCheck;
+  const showRecoveryModal = !!pendingDeletionInfo;
+
+  // 렌더링 우선순위: 로딩 > 복구 모달 > children
+  let content: React.ReactNode;
+
+  if (showLoading) {
+    content = (
+      <div className="min-h-screen flex items-center justify-center bg-[var(--color-bg-primary)]">
+        <BrandSpinner size="lg" showText />
       </div>
     );
-  }
-
-  // Show recovery modal if there's a pending deletion
-  if (pendingDeletionInfo) {
-    return (
+  } else if (showRecoveryModal) {
+    content = (
       <>
         <div className="min-h-screen bg-bg-primary" />
         <AccountRecoveryModal
@@ -171,7 +178,9 @@ export function OnboardingGuard({ children }: OnboardingGuardProps) {
         />
       </>
     );
+  } else {
+    content = <>{children}</>;
   }
 
-  return <>{children}</>;
+  return content;
 }

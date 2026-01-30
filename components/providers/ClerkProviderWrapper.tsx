@@ -3,12 +3,13 @@
 import { ClerkProvider } from "@clerk/nextjs";
 import { dark } from "@clerk/themes";
 import type { ReactNode } from "react";
-import { PostHogUserIdentify } from "./PostHogUserIdentify";
 
 interface ClerkProviderWrapperProps {
   children: ReactNode;
 }
 
+// PostHogUserIdentify는 PostHogProvider 내부에서 호출해야 함
+// → PostHogProvider.tsx로 이동됨
 export function ClerkProviderWrapper({ children }: ClerkProviderWrapperProps) {
   return (
     <ClerkProvider
@@ -21,7 +22,6 @@ export function ClerkProviderWrapper({ children }: ClerkProviderWrapperProps) {
       signInFallbackRedirectUrl="/leaderboard"
       signUpFallbackRedirectUrl="/leaderboard"
     >
-      <PostHogUserIdentify />
       {children}
     </ClerkProvider>
   );

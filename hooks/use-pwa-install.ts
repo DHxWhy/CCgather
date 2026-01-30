@@ -11,7 +11,13 @@ interface BeforeInstallPromptEvent extends Event {
   prompt(): Promise<void>;
 }
 
+interface NavigatorWithRelatedApps extends Navigator {
+  getInstalledRelatedApps?: () => Promise<Array<{ platform: string; url?: string; id?: string }>>;
+  standalone?: boolean;
+}
+
 const STORAGE_KEY = "pwa-install-dismissed";
+const INSTALLED_KEY = "pwa-installed";
 const DISMISS_DURATION_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 
 export function usePWAInstall() {
@@ -20,28 +26,62 @@ export function usePWAInstall() {
   const [isInstalled, setIsInstalled] = useState(false);
   const [isDismissed, setIsDismissed] = useState(true); // Start as dismissed until checked
 
-  // Check if already installed (standalone mode)
+  // Check if already installed
   useEffect(() => {
     if (typeof window === "undefined") return;
 
-    const isStandalone =
-      window.matchMedia("(display-mode: standalone)").matches ||
-      (window.navigator as Navigator & { standalone?: boolean }).standalone === true;
+    const checkInstalled = async () => {
+      const nav = window.navigator as NavigatorWithRelatedApps;
 
-    setIsInstalled(isStandalone);
+      // 1. Check standalone mode (PWA로 실행 중일 때)
+      const isStandalone =
+        window.matchMedia("(display-mode: standalone)").matches || nav.standalone === true;
 
-    // Check dismiss state from localStorage
-    const dismissedAt = localStorage.getItem(STORAGE_KEY);
-    if (dismissedAt) {
-      const dismissedTime = parseInt(dismissedAt, 10);
-      if (Date.now() - dismissedTime < DISMISS_DURATION_MS) {
-        setIsDismissed(true);
+      if (isStandalone) {
+        setIsInstalled(true);
+        localStorage.setItem(INSTALLED_KEY, "true");
+        setIsDismissed(false);
         return;
       }
-      // Expired, remove it
-      localStorage.removeItem(STORAGE_KEY);
-    }
-    setIsDismissed(false);
+
+      // 2. Check localStorage (이전에 설치했던 기록)
+      const wasInstalled = localStorage.getItem(INSTALLED_KEY) === "true";
+      if (wasInstalled) {
+        setIsInstalled(true);
+        setIsDismissed(false);
+        return;
+      }
+
+      // 3. Check getInstalledRelatedApps API (Chrome/Edge 지원)
+      if (nav.getInstalledRelatedApps) {
+        try {
+          const relatedApps = await nav.getInstalledRelatedApps();
+          if (relatedApps.length > 0) {
+            setIsInstalled(true);
+            localStorage.setItem(INSTALLED_KEY, "true");
+            setIsDismissed(false);
+            return;
+          }
+        } catch {
+          // API 실패 시 무시
+        }
+      }
+
+      // Not installed, check dismiss state
+      setIsInstalled(false);
+      const dismissedAt = localStorage.getItem(STORAGE_KEY);
+      if (dismissedAt) {
+        const dismissedTime = parseInt(dismissedAt, 10);
+        if (Date.now() - dismissedTime < DISMISS_DURATION_MS) {
+          setIsDismissed(true);
+          return;
+        }
+        localStorage.removeItem(STORAGE_KEY);
+      }
+      setIsDismissed(false);
+    };
+
+    checkInstalled();
   }, []);
 
   // Listen for beforeinstallprompt event
@@ -61,6 +101,7 @@ export function usePWAInstall() {
       setIsInstalled(true);
       setIsInstallable(false);
       setDeferredPrompt(null);
+      localStorage.setItem(INSTALLED_KEY, "true");
     };
 
     window.addEventListener("appinstalled", installedHandler);
@@ -81,6 +122,7 @@ export function usePWAInstall() {
       if (outcome === "accepted") {
         setIsInstalled(true);
         setIsInstallable(false);
+        localStorage.setItem(INSTALLED_KEY, "true");
       }
 
       setDeferredPrompt(null);

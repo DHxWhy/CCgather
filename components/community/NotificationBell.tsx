@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   Bell,
   CheckCheck,
@@ -10,11 +11,13 @@ import {
   User,
   TrendingUp,
   Megaphone,
+  Check,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatDistanceToNow } from "date-fns";
 import { ko } from "date-fns/locale";
 import { useNotificationSound } from "@/hooks/use-notification-sound";
+import Link from "next/link";
 
 // =====================================================
 // Types
@@ -127,12 +130,21 @@ export default function NotificationBell({ className }: NotificationBellProps) {
   const prevUnreadCountRef = useRef<number>(0);
   const isFirstLoadRef = useRef(true);
   const { play: playNotificationSound } = useNotificationSound();
+  // Use ref to avoid re-creating fetchNotifications when playNotificationSound changes
+  const playNotificationSoundRef = useRef(playNotificationSound);
+  playNotificationSoundRef.current = playNotificationSound;
 
   // Fetch notifications
   const fetchNotifications = useCallback(async () => {
     try {
       setIsLoading(true);
       const response = await fetch("/api/community/notifications?limit=20");
+
+      // Silently handle 401 (user not logged in) - don't log as error
+      if (response.status === 401) {
+        return;
+      }
+
       if (!response.ok) throw new Error("Failed to fetch");
       const data = await response.json();
       setNotifications(data.notifications);
@@ -141,18 +153,19 @@ export default function NotificationBell({ className }: NotificationBellProps) {
 
       // Play sound only when new notifications arrive (not on first load)
       if (!isFirstLoadRef.current && newUnreadCount > prevUnreadCountRef.current) {
-        playNotificationSound(0.3); // 30% volume - subtle but noticeable
+        playNotificationSoundRef.current(0.3); // 30% volume - subtle but noticeable
       }
 
       prevUnreadCountRef.current = newUnreadCount;
       isFirstLoadRef.current = false;
       setUnreadCount(newUnreadCount);
     } catch (error) {
+      // Only log actual network/parsing errors, not auth failures
       console.error("Error fetching notifications:", error);
     } finally {
       setIsLoading(false);
     }
-  }, [playNotificationSound]);
+  }, []); // Empty deps - use refs for mutable values
 
   // Initial fetch and polling
   useEffect(() => {
@@ -209,13 +222,28 @@ export default function NotificationBell({ className }: NotificationBellProps) {
     }
   };
 
-  // Handle notification click
+  // State for micro-interaction
+  const [clearingId, setClearingId] = useState<string | null>(null);
+
+  // Handle notification click with micro-interaction
   const handleNotificationClick = (notification: Notification) => {
     if (!notification.is_read) {
-      markAsRead(notification.id);
+      setClearingId(notification.id);
+      // Delay mark as read for animation
+      setTimeout(() => {
+        markAsRead(notification.id);
+        setClearingId(null);
+      }, 300);
     }
-    // TODO: Navigate to relevant page based on notification type
-    setIsOpen(false);
+    // Navigate to post if applicable
+    if (notification.post_id) {
+      setTimeout(() => {
+        setIsOpen(false);
+        window.location.href = `/community?post=${notification.post_id}`;
+      }, 350);
+    } else {
+      setIsOpen(false);
+    }
   };
 
   return (
@@ -272,21 +300,23 @@ export default function NotificationBell({ className }: NotificationBellProps) {
               notifications.map((notification) => {
                 const config = getNotificationConfig(notification.type);
                 const Icon = config.icon;
+                const isClearing = clearingId === notification.id;
 
                 return (
-                  <button
+                  <motion.button
                     key={notification.id}
                     onClick={() => handleNotificationClick(notification)}
+                    whileTap={{ scale: 0.98 }}
                     className={cn(
-                      "w-full flex items-start gap-3 px-4 py-3 text-left transition-colors",
+                      "w-full flex items-start gap-3 px-4 py-3 text-left transition-colors relative overflow-hidden",
                       "hover:bg-white/5",
                       !notification.is_read && "bg-white/[0.03]"
                     )}
                   >
-                    {/* Icon */}
+                    {/* Icon with check overlay */}
                     <div
                       className={cn(
-                        "flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center",
+                        "relative flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center",
                         "bg-white/10"
                       )}
                     >
@@ -299,16 +329,31 @@ export default function NotificationBell({ className }: NotificationBellProps) {
                       ) : (
                         <Icon size={14} className={config.color} />
                       )}
+
+                      {/* Checkmark animation on clear */}
+                      <AnimatePresence>
+                        {isClearing && (
+                          <motion.div
+                            initial={{ scale: 0, opacity: 0 }}
+                            animate={{ scale: 1, opacity: 1 }}
+                            exit={{ scale: 0, opacity: 0 }}
+                            className="absolute inset-0 flex items-center justify-center bg-green-500 rounded-full"
+                          >
+                            <Check size={14} className="text-white" />
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
                     </div>
 
                     {/* Content */}
                     <div className="flex-1 min-w-0">
                       <p
                         className={cn(
-                          "text-xs",
+                          "text-xs transition-opacity",
                           notification.is_read
                             ? "text-[var(--color-text-muted)]"
-                            : "text-[var(--color-text-primary)]"
+                            : "text-[var(--color-text-primary)]",
+                          isClearing && "opacity-60"
                         )}
                       >
                         {config.getMessage(notification.actor)}
@@ -321,11 +366,18 @@ export default function NotificationBell({ className }: NotificationBellProps) {
                       </p>
                     </div>
 
-                    {/* Unread indicator */}
-                    {!notification.is_read && (
-                      <div className="flex-shrink-0 w-2 h-2 rounded-full bg-[var(--color-accent-cyan)]" />
-                    )}
-                  </button>
+                    {/* Unread indicator with animation */}
+                    <AnimatePresence>
+                      {!notification.is_read && !isClearing && (
+                        <motion.div
+                          initial={{ scale: 1 }}
+                          exit={{ scale: 0, opacity: 0 }}
+                          transition={{ duration: 0.2 }}
+                          className="flex-shrink-0 w-2 h-2 rounded-full bg-[var(--color-accent-cyan)] shadow-[0_0_6px_var(--color-accent-cyan)]"
+                        />
+                      )}
+                    </AnimatePresence>
+                  </motion.button>
                 );
               })
             )}
@@ -334,9 +386,13 @@ export default function NotificationBell({ className }: NotificationBellProps) {
           {/* Footer */}
           {notifications.length > 0 && (
             <div className="border-t border-white/10 px-4 py-2">
-              <button className="w-full text-center text-[11px] text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] transition-colors py-1">
+              <Link
+                href="/notifications"
+                onClick={() => setIsOpen(false)}
+                className="block w-full text-center text-[11px] text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] transition-colors py-1"
+              >
                 View all notifications
-              </button>
+              </Link>
             </div>
           )}
         </div>

@@ -88,11 +88,18 @@ export const TopCountriesSection = forwardRef<TopCountriesSectionRef, TopCountri
     const maxTokens = useMemo(() => Math.max(...stats.map((s) => s.tokens), 1), [stats]);
     const maxCost = useMemo(() => Math.max(...stats.map((s) => s.cost), 1), [stats]);
 
-    // Find user's country data and rank
-    const userCountryIndex = sortedStats.findIndex(
-      (s) => userCountryCode && s.code.toUpperCase() === userCountryCode.toUpperCase()
+    // Find user's country data and rank (memoized to prevent infinite loops)
+    const userCountryIndex = useMemo(
+      () =>
+        sortedStats.findIndex(
+          (s) => userCountryCode && s.code.toUpperCase() === userCountryCode.toUpperCase()
+        ),
+      [sortedStats, userCountryCode]
     );
-    const userCountryStat = userCountryIndex >= 0 ? sortedStats[userCountryIndex] : null;
+    const userCountryStat = useMemo(
+      () => (userCountryIndex >= 0 ? sortedStats[userCountryIndex] : null),
+      [sortedStats, userCountryIndex]
+    );
 
     // Expose scrollToUserCountry method via ref (using Virtuoso scrollToIndex)
     useImperativeHandle(

@@ -1,0 +1,25 @@
+{
+  "cookies": [
+    {
+      "name": "__cf_bm",
+      "value": "FuNM6v7MlQ7Mj3fVGGR_9_U4SDZFXeOAioYR_onuBLU-1769717517-1.0.1.1-7_HZ3w9eH2RfxU7_hwsLLnbCTqjGsijFxQAjr.Njfy9K8KUMZfte4.HGn6ydUQPX3TwDGyaXpkkVG7hWpiy_hclHPEhSjuALW_mGGSv7l8I",
+      "domain": ".pretty-dog-56.clerk.accounts.dev",
+      "path": "/",
+      "expires": 1738183317,
+      "httpOnly": true,
+      "secure": true,
+      "sameSite": "None"
+    },
+    {
+      "name": "__clerk_db_jwt",
+      "value": "dvb_37wyNlHoINlrKFVkNlcw64GQoPa",
+      "domain": "localhost",
+      "path": "/",
+      "expires": 1769766006,
+      "httpOnly": false,
+      "secure": false,
+      "sameSite": "Lax"
+    }
+  ],
+  "origins": []
+}

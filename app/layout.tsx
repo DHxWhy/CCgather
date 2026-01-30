@@ -104,12 +104,12 @@ export const metadata: Metadata = {
   },
   icons: {
     icon: [
-      { url: "/favicon.png", sizes: "512x512", type: "image/png" },
-      { url: "/favicon.png", sizes: "192x192", type: "image/png" },
-      { url: "/favicon.png", sizes: "48x48", type: "image/png" },
+      { url: "/logos/favicon.png", sizes: "512x512", type: "image/png" },
+      { url: "/logos/favicon.png", sizes: "192x192", type: "image/png" },
+      { url: "/logos/favicon.png", sizes: "48x48", type: "image/png" },
     ],
-    apple: { url: "/favicon.png", sizes: "512x512" },
-    shortcut: "/favicon.png",
+    apple: { url: "/logos/favicon.png", sizes: "512x512" },
+    shortcut: "/logos/favicon.png",
   },
 };
 
@@ -135,7 +135,7 @@ function GlobalJsonLd() {
     "@type": "Organization",
     name: "CCgather",
     url: "https://ccgather.com",
-    logo: "https://ccgather.com/logo.png",
+    logo: "https://ccgather.com/logos/logo.png",
     description:
       "Where Claude Code developers gather. Real-time leaderboards, curated AI news, and developer tools.",
     sameAs: ["https://twitter.com/ccgather", "https://github.com/ccgather"],

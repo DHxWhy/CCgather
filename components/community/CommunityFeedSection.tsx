@@ -1,6 +1,6 @@
 "use client";
 
-import { memo, useCallback, useEffect, useRef } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef } from "react";
 import { Virtuoso } from "react-virtuoso";
 import { X, Globe, Star, ChevronUp } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -26,6 +26,7 @@ interface CommunityFeedSectionProps {
   userAvatar?: string | null;
   userName?: string | null;
   userLevel?: number;
+  userLanguage?: string | null; // User's preferred language for translation (null = show original)
   // Loading state
   isLoading?: boolean;
   // Modal control (from page level)
@@ -49,6 +50,16 @@ interface CommunityFeedSectionProps {
   // Country filter (for showing only posts from user's country)
   countryFilter?: "global" | "country";
   userCountryCode?: string | null;
+  // Infinite scroll
+  onLoadMore?: () => void;
+  hasMore?: boolean;
+  isLoadingMore?: boolean;
+  // Auto-translate (batch translation)
+  // null = settings not loaded yet (show loading state)
+  autoTranslateEnabled?: boolean | null;
+  onAutoTranslateToggle?: (enabled: boolean) => void;
+  isTranslationLoading?: boolean;
+  pendingTranslationIds?: Set<string>; // Post IDs that are awaiting translation
 }
 
 // ===========================================
@@ -58,26 +69,30 @@ interface CommunityFeedSectionProps {
 function FeedSkeleton({ variant = "card" }: { variant?: "card" | "plain" }) {
   return (
     <div className="flex flex-col gap-4">
-      {Array.from({ length: 4 }).map((_, i) => (
+      {Array.from({ length: 8 }).map((_, i) => (
         <div
           key={i}
           className={cn(
-            "animate-pulse",
+            "animate-pulse min-h-[100px]",
             variant === "card"
-              ? "p-4 rounded-2xl bg-[var(--color-bg-secondary)] border border-[var(--border-default)]"
-              : "py-4 border-b border-[var(--border-default)]/50"
+              ? "p-3 rounded-xl bg-[var(--color-bg-secondary)]/50 border border-[var(--border-default)]"
+              : "py-5 px-3 border-b border-[var(--border-default)]/50"
           )}
         >
-          <div className="flex items-start gap-3">
-            <div className="w-10 h-10 rounded-full bg-[var(--color-bg-card)]" />
+          <div className="flex items-start gap-2">
+            <div className="w-8 h-8 rounded-full bg-[var(--color-bg-card)] flex-shrink-0" />
             <div className="flex-1 space-y-3">
               <div className="flex items-center gap-2">
-                <div className="h-4 w-24 rounded bg-[var(--color-bg-card)]" />
-                <div className="h-3 w-10 rounded bg-[var(--color-bg-card)]" />
+                <div className="h-3.5 w-20 rounded bg-[var(--color-bg-card)]" />
+                <div className="h-3 w-8 rounded bg-[var(--color-bg-card)]" />
               </div>
               <div className="space-y-2">
                 <div className="h-4 w-full rounded bg-[var(--color-bg-card)]" />
-                <div className="h-4 w-3/4 rounded bg-[var(--color-bg-card)]" />
+                <div className="h-4 w-2/3 rounded bg-[var(--color-bg-card)]" />
+              </div>
+              <div className="flex items-center gap-4 pt-2">
+                <div className="h-3 w-12 rounded bg-[var(--color-bg-card)]" />
+                <div className="h-3 w-12 rounded bg-[var(--color-bg-card)]" />
               </div>
             </div>
           </div>
@@ -102,6 +117,7 @@ function CommunityFeedSectionComponent({
   userAvatar,
   userName,
   userLevel,
+  userLanguage,
   isLoading = false,
   isPostModalOpen = false,
   onPostModalClose,
@@ -118,6 +134,13 @@ function CommunityFeedSectionComponent({
   onClearAuthorFilter,
   countryFilter = "global",
   userCountryCode,
+  onLoadMore,
+  hasMore = false,
+  isLoadingMore = false,
+  autoTranslateEnabled = null, // null = not loaded yet
+  onAutoTranslateToggle,
+  isTranslationLoading = false,
+  pendingTranslationIds,
 }: CommunityFeedSectionProps) {
   const feedContainerRef = useRef<HTMLDivElement>(null);
 
@@ -140,9 +163,8 @@ function CommunityFeedSectionComponent({
     [onLike]
   );
 
-  const handleComment = useCallback((postId: string) => {
-    // TODO: Navigate to post detail or open comment modal
-    console.log("Comment on post:", postId);
+  const handleComment = useCallback((_postId: string) => {
+    // Comment section is toggled inline in FeedCard
   }, []);
 
   // ESC key to close modal
@@ -156,38 +178,164 @@ function CommunityFeedSectionComponent({
     return () => document.removeEventListener("keydown", handleEsc);
   }, [isPostModalOpen, onPostModalClose]);
 
-  // Filter posts by author and/or country
-  const filteredPosts = posts.filter((post) => {
-    // Author filter takes priority
-    if (authorFilter) {
-      return post.author.id === authorFilter;
+  // Filter posts by author and/or country - memoized to prevent infinite loop
+  const filteredPosts = useMemo(() => {
+    return posts.filter((post) => {
+      // Author filter takes priority
+      if (authorFilter) {
+        return post.author.id === authorFilter;
+      }
+      // Country filter: show only posts from user's country
+      if (countryFilter === "country" && userCountryCode) {
+        return post.author.country_code === userCountryCode;
+      }
+      return true;
+    });
+  }, [posts, authorFilter, countryFilter, userCountryCode]);
+
+  // Memoize endReached callback for Virtuoso
+  const handleEndReached = useCallback(() => {
+    if (hasMore && !isLoadingMore && onLoadMore) {
+      onLoadMore();
     }
-    // Country filter: show only posts from user's country
-    if (countryFilter === "country" && userCountryCode) {
-      return post.author.country_code === userCountryCode;
-    }
-    return true;
-  });
+  }, [hasMore, isLoadingMore, onLoadMore]);
+
+  // Memoize Virtuoso components to prevent re-creation
+  const virtuosoComponents = useMemo(
+    () => ({
+      Footer: () =>
+        isLoadingMore ? (
+          <div className="flex justify-center py-4">
+            <div className="flex items-center gap-2">
+              <div className="w-4 h-4 border-2 border-[var(--color-claude-coral)] border-t-transparent rounded-full animate-spin" />
+              <span className="text-xs text-[var(--color-text-muted)]">Loading more...</span>
+            </div>
+          </div>
+        ) : !hasMore && filteredPosts.length > 0 ? (
+          <div className="flex justify-center py-4">
+            <span className="text-xs text-[var(--color-text-muted)]">No more posts</span>
+          </div>
+        ) : null,
+    }),
+    [isLoadingMore, hasMore, filteredPosts.length]
+  );
+
+  // Store pendingTranslationIds in ref to avoid itemContent re-creation
+  const pendingTranslationIdsRef = useRef(pendingTranslationIds);
+  pendingTranslationIdsRef.current = pendingTranslationIds;
+
+  // Memoize itemContent callback to prevent Virtuoso re-renders
+  const renderItem = useCallback(
+    (_index: number, post: FeedPost) => (
+      <FeedCard
+        key={post.id}
+        post={post}
+        userLanguage={userLanguage || undefined}
+        onAuthorClick={onAuthorClick}
+        onLike={handleLike}
+        onComment={handleComment}
+        isSignedIn={isSignedIn}
+        hasSubmissionHistory={hasSubmissionHistory}
+        onLoginRequired={onLoginRequired}
+        onSubmissionRequired={onSubmissionRequired}
+        hideLevelBadge={true}
+        variant={variant}
+        currentUserId={currentUserId || undefined}
+        isTranslationPending={
+          autoTranslateEnabled === true && (pendingTranslationIdsRef.current?.has(post.id) || false)
+        }
+      />
+    ),
+    [
+      userLanguage,
+      onAuthorClick,
+      handleLike,
+      handleComment,
+      isSignedIn,
+      hasSubmissionHistory,
+      onLoginRequired,
+      onSubmissionRequired,
+      variant,
+      currentUserId,
+      autoTranslateEnabled,
+    ]
+  );
 
   return (
     <div className={cn("flex flex-col", className)} style={{ height: "calc(100vh - 220px)" }}>
       {/* Leaderboard-style container - matches glass style */}
       <div className="glass !border-0 rounded-t-2xl overflow-hidden flex-1 min-h-0 flex flex-col">
-        {/* Auto-translate Banner */}
-        <div className="flex-shrink-0 px-4 py-2.5 border-b border-white/[0.06]">
-          <div className="flex items-center gap-2">
-            <Globe size={14} className="text-[var(--color-accent-cyan)]" />
-            <span className="text-xs font-medium text-[var(--color-accent-cyan)]">
-              Auto-translate
-            </span>
-            <span className="text-[11px] text-[var(--color-text-muted)]">
-              Posts appear in your language
-            </span>
+        {/* Auto-translate Banner with Toggle */}
+        <div
+          className={cn(
+            "flex-shrink-0 px-4 py-2.5 border-b border-white/[0.06] relative overflow-hidden",
+            isTranslationLoading && autoTranslateEnabled === true && "translate-banner-shimmer"
+          )}
+        >
+          <div className="flex items-center justify-between relative z-10">
+            <div className="flex items-center gap-2">
+              <Globe
+                size={14}
+                className={
+                  autoTranslateEnabled === true
+                    ? "text-[var(--color-accent-cyan)]"
+                    : "text-[var(--color-text-muted)]"
+                }
+              />
+              <span
+                className={cn(
+                  "text-xs font-medium",
+                  autoTranslateEnabled === true
+                    ? "text-[var(--color-accent-cyan)]"
+                    : "text-[var(--color-text-muted)]"
+                )}
+              >
+                {isTranslationLoading && autoTranslateEnabled === true
+                  ? "Translating..."
+                  : "Auto-translate"}
+              </span>
+              <span className="text-[11px] text-[var(--color-text-muted)]">
+                {autoTranslateEnabled === null
+                  ? "Loading preferences..."
+                  : isTranslationLoading && autoTranslateEnabled
+                    ? "Processing multiple languages"
+                    : autoTranslateEnabled
+                      ? "Posts appear in your language"
+                      : "Showing original posts"}
+              </span>
+            </div>
+            {/* Toggle Switch - disabled until settings loaded */}
+            {isSignedIn && onAutoTranslateToggle && (
+              <button
+                role="switch"
+                aria-checked={autoTranslateEnabled === true}
+                onClick={() =>
+                  autoTranslateEnabled !== null && onAutoTranslateToggle(!autoTranslateEnabled)
+                }
+                disabled={autoTranslateEnabled === null}
+                className={cn(
+                  "relative w-9 h-5 rounded-full transition-colors duration-200 flex-shrink-0",
+                  autoTranslateEnabled === null && "opacity-50 cursor-not-allowed",
+                  autoTranslateEnabled === true
+                    ? "bg-[var(--color-accent-cyan)]"
+                    : "bg-[var(--color-bg-card)] border border-white/10"
+                )}
+                aria-label={
+                  autoTranslateEnabled === true ? "Disable auto-translate" : "Enable auto-translate"
+                }
+              >
+                <span
+                  className={cn(
+                    "absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow-sm transition-transform duration-200",
+                    autoTranslateEnabled === true && "translate-x-4"
+                  )}
+                />
+              </button>
+            )}
           </div>
           {/* Community intro for guests */}
           <p className="mt-1.5 text-[10px] text-[var(--color-text-muted)]/70 leading-relaxed">
-            Connect with Claude Code developers worldwide. Share tips, celebrate wins, and learn
-            together.
+            Connect with Claude Code developers worldwide. No language barriers!
           </p>
         </div>
 
@@ -254,7 +402,7 @@ function CommunityFeedSectionComponent({
               <div className="absolute inset-0 bg-gradient-to-b from-amber-400/5 to-transparent pointer-events-none" />
               <FeedCard
                 post={featuredPost}
-                userLanguage="ko"
+                userLanguage={userLanguage || undefined}
                 onAuthorClick={onAuthorClick}
                 onLike={handleLike}
                 onComment={handleComment}
@@ -266,6 +414,10 @@ function CommunityFeedSectionComponent({
                 variant={variant}
                 isFeatured={true}
                 currentUserId={currentUserId || undefined}
+                isTranslationPending={
+                  autoTranslateEnabled === true &&
+                  (pendingTranslationIds?.has(featuredPost.id) || false)
+                }
               />
             </div>
           </div>
@@ -306,23 +458,9 @@ function CommunityFeedSectionComponent({
                 style={{ height: "100%" }}
                 overscan={200}
                 className="scrollbar-hide h-full"
-                itemContent={(_index, post) => (
-                  <FeedCard
-                    key={post.id}
-                    post={post}
-                    userLanguage="ko"
-                    onAuthorClick={onAuthorClick}
-                    onLike={handleLike}
-                    onComment={handleComment}
-                    isSignedIn={isSignedIn}
-                    hasSubmissionHistory={hasSubmissionHistory}
-                    onLoginRequired={onLoginRequired}
-                    onSubmissionRequired={onSubmissionRequired}
-                    hideLevelBadge={true}
-                    variant={variant}
-                    currentUserId={currentUserId || undefined}
-                  />
-                )}
+                endReached={handleEndReached}
+                itemContent={renderItem}
+                components={virtuosoComponents}
               />
             </div>
           )}

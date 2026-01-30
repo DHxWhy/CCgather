@@ -6,7 +6,9 @@ import { X, Download } from "lucide-react";
 export function InstallBanner() {
   const { canShowBanner, promptInstall, dismiss } = usePWAInstall();
 
-  if (!canShowBanner) return null;
+  // 개발 환경에서는 배너 숨김
+  const isDev = process.env.NODE_ENV === "development";
+  if (isDev || !canShowBanner) return null;
 
   return (
     <div className="fixed bottom-4 left-4 right-4 md:left-auto md:right-4 md:w-[360px] z-50 animate-in slide-in-from-bottom-4 fade-in duration-300">

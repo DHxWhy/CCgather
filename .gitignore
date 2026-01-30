@@ -37,8 +37,9 @@ node_modules/
 .pnp.js
 .yarn/install-state.gz
 
-# Wrong package manager lockfiles (project uses npm)
+# Wrong package manager lockfiles (project uses pnpm)
 yarn.lock
+package-lock.json
 
 # ══════════════════════════════════════════════════════════
 # Build Outputs
@@ -56,16 +57,12 @@ build/
 /public/workbox-*.js.map
 
 # ══════════════════════════════════════════════════════════
-# Testing
+# Testing (outputs only - test code is public)
 # ══════════════════════════════════════════════════════════
 coverage/
 .nyc_output/
 
-# E2E Tests (Playwright) - root level only
-/tests/
-playwright.config.ts
-# Allow package-specific tests
-!packages/*/tests/
+# Playwright outputs (generated files)
 test-results/
 playwright-report/
 .playwright/
@@ -113,6 +110,7 @@ next-env.d.ts
 
 # Claude Code (개인 설정)
 .claude/
+.ccgather
 
 # Token usage tracking (contains cost data)
 cc.json

@@ -137,17 +137,25 @@ export async function sendPushNotificationToUsers(
 }
 
 // =====================================================
-// Notification Helpers
+// Notification Helpers - Community
 // =====================================================
+
+// Helper to truncate content for mobile-friendly display
+function truncateContent(content: string, maxLength: number): string {
+  const trimmed = content.trim().replace(/\n/g, " ");
+  if (trimmed.length <= maxLength) return trimmed;
+  return trimmed.slice(0, maxLength).trim() + "...";
+}
 
 export function createPostLikeNotification(
   actorUsername: string,
   postContent: string,
   postId: string
 ): PushNotificationPayload {
+  const preview = truncateContent(postContent, 40);
   return {
-    title: "New Like",
-    body: `${actorUsername} liked your post: "${postContent.slice(0, 50)}${postContent.length > 50 ? "..." : ""}"`,
+    title: `❤️ ${actorUsername} liked your post`,
+    body: `"${preview}"`,
     icon: "/icons/icon-192x192.png",
     badge: "/icons/badge-72x72.png",
     tag: `post-like-${postId}`,
@@ -165,9 +173,10 @@ export function createCommentNotification(
   postId: string,
   commentId: string
 ): PushNotificationPayload {
+  const preview = truncateContent(commentContent, 50);
   return {
-    title: "New Comment",
-    body: `${actorUsername}: "${commentContent.slice(0, 50)}${commentContent.length > 50 ? "..." : ""}"`,
+    title: "💬 New comment on your post",
+    body: `${actorUsername}:\n"${preview}"`,
     icon: "/icons/icon-192x192.png",
     badge: "/icons/badge-72x72.png",
     tag: `comment-${postId}`,
@@ -186,9 +195,10 @@ export function createCommentLikeNotification(
   postId: string,
   commentId: string
 ): PushNotificationPayload {
+  const preview = truncateContent(commentContent, 40);
   return {
-    title: "Comment Liked",
-    body: `${actorUsername} liked your comment: "${commentContent.slice(0, 40)}${commentContent.length > 40 ? "..." : ""}"`,
+    title: `❤️ ${actorUsername} liked your comment`,
+    body: `"${preview}"`,
     icon: "/icons/icon-192x192.png",
     badge: "/icons/badge-72x72.png",
     tag: `comment-like-${commentId}`,
@@ -207,9 +217,10 @@ export function createCommentReplyNotification(
   postId: string,
   commentId: string
 ): PushNotificationPayload {
+  const preview = truncateContent(replyContent, 50);
   return {
-    title: "New Reply",
-    body: `${actorUsername} replied: "${replyContent.slice(0, 50)}${replyContent.length > 50 ? "..." : ""}"`,
+    title: "💬 Someone replied to you",
+    body: `${actorUsername}:\n"${preview}"`,
     icon: "/icons/icon-192x192.png",
     badge: "/icons/badge-72x72.png",
     tag: `reply-${commentId}`,
@@ -222,90 +233,75 @@ export function createCommentReplyNotification(
   };
 }
 
-export function createRankChangeNotification(
-  newRank: number,
-  previousRank: number
-): PushNotificationPayload {
-  const improved = newRank < previousRank;
-  return {
-    title: improved ? "🎉 Rank Up!" : "📊 Rank Update",
-    body: improved
-      ? `You moved up to #${newRank} (from #${previousRank})!`
-      : `Your rank changed to #${newRank} (from #${previousRank})`,
-    icon: "/icons/icon-192x192.png",
-    badge: "/icons/badge-72x72.png",
-    tag: "rank-change",
-    data: {
-      url: "/leaderboard",
-      type: "rank_update",
-    },
-  };
+// =====================================================
+// Unified Submission Summary Notification
+// =====================================================
+
+export interface SubmissionSummaryData {
+  totalTokens: number;
+  rank: number;
+  rankChange?: number; // positive number = moved up (e.g., 4 means ↑4)
+  newLevel?: { level: number; name: string };
+  newBadges?: { name: string; icon: string }[];
 }
 
-export function createSubmissionCompleteNotification(
-  totalTokens: number,
-  rank: number
-): PushNotificationPayload {
-  const formattedTokens =
-    totalTokens >= 1_000_000
-      ? `${(totalTokens / 1_000_000).toFixed(1)}M`
-      : totalTokens >= 1_000
-        ? `${(totalTokens / 1_000).toFixed(0)}K`
-        : totalTokens.toString();
-
-  return {
-    title: "✅ Submission Complete",
-    body: `Your data has been submitted! Total: ${formattedTokens} tokens (Global #${rank})`,
-    icon: "/icons/icon-192x192.png",
-    badge: "/icons/badge-72x72.png",
-    tag: "submission-complete",
-    data: {
-      url: "/leaderboard",
-      type: "submission_complete",
-    },
-  };
+function formatTokensCompact(tokens: number): string {
+  if (tokens >= 1_000_000_000) {
+    return `${(tokens / 1_000_000_000).toFixed(1)}B`;
+  }
+  if (tokens >= 1_000_000) {
+    return `${(tokens / 1_000_000).toFixed(1)}M`;
+  }
+  if (tokens >= 1_000) {
+    return `${(tokens / 1_000).toFixed(0)}K`;
+  }
+  return tokens.toString();
 }
 
-export function createLevelUpNotification(
-  newLevel: number,
-  levelName: string
+export function createSubmissionSummaryNotification(
+  data: SubmissionSummaryData
 ): PushNotificationPayload {
+  const lines: string[] = [];
+
+  // Line 1: Tokens + Rank
+  const tokenStr = formatTokensCompact(data.totalTokens);
+  const rankStr = data.rankChange
+    ? `Global #${data.rank} (↑${data.rankChange})`
+    : `Global #${data.rank}`;
+  lines.push(`📊 ${tokenStr} tokens`);
+  lines.push(`🏆 ${rankStr}`);
+
+  // Level up (if applicable)
+  if (data.newLevel) {
+    lines.push(`🆙 Level ${data.newLevel.level}: ${data.newLevel.name}`);
+  }
+
+  // New badges (each on its own line)
+  if (data.newBadges && data.newBadges.length > 0) {
+    for (const badge of data.newBadges) {
+      lines.push(`${badge.icon} ${badge.name}`);
+    }
+  }
+
+  // Choose title based on achievements
+  let title = "✅ Data synced!";
+  if (data.newBadges && data.newBadges.length > 0) {
+    title = "🎉 New badges unlocked!";
+  } else if (data.newLevel) {
+    title = "🎉 Level up!";
+  } else if (data.rankChange && data.rankChange > 0) {
+    title = "🎉 You're climbing!";
+  }
+
   return {
-    title: "⬆️ Level Up!",
-    body: `Congratulations! You've reached Level ${newLevel}: ${levelName}`,
+    title,
+    body: lines.join("\n"),
     icon: "/icons/icon-192x192.png",
     badge: "/icons/badge-72x72.png",
-    tag: "level-up",
+    tag: "submission-summary",
     data: {
       url: "/leaderboard",
-      type: "level_up",
-    },
-  };
-}
-
-export function createBadgeEarnedNotification(
-  badgeName: string,
-  badgeIcon: string,
-  badgeRarity: string
-): PushNotificationPayload {
-  const rarityEmoji =
-    badgeRarity === "legendary"
-      ? "🌟"
-      : badgeRarity === "epic"
-        ? "💎"
-        : badgeRarity === "rare"
-          ? "✨"
-          : "🏅";
-
-  return {
-    title: `${rarityEmoji} New Badge Unlocked!`,
-    body: `You earned: ${badgeIcon} ${badgeName}`,
-    icon: "/icons/icon-192x192.png",
-    badge: "/icons/badge-72x72.png",
-    tag: `badge-${badgeName.toLowerCase().replace(/\s+/g, "-")}`,
-    data: {
-      url: "/leaderboard",
-      type: "badge_earned",
+      type: "submission_summary",
     },
   };
 }

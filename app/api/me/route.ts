@@ -4,6 +4,16 @@ import { createServiceClient } from "@/lib/supabase/server";
 import { z } from "zod";
 import { randomBytes } from "crypto";
 
+// Generate 5-character alphanumeric referral code
+function generateShortCode(): string {
+  const chars = "abcdefghijklmnopqrstuvwxyz0123456789";
+  let code = "";
+  for (let i = 0; i < 5; i++) {
+    code += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return code;
+}
+
 const SocialLinksSchema = z
   .object({
     github: z.string().optional(),
@@ -130,9 +140,15 @@ export async function GET() {
         if (linkError) {
           console.error("[/api/me] Failed to link account:", linkError);
         } else {
+          // Get referral count for this user
+          const { count: existingReferralCount } = await supabase
+            .from("users")
+            .select("*", { count: "exact", head: true })
+            .eq("referred_by", existingByEmail.id);
+
           // Return the existing user (now linked to new clerk_id)
           return NextResponse.json(
-            { user: existingByEmail },
+            { user: { ...existingByEmail, referral_count: existingReferralCount || 0 } },
             {
               headers: {
                 "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
@@ -151,15 +167,19 @@ export async function GET() {
       clerkUser.username ||
       "Anonymous";
 
+    const baseUsername = clerkUser.username || `user_${userId.slice(0, 8)}`;
+    const referralCode = generateShortCode();
+
     const { data: newUser, error: insertError } = await supabase
       .from("users")
       .insert({
         clerk_id: userId,
-        username: clerkUser.username || `user_${userId.slice(0, 8)}`,
+        username: baseUsername,
         display_name: displayName,
         avatar_url: clerkUser.imageUrl,
         email: email,
         onboarding_completed: false, // New user needs onboarding
+        referral_code: referralCode,
       })
       .select(
         `
@@ -226,6 +246,7 @@ export async function GET() {
         // If not found by clerk_id, username conflict with another user
         // Try with a unique username suffix
         const uniqueUsername = `${clerkUser.username || "user"}_${userId.slice(0, 8)}`;
+        const retryReferralCode = generateShortCode();
         const { data: retryUser, error: retryError } = await supabase
           .from("users")
           .insert({
@@ -235,6 +256,7 @@ export async function GET() {
             avatar_url: clerkUser.imageUrl,
             email: clerkUser.emailAddresses[0]?.emailAddress,
             onboarding_completed: false,
+            referral_code: retryReferralCode,
           })
           .select(
             `
@@ -280,8 +302,9 @@ export async function GET() {
 
     console.log("Auto-created user from /api/me GET:", { clerk_id: userId, user_id: newUser?.id });
 
+    // New user has 0 referrals
     return NextResponse.json(
-      { user: newUser },
+      { user: { ...newUser, referral_count: 0 } },
       {
         headers: {
           "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
@@ -390,9 +413,21 @@ export async function GET() {
         console.log("[/api/me] Successfully updated social_links:", updatedSocialLinks);
       }
 
+      // Get referral count
+      const { count: socialLinksReferralCount } = await supabase
+        .from("users")
+        .select("*", { count: "exact", head: true })
+        .eq("referred_by", user.id);
+
       // Return updated user data
       return NextResponse.json(
-        { user: { ...user, social_links: updatedSocialLinks } },
+        {
+          user: {
+            ...user,
+            social_links: updatedSocialLinks,
+            referral_count: socialLinksReferralCount || 0,
+          },
+        },
         {
           headers: {
             "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
@@ -404,15 +439,40 @@ export async function GET() {
     }
   }
 
+  // Auto-generate or migrate referral_code for existing users
+  // - Users without referral_code: generate new 5-char code
+  // - Users with long referral_code (>5 chars): migrate to 5-char code
+  let finalUser = user;
+  const needsNewCode = !user.referral_code || user.referral_code.length > 5;
+
+  if (needsNewCode) {
+    const newReferralCode = generateShortCode();
+    const { data: updatedUser, error: referralUpdateError } = await supabase
+      .from("users")
+      .update({ referral_code: newReferralCode })
+      .eq("id", user.id)
+      .select("*")
+      .single();
+
+    if (!referralUpdateError && updatedUser) {
+      finalUser = updatedUser;
+      const action = user.referral_code ? "migrated" : "generated";
+      console.log(`[/api/me] ${action} referral_code for user:`, {
+        old: user.referral_code,
+        new: newReferralCode,
+      });
+    }
+  }
+
   // Get referral count
   const { count: referralCount } = await supabase
     .from("users")
     .select("*", { count: "exact", head: true })
-    .eq("referred_by", user.id);
+    .eq("referred_by", finalUser.id);
 
   // Add cache control headers to prevent stale data
   return NextResponse.json(
-    { user: { ...user, referral_count: referralCount || 0 } },
+    { user: { ...finalUser, referral_count: referralCount || 0 } },
     {
       headers: {
         "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
@@ -480,15 +540,20 @@ export async function PATCH(request: NextRequest) {
         clerkUser.username ||
         "Anonymous";
 
+      // Generate referral code
+      const patchBaseUsername = clerkUser.username || `user_${userId.slice(0, 8)}`;
+      const patchReferralCode = generateShortCode();
+
       // Use INSERT with RETURNING to get the created user directly
       const { data: newUser, error: insertError } = await supabase
         .from("users")
         .insert({
           clerk_id: userId,
-          username: clerkUser.username || `user_${userId.slice(0, 8)}`,
+          username: patchBaseUsername,
           display_name: displayName,
           avatar_url: clerkUser.imageUrl,
           email: clerkUser.emailAddresses[0]?.emailAddress,
+          referral_code: patchReferralCode,
           ...updateData,
         })
         .select("*")

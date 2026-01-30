@@ -35,7 +35,7 @@ export function LandingHeader() {
           {/* Logo */}
           <Link href="/" className="flex items-center gap-2 md:gap-2.5 group">
             <Image
-              src="/logo.png"
+              src="/logos/logo.png"
               alt="CCgather Logo"
               width={32}
               height={32}

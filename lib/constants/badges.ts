@@ -351,14 +351,6 @@ export function getBadgeById(id: string): Badge | undefined {
   return BADGES.find((b) => b.id === id);
 }
 
-export function getBadgesByCategory(category: Badge["category"]): Badge[] {
-  return BADGES.filter((b) => b.category === category);
-}
-
-export function getBadgesByRarity(rarity: Badge["rarity"]): Badge[] {
-  return BADGES.filter((b) => b.rarity === rarity);
-}
-
 export const RARITY_COLORS: Record<Badge["rarity"], string> = {
   common: "#A1A1AA",
   rare: "#3B82F6",

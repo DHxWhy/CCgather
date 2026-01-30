@@ -61,9 +61,9 @@ export default function SettingsLayout({ children }: { children: React.ReactNode
   };
 
   return (
-    <div className="min-h-[calc(100vh-4rem)] md:flex md:h-[calc(100vh-4rem)] md:overflow-hidden">
+    <div className="min-h-[calc(100vh-3rem)] md:flex md:h-[calc(100vh-3rem)] md:overflow-hidden">
       {/* Mobile Header - Top Tabs */}
-      <div className="md:hidden sticky top-16 z-40 bg-[var(--color-bg-primary)] border-b border-[var(--border-default)]">
+      <div className="md:hidden sticky top-12 z-40 bg-[var(--color-bg-primary)] border-b border-[var(--border-default)]">
         {/* Back + Title Row */}
         <div className="flex items-center justify-between px-4 py-2">
           <Link
@@ -114,7 +114,7 @@ export default function SettingsLayout({ children }: { children: React.ReactNode
 
       {/* Desktop Sidebar - Hidden on Mobile */}
       <aside className="hidden md:block w-56 flex-shrink-0 border-r border-[var(--border-default)] bg-[var(--color-bg-secondary)]">
-        <div className="sticky top-16 p-4 flex flex-col h-[calc(100vh-4rem)]">
+        <div className="sticky top-12 p-4 flex flex-col h-[calc(100vh-3rem)]">
           {/* Back Button */}
           <Link
             href="/"

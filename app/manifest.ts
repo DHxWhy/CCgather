@@ -14,25 +14,25 @@ export default function manifest(): MetadataRoute.Manifest {
     scope: "/",
     icons: [
       {
-        src: "/favicon.png",
+        src: "/logos/favicon.png",
         sizes: "512x512",
         type: "image/png",
         purpose: "any",
       },
       {
-        src: "/CCgather_logo_512_black_xs.png",
+        src: "/logos/CCgather_logo_512_black_xs.png",
         sizes: "512x512",
         type: "image/png",
         purpose: "maskable",
       },
       {
-        src: "/CCgather_logo_144_black.png",
+        src: "/logos/CCgather_logo_144_black.png",
         sizes: "144x144",
         type: "image/png",
         purpose: "any",
       },
       {
-        src: "/logo_200x200.png",
+        src: "/logos/logo_200x200.png",
         sizes: "200x200",
         type: "image/png",
         purpose: "any",

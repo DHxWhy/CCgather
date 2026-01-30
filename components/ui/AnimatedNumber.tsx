@@ -106,8 +106,23 @@ export default function AnimatedNumber({
 
   // Main animation effect
   useEffect(() => {
-    // 값이 0이면 애니메이션 하지 않음 (아직 로드 안됨)
-    if (value === 0) return;
+    // 값이 0이고 첫 마운트이면 아직 로드 안됨 - 건너뛰기
+    // 하지만 이전에 값이 있었다면 0으로 애니메이션해야 함
+    if (value === 0 && isFirstMount.current) return;
+
+    // 값이 0으로 변경된 경우 즉시 표시
+    if (value === 0) {
+      setDisplayValue(0);
+      previousValueRef.current = 0;
+      if (storageKey && typeof window !== "undefined") {
+        try {
+          sessionStorage.setItem(`animNum_${storageKey}`, "0");
+        } catch {
+          // 무시
+        }
+      }
+      return;
+    }
 
     // 실제 API 값 저장
     baseValueRef.current = value;

@@ -449,8 +449,8 @@ function BadgeItem({
       <div
         className={`w-full aspect-square flex items-center justify-center rounded text-center transition-colors cursor-default ${
           isEarned
-            ? `bg-[var(--color-section-bg)] ring-2 ring-[var(--color-primary)] hover:bg-white/10`
-            : "bg-black/40"
+            ? `bg-[var(--color-section-bg)] hover:bg-[var(--color-section-bg-hover)]`
+            : "bg-[var(--color-badge-locked)]"
         }`}
       >
         <div className={`text-lg ${!isEarned ? "grayscale opacity-40" : ""}`}>
@@ -484,12 +484,14 @@ function SocialLinksQuickAccess({
   onLoginRequired,
   userId,
   onPostsClick,
+  postCount = 0,
 }: {
   socialLinks: SocialLinks | null | undefined;
   isSignedIn: boolean;
   onLoginRequired: (url: string) => void;
   userId?: string;
   onPostsClick?: (userId: string) => void;
+  postCount?: number;
 }) {
   const links = [
     {
@@ -574,12 +576,12 @@ function SocialLinksQuickAccess({
           </a>
         );
       })}
-      {/* Posts link - always visible */}
-      {userId && onPostsClick && (
+      {/* Posts link - only visible when user has posts */}
+      {userId && onPostsClick && postCount > 0 && (
         <button
           onClick={handlePostsClick}
           className="p-1.5 rounded-md transition-all text-[var(--color-claude-coral)] hover:bg-[var(--color-claude-coral)]/20"
-          title="View posts"
+          title={`View posts (${postCount})`}
         >
           <Newspaper className="w-3.5 h-3.5" />
         </button>
@@ -660,7 +662,7 @@ function BadgeGrid({
 }
 
 interface ProfileSidePanelProps {
-  user: DisplayUser | null;
+  userId: string | null;
   isOpen: boolean;
   onClose: () => void;
   periodFilter: PeriodFilter;
@@ -702,7 +704,7 @@ function incrementProfileViewCount(): number {
 }
 
 export function ProfileSidePanel({
-  user,
+  userId,
   isOpen,
   onClose,
   periodFilter,
@@ -719,6 +721,7 @@ export function ProfileSidePanel({
   const [isTabletPortrait, setIsTabletPortrait] = useState(false);
   const [isNarrow, setIsNarrow] = useState(false);
   const [showCompactStats, setShowCompactStats] = useState(false);
+  const [profileLoading, setProfileLoading] = useState(false);
 
   // Login prompt modal state
   const [showLoginModal, setShowLoginModal] = useState(false);
@@ -731,7 +734,7 @@ export function ProfileSidePanel({
   const [usageHistory, setUsageHistory] = useState<UsageHistoryPoint[]>([]);
   const [userBadges, setUserBadges] = useState<string[]>([]);
   const [freshSocialLinks, setFreshSocialLinks] = useState<SocialLinks | null>(null);
-  const [_historyLoading, setHistoryLoading] = useState(false);
+  const [_usageLoading, setUsageLoading] = useState(false);
   const [chartFadeIn, setChartFadeIn] = useState(true);
 
   // Handle social link click for non-logged-in users
@@ -765,7 +768,7 @@ export function ProfileSidePanel({
 
   // Check profile view limit for non-logged-in users
   useEffect(() => {
-    if (!isOpen || !user || isSignedIn) return;
+    if (!isOpen || !userId || isSignedIn) return;
 
     // Check if this is a new profile view
     const viewCount = getProfileViewCount();
@@ -777,8 +780,7 @@ export function ProfileSidePanel({
       // Increment view count
       incrementProfileViewCount();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen, user?.id, isSignedIn]);
+  }, [isOpen, userId, isSignedIn]);
 
   // Only mobile uses overlay mode, tablet uses push mode
   const isOverlayPanel = isMobile;
@@ -797,38 +799,76 @@ export function ProfileSidePanel({
     return () => window.removeEventListener("resize", checkScreenSize);
   }, []);
 
-  // Fetch user history and badges when user changes
+  // Fetch all user data when userId changes (profile, history, badges)
   useEffect(() => {
-    if (!user) return;
+    if (!userId) {
+      setDisplayedUser(null);
+      return;
+    }
 
-    const userId = user.id; // Capture for async closure
     let cancelled = false;
 
-    async function fetchUserData() {
+    async function fetchAllUserData() {
       // Start fade out AND fetch simultaneously (don't wait!)
       setChartFadeIn(false);
-      setHistoryLoading(true);
+      setUsageLoading(true);
+      setProfileLoading(true);
 
       try {
-        // Fetch new data (runs in parallel with fade out animation)
-        const [historyResponse, badgesResponse] = await Promise.all([
-          fetch(`/api/users/${userId}/history?days=365`),
+        // Fetch all data in parallel using centralized usage-summary API
+        const [profileResponse, usageSummaryResponse, badgesResponse] = await Promise.all([
+          fetch(`/api/users/${userId}/profile`),
+          fetch(`/api/users/${userId}/usage-summary?days=365`),
           fetch(`/api/users/${userId}/badges`),
         ]);
 
         if (cancelled) return;
 
-        if (historyResponse.ok) {
-          const data = await historyResponse.json();
-          setUsageHistory(data.history || []);
-          if (data.user?.social_links) {
-            setFreshSocialLinks(data.user.social_links);
+        // Process profile data
+        if (profileResponse.ok) {
+          const profileData = await profileResponse.json();
+          if (profileData.user) {
+            setDisplayedUser({
+              id: profileData.user.id,
+              username: profileData.user.username,
+              display_name: profileData.user.display_name,
+              avatar_url: profileData.user.avatar_url,
+              country_code: profileData.user.country_code,
+              total_tokens: profileData.user.total_tokens || 0,
+              total_cost: profileData.user.total_cost || 0,
+              total_sessions: profileData.user.total_sessions || 0,
+              rank: profileData.user.global_rank || 0,
+              current_level: profileData.user.current_level || 1,
+              global_rank: profileData.user.global_rank,
+              country_rank: profileData.user.country_rank,
+              social_links: profileData.user.social_links,
+              ccplan: profileData.user.ccplan,
+              has_opus_usage: profileData.user.has_opus_usage || false,
+              post_count: profileData.user.post_count || 0,
+            });
+            // Set fresh social links from profile
+            if (profileData.user.social_links) {
+              setFreshSocialLinks(profileData.user.social_links);
+            }
           }
-        } else {
-          setUsageHistory([]);
-          setFreshSocialLinks(null);
         }
 
+        // Process usage summary data (centralized data source)
+        if (usageSummaryResponse.ok) {
+          const summaryData = await usageSummaryResponse.json();
+          // Transform daily data to UsageHistoryPoint format
+          setUsageHistory(
+            (summaryData.daily || []).map((d: { date: string; tokens: number; cost: number }) => ({
+              date: d.date,
+              tokens: d.tokens,
+              cost: d.cost,
+            }))
+          );
+        } else {
+          setUsageHistory([]);
+        }
+
+        // Process badges data
         if (badgesResponse.ok) {
           const data = await badgesResponse.json();
           setUserBadges((data.badges || []).map((b: { badge_type: string }) => b.badge_type));
@@ -843,8 +883,9 @@ export function ProfileSidePanel({
         }
       } finally {
         if (!cancelled) {
-          setHistoryLoading(false);
-          // Phase 3: Fade in with new data
+          setUsageLoading(false);
+          setProfileLoading(false);
+          // Fade in with new data
           requestAnimationFrame(() => {
             setChartFadeIn(true);
           });
@@ -852,28 +893,18 @@ export function ProfileSidePanel({
       }
     }
 
-    fetchUserData();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [user?.id]);
-
-  // Handle user change with transition
-  useEffect(() => {
-    if (!isOpen || !user) return undefined;
-
-    if (displayedUser?.id === user.id) return undefined;
-
+    // Reset scroll position and states for new user
     setShowCompactStats(false);
     if (scrollContainerRef.current) {
       scrollContainerRef.current.scrollTop = 0;
     }
 
-    // Immediately switch user without transition delay for snappier feel
-    setDisplayedUser(user);
-    return undefined;
-  }, [user, isOpen, displayedUser?.id]);
+    fetchAllUserData();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [userId]);
 
   // Clear when panel closes
   useEffect(() => {
@@ -904,8 +935,17 @@ export function ProfileSidePanel({
 
     function handleClickOutside(e: MouseEvent) {
       const target = e.target as HTMLElement;
+      // Don't close if clicking inside the panel
       if (panelRef.current?.contains(target)) return;
+      // Don't close if clicking on table rows (leaderboard)
       if (target.closest("tr") || target.closest("table")) return;
+      // Don't close if clicking on interactive elements (buttons, inputs, etc.)
+      if (
+        target.closest("button, input, textarea, [role='button'], [role='dialog'], [role='menu']")
+      )
+        return;
+      // Don't close if clicking on community feed or modals
+      if (target.closest("[data-feed-card], [data-modal], .glass, article")) return;
       onClose();
     }
 
@@ -950,6 +990,36 @@ export function ProfileSidePanel({
   }, [displayedUser]);
 
   const currentUser = displayedUser;
+
+  // Show loading state when userId exists but data hasn't loaded yet
+  if (!currentUser && userId && profileLoading) {
+    return (
+      <>
+        {isOverlayPanel && (
+          <div
+            className={`fixed inset-0 z-40 bg-black/50 transition-opacity duration-300 lg:hidden ${
+              isOpen ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"
+            }`}
+            onClick={onClose}
+          />
+        )}
+        <div
+          ref={panelRef}
+          className={`fixed top-12 right-0 flex flex-col bg-[var(--color-bg-primary)] border-l md:border-t border-[var(--border-default)] z-50 shadow-2xl will-change-transform transition-transform duration-200 ease-out ${isOpen ? "translate-x-0" : "translate-x-full"}`}
+          style={{
+            width: isMobile ? "calc(100% - 56px)" : isTabletPortrait ? "320px" : "440px",
+            maxWidth: isMobile ? "calc(100% - 56px)" : isTabletPortrait ? "320px" : "440px",
+            height: "calc(100% - 48px)",
+          }}
+        >
+          <div className="flex items-center justify-center h-full">
+            <div className="animate-pulse text-[var(--color-text-muted)]">Loading profile...</div>
+          </div>
+        </div>
+      </>
+    );
+  }
+
   if (!currentUser) return null;
 
   const level = getLevelByTokens(currentUser.total_tokens);
@@ -999,11 +1069,11 @@ export function ProfileSidePanel({
 
       <div
         ref={panelRef}
-        className={`fixed top-14 md:top-16 right-0 flex flex-col bg-[var(--color-bg-primary)] border-l border-[var(--border-default)] z-50 shadow-2xl will-change-transform transition-transform duration-200 ease-out ${isOpen ? "translate-x-0" : "translate-x-full"}`}
+        className={`fixed top-12 right-0 flex flex-col bg-[var(--color-bg-primary)] border-l md:border-t border-[var(--border-default)] z-50 shadow-2xl will-change-transform transition-transform duration-200 ease-out ${isOpen ? "translate-x-0" : "translate-x-full"}`}
         style={{
           width: isMobile ? "calc(100% - 56px)" : isTabletPortrait ? "320px" : "440px",
           maxWidth: isMobile ? "calc(100% - 56px)" : isTabletPortrait ? "320px" : "440px",
-          height: isMobile ? "calc(100% - 56px)" : "calc(100% - 64px)",
+          height: "calc(100% - 48px)",
         }}
       >
         {/* Fixed Header Area */}
@@ -1011,28 +1081,38 @@ export function ProfileSidePanel({
           {/* Profile Header */}
           <div className="p-4 pb-3 border-b border-[var(--border-default)] bg-[var(--color-bg-primary)]">
             <div className="flex items-start gap-3">
-              {currentUser.avatar_url ? (
-                <Image
-                  src={currentUser.avatar_url}
-                  alt={currentUser.username}
-                  width={48}
-                  height={48}
-                  className="w-12 h-12 rounded-full object-cover flex-shrink-0"
-                />
-              ) : (
-                <div className="w-12 h-12 rounded-full bg-gradient-to-br from-primary to-[#F7931E] flex items-center justify-center text-lg font-semibold text-white flex-shrink-0">
-                  {currentUser.username.charAt(0).toUpperCase()}
-                </div>
-              )}
+              {/* Avatar with country flag overlay */}
+              <div className="relative flex-shrink-0">
+                {currentUser.avatar_url ? (
+                  <Image
+                    src={currentUser.avatar_url}
+                    alt={currentUser.username}
+                    width={48}
+                    height={48}
+                    className="w-12 h-12 rounded-full object-cover"
+                  />
+                ) : (
+                  <div className="w-12 h-12 rounded-full bg-gradient-to-br from-primary to-[#F7931E] flex items-center justify-center text-lg font-semibold text-white">
+                    {currentUser.username.charAt(0).toUpperCase()}
+                  </div>
+                )}
+                {/* Country flag on bottom-right of avatar */}
+                {currentUser.country_code && (
+                  <div className="absolute -bottom-0.5 -right-0.5 rounded-full bg-[var(--color-bg-primary)] p-0.5">
+                    <FlagIcon countryCode={currentUser.country_code} size="sm" />
+                  </div>
+                )}
+              </div>
               <div className="min-w-0 flex-1">
-                {/* Name + Badges row - social icons on right for tablet/desktop */}
+                {/* Name row with badges on right */}
                 <div className="flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-2 flex-wrap min-w-0">
-                    <h2 className="text-base font-semibold text-[var(--color-text-primary)] truncate">
-                      {currentUser.display_name || currentUser.username}
-                    </h2>
+                  <h2 className="text-base font-semibold text-[var(--color-text-primary)] truncate">
+                    {currentUser.display_name || currentUser.username}
+                  </h2>
+                  {/* Level + CCplan badges - right aligned */}
+                  <div className="flex items-center gap-1.5 flex-shrink-0">
                     <span
-                      className={`px-1.5 py-0.5 rounded text-[9px] font-medium flex-shrink-0 ${
+                      className={`px-1.5 py-0.5 rounded text-[9px] font-medium ${
                         level.level === 5 || level.level === 6 ? `level-badge-${level.level}` : ""
                       }`}
                       style={
@@ -1050,40 +1130,24 @@ export function ProfileSidePanel({
                       />
                     )}
                   </div>
-                  {/* Social Links - shown on tablet/desktop only (right of name) */}
-                  {!isMobile && (
-                    <div className="flex-shrink-0">
-                      <SocialLinksQuickAccess
-                        socialLinks={freshSocialLinks || currentUser.social_links}
-                        isSignedIn={!!isSignedIn}
-                        onLoginRequired={handleSocialLinkLoginRequired}
-                        userId={currentUser.id}
-                        onPostsClick={handlePostsClick}
-                      />
-                    </div>
-                  )}
                 </div>
-                {/* Username row */}
-                <p className="text-[10px] text-[var(--color-text-muted)] flex items-center gap-1.5 mt-0.5">
-                  {currentUser.country_code && (
-                    <FlagIcon countryCode={currentUser.country_code} size="xs" />
-                  )}
-                  <span>@{currentUser.username.toLowerCase().replace(/\s+/g, "")}</span>
-                </p>
+                {/* Username row with social links */}
+                <div className="flex items-center justify-between mt-0.5">
+                  <p className="text-[10px] text-[var(--color-text-muted)]">
+                    @{currentUser.username.toLowerCase().replace(/\s+/g, "")}
+                  </p>
+                  {/* Social Links - same row as username */}
+                  <SocialLinksQuickAccess
+                    socialLinks={freshSocialLinks || currentUser.social_links}
+                    isSignedIn={!!isSignedIn}
+                    onLoginRequired={handleSocialLinkLoginRequired}
+                    userId={currentUser.id}
+                    onPostsClick={handlePostsClick}
+                    postCount={currentUser.post_count || 0}
+                  />
+                </div>
               </div>
             </div>
-            {/* Social Links - mobile only, full width below profile */}
-            {isMobile && (
-              <div className="mt-3 pt-3 border-t border-[var(--border-default)]">
-                <SocialLinksQuickAccess
-                  socialLinks={freshSocialLinks || currentUser.social_links}
-                  isSignedIn={!!isSignedIn}
-                  onLoginRequired={handleSocialLinkLoginRequired}
-                  userId={currentUser.id}
-                  onPostsClick={handlePostsClick}
-                />
-              </div>
-            )}
           </div>
 
           {/* Compact Stats Bar */}
@@ -1150,11 +1214,11 @@ export function ProfileSidePanel({
           >
             {/* Global Rank */}
             <div
-              className={`col-span-2 p-3 rounded-lg transition-all ${
+              className={`col-span-2 p-3 rounded-lg transition-all border ${
                 scopeFilter === "global"
-                  ? "bg-primary/10 ring-1 ring-primary/30"
-                  : "bg-[var(--color-section-bg)]"
-              } border border-[var(--border-default)]`}
+                  ? "bg-[var(--color-scope-active-bg)] border-[var(--color-claude-coral)]/40"
+                  : "bg-[var(--color-section-bg)] border-[var(--border-default)]"
+              }`}
             >
               <div className="text-[10px] text-[var(--color-text-muted)] mb-0.5 flex items-center gap-1">
                 🌍 Global
@@ -1167,11 +1231,11 @@ export function ProfileSidePanel({
             </div>
             {/* Country Rank */}
             <div
-              className={`col-span-2 p-3 rounded-lg transition-all ${
+              className={`col-span-2 p-3 rounded-lg transition-all border ${
                 scopeFilter === "country"
-                  ? "bg-primary/10 ring-1 ring-primary/30"
-                  : "bg-[var(--color-section-bg)]"
-              } border border-[var(--border-default)]`}
+                  ? "bg-[var(--color-scope-active-bg)] border-[var(--color-claude-coral)]/40"
+                  : "bg-[var(--color-section-bg)] border-[var(--border-default)]"
+              }`}
             >
               <div className="text-[10px] text-[var(--color-text-muted)] mb-0.5 flex items-center gap-1">
                 {currentUser.country_code && (

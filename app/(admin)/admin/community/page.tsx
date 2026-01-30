@@ -2,7 +2,17 @@
 
 import { useState, useEffect, useCallback } from "react";
 import Image from "next/image";
-import { Search, Eye, EyeOff, RefreshCw, MessageSquare, Heart, Trash2 } from "lucide-react";
+import {
+  Search,
+  Eye,
+  EyeOff,
+  RefreshCw,
+  MessageSquare,
+  Heart,
+  Trash2,
+  FileText,
+  Filter,
+} from "lucide-react";
 
 // =====================================================
 // Types
@@ -15,48 +25,24 @@ interface Author {
   avatar_url: string | null;
 }
 
-interface Post {
+interface TimelineItem {
+  type: "post" | "comment" | "deletion";
   id: string;
   content: string;
-  tab: string;
-  likes_count: number;
-  comments_count: number;
   created_at: string;
   deleted_at: string | null;
-  author: Author;
-}
-
-interface Comment {
-  id: string;
-  content: string;
-  post_id: string;
-  parent_comment_id: string | null;
-  likes_count: number;
-  created_at: string;
-  deleted_at: string | null;
-  author: Author;
-}
-
-interface DeletionLog {
-  id: string;
-  content_type: "post" | "comment";
-  content_id: string;
-  content_snapshot: {
-    content: string;
+  author: Author | null;
+  extra: {
     tab?: string;
-    likes_count: number;
+    likes_count?: number;
     comments_count?: number;
-    replies_count?: number;
-  };
-  deleted_by: string;
-  deleted_by_role: "owner" | "admin";
-  cascade_deleted_comments?: number;
-  cascade_deleted_replies?: number;
-  reason?: string;
-  created_at: string;
-  deleted_by_user?: {
-    username: string;
-    display_name: string | null;
+    post_id?: string;
+    parent_comment_id?: string;
+    content_type?: "post" | "comment";
+    deleted_by_role?: "owner" | "admin";
+    cascade_deleted_comments?: number;
+    cascade_deleted_replies?: number;
+    reason?: string;
   };
 }
 
@@ -68,59 +54,72 @@ interface Stats {
   deletedComments: number;
 }
 
-type TabView = "overview" | "posts" | "comments" | "deletions";
+type TypeFilter = "all" | "post" | "comment" | "deletion";
 
 // =====================================================
-// Admin Community Page
+// Admin Community Page (Timeline View)
 // =====================================================
 
 export default function AdminCommunityPage() {
-  const [tab, setTab] = useState<TabView>("overview");
   const [stats, setStats] = useState<Stats | null>(null);
-  const [recentDeletions, setRecentDeletions] = useState<DeletionLog[]>([]);
-  const [posts, setPosts] = useState<Post[]>([]);
-  const [comments, setComments] = useState<Comment[]>([]);
-  const [deletions, setDeletions] = useState<DeletionLog[]>([]);
+  const [timeline, setTimeline] = useState<TimelineItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
-  const [includeDeleted, setIncludeDeleted] = useState(false);
+  const [searchInput, setSearchInput] = useState("");
+  const [typeFilter, setTypeFilter] = useState<TypeFilter>("all");
+  const [includeDeleted, setIncludeDeleted] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
 
-  // Fetch data based on current tab
-  const fetchData = useCallback(async () => {
+  // Fetch stats
+  const fetchStats = useCallback(async () => {
+    try {
+      const response = await fetch("/api/admin/community?view=overview");
+      if (response.ok) {
+        const data = await response.json();
+        setStats(data.stats);
+      }
+    } catch (error) {
+      console.error("Error fetching stats:", error);
+    }
+  }, []);
+
+  // Fetch timeline data
+  const fetchTimeline = useCallback(async () => {
     setLoading(true);
     try {
       const params = new URLSearchParams({
-        view: tab,
+        view: "timeline",
+        type: typeFilter,
         includeDeleted: includeDeleted.toString(),
         search,
+        limit: "100",
       });
 
       const response = await fetch(`/api/admin/community?${params}`);
-      if (!response.ok) throw new Error("Failed to fetch");
-
-      const data = await response.json();
-
-      if (tab === "overview") {
-        setStats(data.stats);
-        setRecentDeletions(data.recentDeletions || []);
-      } else if (tab === "posts") {
-        setPosts(data.posts || []);
-      } else if (tab === "comments") {
-        setComments(data.comments || []);
-      } else if (tab === "deletions") {
-        setDeletions(data.deletions || []);
+      if (response.ok) {
+        const data = await response.json();
+        setTimeline(data.timeline || []);
       }
     } catch (error) {
-      console.error("Error fetching data:", error);
+      console.error("Error fetching timeline:", error);
     } finally {
       setLoading(false);
     }
-  }, [tab, includeDeleted, search]);
+  }, [typeFilter, includeDeleted, search]);
 
   useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+    fetchStats();
+  }, [fetchStats]);
+
+  useEffect(() => {
+    fetchTimeline();
+  }, [fetchTimeline]);
+
+  // Handle search submit
+  const handleSearchSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setSearch(searchInput);
+  };
 
   // Hide/Restore action
   const handleAction = async (type: "post" | "comment", id: string, action: "hide" | "restore") => {
@@ -133,8 +132,8 @@ export default function AdminCommunityPage() {
       });
 
       if (response.ok) {
-        // Refresh data
-        fetchData();
+        fetchTimeline();
+        fetchStats();
       }
     } catch (error) {
       console.error("Action failed:", error);
@@ -154,7 +153,7 @@ export default function AdminCommunityPage() {
     if (hours < 1) return "방금 전";
     if (hours < 24) return `${hours}시간 전`;
     if (days < 7) return `${days}일 전`;
-    return d.toLocaleDateString("ko-KR");
+    return d.toLocaleDateString("ko-KR", { month: "short", day: "numeric" });
   };
 
   // Truncate content
@@ -163,345 +162,280 @@ export default function AdminCommunityPage() {
     return text.slice(0, length) + "...";
   };
 
+  // Get type badge config
+  const getTypeBadge = (item: TimelineItem) => {
+    if (item.type === "post") {
+      return {
+        icon: <FileText size={10} />,
+        label: "게시물",
+        bg: "bg-blue-500/20",
+        text: "text-blue-400",
+      };
+    }
+    if (item.type === "comment") {
+      return {
+        icon: <MessageSquare size={10} />,
+        label: item.extra.parent_comment_id ? "대댓글" : "댓글",
+        bg: "bg-emerald-500/20",
+        text: "text-emerald-400",
+      };
+    }
+    return {
+      icon: <Trash2 size={10} />,
+      label: `${item.extra.content_type === "post" ? "게시물" : "댓글"} 삭제`,
+      bg: "bg-rose-500/20",
+      text: "text-rose-400",
+    };
+  };
+
   return (
-    <div className="p-6 space-y-6">
+    <div className="space-y-5 max-w-6xl">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold text-white">Community 관리</h1>
+        <div>
+          <h1 className="text-lg font-semibold text-white">Community 관리</h1>
+          <p className="text-[12px] text-white/50 mt-0.5">
+            전체 활동 타임라인 · 게시물, 댓글, 삭제 기록 통합 관리
+          </p>
+        </div>
         <button
-          onClick={fetchData}
-          className="flex items-center gap-2 px-3 py-1.5 text-sm text-white/70 hover:text-white bg-white/5 hover:bg-white/10 rounded-lg transition-colors"
+          onClick={() => {
+            fetchStats();
+            fetchTimeline();
+          }}
+          className="flex items-center gap-2 px-3 py-1.5 text-[12px] text-white/70 hover:text-white bg-[#161616] border border-white/[0.06] hover:border-white/10 rounded-lg transition-colors"
         >
           <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
           새로고침
         </button>
       </div>
 
-      {/* Tabs */}
-      <div className="flex gap-1 p-1 bg-white/5 rounded-lg w-fit">
-        {(["overview", "posts", "comments", "deletions"] as TabView[]).map((t) => (
-          <button
-            key={t}
-            onClick={() => setTab(t)}
-            className={`px-4 py-1.5 text-sm rounded-md transition-colors ${
-              tab === t
-                ? "bg-[var(--color-claude-coral)] text-white"
-                : "text-white/60 hover:text-white hover:bg-white/5"
-            }`}
-          >
-            {t === "overview" && "Overview"}
-            {t === "posts" && "Posts"}
-            {t === "comments" && "Comments"}
-            {t === "deletions" && "삭제 기록"}
-          </button>
-        ))}
-      </div>
+      {/* Stats Grid */}
+      {stats && (
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+          <StatCard label="전체 Posts" value={stats.totalPosts} icon="📝" />
+          <StatCard label="전체 Comments" value={stats.totalComments} icon="💬" />
+          <StatCard label="오늘 Posts" value={stats.todayPosts} icon="✨" highlight />
+          <StatCard label="삭제 대기 (Posts)" value={stats.deletedPosts} icon="🗑️" muted />
+          <StatCard label="삭제 대기 (Comments)" value={stats.deletedComments} icon="🗑️" muted />
+        </div>
+      )}
 
-      {/* Search & Filters (for posts/comments) */}
-      {(tab === "posts" || tab === "comments") && (
-        <div className="flex items-center gap-4">
-          <div className="relative flex-1 max-w-md">
-            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/40" />
+      {/* Filters */}
+      <div className="bg-[#161616] rounded-lg p-3 border border-white/[0.06]">
+        <div className="flex flex-wrap items-center gap-3">
+          {/* Search */}
+          <form onSubmit={handleSearchSubmit} className="relative flex-1 min-w-[200px] max-w-md">
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/40" />
             <input
               type="text"
-              placeholder="검색..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white text-sm placeholder:text-white/40 focus:outline-none focus:border-[var(--color-claude-coral)]/50"
+              placeholder="내용 또는 닉네임 검색..."
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
+              className="w-full pl-9 pr-4 py-2 bg-white/5 border border-white/[0.06] rounded-lg text-white text-[12px] placeholder:text-white/40 focus:outline-none focus:border-white/20"
             />
+          </form>
+
+          {/* Type Filter */}
+          <div className="flex items-center gap-1.5">
+            <Filter size={12} className="text-white/40" />
+            <div className="flex gap-1 p-0.5 bg-white/5 rounded-lg">
+              {(["all", "post", "comment", "deletion"] as TypeFilter[]).map((t) => (
+                <button
+                  key={t}
+                  onClick={() => setTypeFilter(t)}
+                  className={`px-2.5 py-1 text-[11px] rounded transition-colors ${
+                    typeFilter === t
+                      ? "bg-[var(--color-claude-coral)] text-white"
+                      : "text-white/50 hover:text-white hover:bg-white/5"
+                  }`}
+                >
+                  {t === "all" && "전체"}
+                  {t === "post" && "게시물"}
+                  {t === "comment" && "댓글"}
+                  {t === "deletion" && "삭제기록"}
+                </button>
+              ))}
+            </div>
           </div>
-          <label className="flex items-center gap-2 text-sm text-white/70 cursor-pointer">
+
+          {/* Include Deleted Toggle */}
+          <label className="flex items-center gap-2 text-[11px] text-white/60 cursor-pointer ml-auto">
             <input
               type="checkbox"
               checked={includeDeleted}
               onChange={(e) => setIncludeDeleted(e.target.checked)}
-              className="rounded border-white/20"
+              className="rounded border-white/20 bg-white/5 text-[var(--color-claude-coral)] focus:ring-0 focus:ring-offset-0"
             />
-            삭제된 항목 포함
+            숨김 포함
           </label>
         </div>
-      )}
+      </div>
 
-      {/* Content */}
-      {loading ? (
-        <div className="flex items-center justify-center py-20">
-          <div className="w-6 h-6 border-2 border-[var(--color-claude-coral)] border-t-transparent rounded-full animate-spin" />
-        </div>
-      ) : (
-        <>
-          {/* Overview Tab */}
-          {tab === "overview" && stats && (
-            <div className="space-y-6">
-              {/* Stats Grid */}
-              <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-                <StatCard label="전체 Posts" value={stats.totalPosts} icon="📝" />
-                <StatCard label="전체 Comments" value={stats.totalComments} icon="💬" />
-                <StatCard label="오늘 Posts" value={stats.todayPosts} icon="✨" highlight />
-                <StatCard label="삭제 대기 (Posts)" value={stats.deletedPosts} icon="🗑️" muted />
-                <StatCard
-                  label="삭제 대기 (Comments)"
-                  value={stats.deletedComments}
-                  icon="🗑️"
-                  muted
-                />
-              </div>
+      {/* Timeline */}
+      <div className="bg-[#161616] rounded-lg border border-white/[0.06] overflow-hidden">
+        {loading ? (
+          <div className="flex items-center justify-center py-16">
+            <div className="w-6 h-6 border-2 border-[var(--color-claude-coral)] border-t-transparent rounded-full animate-spin" />
+          </div>
+        ) : timeline.length === 0 ? (
+          <div className="py-16 text-center">
+            <div className="text-white/30 text-[13px]">
+              {search ? "검색 결과가 없습니다" : "활동 기록이 없습니다"}
+            </div>
+          </div>
+        ) : (
+          <div className="divide-y divide-white/[0.04]">
+            {timeline.map((item) => {
+              const badge = getTypeBadge(item);
+              const isDeleted = item.deleted_at !== null;
 
-              {/* Recent Deletions */}
-              <div className="bg-white/5 rounded-xl p-4">
-                <h3 className="text-sm font-medium text-white mb-4 flex items-center gap-2">
-                  <Trash2 size={14} />
-                  최근 삭제 기록
-                </h3>
-                {recentDeletions.length === 0 ? (
-                  <p className="text-sm text-white/40 py-4 text-center">삭제 기록이 없습니다</p>
-                ) : (
-                  <div className="space-y-2">
-                    {recentDeletions.slice(0, 5).map((log) => (
-                      <DeletionLogRow
-                        key={log.id}
-                        log={log}
-                        formatDate={formatDate}
-                        truncate={truncate}
+              return (
+                <div
+                  key={`${item.type}-${item.id}`}
+                  className={`flex items-start gap-3 px-4 py-3 hover:bg-white/[0.02] transition-colors ${
+                    isDeleted ? "opacity-50" : ""
+                  }`}
+                >
+                  {/* Avatar */}
+                  <div className="flex-shrink-0">
+                    {item.author?.avatar_url ? (
+                      <Image
+                        src={item.author.avatar_url}
+                        alt=""
+                        width={32}
+                        height={32}
+                        className="w-8 h-8 rounded-full"
                       />
-                    ))}
+                    ) : (
+                      <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center text-[11px] text-white/40">
+                        {item.author?.username?.charAt(0).toUpperCase() || "?"}
+                      </div>
+                    )}
                   </div>
-                )}
-              </div>
-            </div>
-          )}
 
-          {/* Posts Tab */}
-          {tab === "posts" && (
-            <div className="bg-white/5 rounded-xl overflow-hidden">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b border-white/10">
-                    <th className="text-left text-xs text-white/50 font-medium px-4 py-3">
-                      작성자
-                    </th>
-                    <th className="text-left text-xs text-white/50 font-medium px-4 py-3">내용</th>
-                    <th className="text-left text-xs text-white/50 font-medium px-4 py-3">탭</th>
-                    <th className="text-left text-xs text-white/50 font-medium px-4 py-3">반응</th>
-                    <th className="text-left text-xs text-white/50 font-medium px-4 py-3">
-                      작성일
-                    </th>
-                    <th className="text-left text-xs text-white/50 font-medium px-4 py-3">액션</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {posts.length === 0 ? (
-                    <tr>
-                      <td colSpan={6} className="text-center text-white/40 py-8">
-                        게시물이 없습니다
-                      </td>
-                    </tr>
-                  ) : (
-                    posts.map((post) => (
-                      <tr
-                        key={post.id}
-                        className={`border-b border-white/5 hover:bg-white/5 ${
-                          post.deleted_at ? "opacity-50" : ""
+                  {/* Content */}
+                  <div className="flex-1 min-w-0">
+                    {/* Header */}
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="text-[12px] font-medium text-white/80">
+                        {item.author?.display_name || item.author?.username || "알 수 없음"}
+                      </span>
+                      <span className="text-[10px] text-white/40">
+                        @{item.author?.username || "unknown"}
+                      </span>
+                      <span
+                        className={`flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] ${badge.bg} ${badge.text}`}
+                      >
+                        {badge.icon}
+                        {badge.label}
+                      </span>
+                      {item.type === "deletion" && item.extra.deleted_by_role && (
+                        <span
+                          className={`px-1.5 py-0.5 rounded text-[9px] ${
+                            item.extra.deleted_by_role === "admin"
+                              ? "bg-rose-500/20 text-rose-400"
+                              : "bg-white/10 text-white/50"
+                          }`}
+                        >
+                          {item.extra.deleted_by_role === "admin" ? "Admin" : "본인"}
+                        </span>
+                      )}
+                      {item.extra.tab && (
+                        <span className="px-1.5 py-0.5 rounded text-[9px] bg-white/10 text-white/50">
+                          #{item.extra.tab}
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Body */}
+                    <p className="text-[12px] text-white/60 mb-1.5 leading-relaxed">
+                      {truncate(item.content, 150)}
+                    </p>
+
+                    {/* Footer */}
+                    <div className="flex items-center gap-3 text-[10px] text-white/40">
+                      <span>{formatDate(item.created_at)}</span>
+
+                      {item.type !== "deletion" && (
+                        <>
+                          {item.extra.likes_count !== undefined && (
+                            <span className="flex items-center gap-1">
+                              <Heart size={10} /> {item.extra.likes_count}
+                            </span>
+                          )}
+                          {item.extra.comments_count !== undefined && (
+                            <span className="flex items-center gap-1">
+                              <MessageSquare size={10} /> {item.extra.comments_count}
+                            </span>
+                          )}
+                        </>
+                      )}
+
+                      {item.type === "deletion" && (
+                        <>
+                          {(item.extra.cascade_deleted_comments || 0) > 0 && (
+                            <span className="text-amber-400">
+                              +{item.extra.cascade_deleted_comments} 댓글 연쇄삭제
+                            </span>
+                          )}
+                          {(item.extra.cascade_deleted_replies || 0) > 0 && (
+                            <span className="text-amber-400">
+                              +{item.extra.cascade_deleted_replies} 대댓글 연쇄삭제
+                            </span>
+                          )}
+                          {item.extra.reason && (
+                            <span className="text-white/30">사유: {item.extra.reason}</span>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Actions (only for posts/comments, not deletions) */}
+                  {item.type !== "deletion" && (
+                    <div className="flex-shrink-0">
+                      <button
+                        onClick={() =>
+                          handleAction(
+                            item.type as "post" | "comment",
+                            item.id,
+                            isDeleted ? "restore" : "hide"
+                          )
+                        }
+                        disabled={actionLoading === item.id}
+                        className={`flex items-center gap-1 px-2 py-1 text-[10px] rounded transition-colors ${
+                          isDeleted
+                            ? "text-emerald-400 hover:bg-emerald-500/10"
+                            : "text-rose-400 hover:bg-rose-500/10"
                         }`}
                       >
-                        <td className="px-4 py-3">
-                          <div className="flex items-center gap-2">
-                            {post.author.avatar_url ? (
-                              <Image
-                                src={post.author.avatar_url}
-                                alt=""
-                                width={24}
-                                height={24}
-                                className="w-6 h-6 rounded-full"
-                              />
-                            ) : (
-                              <div className="w-6 h-6 rounded-full bg-white/10" />
-                            )}
-                            <span className="text-sm text-white/80">{post.author.username}</span>
-                          </div>
-                        </td>
-                        <td className="px-4 py-3">
-                          <span className="text-sm text-white/70">
-                            {truncate(post.content, 50)}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3">
-                          <span className="text-xs px-2 py-0.5 rounded bg-white/10 text-white/60">
-                            {post.tab}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3">
-                          <div className="flex items-center gap-3 text-xs text-white/50">
-                            <span className="flex items-center gap-1">
-                              <Heart size={12} /> {post.likes_count}
-                            </span>
-                            <span className="flex items-center gap-1">
-                              <MessageSquare size={12} /> {post.comments_count}
-                            </span>
-                          </div>
-                        </td>
-                        <td className="px-4 py-3 text-xs text-white/50">
-                          {formatDate(post.created_at)}
-                        </td>
-                        <td className="px-4 py-3">
-                          <button
-                            onClick={() =>
-                              handleAction("post", post.id, post.deleted_at ? "restore" : "hide")
-                            }
-                            disabled={actionLoading === post.id}
-                            className={`flex items-center gap-1 px-2 py-1 text-xs rounded transition-colors ${
-                              post.deleted_at
-                                ? "text-emerald-400 hover:bg-emerald-500/10"
-                                : "text-rose-400 hover:bg-rose-500/10"
-                            }`}
-                          >
-                            {actionLoading === post.id ? (
-                              <RefreshCw size={12} className="animate-spin" />
-                            ) : post.deleted_at ? (
-                              <>
-                                <Eye size={12} /> 복구
-                              </>
-                            ) : (
-                              <>
-                                <EyeOff size={12} /> 숨김
-                              </>
-                            )}
-                          </button>
-                        </td>
-                      </tr>
-                    ))
+                        {actionLoading === item.id ? (
+                          <RefreshCw size={12} className="animate-spin" />
+                        ) : isDeleted ? (
+                          <>
+                            <Eye size={12} /> 복구
+                          </>
+                        ) : (
+                          <>
+                            <EyeOff size={12} /> 숨김
+                          </>
+                        )}
+                      </button>
+                    </div>
                   )}
-                </tbody>
-              </table>
-            </div>
-          )}
-
-          {/* Comments Tab */}
-          {tab === "comments" && (
-            <div className="bg-white/5 rounded-xl overflow-hidden">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b border-white/10">
-                    <th className="text-left text-xs text-white/50 font-medium px-4 py-3">
-                      작성자
-                    </th>
-                    <th className="text-left text-xs text-white/50 font-medium px-4 py-3">내용</th>
-                    <th className="text-left text-xs text-white/50 font-medium px-4 py-3">유형</th>
-                    <th className="text-left text-xs text-white/50 font-medium px-4 py-3">
-                      좋아요
-                    </th>
-                    <th className="text-left text-xs text-white/50 font-medium px-4 py-3">
-                      작성일
-                    </th>
-                    <th className="text-left text-xs text-white/50 font-medium px-4 py-3">액션</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {comments.length === 0 ? (
-                    <tr>
-                      <td colSpan={6} className="text-center text-white/40 py-8">
-                        댓글이 없습니다
-                      </td>
-                    </tr>
-                  ) : (
-                    comments.map((comment) => (
-                      <tr
-                        key={comment.id}
-                        className={`border-b border-white/5 hover:bg-white/5 ${
-                          comment.deleted_at ? "opacity-50" : ""
-                        }`}
-                      >
-                        <td className="px-4 py-3">
-                          <div className="flex items-center gap-2">
-                            {comment.author.avatar_url ? (
-                              <Image
-                                src={comment.author.avatar_url}
-                                alt=""
-                                width={24}
-                                height={24}
-                                className="w-6 h-6 rounded-full"
-                              />
-                            ) : (
-                              <div className="w-6 h-6 rounded-full bg-white/10" />
-                            )}
-                            <span className="text-sm text-white/80">{comment.author.username}</span>
-                          </div>
-                        </td>
-                        <td className="px-4 py-3">
-                          <span className="text-sm text-white/70">
-                            {truncate(comment.content, 60)}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3">
-                          <span className="text-xs text-white/50">
-                            {comment.parent_comment_id ? "대댓글" : "댓글"}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3">
-                          <span className="flex items-center gap-1 text-xs text-white/50">
-                            <Heart size={12} /> {comment.likes_count}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 text-xs text-white/50">
-                          {formatDate(comment.created_at)}
-                        </td>
-                        <td className="px-4 py-3">
-                          <button
-                            onClick={() =>
-                              handleAction(
-                                "comment",
-                                comment.id,
-                                comment.deleted_at ? "restore" : "hide"
-                              )
-                            }
-                            disabled={actionLoading === comment.id}
-                            className={`flex items-center gap-1 px-2 py-1 text-xs rounded transition-colors ${
-                              comment.deleted_at
-                                ? "text-emerald-400 hover:bg-emerald-500/10"
-                                : "text-rose-400 hover:bg-rose-500/10"
-                            }`}
-                          >
-                            {actionLoading === comment.id ? (
-                              <RefreshCw size={12} className="animate-spin" />
-                            ) : comment.deleted_at ? (
-                              <>
-                                <Eye size={12} /> 복구
-                              </>
-                            ) : (
-                              <>
-                                <EyeOff size={12} /> 숨김
-                              </>
-                            )}
-                          </button>
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-          )}
-
-          {/* Deletions Tab */}
-          {tab === "deletions" && (
-            <div className="bg-white/5 rounded-xl p-4">
-              {deletions.length === 0 ? (
-                <p className="text-sm text-white/40 py-8 text-center">삭제 기록이 없습니다</p>
-              ) : (
-                <div className="space-y-3">
-                  {deletions.map((log) => (
-                    <DeletionLogRow
-                      key={log.id}
-                      log={log}
-                      formatDate={formatDate}
-                      truncate={truncate}
-                      expanded
-                    />
-                  ))}
                 </div>
-              )}
-            </div>
-          )}
-        </>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* Results count */}
+      {!loading && timeline.length > 0 && (
+        <div className="text-[11px] text-white/40 text-center">
+          {timeline.length}개의 항목 표시됨
+        </div>
       )}
     </div>
   );
@@ -526,75 +460,17 @@ function StatCard({
 }) {
   return (
     <div
-      className={`p-4 rounded-xl ${
+      className={`p-3 rounded-lg border ${
         highlight
-          ? "bg-[var(--color-claude-coral)]/10 border border-[var(--color-claude-coral)]/20"
-          : "bg-white/5"
+          ? "bg-[var(--color-claude-coral)]/10 border-[var(--color-claude-coral)]/20"
+          : "bg-[#161616] border-white/[0.06]"
       }`}
     >
-      <div className="flex items-center gap-2 mb-2">
-        <span>{icon}</span>
-        <span className={`text-xs ${muted ? "text-white/40" : "text-white/60"}`}>{label}</span>
+      <div className="flex items-center gap-1.5 mb-1">
+        <span className="text-sm">{icon}</span>
+        <span className={`text-[10px] ${muted ? "text-white/30" : "text-white/50"}`}>{label}</span>
       </div>
-      <p className={`text-2xl font-semibold ${muted ? "text-white/40" : "text-white"}`}>{value}</p>
-    </div>
-  );
-}
-
-function DeletionLogRow({
-  log,
-  formatDate,
-  truncate,
-  expanded,
-}: {
-  log: DeletionLog;
-  formatDate: (d: string) => string;
-  truncate: (t: string, l: number) => string;
-  expanded?: boolean;
-}) {
-  return (
-    <div className="flex items-start gap-3 p-3 rounded-lg bg-white/5 hover:bg-white/[0.07] transition-colors">
-      <div
-        className={`w-8 h-8 rounded-full flex items-center justify-center text-xs ${
-          log.content_type === "post"
-            ? "bg-rose-500/20 text-rose-400"
-            : "bg-amber-500/20 text-amber-400"
-        }`}
-      >
-        {log.content_type === "post" ? "📝" : "💬"}
-      </div>
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2 mb-1">
-          <span className="text-xs text-white/50">
-            {log.content_type === "post" ? "게시물" : "댓글"} 삭제
-          </span>
-          <span
-            className={`text-[10px] px-1.5 py-0.5 rounded ${
-              log.deleted_by_role === "admin"
-                ? "bg-rose-500/20 text-rose-400"
-                : "bg-emerald-500/20 text-emerald-400"
-            }`}
-          >
-            {log.deleted_by_role === "admin" ? "Admin" : "본인"}
-          </span>
-          {log.deleted_by_user && (
-            <span className="text-xs text-white/40">by @{log.deleted_by_user.username}</span>
-          )}
-        </div>
-        <p className="text-sm text-white/70 mb-1">
-          {truncate(log.content_snapshot.content, expanded ? 200 : 80)}
-        </p>
-        <div className="flex items-center gap-3 text-[10px] text-white/40">
-          <span>{formatDate(log.created_at)}</span>
-          {(log.cascade_deleted_comments || 0) > 0 && (
-            <span className="text-amber-400">+{log.cascade_deleted_comments} 댓글 연쇄삭제</span>
-          )}
-          {(log.cascade_deleted_replies || 0) > 0 && (
-            <span className="text-amber-400">+{log.cascade_deleted_replies} 대댓글 연쇄삭제</span>
-          )}
-          {log.reason && <span className="text-white/30">사유: {log.reason}</span>}
-        </div>
-      </div>
+      <p className={`text-xl font-semibold ${muted ? "text-white/30" : "text-white"}`}>{value}</p>
     </div>
   );
 }

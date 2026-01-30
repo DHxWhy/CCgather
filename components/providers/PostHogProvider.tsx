@@ -2,8 +2,9 @@
 
 import posthog from "posthog-js";
 import { PostHogProvider as PHProvider, usePostHog } from "posthog-js/react";
-import { usePathname, useSearchParams } from "next/navigation";
-import { useEffect, Suspense } from "react";
+import { usePathname } from "next/navigation";
+import { useEffect } from "react";
+import { useUser } from "@clerk/nextjs";
 
 // PostHog 초기화 상태 (향후 상태 체크용)
 export let isPostHogInitialized = false;
@@ -61,34 +62,63 @@ if (typeof window !== "undefined") {
   }
 }
 
-// 페이지뷰 추적 컴포넌트
+// 페이지뷰 추적 컴포넌트 (Suspense 불필요 - window.location 직접 사용)
 function PostHogPageView() {
   const pathname = usePathname();
-  const searchParams = useSearchParams();
-  const posthog = usePostHog();
+  const posthogClient = usePostHog();
 
   useEffect(() => {
-    if (pathname && posthog) {
+    if (pathname && posthogClient) {
+      // window.location.search를 직접 사용하여 Suspense 트리거 방지
+      const searchParams = new URLSearchParams(window.location.search);
       let url = window.origin + pathname;
       if (searchParams.toString()) {
         url = url + `?${searchParams.toString()}`;
       }
-      posthog.capture("$pageview", {
+      posthogClient.capture("$pageview", {
         $current_url: url,
       });
     }
-  }, [pathname, searchParams, posthog]);
+  }, [pathname, posthogClient]);
 
   return null;
 }
 
-// 메인 Provider (Clerk 독립적)
+// 사용자 식별 컴포넌트 - PostHogProvider 내부에서만 사용
+// (이전에 ClerkProviderWrapper에 있었으나, usePostHog()는 PHProvider 내부에서 호출해야 함)
+function PostHogUserIdentify() {
+  const { user, isLoaded } = useUser();
+  const posthogClient = usePostHog();
+
+  useEffect(() => {
+    if (!isLoaded || !posthogClient) return;
+
+    if (user) {
+      // 로그인한 사용자 식별
+      posthogClient.identify(user.id, {
+        email: user.primaryEmailAddress?.emailAddress,
+        username: user.username,
+        name: user.fullName,
+        avatar: user.imageUrl,
+        created_at: user.createdAt?.toISOString(),
+      });
+    } else {
+      // 로그아웃 시 리셋
+      posthogClient.reset();
+    }
+  }, [user, isLoaded, posthogClient]);
+
+  return null;
+}
+
+// 메인 Provider
+// Suspense 제거 - useSearchParams 대신 window.location.search 사용으로 불필요
+// PostHogUserIdentify도 여기서 렌더링 (usePostHog()는 PHProvider 내부에서만 작동)
 export function PostHogProvider({ children }: { children: React.ReactNode }) {
   return (
     <PHProvider client={posthog}>
-      <Suspense fallback={null}>
-        <PostHogPageView />
-      </Suspense>
+      <PostHogPageView />
+      <PostHogUserIdentify />
       {children}
     </PHProvider>
   );

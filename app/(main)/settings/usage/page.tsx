@@ -131,11 +131,11 @@ export default function SettingsUsagePage() {
           total_cost: meData.user.total_cost || 0,
         });
 
-        // Fetch all history (use large number to get everything)
-        const historyRes = await fetch(`/api/users/${meData.user.id}/history?days=3650`);
-        if (historyRes.ok) {
-          const historyData = await historyRes.json();
-          setHistory(historyData.history || []);
+        // Fetch usage data from centralized usage-summary API
+        const usageSummaryRes = await fetch(`/api/users/${meData.user.id}/usage-summary?days=3650`);
+        if (usageSummaryRes.ok) {
+          const summaryData = await usageSummaryRes.json();
+          setHistory(summaryData.daily || []);
         }
       } catch (error) {
         console.error("Failed to fetch data:", error);

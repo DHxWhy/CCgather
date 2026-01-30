@@ -105,14 +105,3 @@ export function getLevelByTokens(tokens: number): Level {
 export function getLevelByNumber(levelNum: number): Level {
   return LEVELS[levelNum - 1] ?? LEVELS[0]!;
 }
-
-export function getProgressToNextLevel(tokens: number): number {
-  const current = getLevelByTokens(tokens);
-  if (current.level === 10) return 100;
-
-  const next = LEVELS[current.level];
-  if (!next) return 100;
-
-  const progress = ((tokens - current.minTokens) / (next.minTokens - current.minTokens)) * 100;
-  return Math.min(Math.max(progress, 0), 100);
-}

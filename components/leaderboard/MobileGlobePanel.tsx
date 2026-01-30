@@ -5,7 +5,8 @@ import dynamic from "next/dynamic";
 import { FlagIcon } from "@/components/ui/FlagIcon";
 import { TopCountriesSection, TopCountriesSectionRef } from "./TopCountriesSection";
 import type { CountryStat } from "./TopCountriesSection";
-import HallOfFame from "@/components/community/HallOfFame";
+import HallOfFame, { type HallOfFamePeriod } from "@/components/community/HallOfFame";
+import CommunityCountryStats from "@/components/community/CommunityCountryStats";
 import AnimatedNumber from "@/components/ui/AnimatedNumber";
 
 // Format tokens for display
@@ -79,6 +80,9 @@ export function MobileGlobePanel({
 
   // Dynamic sizing based on screen dimensions (matching ProfileSidePanel behavior)
   const [globeSize, setGlobeSize] = useState(240);
+
+  // Community Stats period filter
+  const [communityStatsPeriod, setCommunityStatsPeriod] = useState<HallOfFamePeriod>("today");
 
   // Handle user country visibility change
   const handleUserCountryVisibilityChange = useCallback(
@@ -184,23 +188,43 @@ export function MobileGlobePanel({
       {/* Panel - matches ProfileSidePanel width behavior, starts below GNB */}
       <div
         ref={panelRef}
-        className={`fixed top-14 left-0 z-50 bg-[var(--color-bg-primary)] border-r border-[var(--border-default)] shadow-2xl transition-transform duration-300 ease-out md:hidden ${
+        className={`fixed top-12 left-0 z-50 bg-[var(--color-bg-primary)] border-r border-[var(--border-default)] shadow-2xl transition-transform duration-300 ease-out md:hidden ${
           isOpen ? "translate-x-0" : "-translate-x-full"
         }`}
         style={{
           width: "calc(100% - 56px)",
           maxWidth: "calc(100% - 56px)",
-          height: "calc(100% - 56px)",
+          height: "calc(100% - 48px)",
         }}
       >
         {/* Content - flex column to fill height */}
         <div className="h-full flex flex-col p-4 gap-4">
           {/* Title Section */}
           <div className="text-center pt-2 flex-shrink-0">
-            <h2 className="text-xl font-bold text-[var(--color-text-primary)] flex items-center justify-center gap-2">
-              <span>{viewMode === "community" ? "🏆" : "🌍"}</span>
-              {viewMode === "community" ? "Community Stats" : "Global Usage"}
-            </h2>
+            <div className="flex items-center justify-center gap-3">
+              <h2 className="text-xl font-bold text-[var(--color-text-primary)] flex items-center gap-2">
+                <span>{viewMode === "community" ? "🏆" : "🌍"}</span>
+                {viewMode === "community" ? "Community Stats" : "Global Usage"}
+              </h2>
+              {/* Period Filter for Community Mode */}
+              {viewMode === "community" && (
+                <div className="flex items-center h-[30px] glass rounded-lg overflow-hidden">
+                  {(["today", "weekly", "monthly"] as const).map((p) => (
+                    <button
+                      key={p}
+                      onClick={() => setCommunityStatsPeriod(p)}
+                      className={`h-[30px] px-2.5 text-[11px] font-medium transition-colors ${
+                        communityStatsPeriod === p
+                          ? "bg-[var(--color-claude-coral)]/50 text-[var(--color-claude-coral)]"
+                          : "text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-filter-hover)]"
+                      }`}
+                    >
+                      {p === "today" ? "1D" : p === "weekly" ? "7D" : "30D"}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
             <p className="text-sm text-[var(--color-text-muted)] mt-1">
               {viewMode === "community"
                 ? "Top contributors this period"
@@ -258,10 +282,21 @@ export function MobileGlobePanel({
                 </div>
               )}
               {/* Hall of Fame */}
-              <div className="glass rounded-xl border border-[var(--border-default)] p-4 flex-1">
+              <div className="glass rounded-xl border border-[var(--border-default)] p-4">
                 <HallOfFame
+                  period={communityStatsPeriod}
+                  hideHeader
                   onUserClick={onHallOfFameUserClick}
                   onPostClick={onHallOfFamePostClick}
+                />
+              </div>
+
+              {/* Top Countries by Community Activity */}
+              <div className="glass rounded-xl border border-[var(--border-default)] p-4 flex-1">
+                <CommunityCountryStats
+                  userCountryCode={userCountryCode}
+                  compact={true}
+                  maxItems={5}
                 />
               </div>
             </div>

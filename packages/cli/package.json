@@ -25,7 +25,7 @@
     "cli"
   ],
   "author": "",
-  "license": "UNLICENSED",
+  "license": "Apache-2.0",
   "dependencies": {
     "chalk": "^5.3.0",
     "commander": "^12.1.0",
@@ -50,6 +50,6 @@
   ],
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/DHxYoon/CCgather.git"
+    "url": "git+https://github.com/DHxWhy/CCgather.git"
   }
 }

@@ -20,17 +20,11 @@ import { useAuth } from "@clerk/nextjs";
 import { cn } from "@/lib/utils";
 import { ProfileSidePanel } from "@/components/leaderboard/ProfileSidePanel";
 import type { ToolWithInteraction } from "@/lib/types/tools";
-import type { LeaderboardUser } from "@/lib/types";
 import { CATEGORY_META, PRICING_META, isNewTool, isHotTool } from "@/lib/types/tools";
 
 // =====================================================
 // Types
 // =====================================================
-
-interface DisplayUser extends LeaderboardUser {
-  rank: number;
-  isCurrentUser?: boolean;
-}
 
 interface ToolDetailClientProps {
   initialTool: ToolWithInteraction | null;
@@ -90,9 +84,8 @@ export default function ToolDetailClient({ initialTool, slug }: ToolDetailClient
   const [isVoting, setIsVoting] = useState(false);
 
   // Profile Panel State
-  const [selectedUser, setSelectedUser] = useState<DisplayUser | null>(null);
+  const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [profilePanelOpen, setProfilePanelOpen] = useState(false);
-  const [loadingProfile, setLoadingProfile] = useState(false);
 
   // =====================================================
   // Data Fetching (for client-side interactions like vote status)
@@ -184,34 +177,14 @@ export default function ToolDetailClient({ initialTool, slug }: ToolDetailClient
     }
   };
 
-  const handleUserClick = async (userId: string) => {
-    if (loadingProfile) return;
-
-    setLoadingProfile(true);
+  const handleUserClick = (userId: string) => {
+    setSelectedUserId(userId);
     setProfilePanelOpen(true);
-
-    try {
-      const res = await fetch(`/api/users/${userId}/profile`);
-      if (!res.ok) throw new Error("Failed to fetch user profile");
-
-      const data = await res.json();
-      if (data.user) {
-        setSelectedUser({
-          ...data.user,
-          rank: data.user.global_rank || 0,
-        });
-      }
-    } catch (err) {
-      console.error("Error fetching user profile:", err);
-      setProfilePanelOpen(false);
-    } finally {
-      setLoadingProfile(false);
-    }
   };
 
   const handleCloseProfilePanel = () => {
     setProfilePanelOpen(false);
-    setTimeout(() => setSelectedUser(null), 300);
+    setTimeout(() => setSelectedUserId(null), 300);
   };
 
   // =====================================================
@@ -619,22 +592,12 @@ export default function ToolDetailClient({ initialTool, slug }: ToolDetailClient
 
       {/* Profile Side Panel */}
       <ProfileSidePanel
-        user={selectedUser}
+        userId={selectedUserId}
         isOpen={profilePanelOpen}
         onClose={handleCloseProfilePanel}
         periodFilter="all"
         scopeFilter="global"
       />
-
-      {/* Loading Overlay for Profile */}
-      {loadingProfile && profilePanelOpen && !selectedUser && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/20">
-          <div className="bg-[var(--color-bg-card)] rounded-lg p-4 shadow-xl flex items-center gap-3">
-            <Loader2 className="w-5 h-5 animate-spin text-[var(--color-claude-coral)]" />
-            <span className="text-sm text-[var(--color-text-secondary)]">Loading profile...</span>
-          </div>
-        </div>
-      )}
     </>
   );
 }

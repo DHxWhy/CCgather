@@ -306,9 +306,32 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Failed to fetch leaderboard" }, { status: 500 });
     }
 
+    // Fetch post counts for users
+    const userIds = (users || []).map((u) => u.id);
+    let usersWithPostCount = users || [];
+
+    if (userIds.length > 0) {
+      const { data: postCounts } = await supabase
+        .from("posts")
+        .select("author_id")
+        .in("author_id", userIds)
+        .is("deleted_at", null);
+
+      if (postCounts) {
+        const countMap = new Map<string, number>();
+        for (const post of postCounts) {
+          countMap.set(post.author_id, (countMap.get(post.author_id) || 0) + 1);
+        }
+        usersWithPostCount = (users || []).map((user) => ({
+          ...user,
+          post_count: countMap.get(user.id) || 0,
+        }));
+      }
+    }
+
     return NextResponse.json(
       {
-        users: users || [],
+        users: usersWithPostCount,
         pagination: {
           page,
           limit,
@@ -402,6 +425,24 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Failed to fetch users" }, { status: 500 });
   }
 
+  // Fetch post counts for users
+  const periodUserIds = (usersData || []).map((u) => u.id);
+  const postCountMap = new Map<string, number>();
+
+  if (periodUserIds.length > 0) {
+    const { data: postCounts } = await supabase
+      .from("posts")
+      .select("author_id")
+      .in("author_id", periodUserIds)
+      .is("deleted_at", null);
+
+    if (postCounts) {
+      for (const post of postCounts) {
+        postCountMap.set(post.author_id, (postCountMap.get(post.author_id) || 0) + 1);
+      }
+    }
+  }
+
   // Combine user data with period aggregates and sort
   const combinedUsers = (usersData || [])
     .map((user) => {
@@ -410,6 +451,7 @@ export async function GET(request: NextRequest) {
         ...user,
         period_tokens: aggregate.tokens,
         period_cost: aggregate.cost,
+        post_count: postCountMap.get(user.id) || 0,
       };
     })
     .sort((a, b) => {

@@ -142,11 +142,11 @@ export default function UsagePage() {
           total_cost: meData.user.total_cost || 0,
         });
 
-        // Fetch history (365 days)
-        const historyRes = await fetch(`/api/users/${meData.user.id}/history?days=365`);
-        if (historyRes.ok) {
-          const historyData = await historyRes.json();
-          setHistory(historyData.history || []);
+        // Fetch usage data from centralized usage-summary API
+        const usageSummaryRes = await fetch(`/api/users/${meData.user.id}/usage-summary?days=365`);
+        if (usageSummaryRes.ok) {
+          const summaryData = await usageSummaryRes.json();
+          setHistory(summaryData.daily || []);
         }
       } catch (error) {
         console.error("Failed to fetch data:", error);
@@ -268,7 +268,13 @@ export default function UsagePage() {
         <header className="flex items-center justify-between mb-3">
           {/* Left: Logo */}
           <Link href="/" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
-            <Image src="/logo.png" alt="CCgather" width={24} height={24} className="rounded-md" />
+            <Image
+              src="/logos/logo.png"
+              alt="CCgather"
+              width={24}
+              height={24}
+              className="rounded-md"
+            />
             <span className="text-sm font-bold text-white">CCgather</span>
           </Link>
 

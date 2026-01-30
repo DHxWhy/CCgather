@@ -13,9 +13,11 @@ import {
   Trash2,
   Loader2,
   MoreHorizontal,
+  X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { FlagIcon } from "@/components/ui/FlagIcon";
+import { TextShimmer } from "@/components/ui/TextShimmer";
 import LinkPreview from "./LinkPreview";
 import { getFirstEmbeddableUrl } from "@/lib/url-parser";
 
@@ -33,11 +35,16 @@ export interface FeedComment {
     current_level?: number;
   };
   content: string;
+  original_content?: string; // Original content before translation
+  translated_content?: string; // Translated content
+  is_translated?: boolean; // Whether this comment was translated
   created_at: string;
   parent_comment_id?: string | null;
   likes_count?: number;
   is_liked?: boolean;
   replies?: FeedComment[];
+  replies_count?: number; // Total replies count (for lazy loading)
+  replies_loaded?: boolean; // Whether replies have been loaded
 }
 
 export interface LikedByUser {
@@ -92,6 +99,8 @@ interface FeedCardProps {
   hideLevelBadge?: boolean; // Hide level badge for community mode (no rank display)
   variant?: "card" | "plain"; // card = bordered, plain = borderless (leaderboard style)
   isFeatured?: boolean; // Highlight style for Hall of Fame featured posts
+  // Translation state (managed by parent)
+  isTranslationPending?: boolean; // True when translation is being fetched via batch API
 }
 
 // ===========================================
@@ -145,6 +154,14 @@ const CommentItem = memo(function CommentItem({
   const [isDeleted, setIsDeleted] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+  // Local state for likes - enables optimistic updates
+  const [localLikesCount, setLocalLikesCount] = useState(comment.likes_count ?? 0);
+  const [localIsLiked, setLocalIsLiked] = useState(comment.is_liked ?? false);
+  const [isLiking, setIsLiking] = useState(false);
+  // Translation toggle state
+  const [showOriginal, setShowOriginal] = useState(false);
+  const isTranslated = comment.is_translated && comment.original_content;
+  const displayContent = showOriginal ? comment.original_content : comment.content;
 
   // Close menu on outside click
   useEffect(() => {
@@ -170,18 +187,47 @@ const CommentItem = memo(function CommentItem({
 
   const authorName = comment.author.display_name || comment.author.username;
   const avatarUrl = comment.author.avatar_url;
-  const likesCount = comment.likes_count ?? 0;
-  const isLiked = comment.is_liked ?? false;
   const hasParent = !!comment.parent_comment_id;
   const isOwner = currentUserId && comment.author.id === currentUserId;
 
-  const handleLikeClick = useCallback(() => {
+  const handleLikeClick = useCallback(async () => {
     if (!isSignedIn) {
       onLoginRequired?.("like");
       return;
     }
-    onCommentLike?.(comment.id);
-  }, [isSignedIn, onLoginRequired, onCommentLike, comment.id]);
+    if (isLiking) return;
+
+    // Optimistic update
+    const wasLiked = localIsLiked;
+    setLocalIsLiked(!wasLiked);
+    setLocalLikesCount((prev) => (wasLiked ? prev - 1 : prev + 1));
+    setIsLiking(true);
+
+    try {
+      const response = await fetch(`/api/community/comments/${comment.id}/like`, {
+        method: "POST",
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        // Sync with server response
+        setLocalIsLiked(data.liked);
+        setLocalLikesCount(data.likes_count);
+        onCommentLike?.(comment.id);
+      } else {
+        // Rollback on error
+        setLocalIsLiked(wasLiked);
+        setLocalLikesCount((prev) => (wasLiked ? prev + 1 : prev - 1));
+      }
+    } catch (error) {
+      console.error("Error liking comment:", error);
+      // Rollback on error
+      setLocalIsLiked(wasLiked);
+      setLocalLikesCount((prev) => (wasLiked ? prev + 1 : prev - 1));
+    } finally {
+      setIsLiking(false);
+    }
+  }, [isSignedIn, isLiking, localIsLiked, onLoginRequired, onCommentLike, comment.id]);
 
   const handleReplyClick = useCallback(() => {
     if (!isSignedIn) {
@@ -347,22 +393,24 @@ const CommentItem = memo(function CommentItem({
           )}
         </div>
         <p className={cn(textSize, "text-[var(--color-text-secondary)] leading-relaxed")}>
-          {comment.content}
+          {displayContent}
         </p>
         {/* Comment actions */}
         <div className="flex items-center gap-2 mt-0.5">
           <button
             onClick={handleLikeClick}
+            disabled={isLiking}
             className={cn(
               "flex items-center gap-1 transition-colors",
               isReply ? "text-[9px]" : "text-[10px]",
-              isLiked
+              localIsLiked
                 ? "text-[var(--color-accent-red)]"
-                : "text-[var(--color-text-muted)] hover:text-[var(--color-accent-red)]"
+                : "text-[var(--color-text-muted)] hover:text-[var(--color-accent-red)]",
+              isLiking && "opacity-50"
             )}
           >
-            <Heart size={iconSize} fill={isLiked ? "currentColor" : "none"} />
-            {likesCount > 0 && <span>{likesCount}</span>}
+            <Heart size={iconSize} fill={localIsLiked ? "currentColor" : "none"} />
+            {localLikesCount > 0 && <span>{localLikesCount}</span>}
           </button>
           {/* Reply button - only for top-level comments */}
           {!isReply && !hasParent && (
@@ -375,6 +423,22 @@ const CommentItem = memo(function CommentItem({
             >
               <Reply size={iconSize} />
               <span>답글</span>
+            </button>
+          )}
+          {/* Translation toggle - only show if comment is translated */}
+          {isTranslated && (
+            <button
+              onClick={() => setShowOriginal(!showOriginal)}
+              className={cn(
+                "flex items-center gap-1 transition-colors",
+                isReply ? "text-[9px]" : "text-[10px]",
+                showOriginal
+                  ? "text-[var(--color-accent-cyan)]"
+                  : "text-[var(--color-text-muted)] hover:text-[var(--color-accent-cyan)]"
+              )}
+              title={showOriginal ? "번역 보기" : "원문 보기"}
+            >
+              <Globe size={iconSize} />
             </button>
           )}
         </div>
@@ -422,8 +486,11 @@ function FeedCardComponent({
   hideLevelBadge = false,
   variant = "card",
   isFeatured = false,
+  isTranslationPending = false,
 }: FeedCardProps) {
   const [showOriginal, setShowOriginal] = useState(false);
+  // Use translated_content from parent (batch translation) instead of local fetch
+  const localTranslatedContent = post.translated_content;
   const [isLiked, setIsLiked] = useState(post.is_liked ?? false);
   const [likesCount, setLikesCount] = useState(post.likes_count);
   const [isHovered, setIsHovered] = useState(false);
@@ -440,6 +507,16 @@ function FeedCardComponent({
   const [commentsLoading, setCommentsLoading] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+  // Reply state
+  const [replyingTo, setReplyingTo] = useState<{ commentId: string; authorName: string } | null>(
+    null
+  );
+  const [replyText, setReplyText] = useState("");
+  const [isSubmittingReply, setIsSubmittingReply] = useState(false);
+  const replyInputRef = useRef<HTMLInputElement>(null);
+  // Replies expansion state (per comment)
+  const [expandedReplies, setExpandedReplies] = useState<Set<string>>(new Set());
+  const [loadingReplies, setLoadingReplies] = useState<Set<string>>(new Set());
 
   // Check if current user is the post author
   const isOwner = currentUserId && post.author.id === currentUserId;
@@ -485,12 +562,68 @@ function FeedCardComponent({
     }
   }, [commentsLoading, hasMoreComments, post.id]);
 
+  // Load replies for a specific comment
+  const loadReplies = useCallback(
+    async (commentId: string) => {
+      if (loadingReplies.has(commentId)) return;
+
+      setLoadingReplies((prev) => new Set(prev).add(commentId));
+      try {
+        const res = await fetch(`/api/community/comments/${commentId}/replies`);
+        const data = await res.json();
+        if (data.replies) {
+          // Update the comment's replies in localComments
+          setLocalComments((prev) =>
+            prev.map((c) =>
+              c.id === commentId ? { ...c, replies: data.replies, replies_loaded: true } : c
+            )
+          );
+        }
+      } catch (err) {
+        console.error("Failed to load replies:", err);
+      } finally {
+        setLoadingReplies((prev) => {
+          const next = new Set(prev);
+          next.delete(commentId);
+          return next;
+        });
+      }
+    },
+    [loadingReplies]
+  );
+
+  // Toggle replies visibility for a comment
+  const toggleReplies = useCallback(
+    (commentId: string, hasRepliesLoaded: boolean) => {
+      const isExpanded = expandedReplies.has(commentId);
+
+      if (isExpanded) {
+        // Collapse
+        setExpandedReplies((prev) => {
+          const next = new Set(prev);
+          next.delete(commentId);
+          return next;
+        });
+      } else {
+        // Expand
+        setExpandedReplies((prev) => new Set(prev).add(commentId));
+        // Load replies if not already loaded
+        if (!hasRepliesLoaded) {
+          loadReplies(commentId);
+        }
+      }
+    },
+    [expandedReplies, loadReplies]
+  );
+
   const displayName = post.author.display_name || post.author.username;
-  const displayContent = showOriginal ? post.content : post.translated_content || post.content;
-  const fromLangCode =
-    LANGUAGE_CODES[post.original_language] || post.original_language.toUpperCase();
-  const toLangCode = LANGUAGE_CODES[userLanguage] || userLanguage.toUpperCase();
-  const isSameLanguage = post.original_language === userLanguage;
+  const displayContent = showOriginal ? post.content : localTranslatedContent || post.content;
+  const hasTranslation = !!localTranslatedContent;
+  const originalLang = post.original_language || "en";
+  const fromLangCode = LANGUAGE_CODES[originalLang] || originalLang.toUpperCase();
+  const toLangCode = userLanguage ? LANGUAGE_CODES[userLanguage] || userLanguage.toUpperCase() : "";
+  // For guests (no userLanguage), treat as "same language" to skip translation
+  const isSameLanguage = !userLanguage || originalLang === userLanguage;
 
   // Extract embeddable URL from content
   const embeddedUrl = useMemo(() => {
@@ -634,6 +767,102 @@ function FeedCardComponent({
     onAuthorClick?.(post.author.id);
   }, [onAuthorClick, post.author.id]);
 
+  // Handle reply button click
+  const handleReplyClick = useCallback((commentId: string, authorName: string) => {
+    setReplyingTo({ commentId, authorName });
+    setReplyText(""); // Don't auto-fill @mention - cleaner UX
+    // Focus input after state update
+    setTimeout(() => replyInputRef.current?.focus(), 50);
+  }, []);
+
+  // Handle cancel reply
+  const handleCancelReply = useCallback(() => {
+    setReplyingTo(null);
+    setReplyText("");
+  }, []);
+
+  // Handle reply submit
+  const handleReplySubmit = useCallback(async () => {
+    if (!replyingTo || !replyText.trim() || isSubmittingReply) return;
+    if (!isSignedIn) {
+      onLoginRequired?.("comment");
+      return;
+    }
+    if (!hasSubmissionHistory) {
+      onSubmissionRequired?.();
+      return;
+    }
+
+    setIsSubmittingReply(true);
+    try {
+      const response = await fetch("/api/community/comments", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          post_id: post.id,
+          content: replyText.trim(),
+          parent_comment_id: replyingTo.commentId,
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        console.error("Failed to post reply:", error);
+        return;
+      }
+
+      const { comment } = await response.json();
+
+      // Add reply to the parent comment's replies
+      const newReply: FeedComment = {
+        id: comment.id,
+        author: comment.author,
+        content: comment.content,
+        parent_comment_id: replyingTo.commentId,
+        likes_count: 0,
+        is_liked: false,
+        created_at: comment.created_at,
+      };
+
+      setLocalComments((prev) =>
+        prev.map((c) =>
+          c.id === replyingTo.commentId ? { ...c, replies: [...(c.replies || []), newReply] } : c
+        )
+      );
+      setCommentsCount((prev) => prev + 1);
+      setReplyingTo(null);
+      setReplyText("");
+      onCommentReply?.(replyingTo.commentId, replyingTo.authorName);
+    } catch (error) {
+      console.error("Error posting reply:", error);
+    } finally {
+      setIsSubmittingReply(false);
+    }
+  }, [
+    replyingTo,
+    replyText,
+    isSubmittingReply,
+    isSignedIn,
+    hasSubmissionHistory,
+    post.id,
+    onLoginRequired,
+    onSubmissionRequired,
+    onCommentReply,
+  ]);
+
+  // Translation is now handled at the page level via batch API
+  // isTranslationPending prop indicates if translation is in progress
+
+  // Handle translation toggle (manual) - toggles between original and translated view
+  const handleTranslate = useCallback(() => {
+    // If translation exists, toggle view
+    if (hasTranslation) {
+      setShowOriginal((prev) => !prev);
+    }
+    // If translating, do nothing (wait for auto-translate)
+    // If no translation and not same language, auto-translate will handle it
+  }, [hasTranslation]);
+
   // Handle post delete
   const handleDelete = useCallback(async () => {
     if (!isOwner || isDeleting) return;
@@ -683,8 +912,9 @@ function FeedCardComponent({
 
   return (
     <article
+      data-feed-card
       className={cn(
-        "relative transition-all duration-200 group",
+        "relative transition-all duration-200 group min-h-[100px]",
         variant === "card" && [
           "p-3 rounded-xl border",
           "bg-[var(--color-bg-secondary)]/50 backdrop-blur-sm",
@@ -836,10 +1066,21 @@ function FeedCardComponent({
             <span className="opacity-60">{toLangCode}</span>
           </div>
 
-          {/* Content */}
-          <p className="mt-1.5 text-[13px] text-[var(--color-text-secondary)] leading-relaxed whitespace-pre-wrap break-words">
-            {displayContent}
-          </p>
+          {/* Content - Show shimmer when translation is pending */}
+          {isTranslationPending && !isSameLanguage ? (
+            <div className="mt-1.5">
+              <TextShimmer contentLength={post.content.length} variant="default" />
+            </div>
+          ) : (
+            <p
+              className={cn(
+                "mt-1.5 text-[13px] text-[var(--color-text-secondary)] leading-relaxed whitespace-pre-wrap break-words",
+                "transition-opacity duration-300 animate-fadeIn"
+              )}
+            >
+              {displayContent}
+            </p>
+          )}
 
           {/* Images (if any) */}
           {post.images && post.images.length > 0 && (
@@ -878,18 +1119,32 @@ function FeedCardComponent({
           <div className="flex items-center justify-between mt-2">
             {/* Translation toggle - shown on hover or when viewing original */}
             <div className="h-6 flex items-center">
-              {!isSameLanguage && (isHovered || showOriginal) && (
+              {!isSameLanguage && (isHovered || showOriginal || isTranslationPending) && (
                 <button
-                  onClick={() => setShowOriginal((prev) => !prev)}
+                  onClick={handleTranslate}
+                  disabled={isTranslationPending}
                   className={cn(
                     "flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] transition-all",
                     "text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)]",
                     "hover:bg-[var(--glass-bg)]",
-                    "animate-fadeIn"
+                    "animate-fadeIn",
+                    isTranslationPending && "opacity-70 cursor-wait"
                   )}
                 >
-                  <Globe size={10} />
-                  <span>{showOriginal ? "번역 보기" : `원문 (${fromLangCode})`}</span>
+                  {isTranslationPending ? (
+                    <Loader2 size={10} className="animate-spin" />
+                  ) : (
+                    <Globe size={10} />
+                  )}
+                  <span>
+                    {isTranslationPending
+                      ? "번역 중..."
+                      : showOriginal
+                        ? "번역 보기"
+                        : hasTranslation
+                          ? `원문 (${fromLangCode})`
+                          : `번역 (${toLangCode})`}
+                  </span>
                 </button>
               )}
             </div>
@@ -903,7 +1158,7 @@ function FeedCardComponent({
                     <button
                       key={user.id}
                       onClick={() => onAuthorClick?.(user.id)}
-                      className="relative group"
+                      className="relative group/liker"
                       title={user.display_name || user.username}
                     >
                       <Image
@@ -913,8 +1168,8 @@ function FeedCardComponent({
                         height={24}
                         className="w-6 h-6 rounded-full border-2 border-[var(--color-bg-primary)] hover:border-[var(--color-claude-coral)] transition-colors"
                       />
-                      {/* Tooltip */}
-                      <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 px-2 py-0.5 text-[10px] bg-black/90 text-white rounded whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
+                      {/* Tooltip - only show on avatar hover */}
+                      <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 px-2 py-0.5 text-[10px] bg-black/90 text-white rounded whitespace-nowrap opacity-0 group-hover/liker:opacity-100 transition-opacity pointer-events-none z-10">
                         {user.display_name || user.username}
                       </span>
                     </button>
@@ -990,41 +1245,158 @@ function FeedCardComponent({
                 </div>
               ) : localComments && localComments.length > 0 ? (
                 <div className="space-y-3 mb-3">
-                  {localComments.map((comment) => (
-                    <div key={comment.id} className="space-y-2">
-                      {/* Top-level comment */}
-                      <CommentItem
-                        comment={comment}
-                        isSignedIn={isSignedIn}
-                        hasSubmissionHistory={hasSubmissionHistory}
-                        currentUserId={currentUserId}
-                        onAuthorClick={onAuthorClick}
-                        onCommentLike={onCommentLike}
-                        onCommentReply={onCommentReply}
-                        onLoginRequired={onLoginRequired}
-                        onSubmissionRequired={onSubmissionRequired}
-                      />
+                  {localComments.map((comment) => {
+                    const repliesCount = comment.replies_count || comment.replies?.length || 0;
+                    const hasReplies =
+                      repliesCount > 0 || (comment.replies && comment.replies.length > 0);
+                    const isExpanded = expandedReplies.has(comment.id);
+                    const isLoading = loadingReplies.has(comment.id);
+                    const hasRepliesLoaded =
+                      comment.replies_loaded || (comment.replies && comment.replies.length > 0);
 
-                      {/* Replies (대댓글) - indented, no reply button */}
-                      {comment.replies && comment.replies.length > 0 && (
-                        <div className="ml-8 pl-2 border-l-2 border-[var(--border-default)]/30 space-y-2">
-                          {comment.replies.map((reply) => (
-                            <CommentItem
-                              key={reply.id}
-                              comment={reply}
-                              isReply={true}
-                              isSignedIn={isSignedIn}
-                              hasSubmissionHistory={hasSubmissionHistory}
-                              currentUserId={currentUserId}
-                              onAuthorClick={onAuthorClick}
-                              onCommentLike={onCommentLike}
-                              onLoginRequired={onLoginRequired}
-                            />
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  ))}
+                    return (
+                      <div key={comment.id} className="relative">
+                        {/* Top-level comment */}
+                        <CommentItem
+                          comment={comment}
+                          isSignedIn={isSignedIn}
+                          hasSubmissionHistory={hasSubmissionHistory}
+                          currentUserId={currentUserId}
+                          onAuthorClick={onAuthorClick}
+                          onCommentLike={onCommentLike}
+                          onCommentReply={handleReplyClick}
+                          onLoginRequired={onLoginRequired}
+                          onSubmissionRequired={onSubmissionRequired}
+                        />
+
+                        {/* Reply Input - show when replying to this comment */}
+                        {replyingTo?.commentId === comment.id && (
+                          <div className="ml-8 mt-2 animate-fadeIn">
+                            <div className="flex items-center gap-2">
+                              <input
+                                ref={replyInputRef}
+                                type="text"
+                                value={replyText}
+                                onChange={(e) => setReplyText(e.target.value)}
+                                onKeyDown={(e) => {
+                                  if (e.key === "Enter" && !e.nativeEvent.isComposing) {
+                                    handleReplySubmit();
+                                  } else if (e.key === "Escape") {
+                                    handleCancelReply();
+                                  }
+                                }}
+                                disabled={isSubmittingReply}
+                                placeholder={`${replyingTo.authorName}님에게 답글 작성...`}
+                                className={cn(
+                                  "flex-1 px-3 py-1.5 text-[11px] rounded-lg",
+                                  "bg-[var(--color-bg-card)] border border-[var(--color-claude-coral)]/50",
+                                  "placeholder:text-[var(--color-text-muted)]",
+                                  "focus:outline-none focus:border-[var(--color-claude-coral)]",
+                                  "text-[var(--color-text-primary)]"
+                                )}
+                              />
+                              <button
+                                onClick={handleCancelReply}
+                                className="p-1.5 text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] transition-colors"
+                                aria-label="취소"
+                              >
+                                <X size={14} />
+                              </button>
+                              <button
+                                onClick={handleReplySubmit}
+                                disabled={!replyText.trim() || isSubmittingReply}
+                                className={cn(
+                                  "p-1.5 transition-colors rounded-lg",
+                                  "text-[var(--color-text-muted)]",
+                                  "hover:text-[var(--color-claude-coral)] hover:bg-[var(--color-claude-coral)]/10",
+                                  "disabled:opacity-50 disabled:cursor-not-allowed"
+                                )}
+                                aria-label="답글 보내기"
+                              >
+                                {isSubmittingReply ? (
+                                  <Loader2 size={14} className="animate-spin" />
+                                ) : (
+                                  <Send size={14} />
+                                )}
+                              </button>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Replies Toggle & List */}
+                        {hasReplies && (
+                          <>
+                            {/* Replies toggle button */}
+                            <button
+                              onClick={() => toggleReplies(comment.id, !!hasRepliesLoaded)}
+                              className={cn(
+                                "ml-8 flex items-center gap-2 py-2 text-[10px] transition-colors",
+                                "text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]"
+                              )}
+                            >
+                              <span className="w-6 h-px bg-[var(--color-text-muted)]/30" />
+                              {isLoading ? (
+                                <span className="flex items-center gap-1">
+                                  <Loader2 size={10} className="animate-spin" />
+                                  로딩 중...
+                                </span>
+                              ) : isExpanded ? (
+                                <span>답글 숨기기</span>
+                              ) : (
+                                <span>답글 {repliesCount}개 보기</span>
+                              )}
+                              <span className="w-6 h-px bg-[var(--color-text-muted)]/30" />
+                            </button>
+
+                            {/* Replies list with tree branch connectors */}
+                            {isExpanded && comment.replies && comment.replies.length > 0 && (
+                              <div className="ml-4 mt-1 pl-4 animate-fadeIn">
+                                {comment.replies.map((reply, index) => {
+                                  const isLast = index === comment.replies!.length - 1;
+                                  return (
+                                    <div key={reply.id} className="relative">
+                                      {/* Vertical line - from top to branch point, continues down if not last */}
+                                      <div
+                                        className="absolute w-px bg-[var(--color-text-muted)]/30"
+                                        style={{
+                                          left: -16,
+                                          top: 0,
+                                          height: isLast ? 12 : "100%",
+                                        }}
+                                      />
+                                      {/* Horizontal branch line (└ shape) */}
+                                      <div
+                                        className="absolute h-px bg-[var(--color-text-muted)]/30"
+                                        style={{
+                                          left: -16,
+                                          top: 12,
+                                          width: 12,
+                                        }}
+                                      />
+
+                                      {/* Reply content */}
+                                      <div className="py-1">
+                                        <CommentItem
+                                          comment={reply}
+                                          isReply={true}
+                                          isSignedIn={isSignedIn}
+                                          hasSubmissionHistory={hasSubmissionHistory}
+                                          currentUserId={currentUserId}
+                                          onAuthorClick={onAuthorClick}
+                                          onCommentLike={onCommentLike}
+                                          onLoginRequired={onLoginRequired}
+                                        />
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               ) : (
                 <p className="text-[11px] text-[var(--color-text-muted)] mb-3">
@@ -1032,27 +1404,28 @@ function FeedCardComponent({
                 </p>
               )}
 
-              {/* Load More Comments Button */}
+              {/* Load More Comments Button - Text link style */}
               {hasMoreComments && (
                 <button
                   onClick={loadMoreComments}
                   disabled={commentsLoading}
                   className={cn(
-                    "w-full py-2 text-[11px] font-medium rounded-lg transition-colors mb-3",
+                    "w-full flex items-center justify-center gap-2 py-2 mb-3",
+                    "text-[10px] transition-colors",
                     "text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]",
-                    "bg-[var(--color-bg-card)] hover:bg-[var(--color-bg-secondary)]",
-                    "border border-[var(--border-default)]",
                     commentsLoading && "opacity-50 cursor-not-allowed"
                   )}
                 >
+                  <span className="w-8 h-px bg-[var(--color-text-muted)]/30" />
                   {commentsLoading ? (
-                    <span className="flex items-center justify-center gap-2">
-                      <Loader2 size={12} className="animate-spin" />
+                    <span className="flex items-center gap-1">
+                      <Loader2 size={10} className="animate-spin" />
                       로딩 중...
                     </span>
                   ) : (
-                    `댓글 ${commentsCount - localComments.length}개 더 보기`
+                    <span>이전 댓글 보기</span>
                   )}
+                  <span className="w-8 h-px bg-[var(--color-text-muted)]/30" />
                 </button>
               )}
 

@@ -3,13 +3,14 @@
 import { useState, useEffect } from "react";
 import { X, Copy, Check, Terminal } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { posthog } from "@/components/providers/PostHogProvider";
 
 interface CLIModalProps {
   isOpen: boolean;
   onClose: () => void;
 }
 
-function CopyButton({ text }: { text: string }) {
+function CopyButton({ text, trackEvent }: { text: string; trackEvent?: string }) {
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState(false);
 
@@ -34,6 +35,12 @@ function CopyButton({ text }: { text: string }) {
       }
       setCopied(true);
       setError(false);
+
+      // Track CLI install command copy
+      if (trackEvent) {
+        posthog.capture(trackEvent, { command: text });
+      }
+
       setTimeout(() => setCopied(false), 2000);
     } catch (err) {
       console.error("Failed to copy:", err);
@@ -124,7 +131,7 @@ export function CLIModal({ isOpen, onClose }: CLIModalProps) {
                   <span className="text-[var(--color-claude-coral)]">npx</span>{" "}
                   <span className="text-[var(--color-text-primary)]">ccgather</span>
                 </code>
-                <CopyButton text="npx ccgather" />
+                <CopyButton text="npx ccgather" trackEvent="cli_install_click" />
               </div>
             </div>
 

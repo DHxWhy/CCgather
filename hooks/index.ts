@@ -14,7 +14,6 @@ export { usePWAInstall } from "./use-pwa-install";
 // Admin analytics
 export {
   useAnalyticsUsers,
-  useAnalyticsFunnels,
   useAnalyticsHealth,
   useCoreKPI,
   useRetentionDB,

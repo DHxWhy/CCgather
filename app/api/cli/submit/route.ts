@@ -5,10 +5,7 @@ import { checkAndAwardBadges } from "@/lib/services/badgeService";
 import { calculateLevel, getLevelInfo } from "@/lib/types/leaderboard";
 import {
   sendPushNotificationToUser,
-  createSubmissionCompleteNotification,
-  createRankChangeNotification,
-  createLevelUpNotification,
-  createBadgeEarnedNotification,
+  createSubmissionSummaryNotification,
 } from "@/lib/push/send-notification";
 
 interface DailyUsage {
@@ -531,16 +528,14 @@ export async function POST(request: NextRequest) {
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
-    // STEP 5: Send Push Notifications (non-blocking)
+    // STEP 5: Send Unified Push Notification (non-blocking)
     // ═══════════════════════════════════════════════════════════════════════════
     (async () => {
       try {
         // Get user's notification settings
         const { data: notifySettings } = await supabase
           .from("user_notification_settings")
-          .select(
-            "push_enabled, notify_submissions, notify_rank_updates, notify_level_up, notify_badges"
-          )
+          .select("push_enabled, notify_submissions")
           .eq("user_id", authenticatedUser.id)
           .single();
 
@@ -548,52 +543,32 @@ export async function POST(request: NextRequest) {
         const settings = notifySettings || {
           push_enabled: true,
           notify_submissions: true,
-          notify_rank_updates: true,
-          notify_level_up: true,
-          notify_badges: true,
         };
 
-        // Skip if push notifications are disabled globally
-        if (!settings.push_enabled) {
+        // Skip if push notifications are disabled
+        if (!settings.push_enabled || !settings.notify_submissions || !rank) {
           return;
         }
 
-        // 1. Submission complete notification
-        if (settings.notify_submissions && rank) {
-          await sendPushNotificationToUser(
-            authenticatedUser.id,
-            createSubmissionCompleteNotification(finalTotalTokens, rank)
-          );
-        }
-
-        // 2. Rank change notification (only if improved)
+        // Build unified submission summary notification
         const prevGlobalRank = authenticatedUser.global_rank;
-        if (settings.notify_rank_updates && rank && prevGlobalRank && rank < prevGlobalRank) {
-          await sendPushNotificationToUser(
-            authenticatedUser.id,
-            createRankChangeNotification(rank, prevGlobalRank)
-          );
-        }
-
-        // 3. Level up notification
         const prevLevel = authenticatedUser.current_level || 1;
-        if (settings.notify_level_up && level > prevLevel) {
-          const levelInfo = getLevelInfo(level);
-          await sendPushNotificationToUser(
-            authenticatedUser.id,
-            createLevelUpNotification(level, levelInfo.name)
-          );
-        }
 
-        // 4. Badge earned notifications
-        if (settings.notify_badges && newBadges.length > 0) {
-          for (const badge of newBadges) {
-            await sendPushNotificationToUser(
-              authenticatedUser.id,
-              createBadgeEarnedNotification(badge.name, badge.icon, badge.rarity)
-            );
-          }
-        }
+        const payload = createSubmissionSummaryNotification({
+          totalTokens: finalTotalTokens,
+          rank,
+          // Only show rank change if improved
+          rankChange: prevGlobalRank && rank < prevGlobalRank ? prevGlobalRank - rank : undefined,
+          // Only show level up if actually leveled up
+          newLevel: level > prevLevel ? { level, name: getLevelInfo(level).name } : undefined,
+          // Include new badges
+          newBadges:
+            newBadges.length > 0
+              ? newBadges.map((b) => ({ name: b.name, icon: b.icon }))
+              : undefined,
+        });
+
+        await sendPushNotificationToUser(authenticatedUser.id, payload);
       } catch (notifyError) {
         // Non-blocking: don't fail submission due to notification errors
         console.error("[CLI Submit] Notification error:", notifyError);

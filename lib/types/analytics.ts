@@ -169,23 +169,6 @@ export interface RetentionCohort {
   retention: number[];
 }
 
-// Funnel Response
-export interface AnalyticsFunnelResponse {
-  funnel: string;
-  steps: FunnelStep[];
-  overallConversion: number;
-  dateRange: DateRange;
-}
-
-export interface FunnelStep {
-  name: string;
-  count: number;
-  percentage: number;
-  dropOff: number;
-  dropOffPercent: number;
-  avgTime?: string;
-}
-
 // ============================================
 // Query Parameters
 // ============================================
@@ -196,8 +179,4 @@ export interface AnalyticsQueryParams {
   interval?: "hour" | "day" | "week" | "month";
   breakdown?: string;
   events?: string[];
-}
-
-export interface FunnelQueryParams extends AnalyticsQueryParams {
-  funnel: "signup" | "engagement";
 }

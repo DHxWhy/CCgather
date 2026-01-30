@@ -1,12 +1,11 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import type { AnalyticsUsersResponse, AnalyticsFunnelResponse } from "@/lib/types/analytics";
+import type { AnalyticsUsersResponse } from "@/lib/types/analytics";
 
 interface AnalyticsQueryOptions {
   dateFrom?: string;
   dateTo?: string;
-  funnel?: "signup" | "engagement";
   enabled?: boolean;
 }
 
@@ -51,25 +50,6 @@ export function useAnalyticsUsers(options: AnalyticsQueryOptions = {}) {
       fetchAnalytics<AnalyticsUsersResponse>("users", {
         date_from: dateFrom,
         date_to: dateTo,
-      }),
-    staleTime: 60 * 1000,
-    enabled,
-  });
-}
-
-/**
- * Fetch funnel analytics
- */
-export function useAnalyticsFunnels(options: AnalyticsQueryOptions = {}) {
-  const { dateFrom = "-7d", dateTo, funnel = "signup", enabled = true } = options;
-
-  return useQuery<AnalyticsFunnelResponse>({
-    queryKey: ["analytics", "funnels", dateFrom, dateTo, funnel],
-    queryFn: () =>
-      fetchAnalytics<AnalyticsFunnelResponse>("funnels", {
-        date_from: dateFrom,
-        date_to: dateTo,
-        funnel,
       }),
     staleTime: 60 * 1000,
     enabled,
