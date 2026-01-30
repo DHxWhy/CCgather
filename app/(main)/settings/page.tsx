@@ -230,16 +230,15 @@ export default function SettingsProfilePage() {
       const data = await res.json();
 
       if (res.ok && data.synced) {
-        // Update local state with new values
+        // Update local state with new values (use functional updates to avoid stale closure)
         if (data.profile) {
-          setDbUsername(data.profile.username || dbUsername);
-          setDbDisplayName(data.profile.display_name || dbDisplayName);
-          setDbAvatarUrl(data.profile.avatar_url || dbAvatarUrl);
+          if (data.profile.username) setDbUsername(data.profile.username);
+          if (data.profile.display_name) setDbDisplayName(data.profile.display_name);
+          if (data.profile.avatar_url) setDbAvatarUrl(data.profile.avatar_url);
           // Also update social links if GitHub username changed
           if (data.profile.username) {
-            const newLinks = { ...socialLinks, github: data.profile.username };
-            setSocialLinks(newLinks);
-            setEditedLinks(newLinks);
+            setSocialLinks((prev) => ({ ...prev, github: data.profile.username }));
+            setEditedLinks((prev) => ({ ...prev, github: data.profile.username }));
           }
         }
         alert("Profile synced from GitHub!");
