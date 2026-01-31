@@ -359,6 +359,8 @@ export default function LeaderboardPage() {
   >("community_post");
   // Featured post state (for Hall of Fame → Feed highlight)
   const [featuredPostId, setFeaturedPostId] = useState<string | null>(null);
+  // Profile-linked post ID (for "View Post" button in ProfileSidePanel when opened from Hall of Fame)
+  const [profileLinkedPostId, setProfileLinkedPostId] = useState<string | null>(null);
   // Author filter state (for showing only one user's posts in community tab)
   const [authorFilter, setAuthorFilter] = useState<string | null>(null);
   const [authorFilterInfo, setAuthorFilterInfo] = useState<{
@@ -1065,6 +1067,8 @@ export default function LeaderboardPage() {
 
   const handleClosePanel = useCallback(() => {
     setIsPanelOpen(false);
+    // Clear profile-linked post when panel closes
+    setProfileLinkedPostId(null);
     // Clear selectedUserId after animation completes
     // 타이머 ID를 ref에 저장하여 패널이 다시 열릴 때 취소 가능하게 함
     closePanelTimerRef.current = setTimeout(() => {
@@ -1919,8 +1923,9 @@ export default function LeaderboardPage() {
                         <HallOfFame
                           period={communityStatsPeriod}
                           hideHeader
-                          onUserClick={(userId) => {
+                          onUserClick={(userId, postId) => {
                             handleOpenProfileById(userId);
+                            setProfileLinkedPostId(postId);
                           }}
                           onPostClick={(postId) => {
                             setFeaturedPostId(postId);
@@ -2964,6 +2969,19 @@ export default function LeaderboardPage() {
         periodFilter={periodFilter}
         scopeFilter={scopeFilter}
         onPostsClick={handlePostsClick}
+        featuredPostId={profileLinkedPostId ?? undefined}
+        onViewFeaturedPost={(postId) => {
+          // Close panel first
+          handleClosePanel();
+          // Switch to community view
+          if (viewMode !== "community") {
+            setViewMode("community");
+          }
+          // Set featured post to highlight it in the feed
+          setFeaturedPostId(postId);
+          // Clear the profile-linked post
+          setProfileLinkedPostId(null);
+        }}
       />
 
       {/* Mobile Globe Panel - Left Slide (also used for Community Stats in mobile) */}
@@ -2980,8 +2998,9 @@ export default function LeaderboardPage() {
         viewMode={viewMode}
         communityStats={communityStats}
         totalCommunityStats={totalCommunityStats}
-        onHallOfFameUserClick={(userId) => {
+        onHallOfFameUserClick={(userId, postId) => {
           handleOpenProfileById(userId);
+          setProfileLinkedPostId(postId);
           // Also apply author filter to show their posts
           const post = communityPosts.find((p: FeedPost) => p.author.id === userId);
           if (post) {

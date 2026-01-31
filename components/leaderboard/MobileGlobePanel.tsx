@@ -56,7 +56,7 @@ interface MobileGlobePanelProps {
   viewMode?: "leaderboard" | "community";
   communityStats?: CommunityStats;
   totalCommunityStats?: TotalCommunityStats;
-  onHallOfFameUserClick?: (userId: string) => void;
+  onHallOfFameUserClick?: (userId: string, postId: string) => void;
   onHallOfFamePostClick?: (postId: string) => void;
 }
 
