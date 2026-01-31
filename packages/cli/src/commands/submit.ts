@@ -441,15 +441,11 @@ export async function submit(options: SubmitOptions): Promise<void> {
     ? `${usageData.daysTracked} days ${colors.dim(`(${dateRange})`)}`
     : usageData.daysTracked.toString();
 
-  // Get level info for display
-  const levelProgress = getLevelProgress(usageData.totalTokens);
-  const currentLevel = levelProgress.current;
-
+  // Summary lines (Level will be added after we have server response)
   const summaryLines = [
     `${colors.muted("Total Cost")}     💰 ${colors.warning(formatCost(usageData.totalCost))}`,
     `${colors.muted("Total Tokens")}   ⚡ ${colors.primary(formatNumber(usageData.totalTokens))}`,
     `${colors.muted("Period")}         📅 ${colors.white(daysTrackedDisplay)}`,
-    `${colors.muted("Level")}          ${currentLevel.icon} ${currentLevel.color(`${currentLevel.name}`)}`,
   ];
 
   // Show plan if detected
@@ -479,6 +475,16 @@ export async function submit(options: SubmitOptions): Promise<void> {
       const lineLength = 40 - text.length;
       return `  ${colors.white.bold(text)}${colors.dim("─".repeat(Math.max(0, lineLength)))}`;
     };
+
+    // Calculate level based on accumulated server tokens (if available)
+    const accumulatedTokens = result.previous?.totalTokens || usageData.totalTokens;
+    const levelProgress = getLevelProgress(accumulatedTokens);
+    const currentLevel = levelProgress.current;
+
+    // Add Level to summary lines
+    summaryLines.push(
+      `${colors.muted("Level")}          ${currentLevel.icon} ${currentLevel.color(`${currentLevel.name}`)}`
+    );
 
     // ═══════════════════════════════════════
     // 0. LOCAL SCAN SUMMARY
@@ -550,13 +556,13 @@ export async function submit(options: SubmitOptions): Promise<void> {
     }
 
     // ═══════════════════════════════════════
-    // 2. LEVEL PROGRESS
+    // 2. LEVEL PROGRESS (based on accumulated server total)
     // ═══════════════════════════════════════
     console.log();
     console.log(sectionHeader("⬆️", "Level Progress"));
     console.log();
 
-    // Show current level
+    // Show current level (using levelProgress calculated above)
     console.log(
       `     ${colors.muted("Lv.")}${colors.white(String(currentLevel.level))} ${currentLevel.icon} ${currentLevel.color(currentLevel.name)}`
     );
