@@ -26,7 +26,7 @@ const spaceGrotesk = Space_Grotesk({
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL ?? "https://ccgather.com"),
   title: {
-    default: "CCgather - Global Claude Code Leaderboard",
+    default: "CCgather - Claude Code Rankings",
     template: "%s | CCgather",
   },
   description:
@@ -65,7 +65,7 @@ export const metadata: Metadata = {
     alternateLocale: ["ko_KR", "ja_JP"],
     url: "https://ccgather.com",
     siteName: "CCgather",
-    title: "CCgather - Global Claude Code Leaderboard",
+    title: "CCgather - Claude Code Rankings",
     description:
       "Proof of your Claude Code dedication. Track your tokens and rise through the global rankings!",
     images: [
@@ -73,13 +73,13 @@ export const metadata: Metadata = {
         url: "/og-image.png",
         width: 1200,
         height: 630,
-        alt: "CCgather - Claude Code Leaderboard",
+        alt: "CCgather - Claude Code Rankings",
       },
     ],
   },
   twitter: {
     card: "summary_large_image",
-    title: "CCgather - Global Claude Code Leaderboard",
+    title: "CCgather - Claude Code Rankings",
     description:
       "Proof of your Claude Code dedication. Track your tokens and rise through the rankings!",
     images: ["/og-image.png"],
