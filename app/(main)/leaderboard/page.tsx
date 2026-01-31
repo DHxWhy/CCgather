@@ -359,6 +359,8 @@ export default function LeaderboardPage() {
   >("community_post");
   // Featured post state (for Hall of Fame → Feed highlight)
   const [featuredPostId, setFeaturedPostId] = useState<string | null>(null);
+  // Separately fetched featured post (when not in current posts list)
+  const [fetchedFeaturedPost, setFetchedFeaturedPost] = useState<FeedPost | null>(null);
   // Profile-linked post ID (for "View Post" button in ProfileSidePanel when opened from Hall of Fame)
   const [profileLinkedPostId, setProfileLinkedPostId] = useState<string | null>(null);
   // Author filter state (for showing only one user's posts in community tab)
@@ -1375,6 +1377,24 @@ export default function LeaderboardPage() {
     });
   }, [communityPosts, translations, autoTranslateEnabled, getTranslation]);
 
+  // Apply translation to fetchedFeaturedPost (separately fetched post)
+  const translatedFeaturedPost = useMemo(() => {
+    if (!fetchedFeaturedPost) return null;
+    if (!autoTranslateEnabled || translations.size === 0) {
+      return fetchedFeaturedPost;
+    }
+
+    const postTranslation = getTranslation(fetchedFeaturedPost.id, "post");
+    if (postTranslation && postTranslation !== fetchedFeaturedPost.content) {
+      return {
+        ...fetchedFeaturedPost,
+        translated_content: postTranslation,
+        is_translated: true,
+      };
+    }
+    return fetchedFeaturedPost;
+  }, [fetchedFeaturedPost, translations, autoTranslateEnabled, getTranslation]);
+
   // Handle post creation
   // Handle auto-translate toggle
   const handleAutoTranslateToggle = useCallback(async (enabled: boolean) => {
@@ -1458,6 +1478,61 @@ export default function LeaderboardPage() {
       fetchCommunityPosts(communityTab);
     }
   }, [viewMode, communityTab, fetchCommunityPosts]);
+
+  // Fetch featured post separately if not found in current posts
+  useEffect(() => {
+    if (!featuredPostId) {
+      setFetchedFeaturedPost(null);
+      return;
+    }
+
+    // Check if post already exists in communityPosts
+    const existsInPosts = communityPosts.some((p) => p.id === featuredPostId);
+    if (existsInPosts) {
+      setFetchedFeaturedPost(null);
+      return;
+    }
+
+    // Fetch the post separately
+    const fetchFeaturedPost = async () => {
+      try {
+        const res = await fetch(`/api/community/posts/${featuredPostId}`);
+        if (!res.ok) {
+          console.error("Failed to fetch featured post");
+          return;
+        }
+        const data = await res.json();
+        if (data.post) {
+          // Transform to FeedPost format
+          const post: FeedPost = {
+            id: data.post.id,
+            author: {
+              id: data.post.author.id,
+              username: data.post.author.username,
+              display_name: data.post.author.display_name,
+              avatar_url: data.post.author.avatar_url,
+              level: data.post.author.current_level || 1,
+              country_code: data.post.author.country_code,
+            },
+            content: data.post.content,
+            original_language: data.post.original_language || "en",
+            is_translated: data.post.is_translated || false,
+            translated_content: data.post.translated_content,
+            created_at: data.post.created_at,
+            likes_count: data.post.likes_count || 0,
+            comments_count: data.post.comments_count || 0,
+            is_liked: data.post.is_liked || false,
+            comments: [],
+          };
+          setFetchedFeaturedPost(post);
+        }
+      } catch (err) {
+        console.error("Error fetching featured post:", err);
+      }
+    };
+
+    fetchFeaturedPost();
+  }, [featuredPostId, communityPosts]);
 
   // Fetch total community stats (cumulative, once on mount)
   useEffect(() => {
@@ -2902,7 +2977,12 @@ export default function LeaderboardPage() {
               {viewMode === "community" && !error && (
                 <div className="flex-1 min-h-0 flex flex-col">
                   <CommunityFeedSection
-                    posts={translatedCommunityPosts}
+                    posts={
+                      translatedFeaturedPost &&
+                      !translatedCommunityPosts.some((p) => p.id === translatedFeaturedPost.id)
+                        ? [translatedFeaturedPost, ...translatedCommunityPosts]
+                        : translatedCommunityPosts
+                    }
                     currentTab={communityTab}
                     onAuthorClick={(authorId) => {
                       handleOpenProfileById(authorId);
@@ -2971,10 +3051,14 @@ export default function LeaderboardPage() {
         onPostsClick={handlePostsClick}
         featuredPostId={profileLinkedPostId ?? undefined}
         onViewFeaturedPost={(postId) => {
+          // Get userId from the panel
+          const userId = selectedUserId;
           // Close panel first
           handleClosePanel();
-          // Switch to community view
-          if (viewMode !== "community") {
+          // Switch to community view and set author filter (shows all posts from this user)
+          if (userId) {
+            handlePostsClick(userId);
+          } else if (viewMode !== "community") {
             setViewMode("community");
           }
           // Set featured post to highlight it in the feed
