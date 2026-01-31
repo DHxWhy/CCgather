@@ -4,7 +4,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@clerk/nextjs";
-import { Menu, Settings } from "lucide-react";
+import { Menu, Settings, Github } from "lucide-react";
 import { useState, useEffect, lazy, Suspense } from "react";
 import { cn } from "@/lib/utils";
 import { ThemeSwitcher } from "@/components/ui/theme-switcher";
@@ -213,6 +213,23 @@ export function Header() {
 
             <ThemeSwitcher size="sm" />
 
+            {/* GitHub Link */}
+            <a
+              href="https://github.com/DHxWhy/CCgather"
+              target="_blank"
+              rel="noopener noreferrer"
+              className={cn(
+                "flex items-center justify-center w-8 h-8 rounded-full border transition-all group",
+                "border-[var(--border-default)] hover:border-[var(--color-text-muted)]"
+              )}
+              aria-label="GitHub Repository"
+            >
+              <Github
+                size={14}
+                className="text-[var(--color-text-muted)] group-hover:text-[var(--color-text-secondary)] transition-colors"
+              />
+            </a>
+
             {/* 로그인 상태: Settings (로딩 중에는 공간 확보) */}
             {!showSignInButton && (
               <Link
@@ -299,6 +316,22 @@ export function Header() {
             <span className="text-sm text-[var(--color-text-secondary)]">Theme</span>
             <ThemeSwitcher size="sm" />
           </div>
+
+          {/* GitHub Link */}
+          <a
+            href="https://github.com/DHxWhy/CCgather"
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={closeMobileMenu}
+            className={cn(
+              "flex items-center gap-3 px-4 py-3 rounded-xl",
+              "text-base font-medium transition-all duration-200",
+              "text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--glass-bg)]"
+            )}
+          >
+            <Github size={18} />
+            GitHub
+          </a>
 
           {/* Auth Section */}
           <div className="px-4 pt-4 space-y-2">
