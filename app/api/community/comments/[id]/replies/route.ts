@@ -21,6 +21,7 @@ interface ReplyResponse {
   content: string;
   original_content?: string;
   translated_content?: string;
+  original_language: string; // Always include for language indicator display
   is_translated?: boolean;
   parent_comment_id: string;
   created_at: string;
@@ -180,7 +181,8 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     // Handle translations
     const translationsMap = new Map<string, string>();
 
-    if (autoTranslate && targetLanguage && targetLanguage !== "en") {
+    // Translate for all users when autoTranslate is enabled (removed "!== en" condition)
+    if (autoTranslate && targetLanguage) {
       // Check cache first
       const replyIds = replies.map((r: { id: string }) => r.id);
       const { data: cachedTranslations } = await supabase
@@ -297,6 +299,7 @@ ${textList}`;
         const author = reply.author as CommentAuthor;
         const translatedText = translationsMap.get(reply.id);
         const isTranslated = !!translatedText && translatedText !== reply.content;
+        const originalLanguage = detectLanguage(reply.content);
 
         return {
           id: reply.id,
@@ -310,6 +313,7 @@ ${textList}`;
           content: translatedText || reply.content,
           original_content: isTranslated ? reply.content : undefined,
           translated_content: isTranslated ? translatedText : undefined,
+          original_language: originalLanguage, // Always include for language indicator
           is_translated: isTranslated,
           parent_comment_id: reply.parent_comment_id,
           created_at: reply.created_at,

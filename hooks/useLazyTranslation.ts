@@ -219,6 +219,33 @@ export function useLazyTranslation(items: TranslationItem[], options: UseLazyTra
     };
   }, []);
 
+  // Add translations from lazy-loaded replies (already translated by API)
+  const addTranslations = useCallback(
+    (items: Array<{ id: string; type: "post" | "comment"; translatedText: string }>) => {
+      if (items.length === 0) return;
+
+      setState((prev) => {
+        const newTranslations = new Map(prev.translations);
+        items.forEach((item) => {
+          const key = `${item.type}:${item.id}`;
+          if (!newTranslations.has(key)) {
+            newTranslations.set(key, item.translatedText);
+          }
+        });
+        return { ...prev, translations: newTranslations };
+      });
+
+      // Also update ref
+      items.forEach((item) => {
+        const key = `${item.type}:${item.id}`;
+        if (!translationsRef.current.has(key)) {
+          translationsRef.current.set(key, item.translatedText);
+        }
+      });
+    },
+    []
+  );
+
   return {
     translations: state.translations,
     isLoading: state.isLoading,
@@ -226,6 +253,7 @@ export function useLazyTranslation(items: TranslationItem[], options: UseLazyTra
     getTranslation,
     needsTranslation,
     fetchTranslations,
+    addTranslations,
     stats,
   };
 }

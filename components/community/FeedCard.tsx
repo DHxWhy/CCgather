@@ -37,6 +37,7 @@ export interface FeedComment {
   content: string;
   original_content?: string; // Original content before translation
   translated_content?: string; // Translated content
+  original_language?: string; // Original language code from API (for lazy-loaded replies)
   is_translated?: boolean; // Whether this comment was translated
   created_at: string;
   parent_comment_id?: string | null;
@@ -181,10 +182,12 @@ const CommentItem = memo(function CommentItem({
   // For lazy-loaded replies: content may already be translated, original_content has the original
   const originalContent = comment.original_content || comment.content;
   const displayContent = showOriginal ? originalContent : effectiveTranslation || comment.content;
-  // Language detection for display
-  const originalLanguage = comment.original_content
-    ? detectCommentLanguage(comment.original_content)
-    : detectCommentLanguage(comment.content);
+  // Language detection for display - prioritize API-provided original_language
+  const originalLanguage =
+    comment.original_language ||
+    (comment.original_content
+      ? detectCommentLanguage(comment.original_content)
+      : detectCommentLanguage(comment.content));
 
   // Close menu on outside click
   useEffect(() => {
