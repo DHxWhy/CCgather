@@ -140,6 +140,8 @@ interface CommentItemProps {
   // Translation props
   translatedContent?: string; // Cached translation from batch API
   userLanguage?: string; // User's target language
+  // Shimmer effect for newly loaded comments
+  isNewlyLoaded?: boolean; // Show shimmer animation for 1 cycle
 }
 
 const CommentItem = memo(function CommentItem({
@@ -156,6 +158,7 @@ const CommentItem = memo(function CommentItem({
   onSubmissionRequired,
   translatedContent,
   userLanguage,
+  isNewlyLoaded = false,
 }: CommentItemProps) {
   const [isDeleting, setIsDeleting] = useState(false);
   const [isDeleted, setIsDeleted] = useState(false);
@@ -167,6 +170,15 @@ const CommentItem = memo(function CommentItem({
   const [isLiking, setIsLiking] = useState(false);
   // Translation toggle state
   const [showOriginal, setShowOriginal] = useState(false);
+  // Shimmer state for newly loaded comments (1 cycle = 1.5s)
+  const [showShimmer, setShowShimmer] = useState(isNewlyLoaded);
+
+  // Auto-hide shimmer after 1 cycle
+  useEffect(() => {
+    if (!isNewlyLoaded || !showShimmer) return;
+    const timer = setTimeout(() => setShowShimmer(false), 1500);
+    return () => clearTimeout(timer);
+  }, [isNewlyLoaded, showShimmer]);
   // Use translatedContent from batch API if available, otherwise fallback to comment's own translated_content
   const effectiveTranslation = translatedContent || comment.translated_content;
   // Check translation: either has different translation text OR is_translated flag from API (for lazy-loaded replies)
@@ -410,8 +422,8 @@ const CommentItem = memo(function CommentItem({
             </div>
           )}
         </div>
-        {/* Language indicator - show when translated */}
-        {isTranslated && userLanguage && (
+        {/* Language indicator - show when translated (not during shimmer) */}
+        {isTranslated && userLanguage && !showShimmer && (
           <div className="flex items-center gap-1 text-[9px] text-[var(--color-text-muted)] mb-0.5">
             <span className="text-[var(--color-accent-cyan)]">
               {LANGUAGE_CODES[originalLanguage] || originalLanguage.toUpperCase()}
@@ -422,9 +434,17 @@ const CommentItem = memo(function CommentItem({
             </span>
           </div>
         )}
-        <p className={cn(textSize, "text-[var(--color-text-secondary)] leading-relaxed")}>
-          {displayContent}
-        </p>
+        {/* Content - show shimmer for newly loaded comments */}
+        {showShimmer ? (
+          <TextShimmer
+            contentLength={comment.content.length}
+            variant={isReply ? "compact" : "default"}
+          />
+        ) : (
+          <p className={cn(textSize, "text-[var(--color-text-secondary)] leading-relaxed")}>
+            {displayContent}
+          </p>
+        )}
         {/* Comment actions */}
         <div className="flex items-center gap-2 mt-0.5">
           <button
@@ -560,6 +580,8 @@ function FeedCardComponent({
   // Replies expansion state (per comment)
   const [expandedReplies, setExpandedReplies] = useState<Set<string>>(new Set());
   const [loadingReplies, setLoadingReplies] = useState<Set<string>>(new Set());
+  // Shimmer state for newly loaded replies (show shimmer for 1 cycle)
+  const [shimmeringReplies, setShimmeringReplies] = useState<Set<string>>(new Set());
 
   // Check if current user is the post author
   const isOwner = currentUserId && post.author.id === currentUserId;
@@ -614,8 +636,30 @@ function FeedCardComponent({
       try {
         const res = await fetch(`/api/community/comments/${commentId}/replies`);
         const data = await res.json();
-        if (data.replies) {
+        if (data.replies && data.replies.length > 0) {
           // Update the comment's replies in localComments
+          setLocalComments((prev) =>
+            prev.map((c) =>
+              c.id === commentId ? { ...c, replies: data.replies, replies_loaded: true } : c
+            )
+          );
+          // Add reply IDs to shimmer set for 1 cycle animation
+          const replyIds = data.replies.map((r: { id: string }) => r.id);
+          setShimmeringReplies((prev) => {
+            const next = new Set(prev);
+            replyIds.forEach((id: string) => next.add(id));
+            return next;
+          });
+          // Remove shimmer after 1.5s (1 animation cycle)
+          setTimeout(() => {
+            setShimmeringReplies((prev) => {
+              const next = new Set(prev);
+              replyIds.forEach((id: string) => next.delete(id));
+              return next;
+            });
+          }, 1500);
+        } else if (data.replies) {
+          // Empty replies array
           setLocalComments((prev) =>
             prev.map((c) =>
               c.id === commentId ? { ...c, replies: data.replies, replies_loaded: true } : c
@@ -1432,6 +1476,7 @@ function FeedCardComponent({
                                           onLoginRequired={onLoginRequired}
                                           translatedContent={getCommentTranslation?.(reply.id)}
                                           userLanguage={userLanguage}
+                                          isNewlyLoaded={shimmeringReplies.has(reply.id)}
                                         />
                                       </div>
                                     </div>
