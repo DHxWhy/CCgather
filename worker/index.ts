@@ -20,6 +20,7 @@ self.addEventListener("push", (event) => {
     icon?: string;
     badge?: string;
     tag?: string;
+    silent?: boolean;
     data?: {
       url?: string;
       type?: string;
@@ -45,6 +46,7 @@ self.addEventListener("push", (event) => {
     tag: payload.tag || "default",
     data: payload.data || {},
     requireInteraction: false,
+    silent: payload.silent ?? false,
   };
 
   event.waitUntil(self.registration.showNotification(payload.title || "CCgather", options));

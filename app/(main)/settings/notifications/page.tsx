@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Bell, BellOff, Smartphone, Monitor, Loader2 } from "lucide-react";
+import { Bell, BellOff, Smartphone, Monitor, Loader2, Volume2, VolumeX } from "lucide-react";
 import Image from "next/image";
 import { cn } from "@/lib/utils";
 import { usePushNotifications } from "@/hooks/use-push-notifications";
@@ -26,6 +26,7 @@ interface NotificationSettings {
   notify_post_likes: boolean;
   notify_post_comments: boolean;
   notify_comment_replies: boolean;
+  notify_sound_enabled: boolean;
 }
 
 type PreviewTab = "mobile" | "desktop";
@@ -445,6 +446,48 @@ export default function NotificationsSettingsPage() {
             </p>
           )}
         </div>
+
+        {/* Sound Toggle - Only show when subscribed */}
+        {isSubscribed && (
+          <div className="px-4 py-3 border-b border-white/[0.06]">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div
+                  className={cn(
+                    "w-9 h-9 rounded-xl flex items-center justify-center transition-colors",
+                    settings?.notify_sound_enabled
+                      ? "bg-[var(--color-accent-cyan)]/20"
+                      : "bg-white/10"
+                  )}
+                >
+                  {settings?.notify_sound_enabled ? (
+                    <Volume2 size={18} className="text-[var(--color-accent-cyan)]" />
+                  ) : (
+                    <VolumeX size={18} className="text-[var(--color-text-muted)]" />
+                  )}
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-[var(--color-text-primary)]">
+                    Notification Sound
+                  </p>
+                  <p className="text-[11px] text-[var(--color-text-muted)]">
+                    {settings?.notify_sound_enabled ? "Sound on" : "Silent"}
+                  </p>
+                </div>
+              </div>
+
+              <Toggle
+                checked={settings?.notify_sound_enabled ?? true}
+                onChange={(checked) => updateSetting("notify_sound_enabled", checked)}
+                disabled={isSaving}
+                size="large"
+              />
+            </div>
+            <p className="text-[10px] text-[var(--color-text-muted)] mt-2">
+              May be overridden by device settings
+            </p>
+          </div>
+        )}
 
         {/* Preview Section with Tabs */}
         <div className="p-4">

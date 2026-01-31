@@ -11,6 +11,7 @@ export interface PushNotificationPayload {
   icon?: string;
   badge?: string;
   tag?: string;
+  silent?: boolean;
   data?: {
     url?: string;
     type?: string;
@@ -62,6 +63,19 @@ export async function sendPushNotificationToUser(
 
   const supabase = createServiceClient();
 
+  // Get user's sound preference
+  const { data: settings } = await supabase
+    .from("user_notification_settings")
+    .select("notify_sound_enabled")
+    .eq("user_id", userId)
+    .single();
+
+  // Apply sound setting to payload (silent = !notify_sound_enabled)
+  const payloadWithSound: PushNotificationPayload = {
+    ...payload,
+    silent: settings?.notify_sound_enabled === false,
+  };
+
   // Get all push subscriptions for this user
   const { data: subscriptions, error } = await supabase
     .from("push_subscriptions")
@@ -89,7 +103,7 @@ export async function sendPushNotificationToUser(
         };
 
         try {
-          await webpush.sendNotification(pushSubscription, JSON.stringify(payload), {
+          await webpush.sendNotification(pushSubscription, JSON.stringify(payloadWithSound), {
             TTL: 86400, // 24 hours
             urgency: "normal",
           });

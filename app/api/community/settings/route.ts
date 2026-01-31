@@ -17,6 +17,8 @@ interface NotificationSettings {
   notify_post_likes: boolean;
   notify_post_comments: boolean;
   notify_comment_replies: boolean;
+  // Sound
+  notify_sound_enabled: boolean;
   // Translation
   auto_translate: boolean;
 }
@@ -38,6 +40,7 @@ const UpdateSettingsSchema = z.object({
   notify_post_likes: z.boolean().optional(),
   notify_post_comments: z.boolean().optional(),
   notify_comment_replies: z.boolean().optional(),
+  notify_sound_enabled: z.boolean().optional(),
   auto_translate: z.boolean().optional(),
   preferred_language: z.string().length(2).optional(),
 });
@@ -103,6 +106,7 @@ export async function GET() {
         notify_post_likes: settings.notify_post_likes ?? true,
         notify_post_comments: settings.notify_post_comments ?? true,
         notify_comment_replies: settings.notify_comment_replies ?? true,
+        notify_sound_enabled: settings.notify_sound_enabled ?? true,
         auto_translate: settings.auto_translate ?? true,
       },
       preferred_language: user.preferred_language || "en",
@@ -209,6 +213,7 @@ export async function PATCH(request: NextRequest) {
       notify_post_likes: settings.notify_post_likes ?? true,
       notify_post_comments: settings.notify_post_comments ?? true,
       notify_comment_replies: settings.notify_comment_replies ?? true,
+      notify_sound_enabled: settings.notify_sound_enabled ?? true,
       auto_translate: settings.auto_translate ?? true,
     };
 
