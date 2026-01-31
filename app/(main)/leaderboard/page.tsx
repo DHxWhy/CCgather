@@ -2000,7 +2000,19 @@ export default function LeaderboardPage() {
                           hideHeader
                           onUserClick={(userId, postId) => {
                             handleOpenProfileById(userId);
-                            setProfileLinkedPostId(postId);
+                            // Auto-set author filter like mobile (no need for View Post button)
+                            const post = communityPosts.find(
+                              (p: FeedPost) => p.author.id === userId
+                            );
+                            if (post) {
+                              setAuthorFilter(userId);
+                              setAuthorFilterInfo({
+                                username: post.author.username,
+                                displayName: post.author.display_name,
+                              });
+                            }
+                            // Set featured post to highlight when viewing community
+                            setFeaturedPostId(postId);
                           }}
                           onPostClick={(postId) => {
                             setFeaturedPostId(postId);
@@ -3084,8 +3096,7 @@ export default function LeaderboardPage() {
         totalCommunityStats={totalCommunityStats}
         onHallOfFameUserClick={(userId, postId) => {
           handleOpenProfileById(userId);
-          setProfileLinkedPostId(postId);
-          // Also apply author filter to show their posts
+          // Apply author filter to show their posts
           const post = communityPosts.find((p: FeedPost) => p.author.id === userId);
           if (post) {
             setAuthorFilter(userId);
@@ -3094,6 +3105,8 @@ export default function LeaderboardPage() {
               displayName: post.author.display_name,
             });
           }
+          // Set featured post to highlight when viewing community
+          setFeaturedPostId(postId);
           // Close the mobile panel after opening profile
           setIsGlobePanelOpen(false);
         }}
