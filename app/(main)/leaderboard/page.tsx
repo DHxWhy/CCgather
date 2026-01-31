@@ -287,6 +287,7 @@ export default function LeaderboardPage() {
   const searchParams = useSearchParams();
   const pathname = usePathname();
   const highlightUsername = searchParams.get("u");
+  const authorParam = searchParams.get("author");
 
   // React Query: Cached /api/me call
   const { data: meData, isFetched: isMeFetched } = useMe({
@@ -312,6 +313,36 @@ export default function LeaderboardPage() {
       window.history.replaceState(null, "", targetUrl);
     }
   }, [viewMode, pathname]);
+
+  // Handle author query parameter from URL (e.g., /community?author=xxx)
+  useEffect(() => {
+    if (!authorParam) return;
+
+    // Fetch user info for the author filter
+    const fetchAuthorInfo = async () => {
+      try {
+        const res = await fetch(`/api/users/${authorParam}/profile`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data.user) {
+            setAuthorFilter(authorParam);
+            setAuthorFilterInfo({
+              username: data.user.username,
+              displayName: data.user.display_name,
+            });
+            // Ensure we're in community view
+            if (viewMode !== "community") {
+              setViewMode("community");
+            }
+          }
+        }
+      } catch (error) {
+        console.error("Failed to fetch author info:", error);
+      }
+    };
+
+    fetchAuthorInfo();
+  }, [authorParam]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Community tab state (extensible for future tabs)
   const [communityTab, setCommunityTab] = useState<CommunityTab>("vibes");
@@ -1048,21 +1079,43 @@ export default function LeaderboardPage() {
   }, []);
 
   // Handle posts click from ProfileSidePanel - filter community feed by author
-  const handlePostsClick = (userId: string) => {
-    // Find author info from community posts
-    const post = communityPosts.find((p: FeedPost) => p.author.id === userId);
-    if (post) {
-      setAuthorFilter(userId);
-      setAuthorFilterInfo({
-        username: post.author.username,
-        displayName: post.author.display_name,
-      });
-      // Switch to community view if not already
+  const handlePostsClick = useCallback(
+    async (userId: string) => {
+      // Switch to community view first for immediate feedback
       if (viewMode !== "community") {
         setViewMode("community");
       }
-    }
-  };
+
+      // Try to find author info from community posts (fast path)
+      const post = communityPosts.find((p: FeedPost) => p.author.id === userId);
+      if (post) {
+        setAuthorFilter(userId);
+        setAuthorFilterInfo({
+          username: post.author.username,
+          displayName: post.author.display_name,
+        });
+        return;
+      }
+
+      // If not found in posts, fetch from API
+      try {
+        const res = await fetch(`/api/users/${userId}/profile`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data.user) {
+            setAuthorFilter(userId);
+            setAuthorFilterInfo({
+              username: data.user.username,
+              displayName: data.user.display_name,
+            });
+          }
+        }
+      } catch (error) {
+        console.error("Failed to fetch author info:", error);
+      }
+    },
+    [viewMode, communityPosts]
+  );
 
   // Clear author filter
   const handleClearAuthorFilter = () => {

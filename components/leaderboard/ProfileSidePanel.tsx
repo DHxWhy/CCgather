@@ -486,6 +486,8 @@ function SocialLinksQuickAccess({
   userId,
   onPostsClick,
   postCount = 0,
+  featuredPostId,
+  onViewFeaturedPost,
 }: {
   socialLinks: SocialLinks | null | undefined;
   isSignedIn: boolean;
@@ -493,6 +495,8 @@ function SocialLinksQuickAccess({
   userId?: string;
   onPostsClick?: (userId: string) => void;
   postCount?: number;
+  featuredPostId?: string;
+  onViewFeaturedPost?: (postId: string) => void;
 }) {
   const links = [
     {
@@ -587,6 +591,16 @@ function SocialLinksQuickAccess({
           <Newspaper className="w-3.5 h-3.5" />
         </button>
       )}
+      {/* View Featured Post - only visible when opened from Hall of Fame */}
+      {featuredPostId && onViewFeaturedPost && (
+        <button
+          onClick={() => onViewFeaturedPost(featuredPostId)}
+          className="px-2 py-1 rounded-md transition-all text-[10px] font-medium bg-[var(--color-claude-coral)]/20 text-[var(--color-claude-coral)] hover:bg-[var(--color-claude-coral)]/30"
+          title="View the featured post"
+        >
+          View Post
+        </button>
+      )}
     </div>
   );
 }
@@ -669,6 +683,10 @@ interface ProfileSidePanelProps {
   periodFilter: PeriodFilter;
   scopeFilter: ScopeFilter;
   onPostsClick?: (userId: string) => void;
+  /** Featured post ID (from Hall of Fame) - shows "View Post" button when set */
+  featuredPostId?: string;
+  /** Called when "View Post" button is clicked */
+  onViewFeaturedPost?: (postId: string) => void;
 }
 
 // Profile view tracking for non-logged-in users
@@ -711,6 +729,8 @@ export function ProfileSidePanel({
   periodFilter,
   scopeFilter,
   onPostsClick: externalPostsClick,
+  featuredPostId,
+  onViewFeaturedPost,
 }: ProfileSidePanelProps) {
   const { isSignedIn } = useUser();
   const router = useRouter();
@@ -1077,6 +1097,8 @@ export function ProfileSidePanel({
                     userId={currentUser.id}
                     onPostsClick={handlePostsClick}
                     postCount={currentUser.post_count || 0}
+                    featuredPostId={featuredPostId}
+                    onViewFeaturedPost={onViewFeaturedPost}
                   />
                 </div>
               </div>

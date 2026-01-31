@@ -98,7 +98,7 @@ export async function GET(request: NextRequest) {
       .lte("created_at", end)
       .gt("likes_count", 0)
       .order("likes_count", { ascending: false })
-      .limit(3);
+      .limit(10); // Fetch more to allow for user deduplication
 
     if (likedError) {
       console.error("Error fetching most liked posts:", likedError);
@@ -126,37 +126,50 @@ export async function GET(request: NextRequest) {
       .lte("created_at", end)
       .gt("comments_count", 0)
       .order("comments_count", { ascending: false })
-      .limit(3);
+      .limit(10); // Fetch more to allow for user deduplication
 
     if (repliedError) {
       console.error("Error fetching most replied posts:", repliedError);
       return NextResponse.json({ error: "Failed to fetch data" }, { status: 500 });
     }
 
-    // Transform to HallOfFameEntry format
-    const mostLiked: HallOfFameEntry[] = ((mostLikedPosts || []) as PostWithUser[]).map((post) => {
-      return {
+    // Transform to HallOfFameEntry format with user deduplication
+    // Keep only the best post per user (highest count)
+    const seenLikedUsers = new Set<string>();
+    const mostLiked: HallOfFameEntry[] = ((mostLikedPosts || []) as PostWithUser[])
+      .filter((post) => {
+        const userId = post.users?.id || post.author_id;
+        if (seenLikedUsers.has(userId)) return false;
+        seenLikedUsers.add(userId);
+        return true;
+      })
+      .slice(0, 3)
+      .map((post) => ({
         id: `liked-${post.id}`,
         postId: post.id,
         userId: post.users?.id || post.author_id,
         userName: post.users?.display_name || post.users?.username || "Unknown",
         userAvatar: post.users?.avatar_url || undefined,
         count: post.likes_count,
-      };
-    });
+      }));
 
-    const mostReplied: HallOfFameEntry[] = ((mostRepliedPosts || []) as PostWithUser[]).map(
-      (post) => {
-        return {
-          id: `replied-${post.id}`,
-          postId: post.id,
-          userId: post.users?.id || post.author_id,
-          userName: post.users?.display_name || post.users?.username || "Unknown",
-          userAvatar: post.users?.avatar_url || undefined,
-          count: post.comments_count,
-        };
-      }
-    );
+    const seenRepliedUsers = new Set<string>();
+    const mostReplied: HallOfFameEntry[] = ((mostRepliedPosts || []) as PostWithUser[])
+      .filter((post) => {
+        const userId = post.users?.id || post.author_id;
+        if (seenRepliedUsers.has(userId)) return false;
+        seenRepliedUsers.add(userId);
+        return true;
+      })
+      .slice(0, 3)
+      .map((post) => ({
+        id: `replied-${post.id}`,
+        postId: post.id,
+        userId: post.users?.id || post.author_id,
+        userName: post.users?.display_name || post.users?.username || "Unknown",
+        userAvatar: post.users?.avatar_url || undefined,
+        count: post.comments_count,
+      }));
 
     return NextResponse.json({
       mostLiked,

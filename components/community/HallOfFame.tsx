@@ -21,7 +21,8 @@ export interface HallOfFameEntry {
 export type HallOfFamePeriod = "today" | "weekly" | "monthly";
 
 interface HallOfFameProps {
-  onUserClick?: (userId: string) => void;
+  /** Called when user clicks on a user - includes postId for "View Post" feature */
+  onUserClick?: (userId: string, postId: string) => void;
   onPostClick?: (postId: string) => void;
   className?: string;
   /** External period control - hides internal header/filter when provided */
@@ -83,7 +84,7 @@ function CompactEntryRow({
   entry: HallOfFameEntry;
   rank: number;
   type: "liked" | "replied";
-  onUserClick?: (userId: string) => void;
+  onUserClick?: (userId: string, postId: string) => void;
   onPostClick?: (postId: string) => void;
 }) {
   return (
@@ -99,7 +100,7 @@ function CompactEntryRow({
 
       {/* User Avatar */}
       <button
-        onClick={() => onUserClick?.(entry.userId)}
+        onClick={() => onUserClick?.(entry.userId, entry.postId)}
         className="flex-shrink-0 hover:ring-1 hover:ring-[var(--color-claude-coral)]/50 rounded-full transition-all"
         title="View profile"
       >
@@ -120,7 +121,7 @@ function CompactEntryRow({
 
       {/* User Name */}
       <button
-        onClick={() => onUserClick?.(entry.userId)}
+        onClick={() => onUserClick?.(entry.userId, entry.postId)}
         className="flex-1 text-left text-[10px] text-[var(--color-text-primary)] truncate hover:text-[var(--color-claude-coral)] transition-colors min-w-0"
         title={entry.userName}
       >
