@@ -273,50 +273,178 @@ export async function POST(request: NextRequest) {
 
     // ═══════════════════════════════════════════════════════════════════════════
     // STEP 1: Insert/Update daily usage records FIRST
+    // Multi-device support: If new sessions detected, ADD to existing values
+    // instead of replacing (prevents data loss from multiple devices)
     // ═══════════════════════════════════════════════════════════════════════════
     const overallPrimaryModel = getPrimaryModel(body.dailyUsage);
 
+    // Check for new sessions (already calculated above in session fingerprint section)
+    // newHashes contains session hashes that are new to this user
+    const hasNewSessions =
+      body.sessionFingerprint?.sessionHashes && body.sessionFingerprint.sessionHashes.length > 0;
+
+    // Get existing session hashes for this user to determine if this is additive
+    let existingUserHashes: string[] = [];
+    if (hasNewSessions) {
+      const { data: existingHashData } = await supabase
+        .from("submitted_sessions")
+        .select("session_hash")
+        .eq("user_id", authenticatedUser.id);
+      existingUserHashes =
+        existingHashData?.map((h: { session_hash: string }) => h.session_hash) || [];
+    }
+
+    // Calculate truly new sessions (not previously submitted by THIS user)
+    const trulyNewHashes =
+      body.sessionFingerprint?.sessionHashes?.filter(
+        (hash: string) => !existingUserHashes.includes(hash)
+      ) || [];
+
+    const shouldUseAdditiveMerge = trulyNewHashes.length > 0 && existingUserHashes.length > 0;
+
     if (body.dailyUsage && body.dailyUsage.length > 0) {
-      // Bulk insert daily usage data
-      const usageRecords = body.dailyUsage.map((day) => {
-        // Find primary model for this day
-        let dayPrimaryModel: string | null = null;
-        if (day.models && Object.keys(day.models).length > 0) {
-          let maxTokens = 0;
-          for (const [model, tokens] of Object.entries(day.models)) {
-            if (tokens > maxTokens) {
-              maxTokens = tokens;
-              dayPrimaryModel = model;
+      if (shouldUseAdditiveMerge) {
+        // ═══════════════════════════════════════════════════════════════════════
+        // ADDITIVE MERGE: New sessions from different device - ADD to existing
+        // ═══════════════════════════════════════════════════════════════════════
+        console.log(
+          `[CLI Submit] Additive merge for ${authenticatedUser.username}: ${trulyNewHashes.length} new sessions, ${existingUserHashes.length} existing`
+        );
+
+        // Get existing stats for the dates we're updating
+        const dates = body.dailyUsage.map((d) => d.date);
+        const { data: existingStats } = await supabase
+          .from("usage_stats")
+          .select("*")
+          .eq("user_id", authenticatedUser.id)
+          .in("date", dates);
+
+        interface ExistingStatRecord {
+          date: string;
+          total_tokens: number;
+          input_tokens: number;
+          output_tokens: number;
+          cache_read_tokens: number;
+          cache_write_tokens: number;
+          cost_usd: number;
+          sessions: number;
+          primary_model: string | null;
+        }
+
+        const existingMap = new Map<string, ExistingStatRecord>(
+          existingStats?.map((s: ExistingStatRecord): [string, ExistingStatRecord] => [
+            s.date,
+            s,
+          ]) || []
+        );
+
+        for (const day of body.dailyUsage) {
+          // Find primary model for this day
+          let dayPrimaryModel: string | null = null;
+          if (day.models && Object.keys(day.models).length > 0) {
+            let maxTokens = 0;
+            for (const [model, tokens] of Object.entries(day.models)) {
+              if (tokens > maxTokens) {
+                maxTokens = tokens;
+                dayPrimaryModel = model;
+              }
+            }
+          }
+
+          const existing = existingMap.get(day.date);
+
+          if (existing) {
+            // Additive merge - ADD new values to existing
+            const { error: updateError } = await supabase
+              .from("usage_stats")
+              .update({
+                total_tokens: existing.total_tokens + day.tokens,
+                input_tokens: (existing.input_tokens || 0) + (day.inputTokens || 0),
+                output_tokens: (existing.output_tokens || 0) + (day.outputTokens || 0),
+                cache_read_tokens: (existing.cache_read_tokens || 0) + (day.cacheReadTokens || 0),
+                cache_write_tokens:
+                  (existing.cache_write_tokens || 0) + (day.cacheWriteTokens || 0),
+                cost_usd: Number(existing.cost_usd || 0) + day.cost,
+                sessions: (existing.sessions || 0) + (day.sessions || 0),
+                primary_model: dayPrimaryModel || existing.primary_model,
+                submitted_at: new Date().toISOString(),
+              })
+              .eq("user_id", authenticatedUser.id)
+              .eq("date", day.date);
+
+            if (updateError) {
+              console.error(`[CLI Submit] Additive update error for ${day.date}:`, updateError);
+            }
+          } else {
+            // New date - insert fresh record
+            const { error: insertError } = await supabase.from("usage_stats").insert({
+              user_id: authenticatedUser.id,
+              date: day.date,
+              total_tokens: day.tokens,
+              input_tokens: day.inputTokens || 0,
+              output_tokens: day.outputTokens || 0,
+              cache_read_tokens: day.cacheReadTokens || 0,
+              cache_write_tokens: day.cacheWriteTokens || 0,
+              cost_usd: day.cost,
+              sessions: day.sessions || 0,
+              primary_model: dayPrimaryModel,
+              submitted_at: new Date().toISOString(),
+              submission_source: "cli",
+            });
+
+            if (insertError) {
+              console.error(`[CLI Submit] Insert error for ${day.date}:`, insertError);
             }
           }
         }
 
-        return {
-          user_id: authenticatedUser.id,
-          date: day.date,
-          total_tokens: day.tokens,
-          input_tokens: day.inputTokens || 0,
-          output_tokens: day.outputTokens || 0,
-          cache_read_tokens: day.cacheReadTokens || 0,
-          cache_write_tokens: day.cacheWriteTokens || 0,
-          cost_usd: day.cost,
-          sessions: day.sessions || 0,
-          primary_model: dayPrimaryModel,
-          submitted_at: new Date().toISOString(),
-          submission_source: "cli",
-        };
-      });
-
-      const { error: statsError } = await supabase
-        .from("usage_stats")
-        .upsert(usageRecords, { onConflict: "user_id,date" });
-
-      if (statsError) {
-        console.error("[CLI Submit] Bulk usage stats upsert error:", statsError);
-      } else {
         console.log(
-          `[CLI Submit] Inserted ${usageRecords.length} daily usage records for user ${authenticatedUser.username}`
+          `[CLI Submit] Additive merge completed: ${body.dailyUsage.length} days processed for ${authenticatedUser.username}`
         );
+      } else {
+        // ═══════════════════════════════════════════════════════════════════════
+        // STANDARD UPSERT: First submission or single device - replace existing
+        // ═══════════════════════════════════════════════════════════════════════
+        const usageRecords = body.dailyUsage.map((day) => {
+          // Find primary model for this day
+          let dayPrimaryModel: string | null = null;
+          if (day.models && Object.keys(day.models).length > 0) {
+            let maxTokens = 0;
+            for (const [model, tokens] of Object.entries(day.models)) {
+              if (tokens > maxTokens) {
+                maxTokens = tokens;
+                dayPrimaryModel = model;
+              }
+            }
+          }
+
+          return {
+            user_id: authenticatedUser.id,
+            date: day.date,
+            total_tokens: day.tokens,
+            input_tokens: day.inputTokens || 0,
+            output_tokens: day.outputTokens || 0,
+            cache_read_tokens: day.cacheReadTokens || 0,
+            cache_write_tokens: day.cacheWriteTokens || 0,
+            cost_usd: day.cost,
+            sessions: day.sessions || 0,
+            primary_model: dayPrimaryModel,
+            submitted_at: new Date().toISOString(),
+            submission_source: "cli",
+          };
+        });
+
+        const { error: statsError } = await supabase
+          .from("usage_stats")
+          .upsert(usageRecords, { onConflict: "user_id,date" });
+
+        if (statsError) {
+          console.error("[CLI Submit] Bulk usage stats upsert error:", statsError);
+        } else {
+          console.log(
+            `[CLI Submit] Inserted ${usageRecords.length} daily usage records for user ${authenticatedUser.username}`
+          );
+        }
       }
     } else {
       // Fallback: Insert only today's record (legacy behavior)
