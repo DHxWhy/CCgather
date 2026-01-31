@@ -60,8 +60,6 @@ interface CommunityFeedSectionProps {
   onAutoTranslateToggle?: (enabled: boolean) => void;
   isTranslationLoading?: boolean;
   pendingTranslationIds?: Set<string>; // Post IDs that are awaiting translation
-  // Translation callback for lazy-loaded comments/replies
-  onTranslateRequest?: (items: Array<{ id: string; type: "comment"; text: string }>) => void;
 }
 
 // ===========================================
@@ -143,7 +141,6 @@ function CommunityFeedSectionComponent({
   onAutoTranslateToggle,
   isTranslationLoading = false,
   pendingTranslationIds,
-  onTranslateRequest,
 }: CommunityFeedSectionProps) {
   const feedContainerRef = useRef<HTMLDivElement>(null);
 
@@ -247,7 +244,6 @@ function CommunityFeedSectionComponent({
         isTranslationPending={
           autoTranslateEnabled === true && (pendingTranslationIdsRef.current?.has(post.id) || false)
         }
-        onTranslateRequest={onTranslateRequest}
       />
     ),
     [
@@ -262,7 +258,6 @@ function CommunityFeedSectionComponent({
       variant,
       currentUserId,
       autoTranslateEnabled,
-      onTranslateRequest,
     ]
   );
 
@@ -423,7 +418,6 @@ function CommunityFeedSectionComponent({
                   autoTranslateEnabled === true &&
                   (pendingTranslationIds?.has(featuredPost.id) || false)
                 }
-                onTranslateRequest={onTranslateRequest}
               />
             </div>
           </div>

@@ -228,6 +228,12 @@ export interface FeedPostForTranslation {
     content: string;
     original_language?: string;
   }>;
+  // All comments/replies for batch translation (from API)
+  all_comments_for_translation?: Array<{
+    id: string;
+    content: string;
+    original_language: string;
+  }>;
 }
 
 export function extractTranslationItems(
@@ -235,6 +241,7 @@ export function extractTranslationItems(
   targetLanguage: string
 ): TranslationItem[] {
   const items: TranslationItem[] = [];
+  const addedIds = new Set<string>(); // Prevent duplicates
 
   posts.forEach((post) => {
     // Add post if needs translation
@@ -244,10 +251,17 @@ export function extractTranslationItems(
         type: "post",
         text: post.content,
       });
+      addedIds.add(`post:${post.id}`);
     }
 
-    // Add comments if need translation
-    post.preview_comments?.forEach((comment) => {
+    // Use all_comments_for_translation if available (includes all comments + replies)
+    // Otherwise fallback to preview_comments for backwards compatibility
+    const commentsToTranslate = post.all_comments_for_translation || post.preview_comments;
+
+    commentsToTranslate?.forEach((comment) => {
+      const commentKey = `comment:${comment.id}`;
+      if (addedIds.has(commentKey)) return; // Skip duplicates
+
       const commentLang = comment.original_language || detectLanguage(comment.content);
       if (commentLang !== targetLanguage) {
         items.push({
@@ -255,6 +269,7 @@ export function extractTranslationItems(
           type: "comment",
           text: comment.content,
         });
+        addedIds.add(commentKey);
       }
     });
   });

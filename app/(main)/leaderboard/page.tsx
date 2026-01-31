@@ -1258,7 +1258,6 @@ export default function LeaderboardPage() {
     translations,
     getTranslation,
     isLoading: isTranslationLoading,
-    fetchTranslations,
   } = useLazyTranslation(translationItems, {
     enabled: translationSettingsLoaded && autoTranslateEnabled === true,
     targetLanguage: preferredLanguage || "en", // fallback, but won't be used if not enabled
@@ -2891,7 +2890,6 @@ export default function LeaderboardPage() {
                     onAutoTranslateToggle={handleAutoTranslateToggle}
                     isTranslationLoading={isTranslationLoading}
                     pendingTranslationIds={pendingTranslationIds}
-                    onTranslateRequest={fetchTranslations}
                   />
                 </div>
               )}

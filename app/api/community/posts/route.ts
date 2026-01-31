@@ -40,6 +40,13 @@ interface PreviewComment {
   replies_count?: number;
 }
 
+// For batch translation - minimal data for all comments/replies
+interface TranslationItem {
+  id: string;
+  content: string;
+  original_language: string;
+}
+
 interface PostResponse {
   id: string;
   author: PostAuthor;
@@ -53,6 +60,8 @@ interface PostResponse {
   liked_by: LikedByUser[];
   preview_comments: PreviewComment[];
   has_more_comments: boolean;
+  // All comments/replies for batch translation (minimal data)
+  all_comments_for_translation?: TranslationItem[];
 }
 
 // =====================================================
@@ -222,7 +231,12 @@ export async function GET(request: NextRequest) {
     const postIdsWithComments = postsWithComments.map((p: { id: string }) => p.id);
 
     // Run all secondary queries in parallel
-    const [likedPostsResult, likedByResult, previewCommentsResult] = await Promise.all([
+    const [
+      likedPostsResult,
+      likedByResult,
+      previewCommentsResult,
+      allCommentsForTranslationResult,
+    ] = await Promise.all([
       // 1. User's liked posts
       currentUserDbId
         ? supabase
@@ -249,7 +263,7 @@ export async function GET(request: NextRequest) {
         .in("post_id", postIds)
         .order("created_at", { ascending: false }),
 
-      // 3. Preview comments
+      // 3. Preview comments (top 3 per post, top-level only)
       postIdsWithComments.length > 0
         ? supabase
             .from("comments")
@@ -274,10 +288,34 @@ export async function GET(request: NextRequest) {
             .is("parent_comment_id", null)
             .order("created_at", { ascending: false })
         : Promise.resolve({ data: [] }),
+
+      // 4. ALL comments for translation (includes replies) - minimal data
+      postIdsWithComments.length > 0
+        ? supabase
+            .from("comments")
+            .select("id, post_id, content")
+            .in("post_id", postIdsWithComments)
+            .is("deleted_at", null)
+        : Promise.resolve({ data: [] }),
     ]);
 
     // Process liked posts
     const likedPostIds = likedPostsResult.data?.map((l: { post_id: string }) => l.post_id) || [];
+
+    // Process ALL comments for translation (grouped by post_id)
+    const allCommentsForTranslationMap: Record<string, TranslationItem[]> = {};
+    allCommentsForTranslationResult.data?.forEach(
+      (comment: { id: string; post_id: string; content: string }) => {
+        if (!allCommentsForTranslationMap[comment.post_id]) {
+          allCommentsForTranslationMap[comment.post_id] = [];
+        }
+        allCommentsForTranslationMap[comment.post_id]!.push({
+          id: comment.id,
+          content: comment.content,
+          original_language: detectLanguage(comment.content),
+        });
+      }
+    );
 
     // Process liked_by map (limit 5 per post)
     const likedByMap: Record<string, LikedByUser[]> = {};
@@ -401,6 +439,8 @@ export async function GET(request: NextRequest) {
           preview_comments: previewCommentsMap[post.id] || [],
           // has_more_comments: 실제 최상위 댓글 수가 프리뷰 개수(3)보다 많을 때만 true
           has_more_comments: (topLevelCountMap[post.id] || 0) > 3,
+          // All comments/replies for batch translation
+          all_comments_for_translation: allCommentsForTranslationMap[post.id] || [],
         })
       ) || [];
 
