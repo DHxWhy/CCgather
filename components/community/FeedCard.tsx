@@ -101,6 +101,8 @@ interface FeedCardProps {
   isFeatured?: boolean; // Highlight style for Hall of Fame featured posts
   // Translation state (managed by parent)
   isTranslationPending?: boolean; // True when translation is being fetched via batch API
+  // Translation function to get cached translations for comments/replies
+  getCommentTranslation?: (id: string) => string | undefined;
 }
 
 // ===========================================
@@ -135,6 +137,9 @@ interface CommentItemProps {
   onCommentDelete?: (commentId: string) => void; // Delete callback
   onLoginRequired?: (action: "like" | "comment") => void;
   onSubmissionRequired?: () => void;
+  // Translation props
+  translatedContent?: string; // Cached translation from batch API
+  userLanguage?: string; // User's target language
 }
 
 const CommentItem = memo(function CommentItem({
@@ -149,6 +154,8 @@ const CommentItem = memo(function CommentItem({
   onCommentDelete,
   onLoginRequired,
   onSubmissionRequired,
+  translatedContent,
+  userLanguage,
 }: CommentItemProps) {
   const [isDeleting, setIsDeleting] = useState(false);
   const [isDeleted, setIsDeleted] = useState(false);
@@ -160,8 +167,14 @@ const CommentItem = memo(function CommentItem({
   const [isLiking, setIsLiking] = useState(false);
   // Translation toggle state
   const [showOriginal, setShowOriginal] = useState(false);
-  const isTranslated = comment.is_translated && comment.original_content;
-  const displayContent = showOriginal ? comment.original_content : comment.content;
+  // Use translatedContent from batch API if available, otherwise fallback to comment's own translated_content
+  const effectiveTranslation = translatedContent || comment.translated_content;
+  const isTranslated = !!effectiveTranslation && effectiveTranslation !== comment.content;
+  const displayContent = showOriginal ? comment.content : effectiveTranslation || comment.content;
+  // Language detection for display
+  const originalLanguage = comment.original_content
+    ? detectCommentLanguage(comment.original_content)
+    : detectCommentLanguage(comment.content);
 
   // Close menu on outside click
   useEffect(() => {
@@ -392,6 +405,18 @@ const CommentItem = memo(function CommentItem({
             </div>
           )}
         </div>
+        {/* Language indicator - show when translated */}
+        {isTranslated && userLanguage && (
+          <div className="flex items-center gap-1 text-[9px] text-[var(--color-text-muted)] mb-0.5">
+            <span className="text-[var(--color-accent-cyan)]">
+              {LANGUAGE_CODES[originalLanguage] || originalLanguage.toUpperCase()}
+            </span>
+            <span className="opacity-40">→</span>
+            <span className="opacity-60">
+              {LANGUAGE_CODES[userLanguage] || userLanguage.toUpperCase()}
+            </span>
+          </div>
+        )}
         <p className={cn(textSize, "text-[var(--color-text-secondary)] leading-relaxed")}>
           {displayContent}
         </p>
@@ -463,6 +488,18 @@ const LANGUAGE_CODES: Record<string, string> = {
   pt: "PT",
 };
 
+// Simple language detection for comments
+function detectCommentLanguage(text: string): string {
+  if (/[\uAC00-\uD7AF]/.test(text)) return "ko";
+  if (/[\u3040-\u309F\u30A0-\u30FF]/.test(text)) return "ja";
+  if (/[\u4E00-\u9FFF]/.test(text) && !/[\u3040-\u309F\u30A0-\u30FF]/.test(text)) return "zh";
+  if (/[äöüßÄÖÜ]/.test(text)) return "de";
+  if (/[éèêëàâùûôîïç]/i.test(text)) return "fr";
+  if (/[áéíóúüñ¿¡]/i.test(text)) return "es";
+  if (/[ãõáéíóúâêôç]/i.test(text)) return "pt";
+  return "en";
+}
+
 // ===========================================
 // FeedCard Component
 // ===========================================
@@ -487,6 +524,7 @@ function FeedCardComponent({
   variant = "card",
   isFeatured = false,
   isTranslationPending = false,
+  getCommentTranslation,
 }: FeedCardProps) {
   const [showOriginal, setShowOriginal] = useState(false);
   // Use translated_content from parent (batch translation) instead of local fetch
@@ -1267,6 +1305,8 @@ function FeedCardComponent({
                           onCommentReply={handleReplyClick}
                           onLoginRequired={onLoginRequired}
                           onSubmissionRequired={onSubmissionRequired}
+                          translatedContent={getCommentTranslation?.(comment.id)}
+                          userLanguage={userLanguage}
                         />
 
                         {/* Reply Input - show when replying to this comment */}
@@ -1385,6 +1425,8 @@ function FeedCardComponent({
                                           onAuthorClick={onAuthorClick}
                                           onCommentLike={onCommentLike}
                                           onLoginRequired={onLoginRequired}
+                                          translatedContent={getCommentTranslation?.(reply.id)}
+                                          userLanguage={userLanguage}
                                         />
                                       </div>
                                     </div>

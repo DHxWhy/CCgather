@@ -25,6 +25,13 @@ interface TranslationState {
   error: string | null;
 }
 
+// Statistics for UI display
+export interface TranslationStats {
+  postsCount: number;
+  commentsCount: number;
+  totalCount: number;
+}
+
 interface UseLazyTranslationOptions {
   enabled: boolean;
   targetLanguage: string;
@@ -73,6 +80,13 @@ export function useLazyTranslation(items: TranslationItem[], options: UseLazyTra
 
   // Create stable key from items for dependency comparison
   const itemsKey = items.map((i) => `${i.type}:${i.id}`).join(",");
+
+  // Calculate statistics for UI display
+  const stats: TranslationStats = {
+    postsCount: items.filter((i) => i.type === "post").length,
+    commentsCount: items.filter((i) => i.type === "comment").length,
+    totalCount: items.length,
+  };
 
   // Get translation for an item (use ref to avoid dependency loop)
   const getTranslation = useCallback(
@@ -212,6 +226,7 @@ export function useLazyTranslation(items: TranslationItem[], options: UseLazyTra
     getTranslation,
     needsTranslation,
     fetchTranslations,
+    stats,
   };
 }
 

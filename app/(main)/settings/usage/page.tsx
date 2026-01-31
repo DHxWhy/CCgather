@@ -29,10 +29,10 @@ interface HistoryEntry {
 type PeriodFilter = "3m" | "6m" | "12m" | "all";
 
 const PERIOD_OPTIONS: { value: PeriodFilter; label: string }[] = [
-  { value: "3m", label: "3개월" },
-  { value: "6m", label: "6개월" },
-  { value: "12m", label: "12개월" },
-  { value: "all", label: "전체" },
+  { value: "3m", label: "3 months" },
+  { value: "6m", label: "6 months" },
+  { value: "12m", label: "12 months" },
+  { value: "all", label: "All" },
 ];
 
 const MONTHS_SHORT = [

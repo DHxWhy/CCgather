@@ -60,6 +60,14 @@ interface CommunityFeedSectionProps {
   onAutoTranslateToggle?: (enabled: boolean) => void;
   isTranslationLoading?: boolean;
   pendingTranslationIds?: Set<string>; // Post IDs that are awaiting translation
+  // Translation function for comments/replies
+  getCommentTranslation?: (id: string) => string | undefined;
+  // Translation statistics for banner display
+  translationStats?: {
+    postsCount: number;
+    commentsCount: number;
+    totalCount: number;
+  };
 }
 
 // ===========================================
@@ -141,6 +149,8 @@ function CommunityFeedSectionComponent({
   onAutoTranslateToggle,
   isTranslationLoading = false,
   pendingTranslationIds,
+  getCommentTranslation,
+  translationStats,
 }: CommunityFeedSectionProps) {
   const feedContainerRef = useRef<HTMLDivElement>(null);
 
@@ -244,6 +254,7 @@ function CommunityFeedSectionComponent({
         isTranslationPending={
           autoTranslateEnabled === true && (pendingTranslationIdsRef.current?.has(post.id) || false)
         }
+        getCommentTranslation={getCommentTranslation}
       />
     ),
     [
@@ -258,6 +269,7 @@ function CommunityFeedSectionComponent({
       variant,
       currentUserId,
       autoTranslateEnabled,
+      getCommentTranslation,
     ]
   );
 
@@ -298,7 +310,9 @@ function CommunityFeedSectionComponent({
                 {autoTranslateEnabled === null
                   ? "Loading preferences..."
                   : isTranslationLoading && autoTranslateEnabled
-                    ? "Processing multiple languages"
+                    ? translationStats && translationStats.totalCount > 0
+                      ? `${translationStats.postsCount} posts, ${translationStats.commentsCount} comments...`
+                      : "Processing..."
                     : autoTranslateEnabled
                       ? "Posts appear in your language"
                       : "Showing original posts"}
@@ -418,6 +432,7 @@ function CommunityFeedSectionComponent({
                   autoTranslateEnabled === true &&
                   (pendingTranslationIds?.has(featuredPost.id) || false)
                 }
+                getCommentTranslation={getCommentTranslation}
               />
             </div>
           </div>
