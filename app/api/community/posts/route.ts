@@ -85,6 +85,11 @@ function detectLanguage(text: string): string {
   if (/[\uAC00-\uD7AF]/.test(text)) return "ko";
   if (/[\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FAF]/.test(text)) return "ja";
   if (/[\u4E00-\u9FFF]/.test(text) && !/[\u3040-\u309F\u30A0-\u30FF]/.test(text)) return "zh";
+  // European languages detection
+  if (/[äöüßÄÖÜ]/.test(text)) return "de";
+  if (/[éèêëàâùûôîïç]/i.test(text)) return "fr";
+  if (/[áéíóúüñ¿¡]/i.test(text)) return "es";
+  if (/[ãõáéíóúâêôç]/i.test(text)) return "pt";
   return "en";
 }
 

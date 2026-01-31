@@ -169,8 +169,13 @@ const CommentItem = memo(function CommentItem({
   const [showOriginal, setShowOriginal] = useState(false);
   // Use translatedContent from batch API if available, otherwise fallback to comment's own translated_content
   const effectiveTranslation = translatedContent || comment.translated_content;
-  const isTranslated = !!effectiveTranslation && effectiveTranslation !== comment.content;
-  const displayContent = showOriginal ? comment.content : effectiveTranslation || comment.content;
+  // Check translation: either has different translation text OR is_translated flag from API (for lazy-loaded replies)
+  const isTranslated =
+    (!!effectiveTranslation && effectiveTranslation !== comment.content) ||
+    comment.is_translated === true;
+  // For lazy-loaded replies: content may already be translated, original_content has the original
+  const originalContent = comment.original_content || comment.content;
+  const displayContent = showOriginal ? originalContent : effectiveTranslation || comment.content;
   // Language detection for display
   const originalLanguage = comment.original_content
     ? detectCommentLanguage(comment.original_content)
