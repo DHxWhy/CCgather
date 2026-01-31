@@ -242,23 +242,30 @@ ${textList}`;
             const translatedText = result.response.text().trim();
             const translations = parseNumberedTranslations(translatedText, uncachedReplies.length);
 
-            // Save to cache
-            const translationRecords = uncachedReplies.map((r, idx) => ({
-              content_id: r.id,
-              content_type: "comment" as const,
-              target_language: targetLanguage,
-              translated_text: translations[idx] || r.content,
-            }));
+            // Save to cache - only successful translations (not same as original)
+            const translationRecords = uncachedReplies
+              .map((r, idx) => ({
+                content_id: r.id,
+                content_type: "comment" as const,
+                target_language: targetLanguage,
+                translated_text: translations[idx],
+                original_content: r.content,
+              }))
+              .filter((rec) => rec.translated_text && rec.translated_text !== rec.original_content);
 
             if (translationRecords.length > 0) {
-              await supabase.from("translations").upsert(translationRecords, {
-                onConflict: "content_id,content_type,target_language",
-              });
+              await supabase.from("translations").upsert(
+                translationRecords.map(({ original_content, ...rest }) => rest),
+                { onConflict: "content_id,content_type,target_language" }
+              );
             }
 
-            // Add to map
+            // Add to map - only successful translations
             uncachedReplies.forEach((r, idx) => {
-              translationsMap.set(r.id, translations[idx] || r.content);
+              const translated = translations[idx];
+              if (translated && translated !== r.content) {
+                translationsMap.set(r.id, translated);
+              }
             });
 
             // Log AI usage

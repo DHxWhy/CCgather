@@ -188,29 +188,35 @@ ${textList}`;
         (outputTokens / 1_000_000) * TOKEN_COSTS.output;
 
       // =====================================================
-      // Step 3: Save translations to cache
+      // Step 3: Save translations to cache (only successful ones)
       // =====================================================
 
-      const translationRecords = itemsToTranslate.map((item, idx) => ({
-        content_id: item.id,
-        content_type: item.type,
-        target_language: targetLanguage,
-        translated_text: translations[idx] || item.text, // fallback to original
-      }));
+      const translationRecords = itemsToTranslate
+        .map((item, idx) => ({
+          content_id: item.id,
+          content_type: item.type,
+          target_language: targetLanguage,
+          translated_text: translations[idx],
+          original_text: item.text,
+        }))
+        .filter((rec) => rec.translated_text && rec.translated_text !== rec.original_text);
 
-      // Upsert translations
+      // Upsert translations - only successful ones
       if (translationRecords.length > 0) {
-        await supabase.from("translations").upsert(translationRecords, {
-          onConflict: "content_id,content_type,target_language",
-        });
+        await supabase.from("translations").upsert(
+          translationRecords.map(({ original_text, ...rest }) => rest),
+          { onConflict: "content_id,content_type,target_language" }
+        );
       }
 
-      // Add to results
+      // Add to results - use original if translation failed
       itemsToTranslate.forEach((item, idx) => {
+        const translated = translations[idx];
+        const isSuccess = translated && translated !== item.text;
         results.push({
           id: item.id,
           type: item.type,
-          translated_text: translations[idx] || item.text,
+          translated_text: isSuccess ? translated : item.text,
           from_cache: false,
         });
       });
