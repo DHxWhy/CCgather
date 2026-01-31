@@ -101,6 +101,10 @@ interface FeedCardProps {
   isFeatured?: boolean; // Highlight style for Hall of Fame featured posts
   // Translation state (managed by parent)
   isTranslationPending?: boolean; // True when translation is being fetched via batch API
+  // Translation callback for lazy-loaded comments/replies
+  onTranslateRequest?: (
+    items: Array<{ id: string; type: "comment"; text: string; originalLanguage?: string }>
+  ) => void;
 }
 
 // ===========================================
@@ -487,6 +491,7 @@ function FeedCardComponent({
   variant = "card",
   isFeatured = false,
   isTranslationPending = false,
+  onTranslateRequest,
 }: FeedCardProps) {
   const [showOriginal, setShowOriginal] = useState(false);
   // Use translated_content from parent (batch translation) instead of local fetch
@@ -552,15 +557,29 @@ function FeedCardComponent({
       const res = await fetch(`/api/community/comments?post_id=${post.id}`);
       const data = await res.json();
       if (data.comments) {
+        // Find new comments that weren't in preview_comments
+        const existingIds = new Set(localComments.map((c) => c.id));
+        const newComments = data.comments.filter((c: FeedComment) => !existingIds.has(c.id));
+
         setLocalComments(data.comments);
         setHasMoreComments(false); // All comments loaded
+
+        // Request translation for new comments (excluding replies - they're loaded separately)
+        if (onTranslateRequest && newComments.length > 0) {
+          const itemsToTranslate = newComments.map((c: FeedComment) => ({
+            id: c.id,
+            type: "comment" as const,
+            text: c.content,
+          }));
+          onTranslateRequest(itemsToTranslate);
+        }
       }
     } catch (err) {
       console.error("Failed to load comments:", err);
     } finally {
       setCommentsLoading(false);
     }
-  }, [commentsLoading, hasMoreComments, post.id]);
+  }, [commentsLoading, hasMoreComments, post.id, localComments, onTranslateRequest]);
 
   // Load replies for a specific comment
   const loadReplies = useCallback(
@@ -578,6 +597,16 @@ function FeedCardComponent({
               c.id === commentId ? { ...c, replies: data.replies, replies_loaded: true } : c
             )
           );
+
+          // Request translation for replies
+          if (onTranslateRequest && data.replies.length > 0) {
+            const itemsToTranslate = data.replies.map((reply: FeedComment) => ({
+              id: reply.id,
+              type: "comment" as const,
+              text: reply.content,
+            }));
+            onTranslateRequest(itemsToTranslate);
+          }
         }
       } catch (err) {
         console.error("Failed to load replies:", err);
@@ -589,7 +618,7 @@ function FeedCardComponent({
         });
       }
     },
-    [loadingReplies]
+    [loadingReplies, onTranslateRequest]
   );
 
   // Toggle replies visibility for a comment
