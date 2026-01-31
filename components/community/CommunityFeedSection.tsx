@@ -42,7 +42,6 @@ interface CommunityFeedSectionProps {
   className?: string;
   // Featured post (from Hall of Fame)
   featuredPostId?: string | null;
-  onClearFeatured?: () => void;
   // Author filter (for showing only one user's posts)
   authorFilter?: string | null;
   authorFilterInfo?: { username: string; displayName?: string | null } | null;
@@ -136,7 +135,6 @@ function CommunityFeedSectionComponent({
   variant = "plain",
   className,
   featuredPostId,
-  onClearFeatured,
   authorFilter,
   authorFilterInfo,
   onClearAuthorFilter,
@@ -396,20 +394,13 @@ function CommunityFeedSectionComponent({
         {featuredPost && (
           <div className="flex-shrink-0 border-b border-amber-400/20">
             {/* Featured header */}
-            <div className="flex items-center justify-between px-4 py-2 bg-gradient-to-r from-amber-400/10 to-transparent">
+            <div className="flex items-center px-4 py-2 bg-gradient-to-r from-amber-400/10 to-transparent">
               <div className="flex items-center gap-2">
                 <Star size={12} className="text-amber-400 fill-amber-400" />
                 <span className="text-[10px] font-semibold text-amber-400 uppercase tracking-wider">
                   Featured Post
                 </span>
               </div>
-              <button
-                onClick={onClearFeatured}
-                className="flex items-center gap-1 text-[10px] text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] transition-colors"
-              >
-                <ChevronUp size={12} />
-                <span>Back to feed</span>
-              </button>
             </div>
             {/* Featured post card with highlight */}
             <div className="relative">

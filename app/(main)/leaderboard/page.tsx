@@ -3028,7 +3028,6 @@ export default function LeaderboardPage() {
                     }}
                     variant="plain"
                     featuredPostId={featuredPostId}
-                    onClearFeatured={() => setFeaturedPostId(null)}
                     authorFilter={authorFilter}
                     authorFilterInfo={authorFilterInfo}
                     onClearAuthorFilter={handleClearAuthorFilter}
