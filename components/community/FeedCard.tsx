@@ -170,15 +170,8 @@ const CommentItem = memo(function CommentItem({
   const [isLiking, setIsLiking] = useState(false);
   // Translation toggle state
   const [showOriginal, setShowOriginal] = useState(false);
-  // Shimmer state for newly loaded comments (1 cycle = 1.5s)
-  const [showShimmer, setShowShimmer] = useState(isNewlyLoaded);
-
-  // Auto-hide shimmer after 1 cycle
-  useEffect(() => {
-    if (!isNewlyLoaded || !showShimmer) return;
-    const timer = setTimeout(() => setShowShimmer(false), 1500);
-    return () => clearTimeout(timer);
-  }, [isNewlyLoaded, showShimmer]);
+  // Shimmer: directly use isNewlyLoaded prop (managed by parent FeedCard)
+  const showShimmer = isNewlyLoaded;
   // Use translatedContent from batch API if available, otherwise fallback to comment's own translated_content
   const effectiveTranslation = translatedContent || comment.translated_content;
   // Check translation: either has different translation text OR is_translated flag from API (for lazy-loaded replies)
@@ -580,8 +573,8 @@ function FeedCardComponent({
   // Replies expansion state (per comment)
   const [expandedReplies, setExpandedReplies] = useState<Set<string>>(new Set());
   const [loadingReplies, setLoadingReplies] = useState<Set<string>>(new Set());
-  // Shimmer state for newly loaded replies (show shimmer for 1 cycle)
-  const [shimmeringReplies, setShimmeringReplies] = useState<Set<string>>(new Set());
+  // Shimmer state for newly loaded comments/replies (show shimmer for 1s)
+  const [shimmeringComments, setShimmeringComments] = useState<Set<string>>(new Set());
 
   // Check if current user is the post author
   const isOwner = currentUserId && post.author.id === currentUserId;
@@ -612,20 +605,45 @@ function FeedCardComponent({
   const loadMoreComments = useCallback(async () => {
     if (commentsLoading || !hasMoreComments) return;
 
+    // Get existing comment IDs to identify newly loaded ones
+    const existingIds = new Set(localComments.map((c) => c.id));
+
     setCommentsLoading(true);
     try {
       const res = await fetch(`/api/community/comments?post_id=${post.id}`);
       const data = await res.json();
-      if (data.comments) {
+      if (data.comments && data.comments.length > 0) {
         setLocalComments(data.comments);
         setHasMoreComments(false); // All comments loaded
+
+        // Find newly loaded comments (not in existing set)
+        const newCommentIds = data.comments
+          .filter((c: { id: string }) => !existingIds.has(c.id))
+          .map((c: { id: string }) => c.id);
+
+        if (newCommentIds.length > 0) {
+          // Add to shimmer set
+          setShimmeringComments((prev) => {
+            const next = new Set(prev);
+            newCommentIds.forEach((id: string) => next.add(id));
+            return next;
+          });
+          // Remove shimmer after 1s
+          setTimeout(() => {
+            setShimmeringComments((prev) => {
+              const next = new Set(prev);
+              newCommentIds.forEach((id: string) => next.delete(id));
+              return next;
+            });
+          }, 1000);
+        }
       }
     } catch (err) {
       console.error("Failed to load comments:", err);
     } finally {
       setCommentsLoading(false);
     }
-  }, [commentsLoading, hasMoreComments, post.id]);
+  }, [commentsLoading, hasMoreComments, post.id, localComments]);
 
   // Load replies for a specific comment
   const loadReplies = useCallback(
@@ -645,19 +663,19 @@ function FeedCardComponent({
           );
           // Add reply IDs to shimmer set for 1 cycle animation
           const replyIds = data.replies.map((r: { id: string }) => r.id);
-          setShimmeringReplies((prev) => {
+          setShimmeringComments((prev) => {
             const next = new Set(prev);
             replyIds.forEach((id: string) => next.add(id));
             return next;
           });
-          // Remove shimmer after 1.5s (1 animation cycle)
+          // Remove shimmer after 1s (fast load feedback)
           setTimeout(() => {
-            setShimmeringReplies((prev) => {
+            setShimmeringComments((prev) => {
               const next = new Set(prev);
               replyIds.forEach((id: string) => next.delete(id));
               return next;
             });
-          }, 1500);
+          }, 1000);
         } else if (data.replies) {
           // Empty replies array
           setLocalComments((prev) =>
@@ -735,9 +753,28 @@ function FeedCardComponent({
 
   // Handle comment - toggle comment section, requires login for posting
   const handleCommentClick = useCallback(() => {
-    setShowComments((prev) => !prev);
+    setShowComments((prev) => {
+      // If opening comments section for the first time, add shimmer to existing comments
+      if (!prev && localComments.length > 0) {
+        const commentIds = localComments.map((c) => c.id);
+        setShimmeringComments((prevSet) => {
+          const next = new Set(prevSet);
+          commentIds.forEach((id) => next.add(id));
+          return next;
+        });
+        // Remove shimmer after 1s
+        setTimeout(() => {
+          setShimmeringComments((prevSet) => {
+            const next = new Set(prevSet);
+            commentIds.forEach((id) => next.delete(id));
+            return next;
+          });
+        }, 1000);
+      }
+      return !prev;
+    });
     onComment?.(post.id);
-  }, [onComment, post.id]);
+  }, [onComment, post.id, localComments]);
 
   // Handle share - Web Share API on mobile only, clipboard on desktop
   const handleShare = useCallback(async () => {
@@ -1356,6 +1393,7 @@ function FeedCardComponent({
                           onSubmissionRequired={onSubmissionRequired}
                           translatedContent={getCommentTranslation?.(comment.id)}
                           userLanguage={userLanguage}
+                          isNewlyLoaded={shimmeringComments.has(comment.id)}
                         />
 
                         {/* Reply Input - show when replying to this comment */}
@@ -1476,7 +1514,7 @@ function FeedCardComponent({
                                           onLoginRequired={onLoginRequired}
                                           translatedContent={getCommentTranslation?.(reply.id)}
                                           userLanguage={userLanguage}
-                                          isNewlyLoaded={shimmeringReplies.has(reply.id)}
+                                          isNewlyLoaded={shimmeringComments.has(reply.id)}
                                         />
                                       </div>
                                     </div>
