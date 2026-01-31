@@ -34,6 +34,7 @@ import {
   extractTranslationItems,
   type FeedPostForTranslation,
 } from "@/hooks/useLazyTranslation";
+import { useMe } from "@/hooks/use-me";
 
 // View mode type for tab switching
 type ViewMode = "leaderboard" | "community";
@@ -287,6 +288,11 @@ export default function LeaderboardPage() {
   const pathname = usePathname();
   const highlightUsername = searchParams.get("u");
 
+  // React Query: Cached /api/me call
+  const { data: meData, isFetched: isMeFetched } = useMe({
+    enabled: !!clerkUser?.id,
+  });
+
   // Determine initial view from pathname
   const getInitialView = (): ViewMode => {
     if (pathname === "/community") return "community";
@@ -331,6 +337,12 @@ export default function LeaderboardPage() {
   // Community posts state (API-driven)
   const [communityPosts, setCommunityPosts] = useState<FeedPost[]>([]);
   const [communityLoading, setCommunityLoading] = useState(false);
+  // Total community stats (cumulative, filter-independent)
+  const [totalCommunityStats, setTotalCommunityStats] = useState({
+    totalCountries: 0,
+    totalPosts: 0,
+    totalLikes: 0,
+  });
   // Infinite scroll state for community posts
   // Using ref for offset to avoid recreating fetchCommunityPosts on every offset change
   const communityOffsetRef = useRef(0);
@@ -345,6 +357,7 @@ export default function LeaderboardPage() {
 
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [isPanelOpen, setIsPanelOpen] = useState(false);
+  const closePanelTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [isGlobePanelOpen, setIsGlobePanelOpen] = useState(false);
   const [periodFilter, setPeriodFilter] = useState<PeriodFilter>("1d");
   const [scopeFilter, setScopeFilter] = useState<ScopeFilter>("global");
@@ -791,31 +804,23 @@ export default function LeaderboardPage() {
     return () => clearTimeout(timer);
   }, [globePulse]);
 
-  // Fetch current user's country and username
+  // Sync user info from React Query cache
   useEffect(() => {
-    async function fetchUserInfo() {
-      if (!clerkUser?.id) return;
-      try {
-        const response = await fetch("/api/me");
-        if (response.ok) {
-          const data = await response.json();
-          if (data.user?.country_code) {
-            setCurrentUserCountry(data.user.country_code);
-          }
-          if (data.user?.username) {
-            setCurrentUsername(data.user.username);
-          }
-          // Mark user info as loaded to trigger leaderboard refresh
-          // This ensures social_links (auto-populated from OAuth) are fetched
-          setUserInfoLoaded(true);
-        }
-      } catch {
-        // Keep defaults
-        setUserInfoLoaded(true);
+    if (!clerkUser?.id) return;
+    if (!isMeFetched) return;
+
+    // Use cached meData from React Query
+    if (meData) {
+      if (meData.country_code) {
+        setCurrentUserCountry(meData.country_code);
+      }
+      if (meData.username) {
+        setCurrentUsername(meData.username);
       }
     }
-    fetchUserInfo();
-  }, [clerkUser?.id]);
+    // Mark user info as loaded to trigger leaderboard refresh
+    setUserInfoLoaded(true);
+  }, [clerkUser?.id, meData, isMeFetched]);
 
   // Fetch data on filter/page change
   // Using ref to avoid infinite loop from fetchLeaderboard dependency
@@ -1006,6 +1011,11 @@ export default function LeaderboardPage() {
   }, [loading, stickyLocked, viewportWidth]);
 
   const handleRowClick = (user: DisplayUser) => {
+    // 이전 닫기 타이머가 있으면 취소 (race condition 방지)
+    if (closePanelTimerRef.current) {
+      clearTimeout(closePanelTimerRef.current);
+      closePanelTimerRef.current = null;
+    }
     setSelectedUserId(user.id);
     setIsPanelOpen(true);
     setHighlightMyRank(false);
@@ -1013,6 +1023,11 @@ export default function LeaderboardPage() {
 
   // Open profile for a user by ID (ProfileSidePanel fetches data internally)
   const handleOpenProfileById = useCallback((userId: string) => {
+    // 이전 닫기 타이머가 있으면 취소 (race condition 방지)
+    if (closePanelTimerRef.current) {
+      clearTimeout(closePanelTimerRef.current);
+      closePanelTimerRef.current = null;
+    }
     setSelectedUserId(userId);
     setIsPanelOpen(true);
   }, []);
@@ -1020,14 +1035,15 @@ export default function LeaderboardPage() {
   const handleClosePanel = useCallback(() => {
     setIsPanelOpen(false);
     // Clear selectedUserId after animation completes
-    // Use functional update to check current state (avoid stale closure)
-    setTimeout(() => {
+    // 타이머 ID를 ref에 저장하여 패널이 다시 열릴 때 취소 가능하게 함
+    closePanelTimerRef.current = setTimeout(() => {
       setIsPanelOpen((currentOpen) => {
         if (!currentOpen) {
           setSelectedUserId(null);
         }
         return currentOpen;
       });
+      closePanelTimerRef.current = null;
     }, 300);
   }, []);
 
@@ -1385,6 +1401,26 @@ export default function LeaderboardPage() {
     }
   }, [viewMode, communityTab, fetchCommunityPosts]);
 
+  // Fetch total community stats (cumulative, once on mount)
+  useEffect(() => {
+    const fetchTotalCommunityStats = async () => {
+      try {
+        const res = await fetch("/api/community/stats");
+        if (res.ok) {
+          const data = await res.json();
+          setTotalCommunityStats({
+            totalCountries: data.totalCountries || 0,
+            totalPosts: data.totalPosts || 0,
+            totalLikes: data.totalLikes || 0,
+          });
+        }
+      } catch (err) {
+        console.error("Failed to fetch total community stats:", err);
+      }
+    };
+    fetchTotalCommunityStats();
+  }, []);
+
   // Use compact ratio only when: viewport < 1200px AND panel is open
   // Above 1200px: Globe remains visible alongside panel
   const useCompactRatio = isPanelOpen && viewportWidth < 1200;
@@ -1538,20 +1574,20 @@ export default function LeaderboardPage() {
                   className={`flex items-center gap-1.5 text-xs ${isTablet ? "text-[10px]" : ""}`}
                 >
                   {viewMode === "community" ? (
-                    /* Community Stats: members, posts, likes - 즉시 표시 */
+                    /* Community Stats: countries, posts, likes - 전체 누적 수치 */
                     <>
                       <span className="flex items-center gap-1 text-[var(--color-accent-cyan)]">
-                        <span>👥</span>
-                        <span className="font-semibold">
-                          {communityStats.members.toLocaleString()}
+                        <span>🌍</span>
+                        <span className="font-semibold">{totalCommunityStats.totalCountries}</span>
+                        <span className="text-[var(--color-text-muted)] font-normal">
+                          countries
                         </span>
-                        <span className="text-[var(--color-text-muted)] font-normal">members</span>
                       </span>
                       <span className="text-[var(--color-text-muted)]">·</span>
                       <span className="flex items-center gap-1 text-[var(--color-claude-coral)]">
                         <span>📝</span>
                         <span className="font-semibold">
-                          {communityStats.posts.toLocaleString()}
+                          {totalCommunityStats.totalPosts.toLocaleString()}
                         </span>
                         <span className="text-[var(--color-text-muted)] font-normal">posts</span>
                       </span>
@@ -1559,7 +1595,7 @@ export default function LeaderboardPage() {
                       <span className="flex items-center gap-1 text-[var(--color-accent-red)]">
                         <span>❤️</span>
                         <span className="font-semibold">
-                          {communityStats.likes.toLocaleString()}
+                          {totalCommunityStats.totalLikes.toLocaleString()}
                         </span>
                         <span className="text-[var(--color-text-muted)] font-normal">likes</span>
                       </span>
@@ -2888,6 +2924,7 @@ export default function LeaderboardPage() {
         scopeFilter={scopeFilter}
         viewMode={viewMode}
         communityStats={communityStats}
+        totalCommunityStats={totalCommunityStats}
         onHallOfFameUserClick={(userId) => {
           handleOpenProfileById(userId);
           // Also apply author filter to show their posts

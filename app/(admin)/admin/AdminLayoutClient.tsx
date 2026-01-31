@@ -5,6 +5,7 @@ import { useRouter, usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
+import { useMe } from "@/hooks/use-me";
 
 // Mac 스타일 사이드바 메뉴 구조
 const ADMIN_MENU = [
@@ -41,8 +42,19 @@ export function AdminLayoutClient({ children }: { children: React.ReactNode }) {
   const { user, isLoaded } = useUser();
   const router = useRouter();
   const pathname = usePathname();
-  const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+
+  // React Query: Cached /api/me call with admin check
+  const {
+    data: meData,
+    isLoading: isMeLoading,
+    error: meError,
+  } = useMe({
+    enabled: isLoaded && !!user,
+  });
+
+  // Derive admin status from cached data
+  const isAdmin = meData?.is_admin ?? null;
 
   useEffect(() => {
     if (isLoaded && !user) {
@@ -50,27 +62,22 @@ export function AdminLayoutClient({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    if (isLoaded && user) {
-      fetch("/api/me")
-        .then((res) => res.json())
-        .then((data) => {
-          if (data.user?.is_admin) {
-            setIsAdmin(true);
-          } else {
-            setIsAdmin(false);
-            if (process.env.NODE_ENV !== "development") {
-              router.push("/");
-            }
-          }
-        })
-        .catch(() => {
-          setIsAdmin(false);
+    // Handle non-admin redirect
+    if (isLoaded && user && meData !== undefined && !isMeLoading) {
+      if (!meData?.is_admin) {
+        if (process.env.NODE_ENV !== "development") {
           router.push("/");
-        });
+        }
+      }
     }
-  }, [isLoaded, user, router]);
 
-  if (!isLoaded || isAdmin === null) {
+    // Handle fetch error
+    if (meError) {
+      router.push("/");
+    }
+  }, [isLoaded, user, router, meData, isMeLoading, meError]);
+
+  if (!isLoaded || isMeLoading || isAdmin === null) {
     return (
       <div className="min-h-screen bg-[#0d0d0d] flex items-center justify-center">
         <div className="w-6 h-6 border-2 border-[var(--color-claude-coral)] border-t-transparent rounded-full animate-spin" />

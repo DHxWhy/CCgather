@@ -36,6 +36,12 @@ interface CommunityStats {
   contributors: number;
 }
 
+interface TotalCommunityStats {
+  totalCountries: number;
+  totalPosts: number;
+  totalLikes: number;
+}
+
 interface MobileGlobePanelProps {
   isOpen: boolean;
   onClose: () => void;
@@ -49,6 +55,7 @@ interface MobileGlobePanelProps {
   // Community mode support
   viewMode?: "leaderboard" | "community";
   communityStats?: CommunityStats;
+  totalCommunityStats?: TotalCommunityStats;
   onHallOfFameUserClick?: (userId: string) => void;
   onHallOfFamePostClick?: (postId: string) => void;
 }
@@ -64,7 +71,8 @@ export function MobileGlobePanel({
   userCountryCode,
   scopeFilter,
   viewMode = "leaderboard",
-  communityStats,
+  communityStats: _communityStats, // Legacy prop, kept for backwards compatibility
+  totalCommunityStats,
   onHallOfFameUserClick,
   onHallOfFamePostClick,
 }: MobileGlobePanelProps) {
@@ -236,32 +244,32 @@ export function MobileGlobePanel({
           {viewMode === "community" ? (
             /* Community Mode: Stats + Hall of Fame */
             <div className="flex-1 min-h-0 overflow-y-auto flex flex-col gap-4">
-              {/* Community Stats Bar with rolling animation */}
-              {communityStats && (
+              {/* Community Stats Bar - Total cumulative stats */}
+              {totalCommunityStats && (
                 <div className="glass rounded-xl border border-[var(--border-default)] p-4 flex-shrink-0">
                   <div className="flex items-center justify-center gap-4 text-sm">
                     <span className="flex items-center gap-1.5 text-[var(--color-accent-cyan)]">
-                      <span>👥</span>
+                      <span>🌍</span>
                       <AnimatedNumber
-                        value={communityStats.members}
+                        value={totalCommunityStats.totalCountries}
                         perUnitDuration={800}
                         maxDuration={20000}
                         easing="linear"
                         className="font-semibold"
-                        storageKey="community_members"
+                        storageKey="community_countries"
                       />
-                      <span className="text-[var(--color-text-muted)] text-xs">members</span>
+                      <span className="text-[var(--color-text-muted)] text-xs">countries</span>
                     </span>
                     <span className="text-[var(--color-text-muted)]">·</span>
                     <span className="flex items-center gap-1.5 text-[var(--color-claude-coral)]">
                       <span>📝</span>
                       <AnimatedNumber
-                        value={communityStats.posts}
+                        value={totalCommunityStats.totalPosts}
                         perUnitDuration={800}
                         maxDuration={20000}
                         easing="linear"
                         className="font-semibold"
-                        storageKey="community_posts"
+                        storageKey="community_total_posts"
                       />
                       <span className="text-[var(--color-text-muted)] text-xs">posts</span>
                     </span>
@@ -269,12 +277,12 @@ export function MobileGlobePanel({
                     <span className="flex items-center gap-1.5 text-[var(--color-accent-red)]">
                       <span>❤️</span>
                       <AnimatedNumber
-                        value={communityStats.likes}
+                        value={totalCommunityStats.totalLikes}
                         perUnitDuration={800}
                         maxDuration={20000}
                         easing="linear"
                         className="font-semibold"
-                        storageKey="community_likes"
+                        storageKey="community_total_likes"
                       />
                       <span className="text-[var(--color-text-muted)] text-xs">likes</span>
                     </span>

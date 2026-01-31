@@ -5,6 +5,7 @@ import { useRouter, usePathname } from "next/navigation";
 import { useUser } from "@clerk/nextjs";
 import { AccountRecoveryModal } from "./AccountRecoveryModal";
 import { BrandSpinner } from "@/components/shared/BrandSpinner";
+import { useMe } from "@/hooks/use-me";
 
 interface PendingDeletionInfo {
   pending_deletion: true;
@@ -32,6 +33,15 @@ export function OnboardingGuard({ children }: OnboardingGuardProps) {
   const [hasMounted, setHasMounted] = useState(false);
   const [isRedirecting, setIsRedirecting] = useState(false);
   const [pendingDeletionInfo, setPendingDeletionInfo] = useState<PendingDeletionInfo | null>(null);
+
+  // React Query: Cached /api/me call
+  const {
+    data: meData,
+    isLoading: isMeLoading,
+    isFetched: isMeFetched,
+  } = useMe({
+    enabled: isLoaded && !!isSignedIn,
+  });
 
   // Pages that don't require onboarding check (public pages + auth pages)
   const skipOnboardingCheck = [
@@ -102,15 +112,18 @@ export function OnboardingGuard({ children }: OnboardingGuardProps) {
         return;
       }
 
+      // Wait for React Query to finish fetching /api/me
+      if (isMeLoading) {
+        setIsChecking(true);
+        return;
+      }
+
       // Start checking only after mount (prevents hydration mismatch)
       setIsChecking(true);
 
       try {
-        // Parallel fetch for better performance
-        const [recoveryResponse, meResponse] = await Promise.all([
-          fetch("/api/auth/recovery-check", { cache: "no-store" }),
-          fetch("/api/me", { cache: "no-store" }),
-        ]);
+        // Only fetch recovery-check separately (meData comes from React Query cache)
+        const recoveryResponse = await fetch("/api/auth/recovery-check", { cache: "no-store" });
 
         // Check for pending deletion first
         if (recoveryResponse.ok) {
@@ -122,17 +135,17 @@ export function OnboardingGuard({ children }: OnboardingGuardProps) {
           }
         }
 
-        // Check onboarding status
-        if (meResponse.status === 404) {
+        // Check onboarding status using cached meData
+        if (!meData && isMeFetched) {
+          // User not found in DB
           setIsRedirecting(true);
           router.replace("/onboarding");
           return;
         }
 
-        if (meResponse.ok) {
-          const data = await meResponse.json();
-          const hasCountry = !!data.user?.country_code;
-          const onboardingDone = data.user?.onboarding_completed === true;
+        if (meData) {
+          const hasCountry = !!meData.country_code;
+          const onboardingDone = meData.onboarding_completed === true;
 
           if (!hasCountry || !onboardingDone) {
             setIsRedirecting(true);
@@ -150,7 +163,17 @@ export function OnboardingGuard({ children }: OnboardingGuardProps) {
     }
 
     checkOnboardingStatus();
-  }, [isLoaded, isSignedIn, shouldSkipCheck, router, hasMounted, isRedirecting]);
+  }, [
+    isLoaded,
+    isSignedIn,
+    shouldSkipCheck,
+    router,
+    hasMounted,
+    isRedirecting,
+    meData,
+    isMeLoading,
+    isMeFetched,
+  ]);
 
   // 모든 훅 호출 후 단일 렌더링 로직 (조건부 early return 제거)
   // React 훅 규칙: 렌더링 간에 훅 개수가 일정해야 함

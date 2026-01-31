@@ -46,13 +46,28 @@ export async function GET(request: NextRequest) {
 
     // ========== OVERVIEW ==========
     if (view === "overview") {
-      // Get stats
-      const [postsResult, commentsResult, deletionsResult] = await Promise.all([
-        supabase.from("posts").select("id", { count: "exact", head: true }).is("deleted_at", null),
+      // Primary: community_stats 테이블에서 통계 조회 + 삭제 대기 항목
+      const [statsResult, deletedResult, deletionsResult] = await Promise.all([
+        // 1. community_stats 테이블에서 캐시된 통계 조회
         supabase
-          .from("comments")
-          .select("id", { count: "exact", head: true })
-          .is("deleted_at", null),
+          .from("community_stats")
+          .select("total_posts, total_comments, today_posts, today_date")
+          .eq("id", "global")
+          .single(),
+
+        // 2. 삭제 대기 항목 (실시간 조회 필요)
+        Promise.all([
+          supabase
+            .from("posts")
+            .select("id", { count: "exact", head: true })
+            .not("deleted_at", "is", null),
+          supabase
+            .from("comments")
+            .select("id", { count: "exact", head: true })
+            .not("deleted_at", "is", null),
+        ]),
+
+        // 3. 최근 삭제 기록
         supabase
           .from("content_deletion_logs")
           .select("*")
@@ -60,33 +75,45 @@ export async function GET(request: NextRequest) {
           .limit(10),
       ]);
 
-      // Get today's posts count
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      const { count: todayPosts } = await supabase
-        .from("posts")
-        .select("id", { count: "exact", head: true })
-        .is("deleted_at", null)
-        .gte("created_at", today.toISOString());
+      // community_stats에서 통계 추출 (날짜가 다르면 today_posts는 0)
+      const statsData = statsResult.data;
+      const todayStr = new Date().toISOString().split("T")[0];
+      const isSameDay = statsData?.today_date === todayStr;
 
-      // Get deleted posts/comments count (pending hard delete)
-      const { count: deletedPosts } = await supabase
-        .from("posts")
-        .select("id", { count: "exact", head: true })
-        .not("deleted_at", "is", null);
+      let totalPosts = statsData?.total_posts || 0;
+      let totalComments = statsData?.total_comments || 0;
+      let todayPosts = isSameDay ? statsData?.today_posts || 0 : 0;
 
-      const { count: deletedComments } = await supabase
-        .from("comments")
-        .select("id", { count: "exact", head: true })
-        .not("deleted_at", "is", null);
+      // Fallback: community_stats 테이블 조회 실패 시
+      if (statsResult.error) {
+        console.warn("community_stats query failed, using fallback:", statsResult.error.message);
+        const [postsCount, commentsCount, todayCount] = await Promise.all([
+          supabase
+            .from("posts")
+            .select("id", { count: "exact", head: true })
+            .is("deleted_at", null),
+          supabase
+            .from("comments")
+            .select("id", { count: "exact", head: true })
+            .is("deleted_at", null),
+          supabase
+            .from("posts")
+            .select("id", { count: "exact", head: true })
+            .is("deleted_at", null)
+            .gte("created_at", new Date().toISOString().split("T")[0]),
+        ]);
+        totalPosts = postsCount.count || 0;
+        totalComments = commentsCount.count || 0;
+        todayPosts = todayCount.count || 0;
+      }
 
       return NextResponse.json({
         stats: {
-          totalPosts: postsResult.count || 0,
-          totalComments: commentsResult.count || 0,
-          todayPosts: todayPosts || 0,
-          deletedPosts: deletedPosts || 0,
-          deletedComments: deletedComments || 0,
+          totalPosts,
+          totalComments,
+          todayPosts,
+          deletedPosts: deletedResult[0].count || 0,
+          deletedComments: deletedResult[1].count || 0,
         },
         recentDeletions: deletionsResult.data || [],
       });

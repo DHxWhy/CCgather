@@ -21,6 +21,7 @@ import { LEVELS, getLevelByTokens } from "@/lib/constants/levels";
 import { BADGES, type Badge } from "@/lib/constants/badges";
 import { ActivityHeatmap } from "@/components/profile/ActivityHeatmap";
 import { CCplanBadge } from "@/components/leaderboard/CCplanBadge";
+import { useUserProfilePanel } from "@/hooks/use-user-profile";
 import type {
   LeaderboardUser,
   UsageHistoryPoint,
@@ -716,12 +717,11 @@ export function ProfileSidePanel({
   const panelRef = useRef<HTMLDivElement>(null);
   const statsRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
-  const [displayedUser, setDisplayedUser] = useState<DisplayUser | null>(null);
   const [isMobile, setIsMobile] = useState(false);
   const [isTabletPortrait, setIsTabletPortrait] = useState(false);
   const [isNarrow, setIsNarrow] = useState(false);
   const [showCompactStats, setShowCompactStats] = useState(false);
-  const [profileLoading, setProfileLoading] = useState(false);
+  const [chartFadeIn, setChartFadeIn] = useState(true);
 
   // Login prompt modal state
   const [showLoginModal, setShowLoginModal] = useState(false);
@@ -730,12 +730,39 @@ export function ProfileSidePanel({
   );
   const [pendingSocialUrl, setPendingSocialUrl] = useState<string | null>(null);
 
-  // API data state
-  const [usageHistory, setUsageHistory] = useState<UsageHistoryPoint[]>([]);
-  const [userBadges, setUserBadges] = useState<string[]>([]);
-  const [freshSocialLinks, setFreshSocialLinks] = useState<SocialLinks | null>(null);
-  const [_usageLoading, setUsageLoading] = useState(false);
-  const [chartFadeIn, setChartFadeIn] = useState(true);
+  // React Query: Fetch all user data with caching
+  const {
+    profile,
+    usageHistory,
+    badges: userBadges,
+    isProfileLoading,
+  } = useUserProfilePanel(userId, { enabled: isOpen });
+
+  // Convert profile to DisplayUser format
+  const displayedUser: DisplayUser | null = useMemo(() => {
+    if (!profile) return null;
+    return {
+      id: profile.id,
+      username: profile.username,
+      display_name: profile.display_name,
+      avatar_url: profile.avatar_url,
+      country_code: profile.country_code,
+      total_tokens: profile.total_tokens || 0,
+      total_cost: profile.total_cost || 0,
+      total_sessions: profile.total_sessions || 0,
+      rank: profile.global_rank || 0,
+      current_level: profile.current_level || 1,
+      global_rank: profile.global_rank,
+      country_rank: profile.country_rank,
+      social_links: profile.social_links,
+      ccplan: profile.ccplan,
+      has_opus_usage: profile.has_opus_usage || false,
+      post_count: profile.post_count || 0,
+    };
+  }, [profile]);
+
+  // Fresh social links from profile
+  const freshSocialLinks = profile?.social_links ?? null;
 
   // Handle social link click for non-logged-in users
   const handleSocialLinkLoginRequired = useCallback((url: string) => {
@@ -799,123 +826,29 @@ export function ProfileSidePanel({
     return () => window.removeEventListener("resize", checkScreenSize);
   }, []);
 
-  // Fetch all user data when userId changes (profile, history, badges)
+  // Handle chart fade animation when data changes
   useEffect(() => {
-    if (!userId) {
-      setDisplayedUser(null);
-      return;
-    }
-
-    let cancelled = false;
-
-    async function fetchAllUserData() {
-      // Start fade out AND fetch simultaneously (don't wait!)
+    if (isProfileLoading) {
       setChartFadeIn(false);
-      setUsageLoading(true);
-      setProfileLoading(true);
+    } else if (profile) {
+      requestAnimationFrame(() => {
+        setChartFadeIn(true);
+      });
+    }
+  }, [isProfileLoading, profile]);
 
-      try {
-        // Fetch all data in parallel using centralized usage-summary API
-        const [profileResponse, usageSummaryResponse, badgesResponse] = await Promise.all([
-          fetch(`/api/users/${userId}/profile`),
-          fetch(`/api/users/${userId}/usage-summary?days=365`),
-          fetch(`/api/users/${userId}/badges`),
-        ]);
-
-        if (cancelled) return;
-
-        // Process profile data
-        if (profileResponse.ok) {
-          const profileData = await profileResponse.json();
-          if (profileData.user) {
-            setDisplayedUser({
-              id: profileData.user.id,
-              username: profileData.user.username,
-              display_name: profileData.user.display_name,
-              avatar_url: profileData.user.avatar_url,
-              country_code: profileData.user.country_code,
-              total_tokens: profileData.user.total_tokens || 0,
-              total_cost: profileData.user.total_cost || 0,
-              total_sessions: profileData.user.total_sessions || 0,
-              rank: profileData.user.global_rank || 0,
-              current_level: profileData.user.current_level || 1,
-              global_rank: profileData.user.global_rank,
-              country_rank: profileData.user.country_rank,
-              social_links: profileData.user.social_links,
-              ccplan: profileData.user.ccplan,
-              has_opus_usage: profileData.user.has_opus_usage || false,
-              post_count: profileData.user.post_count || 0,
-            });
-            // Set fresh social links from profile
-            if (profileData.user.social_links) {
-              setFreshSocialLinks(profileData.user.social_links);
-            }
-          }
-        }
-
-        // Process usage summary data (centralized data source)
-        if (usageSummaryResponse.ok) {
-          const summaryData = await usageSummaryResponse.json();
-          // Transform daily data to UsageHistoryPoint format
-          setUsageHistory(
-            (summaryData.daily || []).map((d: { date: string; tokens: number; cost: number }) => ({
-              date: d.date,
-              tokens: d.tokens,
-              cost: d.cost,
-            }))
-          );
-        } else {
-          setUsageHistory([]);
-        }
-
-        // Process badges data
-        if (badgesResponse.ok) {
-          const data = await badgesResponse.json();
-          setUserBadges((data.badges || []).map((b: { badge_type: string }) => b.badge_type));
-        } else {
-          setUserBadges([]);
-        }
-      } catch {
-        if (!cancelled) {
-          setUsageHistory([]);
-          setUserBadges([]);
-          setFreshSocialLinks(null);
-        }
-      } finally {
-        if (!cancelled) {
-          setUsageLoading(false);
-          setProfileLoading(false);
-          // Fade in with new data
-          requestAnimationFrame(() => {
-            setChartFadeIn(true);
-          });
-        }
+  // Reset scroll position when userId changes
+  useEffect(() => {
+    if (userId) {
+      setShowCompactStats(false);
+      if (scrollContainerRef.current) {
+        scrollContainerRef.current.scrollTop = 0;
       }
     }
-
-    // Reset scroll position and states for new user
-    setShowCompactStats(false);
-    if (scrollContainerRef.current) {
-      scrollContainerRef.current.scrollTop = 0;
-    }
-
-    fetchAllUserData();
-
-    return () => {
-      cancelled = true;
-    };
   }, [userId]);
 
-  // Clear when panel closes
-  useEffect(() => {
-    if (!isOpen) {
-      const timer = setTimeout(() => {
-        setDisplayedUser(null);
-      }, 300);
-      return () => clearTimeout(timer);
-    }
-    return undefined;
-  }, [isOpen]);
+  // Note: Panel data clearing is now handled by React Query
+  // When userId changes, useMemo recalculates displayedUser from fresh profile
 
   // Escape key handler
   useEffect(() => {
@@ -992,7 +925,7 @@ export function ProfileSidePanel({
   const currentUser = displayedUser;
 
   // Show loading state when userId exists but data hasn't loaded yet
-  if (!currentUser && userId && profileLoading) {
+  if (!currentUser && userId && isProfileLoading) {
     return (
       <>
         {isOverlayPanel && (
