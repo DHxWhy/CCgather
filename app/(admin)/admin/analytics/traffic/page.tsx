@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, Fragment } from "react";
-import { useTrafficSources } from "@/hooks/use-admin-analytics";
+import { useTrafficSources, useSubmitLogs } from "@/hooks/use-admin-analytics";
+import type { SubmitLogItem } from "@/hooks/use-admin-analytics";
 
 const DATE_RANGES = [
   { label: "7일", value: "-7d" },
@@ -371,6 +372,131 @@ function TopDomainsTable({ domains }: { domains: DomainData[] }) {
   );
 }
 
+function RecentLogsSection({ logs, isLoading }: { logs: SubmitLogItem[]; isLoading: boolean }) {
+  if (isLoading) {
+    return (
+      <div className="bg-[#161616] rounded-lg p-4 border border-white/[0.06]">
+        <div className="flex items-center justify-center py-8">
+          <div className="w-5 h-5 border-2 border-[var(--color-claude-coral)] border-t-transparent rounded-full animate-spin" />
+        </div>
+      </div>
+    );
+  }
+
+  if (!logs?.length) {
+    return (
+      <div className="bg-[#161616] rounded-lg p-4 border border-white/[0.06]">
+        <div className="text-[12px] text-white/50 mb-3">최근 제출 로그</div>
+        <div className="text-center py-6 text-[12px] text-white/30">최근 로그가 없습니다</div>
+      </div>
+    );
+  }
+
+  const formatTimeAgo = (dateStr: string) => {
+    const date = new Date(dateStr);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffMins = Math.floor(diffMs / (1000 * 60));
+    const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+
+    if (diffMins < 1) return "방금 전";
+    if (diffMins < 60) return `${diffMins}분 전`;
+    if (diffHours < 24) return `${diffHours}시간 전`;
+    if (diffDays < 7) return `${diffDays}일 전`;
+    return date.toLocaleDateString("ko-KR", { month: "short", day: "numeric" });
+  };
+
+  const formatCost = (cost: number) => {
+    if (cost < 1) return `$${cost.toFixed(3)}`;
+    return `$${cost.toFixed(2)}`;
+  };
+
+  const getPlanBadge = (plan: string | null) => {
+    if (!plan) return null;
+    const planLower = plan.toLowerCase();
+    if (planLower.includes("max"))
+      return { label: "Max", color: "bg-purple-500/20 text-purple-400" };
+    if (planLower.includes("pro")) return { label: "Pro", color: "bg-blue-500/20 text-blue-400" };
+    return { label: plan, color: "bg-white/10 text-white/60" };
+  };
+
+  return (
+    <div className="bg-[#161616] rounded-lg p-4 border border-white/[0.06]">
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-2">
+          <span className="text-[12px] text-white/50">최근 제출 로그</span>
+          <span className="text-[10px] text-white/30 px-1.5 py-0.5 bg-white/5 rounded">실시간</span>
+        </div>
+        <span className="text-[10px] text-white/30">최근 20건</span>
+      </div>
+
+      <div className="space-y-1 max-h-[400px] overflow-y-auto">
+        {logs.slice(0, 20).map((log, index) => {
+          const planBadge = getPlanBadge(log.ccplan);
+          return (
+            <div
+              key={`${log.user_id}-${log.submitted_at}-${index}`}
+              className="flex items-center justify-between gap-3 px-3 py-2 rounded-lg hover:bg-white/[0.02] transition-colors group"
+            >
+              <div className="flex items-center gap-3 min-w-0 flex-1">
+                {/* Avatar */}
+                <div className="w-7 h-7 rounded-full bg-white/10 overflow-hidden shrink-0">
+                  {log.avatar_url ? (
+                    <img src={log.avatar_url} alt="" className="w-full h-full object-cover" />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center text-[10px] text-white/40">
+                      {log.username?.charAt(0).toUpperCase() || "?"}
+                    </div>
+                  )}
+                </div>
+
+                {/* User info */}
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[12px] text-white font-medium truncate max-w-[120px]">
+                      {log.username}
+                    </span>
+                    {planBadge && (
+                      <span className={`text-[9px] px-1.5 py-0.5 rounded ${planBadge.color}`}>
+                        {planBadge.label}
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2 text-[10px] text-white/40">
+                    <span>{log.days_count}일치</span>
+                    <span>•</span>
+                    <span>{log.primary_model || "unknown"}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Stats */}
+              <div className="flex items-center gap-4 shrink-0">
+                <div className="text-right">
+                  <div className="text-[11px] text-white/70 font-mono">
+                    {(log.total_tokens / 1000).toFixed(0)}K
+                  </div>
+                  <div className="text-[9px] text-white/30">tokens</div>
+                </div>
+                <div className="text-right">
+                  <div className="text-[11px] text-emerald-400 font-mono">
+                    {formatCost(log.total_cost)}
+                  </div>
+                  <div className="text-[9px] text-white/30">cost</div>
+                </div>
+                <div className="text-right w-16">
+                  <div className="text-[10px] text-white/50">{formatTimeAgo(log.submitted_at)}</div>
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function TrafficInsights({
   summary,
   topDomains,
@@ -449,6 +575,7 @@ function TrafficInsights({
 export default function TrafficSourcesPage() {
   const [dateRange, setDateRange] = useState("-7d");
   const { data, isLoading, error } = useTrafficSources({ dateFrom: dateRange });
+  const { data: logsData, isLoading: logsLoading } = useSubmitLogs({ pageSize: 20 });
 
   return (
     <div className="space-y-5 max-w-6xl">
@@ -495,6 +622,9 @@ export default function TrafficSourcesPage() {
           <p className="text-[12px] text-white/50">{data.error}</p>
         </div>
       )}
+
+      {/* Recent Submit Logs - Always visible at top */}
+      <RecentLogsSection logs={logsData?.logs || []} isLoading={logsLoading} />
 
       {/* Content */}
       {!isLoading && data && !data.error && (
@@ -544,13 +674,20 @@ export default function TrafficSourcesPage() {
             <TrafficInsights summary={data.summary} topDomains={data.topDomains} />
           </div>
 
-          {/* Top Domains Table */}
-          <div className="bg-[#161616] rounded-lg p-4 border border-white/[0.06]">
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-[12px] text-white/50">상위 유입 도메인</span>
-              <span className="text-[10px] text-white/30">최대 30개</span>
+          {/* Top Domains Table - Expanded */}
+          <div className="bg-[#161616] rounded-lg p-5 border border-white/[0.06]">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <span className="text-[13px] text-white/60 font-medium">상위 유입 도메인</span>
+                <span className="text-[10px] text-white/30 px-1.5 py-0.5 bg-white/5 rounded">
+                  {data.topDomains.length}개
+                </span>
+              </div>
+              <span className="text-[10px] text-white/30">최대 100개</span>
             </div>
-            <TopDomainsTable domains={data.topDomains} />
+            <div className="max-h-[600px] overflow-y-auto">
+              <TopDomainsTable domains={data.topDomains} />
+            </div>
           </div>
         </>
       )}

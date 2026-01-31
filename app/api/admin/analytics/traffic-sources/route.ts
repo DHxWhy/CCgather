@@ -247,7 +247,7 @@ export async function GET(request: Request) {
     // Build top domains list with detailed URLs
     const topDomains = Array.from(domainCounts.entries())
       .sort(([, a], [, b]) => b - a)
-      .slice(0, 30)
+      .slice(0, 100)
       .map(([domain, count]) => {
         const normalizedDomain = domain === "" || domain === "$direct" ? "(direct)" : domain;
         const domainKey = domain.replace(/^www\./, "").toLowerCase();
