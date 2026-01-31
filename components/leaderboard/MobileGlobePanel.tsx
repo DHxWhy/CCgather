@@ -217,7 +217,7 @@ export function MobileGlobePanel({
               {/* Period Filter for Community Mode */}
               {viewMode === "community" && (
                 <div className="flex items-center h-[30px] glass rounded-lg overflow-hidden">
-                  {(["today", "weekly", "monthly"] as const).map((p) => (
+                  {(["monthly", "weekly", "today"] as const).map((p) => (
                     <button
                       key={p}
                       onClick={() => setCommunityStatsPeriod(p)}
@@ -227,7 +227,7 @@ export function MobileGlobePanel({
                           : "text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-filter-hover)]"
                       }`}
                     >
-                      {p === "today" ? "1D" : p === "weekly" ? "7D" : "30D"}
+                      {p === "monthly" ? "30D" : p === "weekly" ? "7D" : "1D"}
                     </button>
                   ))}
                 </div>

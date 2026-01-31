@@ -303,7 +303,7 @@ export default function LeaderboardPage() {
   const [viewMode, setViewMode] = useState<ViewMode>(getInitialView);
 
   // Community Stats period filter (shared with Hall of Fame)
-  const [communityStatsPeriod, setCommunityStatsPeriod] = useState<HallOfFamePeriod>("today");
+  const [communityStatsPeriod, setCommunityStatsPeriod] = useState<HallOfFamePeriod>("monthly");
 
   // URL sync: Update URL when viewMode changes (zero-latency, no page reload)
   useEffect(() => {
@@ -1829,7 +1829,7 @@ export default function LeaderboardPage() {
 
                       {/* Period Filter Toggle */}
                       <div className="flex items-center h-[26px] glass rounded-lg overflow-hidden">
-                        {(["today", "weekly", "monthly"] as const).map((p) => (
+                        {(["monthly", "weekly", "today"] as const).map((p) => (
                           <button
                             key={p}
                             onClick={() => setCommunityStatsPeriod(p)}
@@ -1839,7 +1839,7 @@ export default function LeaderboardPage() {
                                 : "text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-filter-hover)]"
                             }`}
                           >
-                            {p === "today" ? "1D" : p === "weekly" ? "7D" : "30D"}
+                            {p === "monthly" ? "30D" : p === "weekly" ? "7D" : "1D"}
                           </button>
                         ))}
                       </div>
