@@ -52,6 +52,7 @@ interface MobileGlobePanelProps {
   onSortByChange?: (sortBy: "tokens" | "cost") => void;
   userCountryCode?: string;
   scopeFilter: "global" | "country";
+  hasSubmission?: boolean; // Hide Get Started CTA if user has CLI submission history
   // Community mode support
   viewMode?: "leaderboard" | "community";
   communityStats?: CommunityStats;
@@ -70,6 +71,7 @@ export function MobileGlobePanel({
   onSortByChange,
   userCountryCode,
   scopeFilter,
+  hasSubmission = false,
   viewMode = "leaderboard",
   communityStats: _communityStats, // Legacy prop, kept for backwards compatibility
   totalCommunityStats,
@@ -452,6 +454,7 @@ export function MobileGlobePanel({
                     sortBy={sortBy}
                     userCountryCode={userCountryCode}
                     compact={true}
+                    hasSubmission={hasSubmission}
                     onUserCountryVisibilityChange={handleUserCountryVisibilityChange}
                     scrollContainerRef={countryListRef}
                   />

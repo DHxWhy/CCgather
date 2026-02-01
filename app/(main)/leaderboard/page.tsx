@@ -40,7 +40,7 @@ import { useMe } from "@/hooks/use-me";
 type ViewMode = "leaderboard" | "community";
 
 // Community tab types - extensible for future tabs
-type CommunityTab = "vibes" | "canu" | "showcase" | "questions"; // Add more as needed
+type CommunityTab = "vibes" | "showcase" | "questions"; // Add more as needed
 
 // Tab configuration for easy extension
 const COMMUNITY_TABS: {
@@ -52,11 +52,6 @@ const COMMUNITY_TABS: {
     id: "vibes",
     label: "Vibes",
     emoji: "✨",
-  },
-  {
-    id: "canu",
-    label: "Can U?",
-    emoji: "🎯",
   },
   // Future tabs can be added here:
   // { id: "showcase", label: "Showcase", emoji: "✨", activeColor: "#FBBF24", activeBg: "#FBBF24" },
@@ -1934,6 +1929,7 @@ export default function LeaderboardPage() {
                           userCountryCode={currentUserCountry}
                           compact={viewportWidth < 860}
                           hideHeader
+                          hasSubmission={(currentUserData?.total_tokens || 0) > 0}
                           onUserCountryVisibilityChange={handleUserCountryVisibilityChange}
                           scrollContainerRef={leftColumnRef}
                         />
@@ -3090,6 +3086,7 @@ export default function LeaderboardPage() {
         onSortByChange={setSortBy}
         userCountryCode={currentUserCountry}
         scopeFilter={scopeFilter}
+        hasSubmission={(currentUserData?.total_tokens || 0) > 0}
         viewMode={viewMode}
         communityStats={communityStats}
         totalCommunityStats={totalCommunityStats}

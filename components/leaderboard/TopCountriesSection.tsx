@@ -35,6 +35,7 @@ interface TopCountriesSectionProps {
   className?: string;
   compact?: boolean; // Compact layout for narrow viewports
   hideHeader?: boolean; // Hide header (when rendered externally as sticky)
+  hasSubmission?: boolean; // Hide Get Started CTA if user has CLI submission history
   onUserCountryVisibilityChange?: (
     visible: boolean,
     rank: number,
@@ -62,6 +63,7 @@ export const TopCountriesSection = forwardRef<TopCountriesSectionRef, TopCountri
       className = "",
       compact = false,
       hideHeader = false,
+      hasSubmission = false,
       onUserCountryVisibilityChange,
       scrollContainerRef,
     },
@@ -335,13 +337,17 @@ export const TopCountriesSection = forwardRef<TopCountriesSectionRef, TopCountri
           }}
         />
 
-        {/* Onboarding Copy */}
-        <p className="text-center text-[11px] text-[var(--color-text-muted)]/60 mt-4">
-          More developers = stronger country ranking
-        </p>
-        <div className="flex justify-center mt-2">
-          <GetStartedButton className="text-[11px] text-[var(--color-claude-coral)] hover:underline" />
-        </div>
+        {/* Onboarding Copy - Only show for users without CLI submission */}
+        {!hasSubmission && (
+          <>
+            <p className="text-center text-[11px] text-[var(--color-text-muted)]/60 mt-4">
+              More developers = stronger country ranking
+            </p>
+            <div className="flex justify-center mt-2">
+              <GetStartedButton className="text-[11px] text-[var(--color-claude-coral)] hover:underline" />
+            </div>
+          </>
+        )}
       </div>
     );
   }
