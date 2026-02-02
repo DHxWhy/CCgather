@@ -50,6 +50,7 @@ const UpdateProfileSchema = z.object({
   integrity_agreed: z.boolean().optional(),
   social_links: SocialLinksSchema,
   hide_profile_on_invite: z.boolean().optional(),
+  custom_avatar_url: z.string().url().nullable().optional(), // DiceBear avatar URL or null to reset
 });
 
 export async function GET() {
@@ -69,6 +70,7 @@ export async function GET() {
       username,
       display_name,
       avatar_url,
+      custom_avatar_url,
       country_code,
       timezone,
       current_level,
@@ -107,6 +109,7 @@ export async function GET() {
           username,
           display_name,
           avatar_url,
+          custom_avatar_url,
           country_code,
           timezone,
           current_level,

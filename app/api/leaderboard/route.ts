@@ -269,7 +269,7 @@ export async function GET(request: NextRequest) {
         id,
         username,
         display_name,
-        avatar_url,
+        display_avatar_url,
         country_code,
         current_level,
         global_rank,
@@ -329,9 +329,15 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    // Map display_avatar_url to avatar_url for frontend compatibility
+    const usersWithDisplayAvatar = usersWithPostCount.map((user) => ({
+      ...user,
+      avatar_url: user.display_avatar_url,
+    }));
+
     return NextResponse.json(
       {
-        users: usersWithPostCount,
+        users: usersWithDisplayAvatar,
         pagination: {
           page,
           limit,
@@ -343,7 +349,7 @@ export async function GET(request: NextRequest) {
       {
         headers: {
           // CDN 캐싱: 5분간 캐시, 1분간 stale 허용
-          "Cache-Control": "public, s-maxage=300, stale-while-revalidate=60",
+          "Cache-Control": "public, s-maxage=60, stale-while-revalidate=30",
         },
       }
     );
@@ -397,7 +403,7 @@ export async function GET(request: NextRequest) {
       id,
       username,
       display_name,
-      avatar_url,
+      display_avatar_url,
       country_code,
       current_level,
       global_rank,
@@ -473,9 +479,15 @@ export async function GET(request: NextRequest) {
   const total = rankedUsers.length;
   const paginatedUsers = rankedUsers.slice(offset, offset + limit);
 
+  // Map display_avatar_url to avatar_url for frontend compatibility
+  const usersWithDisplayAvatar = paginatedUsers.map((user) => ({
+    ...user,
+    avatar_url: user.display_avatar_url,
+  }));
+
   return NextResponse.json(
     {
-      users: paginatedUsers,
+      users: usersWithDisplayAvatar,
       pagination: {
         page,
         limit,
@@ -487,7 +499,7 @@ export async function GET(request: NextRequest) {
     {
       headers: {
         // CDN 캐싱: 5분간 캐시, 1분간 stale 허용
-        "Cache-Control": "public, s-maxage=300, stale-while-revalidate=60",
+        "Cache-Control": "public, s-maxage=60, stale-while-revalidate=30",
       },
     }
   );

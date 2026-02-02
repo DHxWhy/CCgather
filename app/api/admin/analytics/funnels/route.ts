@@ -171,10 +171,6 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const days = parseInt(searchParams.get("days") || "30");
 
-    const dateFrom = new Date();
-    dateFrom.setDate(dateFrom.getDate() - days);
-    const dateFromStr = dateFrom.toISOString();
-
     // 1. 전체 사용자 수
     const { count: totalSignups } = await supabase
       .from("users")
@@ -237,15 +233,38 @@ export async function GET(request: Request) {
       dailyFunnel = await getDailyFunnelFallback(days);
     }
 
-    // 6. 최근 전환 사용자
-    const { data: recentConversions } = await supabase
-      .from("users")
-      .select("username, avatar_url, created_at, last_submission_at")
-      .is("deleted_at", null)
-      .not("last_submission_at", "is", null)
-      .gte("created_at", dateFromStr)
-      .order("last_submission_at", { ascending: false })
-      .limit(10);
+    // 6. 최근 전환 사용자 - 첫 제출 시간 기준
+    // usage_stats에서 각 사용자의 첫 제출 시간을 가져옴
+    const { data: firstSubmitData } = await supabase
+      .from("usage_stats")
+      .select("user_id, submitted_at")
+      .order("submitted_at", { ascending: true });
+
+    // 각 사용자의 첫 제출 시간 계산
+    const userFirstSubmit = new Map<string, string>();
+    if (firstSubmitData) {
+      for (const row of firstSubmitData) {
+        if (row.user_id && !userFirstSubmit.has(row.user_id)) {
+          userFirstSubmit.set(row.user_id, row.submitted_at);
+        }
+      }
+    }
+
+    // 최근 첫 제출 순으로 정렬된 user_id 목록
+    const recentFirstSubmitUserIds = Array.from(userFirstSubmit.entries())
+      .sort((a, b) => new Date(b[1]).getTime() - new Date(a[1]).getTime())
+      .slice(0, 20) // 여유있게 가져옴
+      .map(([userId]) => userId);
+
+    // 해당 사용자 정보 가져오기
+    const { data: recentConversions } =
+      recentFirstSubmitUserIds.length > 0
+        ? await supabase
+            .from("users")
+            .select("id, username, avatar_url, created_at")
+            .is("deleted_at", null)
+            .in("id", recentFirstSubmitUserIds)
+        : { data: [] };
 
     const signupToSubmitRate =
       totalSignups && totalSignups > 0
@@ -257,19 +276,29 @@ export async function GET(request: Request) {
         ? Math.round((activatedUsers / usersWithSubmit) * 100)
         : 0;
 
-    // Recent conversions 변환
-    const formattedConversions = (recentConversions || []).map((u) => {
-      const signedUp = new Date(u.created_at);
-      const firstSubmit = new Date(u.last_submission_at);
-      const diffHours = Math.round((firstSubmit.getTime() - signedUp.getTime()) / (1000 * 60 * 60));
-      return {
-        username: u.username,
-        avatar_url: u.avatar_url,
-        signed_up_at: u.created_at,
-        first_submit_at: u.last_submission_at,
-        time_to_submit_hours: Math.max(0, diffHours),
-      };
-    });
+    // Recent conversions 변환 - 첫 제출 시간 기준
+    const formattedConversions = (recentConversions || [])
+      .map((u) => {
+        const firstSubmitAt = userFirstSubmit.get(u.id);
+        if (!firstSubmitAt) return null; // 첫 제출 이력 없는 사용자 제외
+
+        const signedUp = new Date(u.created_at);
+        const firstSubmit = new Date(firstSubmitAt);
+        const diffHours = Math.round(
+          (firstSubmit.getTime() - signedUp.getTime()) / (1000 * 60 * 60)
+        );
+        return {
+          username: u.username,
+          avatar_url: u.avatar_url,
+          signed_up_at: u.created_at,
+          first_submit_at: firstSubmitAt,
+          time_to_submit_hours: Math.max(0, diffHours),
+        };
+      })
+      .filter((u): u is NonNullable<typeof u> => u !== null)
+      // 첫 제출 시간 기준으로 최신순 정렬
+      .sort((a, b) => new Date(b.first_submit_at).getTime() - new Date(a.first_submit_at).getTime())
+      .slice(0, 10);
 
     const response: FunnelData = {
       summary: {

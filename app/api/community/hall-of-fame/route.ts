@@ -25,7 +25,7 @@ interface PostWithUser {
     id: string;
     username: string;
     display_name: string | null;
-    avatar_url: string | null;
+    display_avatar_url: string | null;
   } | null;
 }
 
@@ -89,7 +89,7 @@ export async function GET(request: NextRequest) {
           id,
           username,
           display_name,
-          avatar_url
+          display_avatar_url
         )
       `
       )
@@ -117,7 +117,7 @@ export async function GET(request: NextRequest) {
           id,
           username,
           display_name,
-          avatar_url
+          display_avatar_url
         )
       `
       )
@@ -149,7 +149,7 @@ export async function GET(request: NextRequest) {
         postId: post.id,
         userId: post.users?.id || post.author_id,
         userName: post.users?.display_name || post.users?.username || "Unknown",
-        userAvatar: post.users?.avatar_url || undefined,
+        userAvatar: post.users?.display_avatar_url || undefined,
         count: post.likes_count,
       }));
 
@@ -167,7 +167,7 @@ export async function GET(request: NextRequest) {
         postId: post.id,
         userId: post.users?.id || post.author_id,
         userName: post.users?.display_name || post.users?.username || "Unknown",
-        userAvatar: post.users?.avatar_url || undefined,
+        userAvatar: post.users?.display_avatar_url || undefined,
         count: post.comments_count,
       }));
 

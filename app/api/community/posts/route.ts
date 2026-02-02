@@ -191,7 +191,7 @@ export async function GET(request: NextRequest) {
           id,
           username,
           display_name,
-          avatar_url,
+          display_avatar_url,
           current_level,
           country_code
         )
@@ -261,7 +261,7 @@ export async function GET(request: NextRequest) {
             id,
             username,
             display_name,
-            avatar_url
+            display_avatar_url
           )
         `
         )
@@ -283,7 +283,7 @@ export async function GET(request: NextRequest) {
                 id,
                 username,
                 display_name,
-                avatar_url,
+                display_avatar_url,
                 current_level
               )
             `
@@ -324,14 +324,30 @@ export async function GET(request: NextRequest) {
 
     // Process liked_by map (limit 5 per post)
     const likedByMap: Record<string, LikedByUser[]> = {};
-    likedByResult.data?.forEach((like: { post_id: string; user: LikedByUser }) => {
-      if (!likedByMap[like.post_id]) {
-        likedByMap[like.post_id] = [];
+    likedByResult.data?.forEach(
+      (like: {
+        post_id: string;
+        user: {
+          id: string;
+          username: string;
+          display_name: string | null;
+          display_avatar_url: string | null;
+        };
+      }) => {
+        if (!likedByMap[like.post_id]) {
+          likedByMap[like.post_id] = [];
+        }
+        if (likedByMap[like.post_id]!.length < 5) {
+          // Map display_avatar_url to avatar_url for frontend compatibility
+          likedByMap[like.post_id]!.push({
+            id: like.user.id,
+            username: like.user.username,
+            display_name: like.user.display_name,
+            avatar_url: like.user.display_avatar_url,
+          });
+        }
       }
-      if (likedByMap[like.post_id]!.length < 5) {
-        likedByMap[like.post_id]!.push(like.user);
-      }
-    });
+    );
 
     // Process preview comments (limit 3 per post)
     // Also track total top-level comment count per post for has_more_comments
@@ -350,7 +366,7 @@ export async function GET(request: NextRequest) {
           id: string;
           username: string;
           display_name: string | null;
-          avatar_url: string | null;
+          display_avatar_url: string | null;
           current_level: number;
         };
       }) => {
@@ -364,7 +380,10 @@ export async function GET(request: NextRequest) {
           allCommentIds.push(comment.id);
           previewCommentsMap[comment.post_id]!.push({
             id: comment.id,
-            author: comment.author,
+            author: {
+              ...comment.author,
+              avatar_url: comment.author.display_avatar_url,
+            },
             content: comment.content,
             original_language: detectLanguage(comment.content),
             likes_count: comment.likes_count,
@@ -429,10 +448,24 @@ export async function GET(request: NextRequest) {
           likes_count: number;
           comments_count: number;
           created_at: string;
-          author: PostAuthor;
+          author: {
+            id: string;
+            username: string;
+            display_name: string | null;
+            display_avatar_url: string | null;
+            current_level: number;
+            country_code: string | null;
+          };
         }) => ({
           id: post.id,
-          author: post.author,
+          author: {
+            id: post.author.id,
+            username: post.author.username,
+            display_name: post.author.display_name,
+            avatar_url: post.author.display_avatar_url,
+            current_level: post.author.current_level,
+            country_code: post.author.country_code,
+          },
           content: post.content, // Original content only
           tab: post.tab,
           original_language: post.original_language,
@@ -478,7 +511,7 @@ export async function POST(request: NextRequest) {
     // Get user from database
     const { data: user, error: userError } = await supabase
       .from("users")
-      .select("id, username, display_name, avatar_url, current_level, country_code")
+      .select("id, username, display_name, display_avatar_url, current_level, country_code")
       .eq("clerk_id", clerkId)
       .single();
 
@@ -540,7 +573,7 @@ export async function POST(request: NextRequest) {
         id: user.id,
         username: user.username,
         display_name: user.display_name,
-        avatar_url: user.avatar_url,
+        avatar_url: user.display_avatar_url,
         current_level: user.current_level,
         country_code: user.country_code,
       },

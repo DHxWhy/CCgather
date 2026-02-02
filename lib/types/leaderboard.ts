@@ -109,6 +109,7 @@ export interface LeaderboardUser {
   username: string;
   display_name: string | null;
   avatar_url: string | null;
+  custom_avatar_url?: string | null; // DiceBear custom avatar (takes priority over avatar_url)
   country_code: string | null;
   current_level: number;
   global_rank: number | null;

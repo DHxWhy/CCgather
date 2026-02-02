@@ -38,6 +38,7 @@ export default function SettingsProfilePage() {
   const [dbUsername, setDbUsername] = useState<string>("");
   const [dbDisplayName, setDbDisplayName] = useState<string>("");
   const [dbAvatarUrl, setDbAvatarUrl] = useState<string>("");
+  const [dbCustomAvatarUrl, setDbCustomAvatarUrl] = useState<string | null>(null);
   const [socialLinks, setSocialLinks] = useState<SocialLinks>({});
   const [editedLinks, setEditedLinks] = useState<SocialLinks>({});
   const [isSaving, setIsSaving] = useState(false);
@@ -61,6 +62,7 @@ export default function SettingsProfilePage() {
           setDbUsername(data.user?.username || "");
           setDbDisplayName(data.user?.display_name || "");
           setDbAvatarUrl(data.user?.avatar_url || "");
+          setDbCustomAvatarUrl(data.user?.custom_avatar_url || null);
           setSocialLinks(data.user?.social_links || {});
           setEditedLinks(data.user?.social_links || {});
           setReferralCode(data.user?.referral_code || null);
@@ -255,6 +257,46 @@ export default function SettingsProfilePage() {
     }
   };
 
+  // Save custom avatar (DiceBear)
+  const handleSaveCustomAvatar = async (url: string) => {
+    try {
+      const res = await fetch("/api/me", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ custom_avatar_url: url }),
+      });
+      if (res.ok) {
+        setDbCustomAvatarUrl(url);
+      } else {
+        const data = await res.json();
+        throw new Error(data.error || "Failed to save avatar");
+      }
+    } catch (error) {
+      console.error("Failed to save custom avatar:", error);
+      throw error;
+    }
+  };
+
+  // Remove custom avatar (revert to GitHub)
+  const handleRemoveCustomAvatar = async () => {
+    try {
+      const res = await fetch("/api/me", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ custom_avatar_url: null }),
+      });
+      if (res.ok) {
+        setDbCustomAvatarUrl(null);
+      } else {
+        const data = await res.json();
+        throw new Error(data.error || "Failed to remove avatar");
+      }
+    } catch (error) {
+      console.error("Failed to remove custom avatar:", error);
+      throw error;
+    }
+  };
+
   if (!isLoaded || !user || !isDataLoaded) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -265,13 +307,16 @@ export default function SettingsProfilePage() {
 
   return (
     <div className="max-w-xl mx-auto p-4 sm:p-6 space-y-6 sm:space-y-8">
-      {/* Profile Card - Use DB data, with GitHub sync */}
+      {/* Profile Card - Use DB data, with GitHub sync and custom avatar */}
       <ProfileCard
         imageUrl={dbAvatarUrl || user.imageUrl}
+        customAvatarUrl={dbCustomAvatarUrl}
         fullName={dbDisplayName || user.fullName}
         username={dbUsername || user.username}
         onSync={handleSyncGithub}
         isSyncing={isSyncingGithub}
+        onSaveCustomAvatar={handleSaveCustomAvatar}
+        onRemoveCustomAvatar={handleRemoveCustomAvatar}
       />
 
       {/* Social Links */}

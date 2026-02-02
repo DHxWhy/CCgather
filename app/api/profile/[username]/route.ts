@@ -45,7 +45,7 @@ export async function GET(
     const profile = {
       id: user.id,
       username: user.username,
-      avatarUrl: user.avatar_url,
+      avatarUrl: user.display_avatar_url,
       bio: user.bio,
       country: user.country,
       rank: user.rank,

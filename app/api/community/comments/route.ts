@@ -125,7 +125,7 @@ export async function GET(request: NextRequest) {
           id,
           username,
           display_name,
-          avatar_url,
+          display_avatar_url,
           current_level
         )
       `,
@@ -164,7 +164,7 @@ export async function GET(request: NextRequest) {
               id,
               username,
               display_name,
-              avatar_url,
+              display_avatar_url,
               current_level
             )
           `
@@ -207,21 +207,26 @@ export async function GET(request: NextRequest) {
           parent_comment_id: string;
           likes_count: number;
           created_at: string;
-          author: CommentAuthor;
+          author: {
+            id: string;
+            username: string;
+            display_name: string | null;
+            display_avatar_url: string | null;
+            current_level: number;
+          };
         }) => {
           const parentId = reply.parent_comment_id!;
           if (!repliesMap[parentId]) {
             repliesMap[parentId] = [];
           }
-          const author = reply.author as CommentAuthor;
           repliesMap[parentId].push({
             id: reply.id,
             author: {
-              id: author.id,
-              username: author.username,
-              display_name: author.display_name,
-              avatar_url: author.avatar_url,
-              current_level: author.current_level,
+              id: reply.author.id,
+              username: reply.author.username,
+              display_name: reply.author.display_name,
+              avatar_url: reply.author.display_avatar_url,
+              current_level: reply.author.current_level,
             },
             content: reply.content,
             parent_comment_id: reply.parent_comment_id,
@@ -290,18 +295,23 @@ export async function GET(request: NextRequest) {
           parent_comment_id: string | null;
           likes_count: number;
           created_at: string;
-          author: CommentAuthor;
+          author: {
+            id: string;
+            username: string;
+            display_name: string | null;
+            display_avatar_url: string | null;
+            current_level: number;
+          };
         }) => {
-          const author = comment.author as CommentAuthor;
           const translationInfo = applyTranslation(comment.id, comment.content);
           return {
             id: comment.id,
             author: {
-              id: author.id,
-              username: author.username,
-              display_name: author.display_name,
-              avatar_url: author.avatar_url,
-              current_level: author.current_level,
+              id: comment.author.id,
+              username: comment.author.username,
+              display_name: comment.author.display_name,
+              avatar_url: comment.author.display_avatar_url,
+              current_level: comment.author.current_level,
             },
             ...translationInfo,
             parent_comment_id: comment.parent_comment_id,
@@ -340,7 +350,7 @@ export async function POST(request: NextRequest) {
     // Get user from database
     const { data: user } = await supabase
       .from("users")
-      .select("id, username, display_name, avatar_url, current_level")
+      .select("id, username, display_name, display_avatar_url, current_level")
       .eq("clerk_id", clerkId)
       .single();
 
@@ -494,7 +504,7 @@ export async function POST(request: NextRequest) {
         id: user.id,
         username: user.username,
         display_name: user.display_name,
-        avatar_url: user.avatar_url,
+        avatar_url: user.display_avatar_url,
         current_level: user.current_level,
       },
       content: comment.content,
