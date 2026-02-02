@@ -38,7 +38,7 @@ interface FunnelData {
 
 // Fallback: Get activated users count with raw SQL
 async function getActivatedUsersCountFallback(): Promise<number> {
-  const { data, error } = await supabase
+  const { data } = await supabase
     .from("usage_stats")
     .select("user_id")
     .then(async (result) => {
@@ -133,19 +133,19 @@ async function getDailyFunnelFallback(days: number): Promise<
   for (let i = 0; i < days; i++) {
     const date = new Date();
     date.setDate(date.getDate() - i);
-    const dateStr = date.toISOString().split("T")[0];
+    const dateStr = date.toISOString().split("T")[0] ?? "";
     dailyData.set(dateStr, { signups: 0, firstSubmits: 0 });
   }
 
   // Count signups and first submits
   if (users) {
     for (const user of users) {
-      const signupDate = user.created_at.split("T")[0];
+      const signupDate = user.created_at.split("T")[0] ?? "";
       const existing = dailyData.get(signupDate);
       if (existing) {
         existing.signups++;
         if (user.last_submission_at) {
-          const submitDate = user.last_submission_at.split("T")[0];
+          const submitDate = user.last_submission_at.split("T")[0] ?? "";
           const submitExisting = dailyData.get(submitDate);
           if (submitExisting) {
             submitExisting.firstSubmits++;
