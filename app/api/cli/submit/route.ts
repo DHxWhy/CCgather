@@ -391,11 +391,14 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Store total session count (keep maximum, as old sessions may be deleted locally)
-    if (body.sessionFingerprint?.sessionCount) {
-      const currentSessions = authenticatedUser.total_sessions || 0;
-      const newSessions = body.sessionFingerprint.sessionCount;
-      updateData.total_sessions = Math.max(currentSessions, newSessions);
+    // Calculate total session count from submitted_sessions table (deduplicated)
+    const { count: sessionCount } = await supabase
+      .from("submitted_sessions")
+      .select("*", { count: "exact", head: true })
+      .eq("user_id", authenticatedUser.id);
+
+    if (sessionCount !== null) {
+      updateData.total_sessions = sessionCount;
     }
 
     // Update primary_model if detected
