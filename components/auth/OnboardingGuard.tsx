@@ -49,7 +49,6 @@ export function OnboardingGuard({ children }: OnboardingGuardProps) {
     "/sign-in",
     "/sign-up",
     "/cli/auth",
-    "/news",
     "/terms",
     "/privacy",
   ];

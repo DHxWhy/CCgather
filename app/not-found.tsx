@@ -1,6 +1,6 @@
-import Link from 'next/link';
-import { FileQuestion, Home } from 'lucide-react';
-import { Button } from '@/components/ui/Button';
+import Link from "next/link";
+import { FileQuestion, Home } from "lucide-react";
+import { Button } from "@/components/ui/Button";
 
 export default function NotFound() {
   return (
@@ -19,9 +19,7 @@ export default function NotFound() {
 
         {/* 404 Text */}
         <h1 className="text-6xl font-bold gradient-text mb-4">404</h1>
-        <h2 className="text-xl font-semibold text-text-primary mb-2">
-          Page Not Found
-        </h2>
+        <h2 className="text-xl font-semibold text-text-primary mb-2">Page Not Found</h2>
         <p className="text-text-secondary mb-8">
           The page you&apos;re looking for doesn&apos;t exist or has been moved.
         </p>
@@ -35,9 +33,7 @@ export default function NotFound() {
             </Button>
           </Link>
           <Link href="/leaderboard">
-            <Button variant="outline">
-              Leaderboard
-            </Button>
+            <Button variant="outline">Leaderboard</Button>
           </Link>
         </div>
 
@@ -52,10 +48,10 @@ export default function NotFound() {
               Leaderboard
             </Link>
             <Link
-              href="/news"
+              href="/community"
               className="text-sm text-[var(--color-claude-coral)] hover:text-[var(--color-claude-peach)] transition-colors"
             >
-              News
+              Community
             </Link>
           </div>
         </div>
