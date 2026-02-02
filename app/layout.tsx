@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Inter, JetBrains_Mono, Space_Grotesk } from "next/font/google";
+import Script from "next/script";
 import { Providers } from "./providers";
 import { ClerkProviderWrapper } from "@/components/providers/ClerkProviderWrapper";
 import "./globals.css";
@@ -196,6 +197,16 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <link rel="preconnect" href="https://img.clerk.com" />
         <link rel="dns-prefetch" href="https://zrkrrvfoaoeodaovzqfs.supabase.co" />
         <GlobalJsonLd />
+        {/* Twitter/X Ads Conversion Tracking Pixel */}
+        <Script id="twitter-pixel" strategy="afterInteractive">
+          {`
+            !function(e,t,n,s,u,a){e.twq||(s=e.twq=function(){s.exe?s.exe.apply(s,arguments):s.queue.push(arguments);
+            },s.version='1.1',s.queue=[],u=t.createElement(n),u.async=!0,u.src='https://static.ads-twitter.com/uwt.js',
+            a=t.getElementsByTagName(n)[0],a.parentNode.insertBefore(u,a))}(window,document,'script');
+            twq('config','r3c8o');
+            twq('event', 'tw-r3c8o-r3gas', {});
+          `}
+        </Script>
       </head>
       <body className="min-h-screen bg-bg-primary font-sans antialiased">
         <ClerkProviderWrapper>
