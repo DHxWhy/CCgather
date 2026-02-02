@@ -3009,7 +3009,7 @@ export default function LeaderboardPage() {
                     userAvatar={currentUserData?.avatar_url}
                     userName={currentUserData?.display_name || currentUserData?.username}
                     userLevel={
-                      currentUserData ? Math.floor(currentUserData.total_tokens / 1000000) + 1 : 1
+                      currentUserData ? getLevelByTokens(currentUserData.total_tokens).level : 1
                     }
                     userLanguage={
                       currentUsername ? getLanguageFromCountry(currentUserCountry) : null
