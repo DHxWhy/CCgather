@@ -391,14 +391,9 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Calculate total session count from submitted_sessions table (deduplicated)
-    const { count: sessionCount } = await supabase
-      .from("submitted_sessions")
-      .select("*", { count: "exact", head: true })
-      .eq("user_id", authenticatedUser.id);
-
-    if (sessionCount !== null) {
-      updateData.total_sessions = sessionCount;
+    // Store total session count from CLI scan (actual session files found)
+    if (body.sessionFingerprint?.sessionCount) {
+      updateData.total_sessions = body.sessionFingerprint.sessionCount;
     }
 
     // Update primary_model if detected
