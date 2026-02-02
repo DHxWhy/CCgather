@@ -10,7 +10,7 @@ interface NotificationActor {
   id: string;
   username: string;
   display_name: string | null;
-  avatar_url: string | null;
+  display_avatar_url: string | null;
 }
 
 interface NotificationResponse {
@@ -69,7 +69,7 @@ export async function GET(request: NextRequest) {
           id,
           username,
           display_name,
-          avatar_url
+          display_avatar_url
         )
       `,
         { count: "exact" }
@@ -119,7 +119,7 @@ export async function GET(request: NextRequest) {
                   id: actor.id,
                   username: actor.username,
                   display_name: actor.display_name,
-                  avatar_url: actor.avatar_url,
+                  avatar_url: actor.display_avatar_url,
                 }
               : null,
             post_id: notification.post_id,

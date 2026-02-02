@@ -11,7 +11,7 @@ interface CommentAuthor {
   id: string;
   username: string;
   display_name: string | null;
-  avatar_url: string | null;
+  display_avatar_url: string | null;
   current_level: number;
 }
 
@@ -148,7 +148,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
           id,
           username,
           display_name,
-          avatar_url,
+          display_avatar_url,
           current_level
         )
       `
@@ -314,7 +314,7 @@ ${textList}`;
             id: author.id,
             username: author.username,
             display_name: author.display_name,
-            avatar_url: author.avatar_url,
+            avatar_url: author.display_avatar_url,
             current_level: author.current_level,
           },
           content: translatedText || reply.content,
