@@ -50,7 +50,14 @@ const UpdateProfileSchema = z.object({
   integrity_agreed: z.boolean().optional(),
   social_links: SocialLinksSchema,
   hide_profile_on_invite: z.boolean().optional(),
-  custom_avatar_url: z.string().url().nullable().optional(), // DiceBear avatar URL or null to reset
+  custom_avatar_url: z
+    .string()
+    .nullable()
+    .optional()
+    .refine(
+      (val) => val === null || val === undefined || val.startsWith("https://api.dicebear.com/"),
+      { message: "Must be a valid DiceBear URL" }
+    ), // DiceBear avatar URL or null to reset
 });
 
 export async function GET() {
