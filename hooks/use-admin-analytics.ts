@@ -300,3 +300,59 @@ export function useSubmitLogs(options: SubmitLogsOptions = {}) {
     enabled,
   });
 }
+
+// ============================================
+// Funnel Analysis (퍼널 분석)
+// ============================================
+
+interface FunnelSummary {
+  totalSignups: number;
+  usersWithSubmit: number;
+  signupToSubmitRate: number;
+  activatedUsers: number;
+  activationRate: number;
+}
+
+interface TimeToFirstSubmit {
+  within1Hour: number;
+  within24Hours: number;
+  within7Days: number;
+  over7Days: number;
+  never: number;
+}
+
+interface DailyFunnelItem {
+  date: string;
+  signups: number;
+  firstSubmits: number;
+  conversionRate: number;
+}
+
+interface RecentConversion {
+  username: string;
+  avatar_url: string | null;
+  signed_up_at: string;
+  first_submit_at: string;
+  time_to_submit_hours: number;
+}
+
+interface FunnelResponse {
+  summary: FunnelSummary;
+  timeToFirstSubmit: TimeToFirstSubmit;
+  dailyFunnel: DailyFunnelItem[];
+  recentConversions: RecentConversion[];
+}
+
+/**
+ * Fetch funnel analytics data
+ */
+export function useFunnelAnalytics(options: { days?: number; enabled?: boolean } = {}) {
+  const { days = 30, enabled = true } = options;
+
+  return useQuery<FunnelResponse>({
+    queryKey: ["analytics", "funnels", days],
+    queryFn: () => fetchAnalytics<FunnelResponse>("funnels", { days: String(days) }),
+    staleTime: 2 * 60 * 1000, // 2 minutes
+    enabled,
+  });
+}
