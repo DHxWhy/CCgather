@@ -53,8 +53,9 @@ export function ProductHuntBadge() {
           <img
             src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=1071381&theme=light&t=1770059953257"
             alt="CCgather - Document your Claude Code journey | Product Hunt"
-            width="250"
-            height="54"
+            width="140"
+            height="30"
+            className="hover:opacity-90 transition-opacity"
           />
         </a>
       </div>
