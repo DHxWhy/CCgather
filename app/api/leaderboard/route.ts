@@ -348,8 +348,8 @@ export async function GET(request: NextRequest) {
       },
       {
         headers: {
-          // CDN 캐싱: 5분간 캐시, 1분간 stale 허용
-          "Cache-Control": "public, s-maxage=60, stale-while-revalidate=30",
+          // CDN 캐싱: 10초 캐시, 5초 stale 허용 (아바타 등 개인화 데이터 빠른 반영)
+          "Cache-Control": "public, s-maxage=10, stale-while-revalidate=5",
         },
       }
     );
@@ -498,8 +498,8 @@ export async function GET(request: NextRequest) {
     },
     {
       headers: {
-        // CDN 캐싱: 5분간 캐시, 1분간 stale 허용
-        "Cache-Control": "public, s-maxage=60, stale-while-revalidate=30",
+        // CDN 캐싱: 10초 캐시, 5초 stale 허용 (아바타 등 개인화 데이터 빠른 반영)
+        "Cache-Control": "public, s-maxage=10, stale-while-revalidate=5",
       },
     }
   );
