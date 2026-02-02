@@ -349,25 +349,27 @@ export async function POST(request: NextRequest) {
     // ═══════════════════════════════════════════════════════════════════════════
     const { data: allDailyUsage, error: sumError } = await supabase
       .from("usage_stats")
-      .select("total_tokens, cost_usd")
+      .select("total_tokens, cost_usd, sessions")
       .eq("user_id", authenticatedUser.id);
 
     if (sumError) {
       console.error("[CLI Submit] Failed to calculate cumulative totals:", sumError);
     }
 
-    // Sum all daily usage for true cumulative totals
+    // Sum all daily usage for true cumulative totals (tokens, cost, sessions)
     let finalTotalTokens = 0;
     let finalTotalCost = 0;
+    let finalTotalSessions = 0;
     if (allDailyUsage) {
       for (const day of allDailyUsage) {
         finalTotalTokens += day.total_tokens || 0;
         finalTotalCost += day.cost_usd || 0;
+        finalTotalSessions += day.sessions || 0;
       }
     }
 
     console.log(
-      `[CLI Submit] Cumulative totals for ${authenticatedUser.username}: ${finalTotalTokens} tokens, $${finalTotalCost.toFixed(2)}`
+      `[CLI Submit] Cumulative totals for ${authenticatedUser.username}: ${finalTotalTokens} tokens, $${finalTotalCost.toFixed(2)}, ${finalTotalSessions} sessions`
     );
 
     // ═══════════════════════════════════════════════════════════════════════════
@@ -391,10 +393,8 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Store total session count from CLI scan (actual session files found)
-    if (body.sessionFingerprint?.sessionCount) {
-      updateData.total_sessions = body.sessionFingerprint.sessionCount;
-    }
+    // Store cumulative session count (same logic as tokens - SUM from usage_stats)
+    updateData.total_sessions = finalTotalSessions;
 
     // Update primary_model if detected
     if (overallPrimaryModel) {
