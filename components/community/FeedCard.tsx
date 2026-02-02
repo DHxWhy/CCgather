@@ -19,6 +19,7 @@ import { cn } from "@/lib/utils";
 import { FlagIcon } from "@/components/ui/FlagIcon";
 import { TextShimmer } from "@/components/ui/TextShimmer";
 import LinkPreview from "./LinkPreview";
+import { getTagEmoji } from "./community-tags";
 import { getFirstEmbeddableUrl } from "@/lib/url-parser";
 
 // ===========================================
@@ -69,6 +70,7 @@ export interface FeedPost {
   translated_content?: string;
   original_language: string;
   is_translated: boolean;
+  tab?: string; // Board/category: general, showcase, help
   images?: string[];
   likes_count: number;
   comments_count: number;
@@ -1161,6 +1163,11 @@ function FeedCardComponent({
             >
               {displayName}
             </button>
+
+            {/* Board emoji badge */}
+            <span className="text-[12px] opacity-80" title={post.tab || "general"}>
+              {getTagEmoji(post.tab)}
+            </span>
 
             {/* Level badge - compact (hidden in community mode) */}
             {!hideLevelBadge && (

@@ -1,16 +1,17 @@
-import { MessageCircle, Target, type LucideIcon } from "lucide-react";
+import { MessageCircle, Sparkles, Lightbulb, type LucideIcon } from "lucide-react";
 
 // ===========================================
 // Community Filter Tags
-// Vibes (바이브) + Can U? (챌린지/의뢰) + extensible for future tabs
+// General (☕) + Showcase (✨) + Help (💡)
 // ===========================================
 
-// Extensible type for future tabs (showcase, questions, etc.)
-export type CommunityFilterTag = "vibes" | "canu" | "showcase" | "questions" | "all";
+// Board types
+export type CommunityFilterTag = "general" | "showcase" | "help" | "all";
 
 export interface CommunityTag {
   id: CommunityFilterTag;
   label: string;
+  emoji: string; // Emoji for compact display
   description: string;
   icon: LucideIcon;
   color: string;
@@ -19,19 +20,42 @@ export interface CommunityTag {
 
 export const COMMUNITY_FILTER_TAGS: CommunityTag[] = [
   {
-    id: "vibes",
-    label: "Vibes",
-    description: "Share your vibes",
+    id: "general",
+    label: "General",
+    emoji: "☕",
+    description: "Chat about anything",
     icon: MessageCircle,
     color: "text-[var(--color-claude-coral)]",
     bgColor: "bg-[var(--color-claude-coral)]/10",
   },
   {
-    id: "canu",
-    label: "Can U?",
-    description: "Challenge the community",
-    icon: Target,
-    color: "text-[var(--color-accent-cyan)]",
-    bgColor: "bg-[var(--color-accent-cyan)]/10",
+    id: "showcase",
+    label: "Showcase",
+    emoji: "✨",
+    description: "Show your projects",
+    icon: Sparkles,
+    color: "text-purple-400",
+    bgColor: "bg-purple-400/10",
+  },
+  {
+    id: "help",
+    label: "Help",
+    emoji: "💡",
+    description: "Ask for help",
+    icon: Lightbulb,
+    color: "text-amber-400",
+    bgColor: "bg-amber-400/10",
   },
 ];
+
+// Helper to get tag info by id
+export function getTagById(id: string): CommunityTag | undefined {
+  return COMMUNITY_FILTER_TAGS.find((tag) => tag.id === id);
+}
+
+// Helper to get emoji by tab id (for FeedCard display)
+export function getTagEmoji(tab: string | null | undefined): string {
+  if (!tab) return "☕"; // Default to General
+  const tag = getTagById(tab);
+  return tag?.emoji || "☕";
+}

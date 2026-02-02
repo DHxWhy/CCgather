@@ -28,15 +28,17 @@
         t = { title: "CCgather", body: e.data.text() };
       }
       var t,
-        n = {
+        n,
+        r = {
           body: t.body || "You have a new notification",
           icon: t.icon || "/icons/icon-192x192.png",
           badge: t.badge || "/icons/badge-72x72.png",
           tag: t.tag || "default",
           data: t.data || {},
           requireInteraction: !1,
+          silent: null != (n = t.silent) && n,
         };
-      e.waitUntil(self.registration.showNotification(t.title || "CCgather", n));
+      e.waitUntil(self.registration.showNotification(t.title || "CCgather", r));
     }),
     self.addEventListener("notificationclick", function (e) {
       (console.log("[SW] Notification clicked:", e.notification.tag), e.notification.close());

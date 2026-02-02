@@ -47,15 +47,19 @@ export default function PostComposer({
     return getFirstEmbeddableUrl(content);
   }, [content, dismissedPreview]);
 
-  // Character limit based on tab (shorter for casual vibes)
-  const maxLength = currentTab === "vibes" ? 280 : 500;
+  // Character limit based on tab
+  const maxLength = currentTab === "showcase" ? 1000 : 500;
   const charCount = content.length;
   const isOverLimit = charCount > maxLength;
   const canPost = content.trim().length > 0 && !isOverLimit;
 
   // Placeholder text based on tab
   const placeholder =
-    currentTab === "vibes" ? "Share your vibes..." : "What do you need help with?";
+    currentTab === "general"
+      ? "Share your thoughts..."
+      : currentTab === "showcase"
+        ? "Show off your project..."
+        : "What do you need help with?";
 
   // Auto-resize textarea
   const handleInput = useCallback(() => {

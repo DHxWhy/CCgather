@@ -30,7 +30,7 @@ export interface MockCommunityPost {
     country_code: string | null;
   };
   content: string;
-  tab: "vibes" | "showcase" | "help" | "canu";
+  tab: "general" | "showcase" | "help";
   original_language: string;
   created_at: string;
   likes_count: number;
@@ -123,7 +123,7 @@ const SAMPLE_CONTENT: Record<string, string[]> = {
 };
 
 const LANGUAGES = ["en", "ko", "ja", "zh", "es"];
-const TABS = ["vibes", "showcase", "help", "canu"] as const;
+const TABS = ["general", "showcase", "help"] as const;
 const COUNTRIES = ["US", "KR", "JP", "CN", "ES", "FR", "DE"];
 
 export function createMockCommunitySettings(

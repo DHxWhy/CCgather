@@ -27,7 +27,7 @@ function createMultiLanguagePosts(count: number = 20) {
     { code: "fr", content: "Claude Code est incroyable! Très utile", country: "FR" },
   ];
 
-  const tabs = ["vibes", "showcase", "help", "canu"] as const;
+  const tabs = ["general", "showcase", "help"] as const;
 
   return Array.from({ length: count }, (_, i) => {
     const lang = languages[i % languages.length]!;

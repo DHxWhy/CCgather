@@ -40,7 +40,7 @@ import { useMe } from "@/hooks/use-me";
 type ViewMode = "leaderboard" | "community";
 
 // Community tab types - extensible for future tabs
-type CommunityTab = "vibes" | "showcase" | "questions"; // Add more as needed
+type CommunityTab = "general" | "showcase" | "help"; // Add more as needed
 
 // Tab configuration for easy extension
 const COMMUNITY_TABS: {
@@ -49,13 +49,20 @@ const COMMUNITY_TABS: {
   emoji: string;
 }[] = [
   {
-    id: "vibes",
-    label: "Vibes",
+    id: "general",
+    label: "General",
+    emoji: "☕",
+  },
+  {
+    id: "showcase",
+    label: "Showcase",
     emoji: "✨",
   },
-  // Future tabs can be added here:
-  // { id: "showcase", label: "Showcase", emoji: "✨", activeColor: "#FBBF24", activeBg: "#FBBF24" },
-  // { id: "questions", label: "Q&A", emoji: "💬", activeColor: "#10b981", activeBg: "#10b981" },
+  {
+    id: "help",
+    label: "Help",
+    emoji: "💡",
+  },
 ];
 
 // Dynamic imports for heavy components - reduces initial bundle significantly
@@ -340,7 +347,7 @@ export default function LeaderboardPage() {
   }, [authorParam]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Community tab state (extensible for future tabs)
-  const [communityTab, setCommunityTab] = useState<CommunityTab>("vibes");
+  const [communityTab, setCommunityTab] = useState<CommunityTab>("general");
   // Post modal state (controlled at page level for filter area button)
   const [isPostModalOpen, setIsPostModalOpen] = useState(false);
   // Submission guide modal state (explains why submission is needed)

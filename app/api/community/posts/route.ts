@@ -73,7 +73,7 @@ const CreatePostSchema = z.object({
     .string()
     .min(1, "Content is required")
     .max(2000, "Content must be 2000 characters or less"),
-  tab: z.enum(["vibes", "showcase", "help", "canu"]).default("vibes"),
+  tab: z.enum(["general", "showcase", "help"]).default("general"),
   language: z.string().length(2).optional(),
 });
 
