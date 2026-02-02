@@ -291,6 +291,9 @@ export async function POST(request: NextRequest) {
           }
         }
 
+        // Determine league_reason based on model (Opus detection)
+        const isOpusModel = dayPrimaryModel?.toLowerCase().includes("opus");
+
         return {
           user_id: authenticatedUser.id,
           date: day.date,
@@ -304,6 +307,7 @@ export async function POST(request: NextRequest) {
           primary_model: dayPrimaryModel,
           submitted_at: new Date().toISOString(),
           submission_source: "cli",
+          league_reason: isOpusModel ? "opus" : null,
         };
       });
 
@@ -321,6 +325,7 @@ export async function POST(request: NextRequest) {
     } else {
       // Fallback: Insert only today's record (legacy behavior)
       const today = new Date().toISOString().split("T")[0];
+      const isOpusModel = overallPrimaryModel?.toLowerCase().includes("opus");
 
       const { error: statsError } = await supabase.from("usage_stats").upsert(
         {
@@ -335,6 +340,7 @@ export async function POST(request: NextRequest) {
           primary_model: overallPrimaryModel,
           submitted_at: new Date().toISOString(),
           submission_source: "cli",
+          league_reason: isOpusModel ? "opus" : null,
         },
         { onConflict: "user_id,date" }
       );

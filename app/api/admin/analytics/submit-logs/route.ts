@@ -7,6 +7,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { isAdmin } from "@/lib/admin";
 import { createServiceClient } from "@/lib/supabase/server";
 
+interface DailyDetail {
+  date: string;
+  total_tokens: number;
+  cost_usd: number;
+  primary_model: string | null;
+}
+
 interface SubmitLogRow {
   submitted_at: string;
   user_id: string;
@@ -24,6 +31,8 @@ interface SubmitLogRow {
   // League placement audit
   league_reason: string | null;
   league_reason_details: string | null;
+  // Daily breakdown for accordion
+  daily_details: DailyDetail[];
 }
 
 export async function GET(request: NextRequest) {
@@ -97,7 +106,14 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({ error: "Failed to fetch logs" }, { status: 500 });
       }
 
-      // 클라이언트 측 그룹핑 (submitted_at 기준)
+      // 클라이언트 측 그룹핑 (submitted_at 기준 - 분 단위로 반올림)
+      // 밀리초 차이로 인한 분리 방지
+      const roundToMinute = (dateStr: string): string => {
+        const date = new Date(dateStr);
+        date.setSeconds(0, 0);
+        return date.toISOString();
+      };
+
       const groupedLogs = new Map<
         string,
         {
@@ -114,6 +130,12 @@ export async function GET(request: NextRequest) {
           primary_model: string | null;
           league_reason: string | null;
           league_reason_details: string | null;
+          daily_details: Array<{
+            date: string;
+            total_tokens: number;
+            cost_usd: number;
+            primary_model: string | null;
+          }>;
         }
       >();
 
@@ -136,7 +158,16 @@ export async function GET(request: NextRequest) {
       };
 
       (rawLogs as RawLogItem[])?.forEach((row) => {
-        const key = `${row.submitted_at}_${row.user_id}`;
+        // 분 단위로 반올림하여 그룹핑 (밀리초 차이 무시)
+        const roundedTime = roundToMinute(row.submitted_at);
+        const key = `${roundedTime}_${row.user_id}`;
+
+        const dailyItem = {
+          date: row.date,
+          total_tokens: row.total_tokens,
+          cost_usd: row.cost_usd,
+          primary_model: row.primary_model,
+        };
 
         if (!groupedLogs.has(key)) {
           groupedLogs.set(key, {
@@ -153,12 +184,14 @@ export async function GET(request: NextRequest) {
             primary_model: row.primary_model,
             league_reason: row.league_reason,
             league_reason_details: row.league_reason_details,
+            daily_details: [dailyItem],
           });
         } else {
           const existing = groupedLogs.get(key)!;
           existing.dates.add(row.date);
           existing.total_tokens += row.total_tokens;
           existing.total_cost += row.cost_usd;
+          existing.daily_details.push(dailyItem);
           if (row.primary_model && !existing.primary_model) {
             existing.primary_model = row.primary_model;
           }
@@ -197,6 +230,10 @@ export async function GET(request: NextRequest) {
         const sortedDates = Array.from(log.dates).sort();
         const firstDate = sortedDates[0] || "";
         const lastDate = sortedDates[sortedDates.length - 1] || firstDate;
+        // 일별 상세를 날짜 역순으로 정렬 (최신순)
+        const sortedDailyDetails = [...log.daily_details].sort(
+          (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
+        );
         return {
           submitted_at: log.submitted_at,
           user_id: log.user_id,
@@ -213,6 +250,7 @@ export async function GET(request: NextRequest) {
           primary_model: log.primary_model,
           league_reason: log.league_reason,
           league_reason_details: log.league_reason_details,
+          daily_details: sortedDailyDetails,
         };
       });
 

@@ -158,6 +158,13 @@ export function useRetentionDB(options: { weeks?: number; enabled?: boolean } = 
 // Submit Logs (제출 로그)
 // ============================================
 
+export interface DailyDetail {
+  date: string;
+  total_tokens: number;
+  cost_usd: number;
+  primary_model: string | null;
+}
+
 export interface SubmitLogItem {
   submitted_at: string;
   user_id: string;
@@ -175,6 +182,8 @@ export interface SubmitLogItem {
   // League placement audit
   league_reason: string | null;
   league_reason_details: string | null;
+  // Daily breakdown for accordion
+  daily_details: DailyDetail[];
 }
 
 interface SubmitLogsResponse {

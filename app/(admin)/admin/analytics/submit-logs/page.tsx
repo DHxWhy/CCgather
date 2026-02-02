@@ -2,8 +2,8 @@
 
 import { useState, useMemo } from "react";
 import Image from "next/image";
-import { useSubmitLogs, type SubmitLogItem } from "@/hooks/use-admin-analytics";
-import { Search, ChevronLeft, ChevronRight } from "lucide-react";
+import { useSubmitLogs, type SubmitLogItem, type DailyDetail } from "@/hooks/use-admin-analytics";
+import { Search, ChevronLeft, ChevronRight, ChevronDown, ChevronUp } from "lucide-react";
 
 const SOURCE_OPTIONS = [
   { label: "전체", value: "" },
@@ -112,85 +112,145 @@ function LeagueReasonBadge({ reason, details }: { reason: string | null; details
   );
 }
 
+// 일별 상세 행
+function DailyDetailRow({ detail }: { detail: DailyDetail }) {
+  return (
+    <tr className="bg-white/[0.01]">
+      <td className="px-3 py-1.5 pl-10">
+        <div className="text-[11px] text-white/40">└</div>
+      </td>
+      <td className="px-3 py-1.5" colSpan={2}></td>
+      <td className="px-3 py-1.5">
+        <div className="text-[11px] text-white/50 font-mono">{formatDate(detail.date)}</div>
+      </td>
+      <td className="px-3 py-1.5 text-right">
+        <div className="text-[11px] text-[var(--color-claude-coral)]/70 font-mono">
+          {formatTokens(detail.total_tokens)}
+        </div>
+      </td>
+      <td className="px-3 py-1.5 text-right">
+        <div className="text-[11px] text-yellow-400/70 font-mono">
+          {formatCost(detail.cost_usd)}
+        </div>
+      </td>
+      <td className="px-3 py-1.5">
+        <div className="text-[10px] text-white/30 truncate max-w-[80px]">
+          {detail.primary_model
+            ? detail.primary_model.replace(/^claude-/, "").replace(/-\d{8}$/, "")
+            : "-"}
+        </div>
+      </td>
+      <td className="px-3 py-1.5"></td>
+    </tr>
+  );
+}
+
 function LogRow({ log }: { log: SubmitLogItem }) {
+  const [isExpanded, setIsExpanded] = useState(false);
+  const hasDetails = log.daily_details && log.daily_details.length > 1;
+
   const dateRange =
     log.date_from === log.date_to
       ? formatDate(log.date_from)
       : `${formatDate(log.date_from)}~${formatDate(log.date_to)}`;
 
   return (
-    <tr className="border-b border-white/[0.03] hover:bg-white/[0.02] transition-colors">
-      {/* 제출 시간 */}
-      <td className="px-3 py-3">
-        <div className="text-[12px] text-white/80 font-mono">
-          {formatDateTime(log.submitted_at)}
-        </div>
-      </td>
-
-      {/* 사용자 */}
-      <td className="px-3 py-3">
-        <div className="flex items-center gap-2">
-          {log.avatar_url ? (
-            <Image
-              src={log.avatar_url}
-              alt={log.username}
-              width={28}
-              height={28}
-              className="rounded-full"
-            />
-          ) : (
-            <div className="w-7 h-7 rounded-full bg-white/10 flex items-center justify-center text-[11px] text-white/50">
-              {log.username.charAt(0).toUpperCase()}
+    <>
+      <tr
+        className={`border-b border-white/[0.03] hover:bg-white/[0.02] transition-colors ${hasDetails ? "cursor-pointer" : ""}`}
+        onClick={() => hasDetails && setIsExpanded(!isExpanded)}
+      >
+        {/* 제출 시간 + 확장 아이콘 */}
+        <td className="px-3 py-3">
+          <div className="flex items-center gap-1.5">
+            {hasDetails ? (
+              isExpanded ? (
+                <ChevronUp className="w-3.5 h-3.5 text-white/40" />
+              ) : (
+                <ChevronDown className="w-3.5 h-3.5 text-white/40" />
+              )
+            ) : (
+              <div className="w-3.5" />
+            )}
+            <div className="text-[12px] text-white/80 font-mono">
+              {formatDateTime(log.submitted_at)}
             </div>
-          )}
-          <div className="text-[13px] text-white font-medium">{log.username}</div>
-        </div>
-      </td>
+          </div>
+        </td>
 
-      {/* 플랜 + 근거 */}
-      <td className="px-3 py-3">
-        <div className="flex items-center gap-2">
-          <PlanBadge plan={log.ccplan} rateLimitTier={log.rate_limit_tier} />
-          <LeagueReasonBadge reason={log.league_reason} details={log.league_reason_details} />
-        </div>
-      </td>
+        {/* 사용자 */}
+        <td className="px-3 py-3">
+          <div className="flex items-center gap-2">
+            {log.avatar_url ? (
+              <Image
+                src={log.avatar_url}
+                alt={log.username}
+                width={28}
+                height={28}
+                className="rounded-full"
+              />
+            ) : (
+              <div className="w-7 h-7 rounded-full bg-white/10 flex items-center justify-center text-[11px] text-white/50">
+                {log.username.charAt(0).toUpperCase()}
+              </div>
+            )}
+            <div className="text-[13px] text-white font-medium">{log.username}</div>
+          </div>
+        </td>
 
-      {/* 기간 - (n일) 날짜범위 한 줄로 */}
-      <td className="px-3 py-3">
-        <div className="text-[12px] text-white/70">
-          <span className="text-white/40">({log.days_count}일)</span> {dateRange}
-        </div>
-      </td>
+        {/* 플랜 + 근거 */}
+        <td className="px-3 py-3">
+          <div className="flex items-center gap-2">
+            <PlanBadge plan={log.ccplan} rateLimitTier={log.rate_limit_tier} />
+            <LeagueReasonBadge reason={log.league_reason} details={log.league_reason_details} />
+          </div>
+        </td>
 
-      {/* 토큰 - 시그니처 컬러 (coral) */}
-      <td className="px-3 py-3 text-right">
-        <div className="text-[13px] text-[var(--color-claude-coral)] font-mono">
-          {formatTokens(log.total_tokens)}
-        </div>
-      </td>
+        {/* 기간 - (n일) 날짜범위 한 줄로 */}
+        <td className="px-3 py-3">
+          <div className="text-[12px] text-white/70">
+            <span className="text-white/40">({log.days_count}일)</span> {dateRange}
+          </div>
+        </td>
 
-      {/* 비용 - 옐로 계열 */}
-      <td className="px-3 py-3 text-right">
-        <div className="text-[13px] text-yellow-400 font-mono">{formatCost(log.total_cost)}</div>
-      </td>
+        {/* 토큰 - 시그니처 컬러 (coral) */}
+        <td className="px-3 py-3 text-right">
+          <div className="text-[13px] text-[var(--color-claude-coral)] font-mono font-semibold">
+            {formatTokens(log.total_tokens)}
+          </div>
+        </td>
 
-      {/* 모델 */}
-      <td className="px-3 py-3">
-        <div
-          className="text-[11px] text-white/50 truncate max-w-[100px]"
-          title={log.primary_model || ""}
-        >
-          {log.primary_model
-            ? log.primary_model.replace(/^claude-/, "").replace(/-\d{8}$/, "")
-            : "-"}
-        </div>
-      </td>
+        {/* 비용 - 옐로 계열 */}
+        <td className="px-3 py-3 text-right">
+          <div className="text-[13px] text-yellow-400 font-mono font-semibold">
+            {formatCost(log.total_cost)}
+          </div>
+        </td>
 
-      {/* 소스 */}
-      <td className="px-3 py-3 text-center">
-        <SourceBadge source={log.submission_source} />
-      </td>
-    </tr>
+        {/* 모델 */}
+        <td className="px-3 py-3">
+          <div
+            className="text-[11px] text-white/50 truncate max-w-[100px]"
+            title={log.primary_model || ""}
+          >
+            {log.primary_model
+              ? log.primary_model.replace(/^claude-/, "").replace(/-\d{8}$/, "")
+              : "-"}
+          </div>
+        </td>
+
+        {/* 소스 */}
+        <td className="px-3 py-3 text-center">
+          <SourceBadge source={log.submission_source} />
+        </td>
+      </tr>
+
+      {/* 확장된 일별 상세 */}
+      {isExpanded &&
+        log.daily_details?.map((detail, idx) => (
+          <DailyDetailRow key={`${log.submitted_at}_${detail.date}_${idx}`} detail={detail} />
+        ))}
+    </>
   );
 }
 
