@@ -6,6 +6,18 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { useMe } from "@/hooks/use-me";
+import { useQuery } from "@tanstack/react-query";
+
+interface NotificationCounts {
+  newFeedback: number;
+  newUsers: number;
+  newSubmits: number;
+}
+
+// New indicator dot component
+function NewDot() {
+  return <span className="w-2 h-2 rounded-full bg-[var(--color-claude-coral)] animate-pulse" />;
+}
 
 // Mac 스타일 사이드바 메뉴 구조
 const ADMIN_MENU = [
@@ -20,6 +32,7 @@ const ADMIN_MENU = [
     section: "콘텐츠",
     items: [
       { id: "community", label: "Community", href: "/admin/community", icon: "💬" },
+      { id: "feedback", label: "Feedback", href: "/admin/feedback", icon: "🐛" },
       { id: "tools", label: "Tools 관리", href: "/admin/tools", icon: "🔧" },
     ],
   },
@@ -52,6 +65,40 @@ export function AdminLayoutClient({ children }: { children: React.ReactNode }) {
   } = useMe({
     enabled: isLoaded && !!user,
   });
+
+  // Fetch notification counts
+  const { data: notifications } = useQuery<NotificationCounts>({
+    queryKey: ["admin-notifications"],
+    queryFn: async () => {
+      const res = await fetch("/api/admin/notifications");
+      if (!res.ok) throw new Error("Failed to fetch notifications");
+      return res.json();
+    },
+    enabled: !!meData?.is_admin,
+    refetchInterval: 60000, // Refresh every minute
+  });
+
+  // Helper to check if menu item has new items
+  const hasNewItems = (itemId: string): boolean => {
+    if (!notifications) return false;
+    switch (itemId) {
+      case "users":
+        return notifications.newUsers > 0;
+      case "feedback":
+        return notifications.newFeedback > 0;
+      default:
+        return false;
+    }
+  };
+
+  // Helper to check if submenu item has new items
+  const hasNewSubItems = (subId: string): boolean => {
+    if (!notifications) return false;
+    if (subId === "analytics-submit-logs") {
+      return notifications.newSubmits > 0;
+    }
+    return false;
+  };
 
   // Derive admin status from cached data
   const isAdmin = meData?.is_admin ?? null;
@@ -146,8 +193,9 @@ export function AdminLayoutClient({ children }: { children: React.ReactNode }) {
               <div className="space-y-0.5 px-2">
                 {section.items.map((item) => {
                   const active = isActive(item.href);
+                  const showDot = hasNewItems(item.id);
                   return (
-                    <div key={item.id}>
+                    <div key={item.id} className="relative">
                       <Link
                         href={item.href}
                         className={`flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-[13px] transition-colors ${
@@ -158,25 +206,37 @@ export function AdminLayoutClient({ children }: { children: React.ReactNode }) {
                         title={sidebarCollapsed ? item.label : undefined}
                       >
                         <span className="text-sm shrink-0">{item.icon}</span>
-                        {!sidebarCollapsed && <span>{item.label}</span>}
+                        {!sidebarCollapsed && (
+                          <>
+                            <span className="flex-1">{item.label}</span>
+                            {showDot && <NewDot />}
+                          </>
+                        )}
                       </Link>
+                      {sidebarCollapsed && showDot && (
+                        <span className="absolute top-0 right-0">
+                          <NewDot />
+                        </span>
+                      )}
 
                       {/* Analytics 서브메뉴 */}
                       {item.id === "analytics" && isAnalyticsSection && !sidebarCollapsed && (
                         <div className="ml-6 mt-1 space-y-0.5 border-l border-white/[0.06] pl-2.5">
                           {ANALYTICS_SUBMENU.map((sub) => {
                             const subActive = pathname === sub.href;
+                            const subShowDot = hasNewSubItems(sub.id);
                             return (
                               <Link
                                 key={sub.id}
                                 href={sub.href}
-                                className={`block px-2 py-1 rounded text-[12px] transition-colors ${
+                                className={`flex items-center gap-2 px-2 py-1 rounded text-[12px] transition-colors ${
                                   subActive
                                     ? "text-[var(--color-claude-coral)]"
                                     : "text-white/50 hover:text-white/70"
                                 }`}
                               >
-                                {sub.label}
+                                <span className="flex-1">{sub.label}</span>
+                                {subShowDot && <NewDot />}
                               </Link>
                             );
                           })}
