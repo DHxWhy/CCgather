@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Github, Users, ShieldCheck, Bell } from "lucide-react";
+import { X, Users, ShieldCheck, Globe } from "lucide-react";
 import Link from "next/link";
 
 interface AgreementModalProps {
@@ -13,16 +13,15 @@ interface AgreementModalProps {
 }
 
 export function AgreementModal({ isOpen, onClose, onAgree, isSubmitting }: AgreementModalProps) {
-  const [profileConsent, setProfileConsent] = useState(false);
-  const [notificationConsent, setNotificationConsent] = useState(false);
+  const [communityConsent, setCommunityConsent] = useState(false);
   const [integrityInput, setIntegrityInput] = useState("");
 
   const integrityAgreed = integrityInput.toLowerCase() === "agree";
-  const canProceed = profileConsent && notificationConsent && integrityAgreed;
+  const canProceed = communityConsent && integrityAgreed;
 
   const handleSubmit = () => {
     if (canProceed) {
-      onAgree(profileConsent, integrityAgreed);
+      onAgree(communityConsent, integrityAgreed);
     }
   };
 
@@ -66,69 +65,35 @@ export function AgreementModal({ isOpen, onClose, onAgree, isSubmitting }: Agree
 
               {/* Content - Dense */}
               <div className="p-4 space-y-3 overflow-y-auto flex-1">
-                {/* 1. Profile Visibility */}
+                {/* 1. Community Participation (Profile + Communications) */}
                 <div className="space-y-2">
                   <p className="flex items-center gap-1.5 text-xs text-[var(--color-text-muted)] uppercase tracking-wider font-medium">
-                    <Github className="w-3.5 h-3.5 text-[var(--color-text-secondary)]" />
-                    Public Profile
-                  </p>
-                  <label
-                    className={`flex items-center gap-2.5 p-2.5 rounded-lg border cursor-pointer transition-colors bg-[var(--color-bg-tertiary)] ${profileConsent ? "border-green-500" : "border-[var(--border-default)] hover:border-primary/50"}`}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={profileConsent}
-                      onChange={(e) => setProfileConsent(e.target.checked)}
-                      className="sr-only peer"
-                    />
-                    <div
-                      className={`w-4 h-4 rounded border-2 transition-all flex items-center justify-center flex-shrink-0 ${profileConsent ? "bg-green-500 border-green-500" : "border-[var(--border-default)] bg-[var(--color-bg-card)]"}`}
-                    >
-                      {profileConsent && (
-                        <svg
-                          className="w-2.5 h-2.5 text-white"
-                          fill="none"
-                          viewBox="0 0 24 24"
-                          stroke="currentColor"
-                          strokeWidth={3}
-                        >
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                        </svg>
-                      )}
-                    </div>
-                    <span className="text-xs text-[var(--color-text-primary)]">
-                      I agree to display my GitHub profile publicly
-                    </span>
-                  </label>
-                </div>
-
-                {/* 2. Platform Notifications */}
-                <div className="space-y-2">
-                  <p className="flex items-center gap-1.5 text-xs text-[var(--color-text-muted)] uppercase tracking-wider font-medium">
-                    <Bell className="w-3.5 h-3.5 text-[var(--color-text-secondary)]" />
-                    Platform Notifications
+                    <Globe className="w-3.5 h-3.5 text-[var(--color-text-secondary)]" />
+                    Community Participation
                   </p>
                   <div className="text-xs text-[var(--color-text-muted)] bg-[var(--color-bg-tertiary)] rounded-lg p-2.5">
-                    <p className="text-[var(--color-text-secondary)] mb-1.5">You may receive:</p>
                     <div className="space-y-0.5">
-                      <span className="block">• Important service announcements</span>
-                      <span className="block">• Major feature updates</span>
-                      <span className="block">• Account-related notifications</span>
+                      <span className="block">
+                        • Your profile will be visible on the leaderboard
+                      </span>
+                      <span className="block">
+                        • You may receive service updates and announcements
+                      </span>
                     </div>
                   </div>
                   <label
-                    className={`flex items-center gap-2.5 p-2.5 rounded-lg border cursor-pointer transition-colors ${notificationConsent ? "border-green-500" : "border-[var(--border-default)] hover:border-primary/50"}`}
+                    className={`flex items-center gap-2.5 p-2.5 rounded-lg border cursor-pointer transition-colors ${communityConsent ? "border-green-500" : "border-[var(--border-default)] hover:border-primary/50"}`}
                   >
                     <input
                       type="checkbox"
-                      checked={notificationConsent}
-                      onChange={(e) => setNotificationConsent(e.target.checked)}
+                      checked={communityConsent}
+                      onChange={(e) => setCommunityConsent(e.target.checked)}
                       className="sr-only peer"
                     />
                     <div
-                      className={`w-4 h-4 rounded border-2 transition-all flex items-center justify-center flex-shrink-0 ${notificationConsent ? "bg-green-500 border-green-500" : "border-[var(--border-default)] bg-[var(--color-bg-card)]"}`}
+                      className={`w-4 h-4 rounded border-2 transition-all flex items-center justify-center flex-shrink-0 ${communityConsent ? "bg-green-500 border-green-500" : "border-[var(--border-default)] bg-[var(--color-bg-card)]"}`}
                     >
-                      {notificationConsent && (
+                      {communityConsent && (
                         <svg
                           className="w-2.5 h-2.5 text-white"
                           fill="none"
@@ -141,7 +106,7 @@ export function AgreementModal({ isOpen, onClose, onAgree, isSubmitting }: Agree
                       )}
                     </div>
                     <span className="text-xs text-[var(--color-text-primary)]">
-                      I agree to receive platform notifications
+                      I agree to participate in the community
                     </span>
                   </label>
                 </div>
@@ -249,8 +214,7 @@ export function AgreementModal({ isOpen, onClose, onAgree, isSubmitting }: Agree
 
                 {!canProceed && (
                   <p className="text-[10px] text-center text-[var(--color-text-muted)] mt-2">
-                    {!profileConsent && "☐ Profile • "}
-                    {!notificationConsent && "☐ Notifications • "}
+                    {!communityConsent && "☐ Community • "}
                     {!integrityAgreed && (
                       <span className="notranslate" translate="no">
                         ☐ Type &quot;agree&quot;
