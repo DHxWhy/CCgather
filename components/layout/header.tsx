@@ -11,6 +11,7 @@ import { ThemeSwitcher } from "@/components/ui/theme-switcher";
 import { MobileDrawer } from "./MobileDrawer";
 import { Button } from "@/components/ui/Button";
 import NotificationBell from "@/components/community/NotificationBell";
+import { useMe } from "@/hooks/use-me";
 
 // Modal 컴포넌트 지연 로딩 - 초기 번들 크기 감소
 const CLIModal = lazy(() =>
@@ -106,6 +107,10 @@ export function Header() {
   // Clerk 로드 상태 체크
   const { isLoaded, isSignedIn } = useAuth();
 
+  // 사용자 데이터 (CLI 미제출 상태 확인용)
+  const { data: me } = useMe({ enabled: isSignedIn === true });
+  const hasNeverSubmitted = isSignedIn && me && me.total_cost === 0;
+
   // Clerk 로드 타임아웃 체크 (10초 후에도 로드 안되면 실패로 간주)
   useEffect(() => {
     const timeout = setTimeout(() => {
@@ -179,8 +184,10 @@ export function Header() {
               onClick={() => setCLIModalOpen(true)}
               className={cn(
                 "relative text-[13px] font-medium transition-colors duration-200",
-                "text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]",
-                "group"
+                "group",
+                hasNeverSubmitted
+                  ? "shimmer-text" // 미제출 회원: 쉬머 효과
+                  : "text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]"
               )}
             >
               CLI
@@ -189,7 +196,7 @@ export function Header() {
                   "absolute -bottom-0.5 left-0 h-0.5 rounded-full",
                   "bg-gradient-to-r from-[var(--color-claude-coral)] to-[var(--color-claude-rust)]",
                   "transition-all duration-300",
-                  "w-0 group-hover:w-full"
+                  hasNeverSubmitted ? "w-full" : "w-0 group-hover:w-full"
                 )}
               />
             </button>
@@ -302,7 +309,9 @@ export function Header() {
             className={cn(
               "flex items-center px-4 py-3 rounded-xl",
               "text-base font-medium transition-all duration-200",
-              "text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--glass-bg)]"
+              hasNeverSubmitted
+                ? "shimmer-text hover:bg-[var(--glass-bg)]" // 미제출 회원: 쉬머 효과
+                : "text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--glass-bg)]"
             )}
           >
             CLI

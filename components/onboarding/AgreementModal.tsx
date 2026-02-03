@@ -72,12 +72,16 @@ export function AgreementModal({ isOpen, onClose, onAgree, isSubmitting }: Agree
                     Community Participation
                   </p>
                   <div className="text-xs text-[var(--color-text-muted)] bg-[var(--color-bg-tertiary)] rounded-lg p-2.5">
+                    <p className="text-[var(--color-text-secondary)] mb-1.5">
+                      By joining, you agree to:
+                    </p>
                     <div className="space-y-0.5">
                       <span className="block">
-                        • Your profile will be visible on the leaderboard
+                        • Display your GitHub profile on the public leaderboard
                       </span>
+                      <span className="block">• Receive important service announcements</span>
                       <span className="block">
-                        • You may receive service updates and announcements
+                        • Receive major feature updates & account notifications
                       </span>
                     </div>
                   </div>

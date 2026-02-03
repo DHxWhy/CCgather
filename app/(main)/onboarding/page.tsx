@@ -60,6 +60,7 @@ export default function OnboardingPage() {
           timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
           onboarding_completed: true,
           profile_visibility_consent: profileConsent,
+          community_updates_consent: profileConsent,
           integrity_agreed: integrityConsent,
         }),
       });
