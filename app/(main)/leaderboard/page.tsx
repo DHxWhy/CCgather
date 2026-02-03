@@ -393,6 +393,13 @@ export default function LeaderboardPage() {
   const translationSettingsLoaded = preferredLanguage !== null && autoTranslateEnabled !== null;
 
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
+  // Store display ranks from leaderboard table (real-time calculated)
+  const [selectedUserGlobalRank, setSelectedUserGlobalRank] = useState<number | undefined>(
+    undefined
+  );
+  const [selectedUserCountryRank, setSelectedUserCountryRank] = useState<number | undefined>(
+    undefined
+  );
   const [isPanelOpen, setIsPanelOpen] = useState(false);
   const closePanelTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [isGlobePanelOpen, setIsGlobePanelOpen] = useState(false);
@@ -1054,6 +1061,10 @@ export default function LeaderboardPage() {
       closePanelTimerRef.current = null;
     }
     setSelectedUserId(user.id);
+    // Store display ranks from leaderboard table (real-time calculated)
+    // Use period-specific ranks when available (for period filters)
+    setSelectedUserGlobalRank(user.rank);
+    setSelectedUserCountryRank(user.period_country_rank ?? user.country_rank ?? undefined);
     setIsPanelOpen(true);
     setHighlightMyRank(false);
   };
@@ -1079,6 +1090,8 @@ export default function LeaderboardPage() {
       setIsPanelOpen((currentOpen) => {
         if (!currentOpen) {
           setSelectedUserId(null);
+          setSelectedUserGlobalRank(undefined);
+          setSelectedUserCountryRank(undefined);
         }
         return currentOpen;
       });
@@ -3064,6 +3077,8 @@ export default function LeaderboardPage() {
         scopeFilter={scopeFilter}
         onPostsClick={handlePostsClick}
         featuredPostId={profileLinkedPostId ?? undefined}
+        displayGlobalRank={selectedUserGlobalRank}
+        displayCountryRank={selectedUserCountryRank}
         onViewFeaturedPost={(postId) => {
           // Get userId from the panel
           const userId = selectedUserId;

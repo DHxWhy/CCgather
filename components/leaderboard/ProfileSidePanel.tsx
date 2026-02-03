@@ -687,6 +687,10 @@ interface ProfileSidePanelProps {
   featuredPostId?: string;
   /** Called when "View Post" button is clicked */
   onViewFeaturedPost?: (postId: string) => void;
+  /** Override global rank from leaderboard table (real-time calculated) */
+  displayGlobalRank?: number;
+  /** Override country rank from leaderboard table (real-time calculated) */
+  displayCountryRank?: number;
 }
 
 // Profile view tracking for non-logged-in users
@@ -731,6 +735,8 @@ export function ProfileSidePanel({
   onPostsClick: externalPostsClick,
   featuredPostId,
   onViewFeaturedPost,
+  displayGlobalRank,
+  displayCountryRank,
 }: ProfileSidePanelProps) {
   const { isSignedIn } = useUser();
   const router = useRouter();
@@ -759,8 +765,14 @@ export function ProfileSidePanel({
   } = useUserProfilePanel(userId, { enabled: isOpen });
 
   // Convert profile to DisplayUser format
+  // Use props ranks (from leaderboard table) if available, fall back to DB values
   const displayedUser: DisplayUser | null = useMemo(() => {
     if (!profile) return null;
+
+    // Props ranks take priority (real-time calculated from leaderboard table)
+    const effectiveGlobalRank = displayGlobalRank ?? profile.global_rank ?? 0;
+    const effectiveCountryRank = displayCountryRank ?? profile.country_rank;
+
     return {
       id: profile.id,
       username: profile.username,
@@ -770,16 +782,16 @@ export function ProfileSidePanel({
       total_tokens: profile.total_tokens || 0,
       total_cost: profile.total_cost || 0,
       total_sessions: profile.total_sessions || 0,
-      rank: profile.global_rank || 0,
+      rank: effectiveGlobalRank,
       current_level: profile.current_level || 1,
-      global_rank: profile.global_rank,
-      country_rank: profile.country_rank,
+      global_rank: effectiveGlobalRank,
+      country_rank: effectiveCountryRank,
       social_links: profile.social_links,
       ccplan: profile.ccplan,
       has_opus_usage: profile.has_opus_usage || false,
       post_count: profile.post_count || 0,
     };
-  }, [profile]);
+  }, [profile, displayGlobalRank, displayCountryRank]);
 
   // Fresh social links from profile
   const freshSocialLinks = profile?.social_links ?? null;
@@ -981,7 +993,8 @@ export function ProfileSidePanel({
     ? ((currentUser.total_tokens - level.minTokens) / (nextLevel.minTokens - level.minTokens)) * 100
     : 100;
 
-  const countryRank = currentUser.country_rank || currentUser.rank;
+  // Don't fallback to global_rank - country_rank should be shown only if actually available
+  const countryRank = currentUser.country_rank;
 
   // Use currentUser data directly for instant display (no API wait)
   // period_tokens/period_cost come from leaderboard API, total_tokens/total_cost for "all" filter
@@ -1119,14 +1132,14 @@ export function ProfileSidePanel({
                     #{currentUser.global_rank || currentUser.rank}
                   </span>
                 </div>
-                <div className="flex-1 flex items-center justify-center gap-1">
-                  {currentUser.country_code && (
+                {countryRank && currentUser.country_code && (
+                  <div className="flex-1 flex items-center justify-center gap-1">
                     <FlagIcon countryCode={currentUser.country_code} size="xs" />
-                  )}
-                  <span className="font-medium text-[var(--color-text-primary)]">
-                    #{countryRank}
-                  </span>
-                </div>
+                    <span className="font-medium text-[var(--color-text-primary)]">
+                      #{countryRank}
+                    </span>
+                  </div>
+                )}
                 <div className="flex-1 flex items-center justify-center gap-1">
                   <span>💻</span>
                   <span className="font-medium text-[var(--color-text-primary)]">
@@ -1184,26 +1197,40 @@ export function ProfileSidePanel({
                 #{(currentUser.global_rank || currentUser.rank).toLocaleString()}
               </div>
             </div>
-            {/* Country Rank */}
-            <div
-              className={`col-span-2 p-3 rounded-lg transition-all border ${
-                scopeFilter === "country"
-                  ? "bg-[var(--color-scope-active-bg)] border-[var(--color-claude-coral)]/40"
-                  : "bg-[var(--color-section-bg)] border-[var(--border-default)]"
-              }`}
-            >
-              <div className="text-[10px] text-[var(--color-text-muted)] mb-0.5 flex items-center gap-1">
-                {currentUser.country_code && (
-                  <FlagIcon countryCode={currentUser.country_code} size="xs" />
-                )}
-                Country
-              </div>
+            {/* Country Rank - only show if countryRank is available */}
+            {countryRank && currentUser.country_code ? (
               <div
-                className={`font-semibold text-[var(--color-text-primary)] ${isNarrow ? "text-sm" : "text-base"}`}
+                className={`col-span-2 p-3 rounded-lg transition-all border ${
+                  scopeFilter === "country"
+                    ? "bg-[var(--color-scope-active-bg)] border-[var(--color-claude-coral)]/40"
+                    : "bg-[var(--color-section-bg)] border-[var(--border-default)]"
+                }`}
               >
-                #{countryRank.toLocaleString()}
+                <div className="text-[10px] text-[var(--color-text-muted)] mb-0.5 flex items-center gap-1">
+                  <FlagIcon countryCode={currentUser.country_code} size="xs" />
+                  Country
+                </div>
+                <div
+                  className={`font-semibold text-[var(--color-text-primary)] ${isNarrow ? "text-sm" : "text-base"}`}
+                >
+                  #{countryRank.toLocaleString()}
+                </div>
               </div>
-            </div>
+            ) : (
+              <div className="col-span-2 p-3 bg-[var(--color-section-bg)] rounded-lg border border-[var(--border-default)]">
+                <div className="text-[10px] text-[var(--color-text-muted)] mb-0.5 flex items-center gap-1">
+                  {currentUser.country_code && (
+                    <FlagIcon countryCode={currentUser.country_code} size="xs" />
+                  )}
+                  Country
+                </div>
+                <div
+                  className={`font-semibold text-[var(--color-text-muted)] ${isNarrow ? "text-sm" : "text-base"}`}
+                >
+                  -
+                </div>
+              </div>
+            )}
             {/* Sessions */}
             <div className="col-span-2 p-3 bg-[var(--color-section-bg)] rounded-lg border border-[var(--border-default)]">
               <div className="text-[10px] text-[var(--color-text-muted)] mb-0.5">💻 Sessions</div>

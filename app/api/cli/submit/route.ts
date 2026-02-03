@@ -460,21 +460,35 @@ export async function POST(request: NextRequest) {
     }
 
     // Calculate rank
+    // FIX: Update ALL users' global_rank (not just self) to prevent rank drift
     const { data: rankData } = await supabase
       .from("users")
       .select("id")
       .gt("total_tokens", 0)
       .order("total_tokens", { ascending: false });
 
-    const rank =
-      (rankData?.findIndex((u: { id: string }) => u.id === authenticatedUser.id) ?? -1) + 1;
+    let rank = 0;
+    if (rankData && rankData.length > 0) {
+      // Update ALL users' global_rank
+      const updatePromises = rankData.map((user: { id: string }, index: number) =>
+        supabase
+          .from("users")
+          .update({ global_rank: index + 1 })
+          .eq("id", user.id)
+      );
+      await Promise.all(updatePromises);
 
-    // Update global rank
-    if (rank > 0) {
-      await supabase.from("users").update({ global_rank: rank }).eq("id", authenticatedUser.id);
+      // Get current user's rank
+      const currentUserIndex = rankData.findIndex(
+        (u: { id: string }) => u.id === authenticatedUser.id
+      );
+      if (currentUserIndex >= 0) {
+        rank = currentUserIndex + 1;
+      }
     }
 
     // Get country rank for badge calculation
+    // FIX: Update ALL users' country_rank in the same country (not just self)
     let countryRank: number | undefined;
     if (authenticatedUser.country_code) {
       const { data: countryRankData } = await supabase
@@ -484,16 +498,23 @@ export async function POST(request: NextRequest) {
         .gt("total_tokens", 0)
         .order("total_tokens", { ascending: false });
 
-      const foundRank =
-        (countryRankData?.findIndex((u: { id: string }) => u.id === authenticatedUser.id) ?? -1) +
-        1;
+      if (countryRankData && countryRankData.length > 0) {
+        // Update ALL users' country_rank in this country
+        const updatePromises = countryRankData.map((user: { id: string }, index: number) =>
+          supabase
+            .from("users")
+            .update({ country_rank: index + 1 })
+            .eq("id", user.id)
+        );
+        await Promise.all(updatePromises);
 
-      if (foundRank > 0) {
-        countryRank = foundRank;
-        await supabase
-          .from("users")
-          .update({ country_rank: countryRank })
-          .eq("id", authenticatedUser.id);
+        // Get current user's rank for badge calculation
+        const currentUserIndex = countryRankData.findIndex(
+          (u: { id: string }) => u.id === authenticatedUser.id
+        );
+        if (currentUserIndex >= 0) {
+          countryRank = currentUserIndex + 1;
+        }
       }
     }
 

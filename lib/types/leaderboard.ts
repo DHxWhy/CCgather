@@ -121,6 +121,7 @@ export interface LeaderboardUser {
   period_tokens?: number;
   period_cost?: number;
   period_rank?: number;
+  period_country_rank?: number;
   // CCplan fields (for badge display only) - TEXT type, any value allowed
   ccplan?: string | null;
   // Opus badge

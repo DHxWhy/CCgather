@@ -469,11 +469,21 @@ export async function GET(request: NextRequest) {
       return a.id.localeCompare(b.id);
     });
 
-  // Calculate period ranks
+  // Calculate period ranks (global)
   const rankedUsers = combinedUsers.map((user, index) => ({
     ...user,
     period_rank: index + 1,
   }));
+
+  // Calculate period_country_rank (per country, based on period_tokens)
+  const countryRankMap = new Map<string, number>();
+  rankedUsers.forEach((user) => {
+    if (user.country_code) {
+      const currentRank = (countryRankMap.get(user.country_code) || 0) + 1;
+      countryRankMap.set(user.country_code, currentRank);
+      (user as Record<string, unknown>).period_country_rank = currentRank;
+    }
+  });
 
   // Paginate
   const total = rankedUsers.length;
