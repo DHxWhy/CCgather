@@ -42,6 +42,8 @@ export default function AdminUsersPage() {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [filterPlan, setFilterPlan] = useState<string>("");
+  const [filterCountry, setFilterCountry] = useState<string>("");
+  const [filterOnboarding, setFilterOnboarding] = useState<string>("");
   const [alerts, setAlerts] = useState<AdminAlert[]>([]);
   const [stats, setStats] = useState({
     totalUsers: 0,
@@ -112,6 +114,21 @@ export default function AdminUsersPage() {
     return "unknown";
   };
 
+  // Country statistics
+  const countryStats = users.reduce(
+    (acc, user) => {
+      const code = user.country_code || "unknown";
+      acc[code] = (acc[code] || 0) + 1;
+      return acc;
+    },
+    {} as Record<string, number>
+  );
+
+  // Sorted country list (by count descending)
+  const sortedCountries = Object.entries(countryStats)
+    .sort((a, b) => b[1] - a[1])
+    .map(([code, count]) => ({ code, count }));
+
   const filteredUsers = users.filter((user) => {
     // Search filter
     const matchesSearch =
@@ -122,7 +139,17 @@ export default function AdminUsersPage() {
     // Plan filter
     const matchesPlan = !filterPlan || getPlanCategory(user.ccplan) === filterPlan;
 
-    return matchesSearch && matchesPlan;
+    // Country filter
+    const matchesCountry =
+      !filterCountry ||
+      (filterCountry === "unknown" ? !user.country_code : user.country_code === filterCountry);
+
+    // Onboarding filter
+    const matchesOnboarding =
+      !filterOnboarding ||
+      (filterOnboarding === "completed" ? user.onboarding_completed : !user.onboarding_completed);
+
+    return matchesSearch && matchesPlan && matchesCountry && matchesOnboarding;
   });
 
   const formatNumber = (num: number) => {
@@ -320,6 +347,90 @@ export default function AdminUsersPage() {
         </div>
       </div>
 
+      {/* 국가 & 온보딩 필터 */}
+      <div className="flex gap-3">
+        {/* 국가 필터 */}
+        <div className="flex-1 bg-[#161616] rounded-lg p-4 border border-white/[0.06]">
+          <div className="text-[11px] text-white/40 uppercase tracking-wide mb-3">국가별 필터</div>
+          <div className="flex flex-wrap gap-1.5">
+            <button
+              onClick={() => setFilterCountry("")}
+              className={`px-2 py-1 rounded text-[11px] transition-colors ${
+                filterCountry === ""
+                  ? "bg-white/20 text-white"
+                  : "bg-white/5 text-white/50 hover:bg-white/10"
+              }`}
+            >
+              전체
+            </button>
+            {sortedCountries.slice(0, 10).map(({ code, count }) => (
+              <button
+                key={code}
+                onClick={() => setFilterCountry(code)}
+                className={`px-2 py-1 rounded text-[11px] transition-colors ${
+                  filterCountry === code
+                    ? "bg-blue-500/30 text-blue-300"
+                    : "bg-white/5 text-white/50 hover:bg-white/10"
+                }`}
+              >
+                {code === "unknown" ? "🌐 미설정" : code} {count}
+              </button>
+            ))}
+            {sortedCountries.length > 10 && (
+              <select
+                value={filterCountry}
+                onChange={(e) => setFilterCountry(e.target.value)}
+                className="px-2 py-1 rounded text-[11px] bg-white/5 text-white/50 border-none focus:outline-none cursor-pointer"
+              >
+                <option value="">+{sortedCountries.length - 10}개 더</option>
+                {sortedCountries.slice(10).map(({ code, count }) => (
+                  <option key={code} value={code}>
+                    {code} ({count})
+                  </option>
+                ))}
+              </select>
+            )}
+          </div>
+        </div>
+
+        {/* 온보딩 상태 필터 */}
+        <div className="bg-[#161616] rounded-lg p-4 border border-white/[0.06]">
+          <div className="text-[11px] text-white/40 uppercase tracking-wide mb-3">온보딩 상태</div>
+          <div className="flex gap-1.5">
+            <button
+              onClick={() => setFilterOnboarding("")}
+              className={`px-2 py-1 rounded text-[11px] transition-colors ${
+                filterOnboarding === ""
+                  ? "bg-white/20 text-white"
+                  : "bg-white/5 text-white/50 hover:bg-white/10"
+              }`}
+            >
+              전체
+            </button>
+            <button
+              onClick={() => setFilterOnboarding("completed")}
+              className={`px-2 py-1 rounded text-[11px] transition-colors ${
+                filterOnboarding === "completed"
+                  ? "bg-emerald-500/30 text-emerald-300"
+                  : "bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20"
+              }`}
+            >
+              완료 {users.filter((u) => u.onboarding_completed).length}
+            </button>
+            <button
+              onClick={() => setFilterOnboarding("pending")}
+              className={`px-2 py-1 rounded text-[11px] transition-colors ${
+                filterOnboarding === "pending"
+                  ? "bg-yellow-500/30 text-yellow-300"
+                  : "bg-yellow-500/10 text-yellow-400 hover:bg-yellow-500/20"
+              }`}
+            >
+              대기 {users.filter((u) => !u.onboarding_completed).length}
+            </button>
+          </div>
+        </div>
+      </div>
+
       {/* 검색 */}
       <input
         type="text"
@@ -371,7 +482,9 @@ export default function AdminUsersPage() {
               ) : filteredUsers.length === 0 ? (
                 <tr>
                   <td colSpan={8} className="px-4 py-8 text-center text-[12px] text-white/30">
-                    {searchQuery || filterPlan ? "검색 결과가 없습니다." : "사용자가 없습니다."}
+                    {searchQuery || filterPlan || filterCountry || filterOnboarding
+                      ? "검색 결과가 없습니다."
+                      : "사용자가 없습니다."}
                   </td>
                 </tr>
               ) : (
