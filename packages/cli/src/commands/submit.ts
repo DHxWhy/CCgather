@@ -93,6 +93,37 @@ interface SubmitResponse {
 }
 
 /**
+ * Report submit attempt to server for debugging
+ * This helps track users who try to submit but fail before data is sent
+ */
+async function reportSubmitAttempt(
+  reason: "no_sessions" | "no_data" | "scan_failed",
+  debugInfo?: { searchedPaths?: { path: string; exists: boolean }[]; projectsFound?: number }
+): Promise<void> {
+  try {
+    const config = getConfig();
+    const apiUrl = getApiUrl();
+    const token = config.apiToken;
+
+    await fetch(`${apiUrl}/cli/submit-attempt`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(token && { Authorization: `Bearer ${token}` }),
+      },
+      body: JSON.stringify({
+        reason,
+        debugInfo,
+        cliVersion: process.env.npm_package_version || "unknown",
+        platform: process.platform,
+      }),
+    });
+  } catch {
+    // Silently ignore - this is just for logging
+  }
+}
+
+/**
  * Convert CCGatherData to UsageData
  */
 function ccgatherToUsageData(data: CCGatherData): UsageData {
@@ -375,6 +406,10 @@ export async function submit(options: SubmitOptions): Promise<void> {
       console.log(`    ${status} ${pathInfo.path}`);
     }
     console.log();
+
+    // Report attempt to server for debugging (non-blocking)
+    await reportSubmitAttempt("no_sessions", debugInfo);
+
     process.exit(1);
   }
 
@@ -402,6 +437,10 @@ export async function submit(options: SubmitOptions): Promise<void> {
     process.stdout.write("\r" + " ".repeat(40) + "\r");
     console.log(`  ${colors.error("✗")} ${colors.error("No usage data found.")}`);
     console.log(`  ${colors.muted("Make sure you have used Claude Code at least once.")}\n`);
+
+    // Report attempt to server for debugging (non-blocking)
+    await reportSubmitAttempt("no_data");
+
     process.exit(1);
   }
 
