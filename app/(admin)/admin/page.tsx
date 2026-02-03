@@ -42,7 +42,7 @@ export default function AdminUsersPage() {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [filterPlan, setFilterPlan] = useState<string>("");
-  const [filterCountry, setFilterCountry] = useState<string>("");
+  const [filterCountries, setFilterCountries] = useState<string[]>([]);
   const [filterOnboarding, setFilterOnboarding] = useState<string>("");
   const [alerts, setAlerts] = useState<AdminAlert[]>([]);
   const [stats, setStats] = useState({
@@ -139,10 +139,12 @@ export default function AdminUsersPage() {
     // Plan filter
     const matchesPlan = !filterPlan || getPlanCategory(user.ccplan) === filterPlan;
 
-    // Country filter
+    // Country filter (multi-select)
     const matchesCountry =
-      !filterCountry ||
-      (filterCountry === "unknown" ? !user.country_code : user.country_code === filterCountry);
+      filterCountries.length === 0 ||
+      filterCountries.some((code) =>
+        code === "unknown" ? !user.country_code : user.country_code === code
+      );
 
     // Onboarding filter
     const matchesOnboarding =
@@ -349,43 +351,57 @@ export default function AdminUsersPage() {
 
       {/* 국가 & 온보딩 필터 */}
       <div className="flex gap-3">
-        {/* 국가 필터 */}
+        {/* 국가 필터 (중복 선택 가능) */}
         <div className="flex-1 bg-[#161616] rounded-lg p-4 border border-white/[0.06]">
-          <div className="text-[11px] text-white/40 uppercase tracking-wide mb-3">국가별 필터</div>
-          <div className="flex flex-wrap gap-1.5">
-            <button
-              onClick={() => setFilterCountry("")}
-              className={`px-2 py-1 rounded text-[11px] transition-colors ${
-                filterCountry === ""
-                  ? "bg-white/20 text-white"
-                  : "bg-white/5 text-white/50 hover:bg-white/10"
-              }`}
-            >
-              전체
-            </button>
-            {sortedCountries.slice(0, 10).map(({ code, count }) => (
+          <div className="flex items-center justify-between mb-3">
+            <div className="text-[11px] text-white/40 uppercase tracking-wide">국가별 필터</div>
+            {filterCountries.length > 0 && (
               <button
-                key={code}
-                onClick={() => setFilterCountry(code)}
-                className={`px-2 py-1 rounded text-[11px] transition-colors ${
-                  filterCountry === code
-                    ? "bg-blue-500/30 text-blue-300"
-                    : "bg-white/5 text-white/50 hover:bg-white/10"
-                }`}
+                onClick={() => setFilterCountries([])}
+                className="text-[10px] text-white/40 hover:text-white/60 transition-colors"
               >
-                {code === "unknown" ? "🌐 미설정" : code} {count}
+                초기화 ({filterCountries.length}개 선택)
               </button>
-            ))}
-            {sortedCountries.length > 10 && (
+            )}
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            {sortedCountries.slice(0, 12).map(({ code, count }) => {
+              const isSelected = filterCountries.includes(code);
+              return (
+                <button
+                  key={code}
+                  onClick={() => {
+                    if (isSelected) {
+                      setFilterCountries(filterCountries.filter((c) => c !== code));
+                    } else {
+                      setFilterCountries([...filterCountries, code]);
+                    }
+                  }}
+                  className={`px-2 py-1 rounded text-[11px] transition-colors ${
+                    isSelected
+                      ? "bg-blue-500/30 text-blue-300 ring-1 ring-blue-500/50"
+                      : "bg-white/5 text-white/50 hover:bg-white/10"
+                  }`}
+                >
+                  {code === "unknown" ? "🌐 미설정" : code} {count}
+                </button>
+              );
+            })}
+            {sortedCountries.length > 12 && (
               <select
-                value={filterCountry}
-                onChange={(e) => setFilterCountry(e.target.value)}
+                value=""
+                onChange={(e) => {
+                  const code = e.target.value;
+                  if (code && !filterCountries.includes(code)) {
+                    setFilterCountries([...filterCountries, code]);
+                  }
+                }}
                 className="px-2 py-1 rounded text-[11px] bg-white/5 text-white/50 border-none focus:outline-none cursor-pointer"
               >
-                <option value="">+{sortedCountries.length - 10}개 더</option>
-                {sortedCountries.slice(10).map(({ code, count }) => (
-                  <option key={code} value={code}>
-                    {code} ({count})
+                <option value="">+{sortedCountries.length - 12}개 더</option>
+                {sortedCountries.slice(12).map(({ code, count }) => (
+                  <option key={code} value={code} disabled={filterCountries.includes(code)}>
+                    {code} ({count}) {filterCountries.includes(code) ? "✓" : ""}
                   </option>
                 ))}
               </select>
@@ -482,7 +498,7 @@ export default function AdminUsersPage() {
               ) : filteredUsers.length === 0 ? (
                 <tr>
                   <td colSpan={8} className="px-4 py-8 text-center text-[12px] text-white/30">
-                    {searchQuery || filterPlan || filterCountry || filterOnboarding
+                    {searchQuery || filterPlan || filterCountries.length > 0 || filterOnboarding
                       ? "검색 결과가 없습니다."
                       : "사용자가 없습니다."}
                   </td>

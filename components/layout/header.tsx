@@ -4,7 +4,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@clerk/nextjs";
-import { Menu, Settings, Github } from "lucide-react";
+import { Menu, Settings, Github, Bug } from "lucide-react";
 import { useState, useEffect, lazy, Suspense } from "react";
 import { cn } from "@/lib/utils";
 import { ThemeSwitcher } from "@/components/ui/theme-switcher";
@@ -19,6 +19,9 @@ const CLIModal = lazy(() =>
 );
 const AuthModal = lazy(() =>
   import("@/components/auth/AuthModal").then((mod) => ({ default: mod.AuthModal }))
+);
+const FeedbackModal = lazy(() =>
+  import("@/components/feedback/FeedbackModal").then((mod) => ({ default: mod.FeedbackModal }))
 );
 
 // ============================================
@@ -102,6 +105,7 @@ export function Header() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [cliModalOpen, setCLIModalOpen] = useState(false);
   const [authModalOpen, setAuthModalOpen] = useState(false);
+  const [feedbackModalOpen, setFeedbackModalOpen] = useState(false);
   const [clerkFailed, setClerkFailed] = useState(false);
 
   // Clerk 로드 상태 체크
@@ -219,6 +223,24 @@ export function Header() {
             )}
 
             <ThemeSwitcher size="sm" />
+
+            {/* Feedback Button - 로그인 사용자만 */}
+            {!showSignInButton && (
+              <button
+                onClick={() => setFeedbackModalOpen(true)}
+                className={cn(
+                  "flex items-center justify-center w-8 h-8 rounded-full border transition-all group",
+                  isLoaded ? "opacity-100" : "opacity-0",
+                  "border-[var(--border-default)] hover:border-[var(--color-text-muted)]"
+                )}
+                aria-label="Send Feedback"
+              >
+                <Bug
+                  size={14}
+                  className="text-[var(--color-text-muted)] group-hover:text-[var(--color-text-secondary)] transition-colors"
+                />
+              </button>
+            )}
 
             {/* GitHub Link */}
             <a
@@ -342,6 +364,24 @@ export function Header() {
             GitHub
           </a>
 
+          {/* Feedback Button - 로그인 사용자만 (모바일) */}
+          {!showSignInButton && (
+            <button
+              onClick={() => {
+                closeMobileMenu();
+                setFeedbackModalOpen(true);
+              }}
+              className={cn(
+                "flex items-center gap-3 px-4 py-3 rounded-xl",
+                "text-base font-medium transition-all duration-200",
+                "text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--glass-bg)]"
+              )}
+            >
+              <Bug size={18} />
+              Send Feedback
+            </button>
+          )}
+
           {/* Auth Section */}
           <div className="px-4 pt-4 space-y-2">
             {showSignInButton ? (
@@ -389,6 +429,13 @@ export function Header() {
       {authModalOpen && (
         <Suspense fallback={null}>
           <AuthModal isOpen={authModalOpen} onClose={() => setAuthModalOpen(false)} />
+        </Suspense>
+      )}
+
+      {/* Feedback Modal - 지연 로딩 */}
+      {feedbackModalOpen && (
+        <Suspense fallback={null}>
+          <FeedbackModal isOpen={feedbackModalOpen} onClose={() => setFeedbackModalOpen(false)} />
         </Suspense>
       )}
     </>
