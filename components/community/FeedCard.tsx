@@ -1205,7 +1205,15 @@ function FeedCardComponent({
     setEditPostContent(localPostContent);
     setIsEditingPost(true);
     setShowMenu(false);
-    setTimeout(() => postEditInputRef.current?.focus(), 50);
+    setTimeout(() => {
+      const textarea = postEditInputRef.current;
+      if (textarea) {
+        textarea.focus();
+        // Auto-resize to fit content
+        textarea.style.height = "auto";
+        textarea.style.height = `${textarea.scrollHeight}px`;
+      }
+    }, 50);
   }, [localPostContent]);
 
   const handlePostEditCancel = useCallback(() => {
@@ -1454,7 +1462,7 @@ function FeedCardComponent({
                 onChange={(e) => {
                   setEditPostContent(e.target.value);
                   e.target.style.height = "auto";
-                  e.target.style.height = `${Math.min(e.target.scrollHeight, 200)}px`;
+                  e.target.style.height = `${e.target.scrollHeight}px`;
                 }}
                 onKeyDown={(e) => {
                   if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
@@ -1472,7 +1480,7 @@ function FeedCardComponent({
                   "placeholder:text-[var(--color-text-muted)]",
                   "focus:outline-none focus:border-[var(--color-claude-coral)]",
                   "text-[var(--color-text-primary)]",
-                  "resize-none overflow-hidden min-h-[60px] max-h-[200px]"
+                  "resize-none overflow-hidden min-h-[60px]"
                 )}
               />
               <div className="flex items-center gap-2 mt-2">

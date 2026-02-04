@@ -49,14 +49,14 @@ const COMMUNITY_TABS: {
   emoji: string;
 }[] = [
   {
-    id: "general",
-    label: "General",
-    emoji: "☕",
-  },
-  {
     id: "showcase",
     label: "Showcase",
     emoji: "✨",
+  },
+  {
+    id: "general",
+    label: "General",
+    emoji: "☕",
   },
   {
     id: "help",
