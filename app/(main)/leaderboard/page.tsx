@@ -1614,11 +1614,13 @@ export default function LeaderboardPage() {
 
   const rightColumnStyle = useMemo(
     () => ({
+      // When compact mode (panel open on <1200px), don't set explicit width
+      // Let flex handle the sizing naturally within the padded container
       width:
         viewportWidth < 768
           ? "100%"
           : useCompactRatio
-            ? "100%"
+            ? undefined // Let flex-1 handle width instead of forcing 100%
             : isCommunityPanelOpen
               ? "60%"
               : isTablet
@@ -2205,7 +2207,9 @@ export default function LeaderboardPage() {
             {/* When panel opens: expand to 65% (Globe shrinks to 35%) */}
             {/* When panel opens on narrow viewport (<1200px): expands to full width */}
             <div
-              className="w-full md:w-auto transition-[width] duration-300 flex-1 md:flex-none flex flex-col min-h-0"
+              className={`w-full md:w-auto transition-[width] duration-300 flex flex-col min-h-0 ${
+                useCompactRatio ? "flex-1" : "flex-1 md:flex-none"
+              }`}
               style={rightColumnStyle}
             >
               {/* Filters - Above Table (height: 34px + mb-4 to match left column header) */}
