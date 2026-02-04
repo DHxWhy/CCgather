@@ -114,6 +114,8 @@ export function Header() {
   // 사용자 데이터 (CLI 미제출 상태 확인용)
   const { data: me } = useMe({ enabled: isSignedIn === true });
   const hasNeverSubmitted = isSignedIn && me && me.total_cost === 0;
+  // 온보딩 완료 여부 (Settings, NotificationBell, FeedbackButton은 온보딩 완료 후에만 표시)
+  const isOnboardingDone = isSignedIn && me?.onboarding_completed === true;
 
   // Clerk 로드 타임아웃 체크 (10초 후에도 로드 안되면 실패로 간주)
   useEffect(() => {
@@ -215,8 +217,8 @@ export function Header() {
               </Button>
             )}
 
-            {/* 로그인 상태: Notification Bell (로딩 중에는 공간 확보) */}
-            {!showSignInButton && (
+            {/* 로그인 상태 + 온보딩 완료: Notification Bell */}
+            {isOnboardingDone && (
               <div className={cn("transition-opacity", isLoaded ? "opacity-100" : "opacity-0")}>
                 <NotificationBell />
               </div>
@@ -224,8 +226,8 @@ export function Header() {
 
             <ThemeSwitcher size="sm" />
 
-            {/* Feedback Button - 로그인 사용자만 */}
-            {!showSignInButton && (
+            {/* Feedback Button - 온보딩 완료 사용자만 */}
+            {isOnboardingDone && (
               <button
                 onClick={() => setFeedbackModalOpen(true)}
                 className={cn(
@@ -259,8 +261,8 @@ export function Header() {
               />
             </a>
 
-            {/* 로그인 상태: Settings (로딩 중에는 공간 확보) */}
-            {!showSignInButton && (
+            {/* 온보딩 완료 후: Settings */}
+            {isOnboardingDone && (
               <Link
                 href="/settings"
                 className={cn(
@@ -287,8 +289,8 @@ export function Header() {
 
           {/* Mobile Right Section */}
           <div className="flex md:hidden items-center gap-1">
-            {/* Notification Bell - Mobile (로그인 상태에서만) */}
-            {isLoaded && isSignedIn && !clerkFailed && <NotificationBell />}
+            {/* Notification Bell - Mobile (온보딩 완료 후에만) */}
+            {isOnboardingDone && <NotificationBell />}
 
             {/* Mobile Menu Button */}
             <button
@@ -364,8 +366,8 @@ export function Header() {
             GitHub
           </a>
 
-          {/* Feedback Button - 로그인 사용자만 (모바일) */}
-          {!showSignInButton && (
+          {/* Feedback Button - 온보딩 완료 사용자만 (모바일) */}
+          {isOnboardingDone && (
             <button
               onClick={() => {
                 closeMobileMenu();
@@ -396,24 +398,22 @@ export function Header() {
               >
                 Sign In
               </Button>
-            ) : (
-              <>
-                <Link
-                  href="/settings"
-                  onClick={closeMobileMenu}
-                  className={cn(
-                    "w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl",
-                    "text-base font-medium transition-all duration-200",
-                    pathname.startsWith("/settings")
-                      ? "text-[var(--color-claude-coral)] bg-[var(--color-claude-coral)]/10 border border-[var(--color-claude-coral)]"
-                      : "text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] border border-[var(--border-default)] hover:border-[var(--color-text-muted)]"
-                  )}
-                >
-                  <Settings size={18} />
-                  Settings
-                </Link>
-              </>
-            )}
+            ) : isOnboardingDone ? (
+              <Link
+                href="/settings"
+                onClick={closeMobileMenu}
+                className={cn(
+                  "w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl",
+                  "text-base font-medium transition-all duration-200",
+                  pathname.startsWith("/settings")
+                    ? "text-[var(--color-claude-coral)] bg-[var(--color-claude-coral)]/10 border border-[var(--color-claude-coral)]"
+                    : "text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] border border-[var(--border-default)] hover:border-[var(--color-text-muted)]"
+                )}
+              >
+                <Settings size={18} />
+                Settings
+              </Link>
+            ) : null}
           </div>
         </div>
       </MobileDrawer>
