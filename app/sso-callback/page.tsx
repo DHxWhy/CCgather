@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { AuthenticateWithRedirectCallback, useClerk } from "@clerk/nextjs";
+import { AuthenticateWithRedirectCallback, useClerk, useAuth } from "@clerk/nextjs";
 import { useRouter } from "next/navigation";
 
 type ErrorType = "timeout" | "auth" | "session";
@@ -9,19 +9,61 @@ type ErrorType = "timeout" | "auth" | "session";
 export default function SSOCallbackPage() {
   const router = useRouter();
   const { signOut } = useClerk();
+  const { isSignedIn, isLoaded } = useAuth();
   const [hasError, setHasError] = useState(false);
   const [isTimedOut, setIsTimedOut] = useState(false);
   const [errorType, setErrorType] = useState<ErrorType>("auth");
+  const [isValidCallback, setIsValidCallback] = useState(true);
+
+  // Check if this is a valid OAuth callback or stale PWA navigation
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const hash = window.location.hash;
+
+    // Valid OAuth callback should have: code, state, or hash with access_token
+    const hasOAuthParams =
+      params.has("code") ||
+      params.has("state") ||
+      params.has("__clerk_status") ||
+      hash.includes("access_token");
+
+    // If no OAuth params and no error params, this is likely a stale PWA navigation
+    const hasErrorParams = params.has("error") || params.has("error_description");
+
+    if (!hasOAuthParams && !hasErrorParams) {
+      setIsValidCallback(false);
+    }
+  }, []);
+
+  // Redirect immediately if already signed in or invalid callback
+  useEffect(() => {
+    if (!isLoaded) return;
+
+    // Already signed in → go to leaderboard
+    if (isSignedIn) {
+      router.replace("/leaderboard");
+      return;
+    }
+
+    // No valid callback params (stale PWA navigation) → go to leaderboard
+    if (!isValidCallback) {
+      router.replace("/leaderboard");
+      return;
+    }
+  }, [isLoaded, isSignedIn, isValidCallback, router]);
 
   // Timeout detection - if callback takes too long, show error state
   useEffect(() => {
+    // Don't start timeout if we're redirecting anyway
+    if (!isValidCallback) return;
+
     const timeout = setTimeout(() => {
       setIsTimedOut(true);
       setErrorType("timeout");
     }, 15000); // 15 seconds timeout
 
     return () => clearTimeout(timeout);
-  }, []);
+  }, [isValidCallback]);
 
   // Handle URL error params and session issues
   useEffect(() => {
@@ -74,6 +116,18 @@ export default function SSOCallbackPage() {
   const handleGoHome = () => {
     router.push("/");
   };
+
+  // Redirecting: already signed in or stale PWA navigation
+  if (!isLoaded || isSignedIn || !isValidCallback) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[var(--color-bg-primary)]">
+        <div className="text-center">
+          <div className="w-8 h-8 border-2 border-[#DA7756]/30 border-t-[#DA7756] rounded-full animate-spin mx-auto mb-4" />
+          <p className="text-zinc-400 text-sm">Redirecting...</p>
+        </div>
+      </div>
+    );
+  }
 
   // Session error: auto-clearing, show loading
   if (errorType === "session") {
