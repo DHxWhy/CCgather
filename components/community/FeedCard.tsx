@@ -14,6 +14,7 @@ import {
   Loader2,
   MoreHorizontal,
   X,
+  Pencil,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { FlagIcon } from "@/components/ui/FlagIcon";
@@ -205,6 +206,9 @@ const CommentItem = memo(function CommentItem({
       ? detectCommentLanguage(comment.original_content)
       : detectCommentLanguage(localContent));
 
+  // Check ownership
+  const isOwner = currentUserId && comment.author.id === currentUserId;
+
   // Check if edit is allowed (within 5 minutes)
   const canEdit = useMemo(() => {
     if (!isOwner) return false;
@@ -238,7 +242,6 @@ const CommentItem = memo(function CommentItem({
   const authorName = comment.author.display_name || comment.author.username;
   const avatarUrl = comment.author.avatar_url;
   const hasParent = !!comment.parent_comment_id;
-  const isOwner = currentUserId && comment.author.id === currentUserId;
 
   const handleLikeClick = useCallback(async () => {
     if (!isSignedIn) {
