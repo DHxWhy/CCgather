@@ -111,9 +111,8 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
 }
 
 // =====================================================
-// PATCH /api/community/posts/[id] - 포스트 수정 (5분 이내)
+// PATCH /api/community/posts/[id] - 포스트 수정
 // =====================================================
-const EDIT_TIME_LIMIT_MS = 5 * 60 * 1000; // 5분
 
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -162,16 +161,6 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     // Check ownership
     if (post.author_id !== user.id) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-    }
-
-    // Check time limit (5 minutes)
-    const createdAt = new Date(post.created_at).getTime();
-    const now = Date.now();
-    if (now - createdAt > EDIT_TIME_LIMIT_MS) {
-      return NextResponse.json(
-        { error: "Edit time expired. Posts can only be edited within 5 minutes." },
-        { status: 403 }
-      );
     }
 
     // Update the post

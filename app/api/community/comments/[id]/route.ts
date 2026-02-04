@@ -3,9 +3,8 @@ import { auth } from "@clerk/nextjs/server";
 import { createServiceClient } from "@/lib/supabase/server";
 
 // =====================================================
-// PATCH /api/community/comments/[id] - 댓글 수정 (5분 이내)
+// PATCH /api/community/comments/[id] - 댓글 수정
 // =====================================================
-const EDIT_TIME_LIMIT_MS = 5 * 60 * 1000; // 5분
 
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -54,16 +53,6 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     // Check ownership
     if (comment.author_id !== user.id) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-    }
-
-    // Check time limit (5 minutes)
-    const createdAt = new Date(comment.created_at).getTime();
-    const now = Date.now();
-    if (now - createdAt > EDIT_TIME_LIMIT_MS) {
-      return NextResponse.json(
-        { error: "Edit time expired. Comments can only be edited within 5 minutes." },
-        { status: 403 }
-      );
     }
 
     // Update the comment

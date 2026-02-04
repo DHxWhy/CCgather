@@ -131,9 +131,6 @@ function timeAgo(dateString: string): string {
 // CommentItem Component (separated to avoid Turbopack mangling)
 // ===========================================
 
-// Edit time limit constant (5 minutes)
-const EDIT_TIME_LIMIT_MS = 5 * 60 * 1000;
-
 interface CommentItemProps {
   comment: FeedComment;
   isReply?: boolean;
@@ -206,16 +203,9 @@ const CommentItem = memo(function CommentItem({
       ? detectCommentLanguage(comment.original_content)
       : detectCommentLanguage(localContent));
 
-  // Check ownership
+  // Check ownership - owner can always edit
   const isOwner = currentUserId && comment.author.id === currentUserId;
-
-  // Check if edit is allowed (within 5 minutes)
-  const canEdit = useMemo(() => {
-    if (!isOwner) return false;
-    const createdAt = new Date(comment.created_at).getTime();
-    const now = Date.now();
-    return now - createdAt <= EDIT_TIME_LIMIT_MS;
-  }, [isOwner, comment.created_at]);
+  const canEdit = !!isOwner;
 
   // Close menu on outside click
   useEffect(() => {
@@ -757,16 +747,9 @@ function FeedCardComponent({
   const [localPostEditedAt, setLocalPostEditedAt] = useState(post.edited_at);
   const postEditInputRef = useRef<HTMLTextAreaElement>(null);
 
-  // Check if current user is the post author
+  // Check if current user is the post author - owner can always edit
   const isOwner = currentUserId && post.author.id === currentUserId;
-
-  // Check if post edit is allowed (within 5 minutes)
-  const canEditPost = useMemo(() => {
-    if (!isOwner) return false;
-    const createdAt = new Date(post.created_at).getTime();
-    const now = Date.now();
-    return now - createdAt <= EDIT_TIME_LIMIT_MS;
-  }, [isOwner, post.created_at]);
+  const canEditPost = !!isOwner;
 
   // Close menu on outside click
   useEffect(() => {
