@@ -347,7 +347,7 @@ export default function LeaderboardPage() {
   }, [authorParam]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Community tab state (extensible for future tabs)
-  const [communityTab, setCommunityTab] = useState<CommunityTab>("general");
+  const [communityTab, setCommunityTab] = useState<CommunityTab>("showcase");
   // Post modal state (controlled at page level for filter area button)
   const [isPostModalOpen, setIsPostModalOpen] = useState(false);
   // Submission guide modal state (explains why submission is needed)
