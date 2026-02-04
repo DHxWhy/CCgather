@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Image from "next/image";
+import { FlagIcon } from "@/components/ui/FlagIcon";
 
 interface User {
   id: string;
@@ -125,9 +126,15 @@ export default function AdminUsersPage() {
     {} as Record<string, number>
   );
 
-  // Sorted country list (by count descending)
+  // Sorted country list (by count descending, "unknown" always last)
   const sortedCountries = Object.entries(countryStats)
-    .sort((a, b) => b[1] - a[1])
+    .sort((a, b) => {
+      // "unknown" always goes to the end
+      if (a[0] === "unknown") return 1;
+      if (b[0] === "unknown") return -1;
+      // Otherwise sort by count descending
+      return b[1] - a[1];
+    })
     .map(([code, count]) => ({ code, count }));
 
   const filteredUsers = users.filter((user) => {
@@ -379,13 +386,15 @@ export default function AdminUsersPage() {
                       setFilterCountries([...filterCountries, code]);
                     }
                   }}
-                  className={`px-2 py-1 rounded text-[11px] transition-colors ${
+                  className={`px-2 py-1 rounded text-[11px] transition-colors flex items-center gap-1 ${
                     isSelected
                       ? "bg-blue-500/30 text-blue-300 ring-1 ring-blue-500/50"
                       : "bg-white/5 text-white/50 hover:bg-white/10"
                   }`}
                 >
-                  {code === "unknown" ? "🌐 미설정" : code} {count}
+                  <FlagIcon countryCode={code === "unknown" ? "" : code} size="xs" />
+                  <span>{code === "unknown" ? "미설정" : code}</span>
+                  <span>{count}</span>
                 </button>
               );
             })}
