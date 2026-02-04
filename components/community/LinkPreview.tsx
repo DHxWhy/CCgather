@@ -288,6 +288,7 @@ function GitHubCard({
 function GenericLinkCard({ url, className }: { url: string; className?: string }) {
   const [metadata, setMetadata] = useState<OGMetadata | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [imageError, setImageError] = useState(false);
 
   // Extract domain from URL
   const domain = (() => {
@@ -316,59 +317,79 @@ function GenericLinkCard({ url, className }: { url: string; className?: string }
     fetchMetadata();
   }, [url]);
 
-  // Compact loading skeleton
+  // Reset image error when URL changes
+  useEffect(() => {
+    setImageError(false);
+  }, [url]);
+
+  const hasValidImage = metadata?.image && !imageError;
+
+  // Loading skeleton - Twitter/X style
   if (isLoading) {
     return (
       <div
         className={cn(
-          "flex items-center gap-2.5 p-2.5 rounded-md border animate-pulse",
+          "rounded-lg border overflow-hidden animate-pulse",
           "bg-[var(--color-bg-tertiary)] border-[var(--border-default)]",
           className
         )}
       >
-        <div className="w-4 h-4 rounded bg-[var(--color-bg-secondary)]" />
-        <div className="flex-1 h-3.5 bg-[var(--color-bg-secondary)] rounded" />
+        {/* Image skeleton */}
+        <div className="aspect-[1.91/1] bg-[var(--color-bg-secondary)]" />
+        {/* Content skeleton */}
+        <div className="p-3 space-y-2">
+          <div className="h-4 bg-[var(--color-bg-secondary)] rounded w-3/4" />
+          <div className="h-3 bg-[var(--color-bg-secondary)] rounded w-1/2" />
+        </div>
       </div>
     );
   }
 
-  // Compact generic card
+  // Twitter/X style card with large image on top
   return (
     <a
       href={url}
       target="_blank"
       rel="noopener noreferrer"
       className={cn(
-        "block p-2.5 rounded-md border transition-colors",
+        "block rounded-lg border overflow-hidden transition-all",
         "bg-[var(--color-bg-tertiary)] border-[var(--border-default)]",
         "hover:border-[var(--color-text-muted)] hover:bg-[var(--color-bg-secondary)]",
         className
       )}
     >
-      {/* First row: icon + title + external link */}
-      <div className="flex items-center gap-2">
-        {/* Favicon or thumbnail */}
-        {metadata?.image ? (
-          <img src={metadata.image} alt="" className="w-4 h-4 rounded object-cover flex-shrink-0" />
-        ) : (
-          <ExternalLink className="w-4 h-4 text-[var(--color-text-muted)] flex-shrink-0" />
-        )}
-
-        <span className="text-sm font-medium text-[var(--color-text-primary)] truncate flex-1">
-          {metadata?.title || domain}
-        </span>
-
-        <span className="text-xs text-[var(--color-text-muted)] flex-shrink-0">{domain}</span>
-
-        <ExternalLink className="w-3.5 h-3.5 text-[var(--color-text-muted)] flex-shrink-0" />
-      </div>
-
-      {/* Second row: description (if exists) */}
-      {metadata?.description && (
-        <p className="text-xs text-[var(--color-text-secondary)] mt-1.5 line-clamp-1 pl-6">
-          {metadata.description}
-        </p>
+      {/* OG Image - Large banner style */}
+      {hasValidImage && (
+        <div className="relative aspect-[1.91/1] bg-[var(--color-bg-secondary)] overflow-hidden">
+          <img
+            src={metadata.image}
+            alt=""
+            className="w-full h-full object-cover"
+            onError={() => setImageError(true)}
+          />
+        </div>
       )}
+
+      {/* Content section */}
+      <div className="p-3">
+        {/* Domain row */}
+        <div className="flex items-center gap-1.5 text-xs text-[var(--color-text-muted)] mb-1">
+          <span className="truncate">{domain}</span>
+          <ExternalLink className="w-3 h-3 flex-shrink-0" />
+        </div>
+
+        {/* Title - 2 lines max */}
+        <h4 className="text-sm font-medium text-[var(--color-text-primary)] line-clamp-2 leading-snug">
+          {metadata?.title || domain}
+        </h4>
+
+        {/* Description - 2 lines max */}
+        {metadata?.description && (
+          <p className="text-xs text-[var(--color-text-secondary)] mt-1 line-clamp-2 leading-relaxed">
+            {metadata.description}
+          </p>
+        )}
+      </div>
     </a>
   );
 }
