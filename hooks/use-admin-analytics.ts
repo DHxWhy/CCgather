@@ -356,3 +356,81 @@ export function useFunnelAnalytics(options: { days?: number; enabled?: boolean }
     enabled,
   });
 }
+
+// ============================================
+// Failed Attempts (CLI 실패 로그)
+// ============================================
+
+export interface FailedAttemptItem {
+  id: string;
+  user_id: string | null;
+  username: string | null;
+  avatar_url: string | null;
+  reason: string;
+  cli_version: string | null;
+  platform: string | null;
+  debug_info: Record<string, unknown> | null;
+  ip_address: string | null;
+  created_at: string;
+}
+
+interface FailedAttemptsResponse {
+  logs: FailedAttemptItem[];
+  pagination: {
+    page: number;
+    pageSize: number;
+    totalCount: number;
+    totalPages: number;
+  };
+  filters: {
+    startDate: string;
+    endDate: string;
+    search: string | null;
+    reason: string | null;
+  };
+  stats: {
+    byReason: Record<string, number>;
+    total: number;
+  };
+  generatedAt: string;
+}
+
+interface FailedAttemptsOptions {
+  page?: number;
+  pageSize?: number;
+  search?: string;
+  reason?: string;
+  startDate?: string;
+  endDate?: string;
+  enabled?: boolean;
+}
+
+/**
+ * Fetch CLI failed attempts (실패 로그)
+ */
+export function useFailedAttempts(options: FailedAttemptsOptions = {}) {
+  const {
+    page = 1,
+    pageSize = 50,
+    search = "",
+    reason = "",
+    startDate = "",
+    endDate = "",
+    enabled = true,
+  } = options;
+
+  return useQuery<FailedAttemptsResponse>({
+    queryKey: ["analytics", "failed-attempts", page, pageSize, search, reason, startDate, endDate],
+    queryFn: () =>
+      fetchAnalytics<FailedAttemptsResponse>("failed-attempts", {
+        page: String(page),
+        pageSize: String(pageSize),
+        search: search || undefined,
+        reason: reason || undefined,
+        startDate: startDate || undefined,
+        endDate: endDate || undefined,
+      }),
+    staleTime: 30 * 1000, // 30 seconds
+    enabled,
+  });
+}

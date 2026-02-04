@@ -1647,19 +1647,32 @@ function FeedCardComponent({
                 <span className="tabular-nums">{likesCount}</span>
               </button>
 
-              {/* Share button */}
-              <button
-                onClick={handleShare}
-                className={cn(
-                  "flex items-center gap-1 px-2 py-1 rounded-full text-[11px] transition-all",
-                  shareSuccess
-                    ? "text-[var(--color-accent-green)] bg-[var(--color-accent-green)]/10"
-                    : "text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] hover:bg-white/10"
-                )}
-                aria-label="Share"
-              >
-                {shareSuccess ? <Check size={12} /> : <Share2 size={12} />}
-              </button>
+              {/* Share button with inline feedback */}
+              <div className="flex items-center gap-1">
+                {/* Inline "Link copied!" message */}
+                <span
+                  className={cn(
+                    "text-[10px] text-[var(--color-accent-green)] transition-all duration-300",
+                    shareSuccess
+                      ? "opacity-100 translate-x-0"
+                      : "opacity-0 -translate-x-2 pointer-events-none"
+                  )}
+                >
+                  Link copied!
+                </span>
+                <button
+                  onClick={handleShare}
+                  className={cn(
+                    "flex items-center gap-1 px-2 py-1 rounded-full text-[11px] transition-all",
+                    shareSuccess
+                      ? "text-[var(--color-accent-green)] bg-[var(--color-accent-green)]/10"
+                      : "text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] hover:bg-white/10"
+                  )}
+                  aria-label="Share"
+                >
+                  {shareSuccess ? <Check size={12} /> : <Share2 size={12} />}
+                </button>
+              </div>
 
               {/* Comment button */}
               <button

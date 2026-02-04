@@ -13,7 +13,7 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const {
-      reason, // "no_sessions" | "no_data" | "scan_failed"
+      reason, // "no_sessions" | "no_data" | "scan_failed" | "auth_failed" | "network_error" | "unknown"
       debugInfo, // Optional debug information
       cliVersion,
       platform,
@@ -23,34 +23,67 @@ export async function POST(request: NextRequest) {
     const authHeader = request.headers.get("Authorization");
     const token = authHeader?.replace("Bearer ", "");
 
-    if (!token) {
-      // Even without token, log the attempt for debugging
-      console.log("[CLI Submit Attempt] Anonymous attempt:", {
-        reason,
-        platform,
-        cliVersion,
-        timestamp: new Date().toISOString(),
-      });
-
-      return NextResponse.json({
-        success: true,
-        message: "Attempt logged (anonymous)",
-      });
-    }
+    // Get IP and User Agent
+    const ipAddress =
+      request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+      request.headers.get("x-real-ip") ||
+      "unknown";
+    const userAgent = request.headers.get("user-agent") || null;
 
     const supabase = await createServiceClient();
 
-    // Try to find user by token
-    const { data: user } = await supabase
-      .from("users")
-      .select("id, username")
-      .eq("api_key", token)
-      .maybeSingle();
+    let userId: string | null = null;
+    let username: string | null = null;
 
-    // Log the attempt
+    // Try to find user by token
+    if (token) {
+      const { data: user } = await supabase
+        .from("users")
+        .select("id, username")
+        .eq("api_key", token)
+        .maybeSingle();
+
+      if (user) {
+        userId = user.id;
+        username = user.username;
+
+        // Update user's last activity
+        await supabase
+          .from("users")
+          .update({
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", user.id);
+      }
+    }
+
+    // Save to database
+    const { error: insertError } = await supabase.from("cli_submit_attempts").insert({
+      user_id: userId,
+      reason: reason || "unknown",
+      cli_version: cliVersion || null,
+      platform: platform || null,
+      debug_info: debugInfo
+        ? {
+            searchedPaths: debugInfo.searchedPaths?.length || 0,
+            projectsFound: debugInfo.projectsFound || 0,
+            errorMessage: debugInfo.errorMessage || null,
+            ...debugInfo,
+          }
+        : null,
+      ip_address: ipAddress,
+      user_agent: userAgent,
+    });
+
+    if (insertError) {
+      console.error("[CLI Submit Attempt] DB insert error:", insertError);
+      // Don't fail the request even if DB insert fails
+    }
+
+    // Log for monitoring
     console.log("[CLI Submit Attempt]", {
-      user_id: user?.id || "anonymous",
-      username: user?.username || "anonymous",
+      user_id: userId || "anonymous",
+      username: username || "anonymous",
       reason,
       platform,
       cliVersion,
@@ -62,16 +95,6 @@ export async function POST(request: NextRequest) {
         : null,
       timestamp: new Date().toISOString(),
     });
-
-    // Update user's last activity if found
-    if (user) {
-      await supabase
-        .from("users")
-        .update({
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", user.id);
-    }
 
     return NextResponse.json({
       success: true,
@@ -92,6 +115,10 @@ function getHintForReason(reason: string): string {
       return "Session files exist but contain no usage data. Try using Claude Code again.";
     case "scan_failed":
       return "Failed to read session files. Check file permissions.";
+    case "auth_failed":
+      return "Authentication failed. Please run 'ccgather auth' to re-authenticate.";
+    case "network_error":
+      return "Network error occurred. Please check your internet connection.";
     default:
       return "Please try again or contact support.";
   }
