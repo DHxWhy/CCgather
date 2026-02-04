@@ -14,7 +14,6 @@ import {
   Loader2,
   MoreHorizontal,
   X,
-  Pencil,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { FlagIcon } from "@/components/ui/FlagIcon";
@@ -131,6 +130,9 @@ function timeAgo(dateString: string): string {
 // CommentItem Component (separated to avoid Turbopack mangling)
 // ===========================================
 
+// Edit time limit constant (5 minutes)
+const EDIT_TIME_LIMIT_MS = 5 * 60 * 1000;
+
 interface CommentItemProps {
   comment: FeedComment;
   isReply?: boolean;
@@ -141,6 +143,7 @@ interface CommentItemProps {
   onCommentLike?: (commentId: string) => void;
   onCommentReply?: (commentId: string, parentAuthor: string) => void;
   onCommentDelete?: (commentId: string) => void; // Delete callback
+  onCommentEdit?: (commentId: string, newContent: string) => void; // Edit callback
   onLoginRequired?: (action: "like" | "comment") => void;
   onSubmissionRequired?: () => void;
   // Translation props
@@ -160,6 +163,7 @@ const CommentItem = memo(function CommentItem({
   onCommentLike,
   onCommentReply,
   onCommentDelete,
+  onCommentEdit,
   onLoginRequired,
   onSubmissionRequired,
   translatedContent,
@@ -170,6 +174,13 @@ const CommentItem = memo(function CommentItem({
   const [isDeleted, setIsDeleted] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+  // Edit state
+  const [isEditing, setIsEditing] = useState(false);
+  const [editContent, setEditContent] = useState(comment.content);
+  const [isSubmittingEdit, setIsSubmittingEdit] = useState(false);
+  const [localContent, setLocalContent] = useState(comment.content);
+  const [localEditedAt, setLocalEditedAt] = useState(comment.edited_at);
+  const editInputRef = useRef<HTMLTextAreaElement>(null);
   // Local state for likes - enables optimistic updates
   const [localLikesCount, setLocalLikesCount] = useState(comment.likes_count ?? 0);
   const [localIsLiked, setLocalIsLiked] = useState(comment.is_liked ?? false);
@@ -182,17 +193,25 @@ const CommentItem = memo(function CommentItem({
   const effectiveTranslation = translatedContent || comment.translated_content;
   // Check translation: either has different translation text OR is_translated flag from API (for lazy-loaded replies)
   const isTranslated =
-    (!!effectiveTranslation && effectiveTranslation !== comment.content) ||
+    (!!effectiveTranslation && effectiveTranslation !== localContent) ||
     comment.is_translated === true;
   // For lazy-loaded replies: content may already be translated, original_content has the original
-  const originalContent = comment.original_content || comment.content;
-  const displayContent = showOriginal ? originalContent : effectiveTranslation || comment.content;
+  const originalContent = comment.original_content || localContent;
+  const displayContent = showOriginal ? originalContent : effectiveTranslation || localContent;
   // Language detection for display - prioritize API-provided original_language
   const originalLanguage =
     comment.original_language ||
     (comment.original_content
       ? detectCommentLanguage(comment.original_content)
-      : detectCommentLanguage(comment.content));
+      : detectCommentLanguage(localContent));
+
+  // Check if edit is allowed (within 5 minutes)
+  const canEdit = useMemo(() => {
+    if (!isOwner) return false;
+    const createdAt = new Date(comment.created_at).getTime();
+    const now = Date.now();
+    return now - createdAt <= EDIT_TIME_LIMIT_MS;
+  }, [isOwner, comment.created_at]);
 
   // Close menu on outside click
   useEffect(() => {
@@ -310,6 +329,52 @@ const CommentItem = memo(function CommentItem({
     }
   }, [isOwner, isDeleting, isReply, comment.id, onCommentDelete]);
 
+  // Edit handlers
+  const handleEditClick = useCallback(() => {
+    setEditContent(localContent);
+    setIsEditing(true);
+    setShowMenu(false);
+    setTimeout(() => editInputRef.current?.focus(), 50);
+  }, [localContent]);
+
+  const handleEditCancel = useCallback(() => {
+    setIsEditing(false);
+    setEditContent(localContent);
+  }, [localContent]);
+
+  const handleEditSubmit = useCallback(async () => {
+    if (!editContent.trim() || isSubmittingEdit) return;
+    if (editContent.trim() === localContent) {
+      setIsEditing(false);
+      return;
+    }
+
+    setIsSubmittingEdit(true);
+    try {
+      const response = await fetch(`/api/community/comments/${comment.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content: editContent.trim() }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setLocalContent(data.comment.content);
+        setLocalEditedAt(data.comment.edited_at);
+        setIsEditing(false);
+        onCommentEdit?.(comment.id, data.comment.content);
+      } else {
+        const error = await response.json();
+        alert(error.error || "수정에 실패했습니다.");
+      }
+    } catch (error) {
+      console.error("Error editing comment:", error);
+      alert("수정 중 오류가 발생했습니다.");
+    } finally {
+      setIsSubmittingEdit(false);
+    }
+  }, [editContent, isSubmittingEdit, localContent, comment.id, onCommentEdit]);
+
   const avatarSize = isReply ? 20 : 24;
   const textSize = isReply ? "text-[11px]" : "text-[12px]";
   const iconSize = isReply ? 9 : 10;
@@ -369,6 +434,14 @@ const CommentItem = memo(function CommentItem({
               )}
             >
               {timeAgo(comment.created_at)}
+              {localEditedAt && (
+                <span
+                  className="ml-1 opacity-70"
+                  title={`수정됨: ${new Date(localEditedAt).toLocaleString()}`}
+                >
+                  (수정됨)
+                </span>
+              )}
             </span>
           </div>
           {/* More menu - only visible to owner on hover */}
@@ -397,6 +470,21 @@ const CommentItem = memo(function CommentItem({
                     "animate-fadeIn"
                   )}
                 >
+                  {/* Edit button - only show if within 5 minutes */}
+                  {canEdit && (
+                    <button
+                      onClick={handleEditClick}
+                      className={cn(
+                        "w-full px-3 py-1.5 text-left flex items-center gap-2",
+                        isReply ? "text-[10px]" : "text-[11px]",
+                        "text-[var(--color-text-secondary)] hover:bg-white/10",
+                        "transition-colors"
+                      )}
+                    >
+                      <Pencil size={12} />
+                      <span>Edit</span>
+                    </button>
+                  )}
                   <button
                     onClick={() => {
                       setShowMenu(false);
@@ -435,14 +523,76 @@ const CommentItem = memo(function CommentItem({
             </span>
           </div>
         )}
-        {/* Content - show shimmer for newly loaded comments */}
-        {showShimmer ? (
+        {/* Content - show shimmer for newly loaded comments, edit mode, or regular content */}
+        {isEditing ? (
+          <div className="mt-1 animate-fadeIn">
+            <textarea
+              ref={editInputRef}
+              value={editContent}
+              onChange={(e) => {
+                setEditContent(e.target.value);
+                e.target.style.height = "auto";
+                e.target.style.height = `${Math.min(e.target.scrollHeight, 100)}px`;
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
+                  e.preventDefault();
+                  handleEditSubmit();
+                } else if (e.key === "Escape") {
+                  handleEditCancel();
+                }
+              }}
+              disabled={isSubmittingEdit}
+              rows={1}
+              className={cn(
+                "w-full px-2 py-1 rounded-lg",
+                isReply ? "text-[11px]" : "text-[12px]",
+                "bg-[var(--color-bg-card)] border border-[var(--color-claude-coral)]/50",
+                "placeholder:text-[var(--color-text-muted)]",
+                "focus:outline-none focus:border-[var(--color-claude-coral)]",
+                "text-[var(--color-text-primary)]",
+                "resize-none overflow-hidden min-h-[28px] max-h-[100px]"
+              )}
+            />
+            <div className="flex items-center gap-2 mt-1">
+              <button
+                onClick={handleEditCancel}
+                className={cn(
+                  "px-2 py-0.5 rounded text-[10px]",
+                  "text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]",
+                  "hover:bg-white/10 transition-colors"
+                )}
+              >
+                취소
+              </button>
+              <button
+                onClick={handleEditSubmit}
+                disabled={!editContent.trim() || isSubmittingEdit}
+                className={cn(
+                  "px-2 py-0.5 rounded text-[10px]",
+                  "bg-[var(--color-claude-coral)] text-white",
+                  "hover:bg-[var(--color-claude-coral)]/80 transition-colors",
+                  "disabled:opacity-50 disabled:cursor-not-allowed",
+                  "flex items-center gap-1"
+                )}
+              >
+                {isSubmittingEdit ? <Loader2 size={10} className="animate-spin" /> : null}
+                저장
+              </button>
+            </div>
+          </div>
+        ) : showShimmer ? (
           <TextShimmer
             contentLength={comment.content.length}
             variant={isReply ? "compact" : "default"}
           />
         ) : (
-          <p className={cn(textSize, "text-[var(--color-text-secondary)] leading-relaxed")}>
+          <p
+            className={cn(
+              textSize,
+              "text-[var(--color-text-secondary)] leading-relaxed whitespace-pre-wrap"
+            )}
+          >
             {displayContent}
           </p>
         )}
@@ -596,8 +746,24 @@ function FeedCardComponent({
   // Shimmer state for newly loaded comments/replies (show shimmer for 1s)
   const [shimmeringComments, setShimmeringComments] = useState<Set<string>>(new Set());
 
+  // Post edit state
+  const [isEditingPost, setIsEditingPost] = useState(false);
+  const [editPostContent, setEditPostContent] = useState(post.content);
+  const [isSubmittingPostEdit, setIsSubmittingPostEdit] = useState(false);
+  const [localPostContent, setLocalPostContent] = useState(post.content);
+  const [localPostEditedAt, setLocalPostEditedAt] = useState(post.edited_at);
+  const postEditInputRef = useRef<HTMLTextAreaElement>(null);
+
   // Check if current user is the post author
   const isOwner = currentUserId && post.author.id === currentUserId;
+
+  // Check if post edit is allowed (within 5 minutes)
+  const canEditPost = useMemo(() => {
+    if (!isOwner) return false;
+    const createdAt = new Date(post.created_at).getTime();
+    const now = Date.now();
+    return now - createdAt <= EDIT_TIME_LIMIT_MS;
+  }, [isOwner, post.created_at]);
 
   // Close menu on outside click
   useEffect(() => {
@@ -742,7 +908,9 @@ function FeedCardComponent({
   );
 
   const displayName = post.author.display_name || post.author.username;
-  const displayContent = showOriginal ? post.content : localTranslatedContent || post.content;
+  const displayContent = showOriginal
+    ? localPostContent
+    : localTranslatedContent || localPostContent;
   const hasTranslation = !!localTranslatedContent;
   const originalLang = post.original_language || "en";
   const fromLangCode = LANGUAGE_CODES[originalLang] || originalLang.toUpperCase();
@@ -1046,6 +1214,51 @@ function FeedCardComponent({
     }
   }, [isOwner, isDeleting, post.id, onPostDelete]);
 
+  // Post edit handlers
+  const handlePostEditClick = useCallback(() => {
+    setEditPostContent(localPostContent);
+    setIsEditingPost(true);
+    setShowMenu(false);
+    setTimeout(() => postEditInputRef.current?.focus(), 50);
+  }, [localPostContent]);
+
+  const handlePostEditCancel = useCallback(() => {
+    setIsEditingPost(false);
+    setEditPostContent(localPostContent);
+  }, [localPostContent]);
+
+  const handlePostEditSubmit = useCallback(async () => {
+    if (!editPostContent.trim() || isSubmittingPostEdit) return;
+    if (editPostContent.trim() === localPostContent) {
+      setIsEditingPost(false);
+      return;
+    }
+
+    setIsSubmittingPostEdit(true);
+    try {
+      const response = await fetch(`/api/community/posts/${post.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content: editPostContent.trim() }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setLocalPostContent(data.post.content);
+        setLocalPostEditedAt(data.post.edited_at);
+        setIsEditingPost(false);
+      } else {
+        const error = await response.json();
+        alert(error.error || "수정에 실패했습니다.");
+      }
+    } catch (error) {
+      console.error("Error editing post:", error);
+      alert("수정 중 오류가 발생했습니다.");
+    } finally {
+      setIsSubmittingPostEdit(false);
+    }
+  }, [editPostContent, isSubmittingPostEdit, localPostContent, post.id]);
+
   // If deleted, show placeholder
   if (isDeleted) {
     return (
@@ -1113,6 +1326,21 @@ function FeedCardComponent({
                 "animate-fadeIn"
               )}
             >
+              {/* Edit button - only show if within 5 minutes */}
+              {canEditPost && (
+                <button
+                  onClick={handlePostEditClick}
+                  className={cn(
+                    "w-full px-3 py-2 text-left flex items-center gap-2",
+                    "text-[11px] font-medium",
+                    "text-[var(--color-text-secondary)] hover:bg-white/10",
+                    "transition-colors"
+                  )}
+                >
+                  <Pencil size={14} />
+                  <span>Edit</span>
+                </button>
+              )}
               <button
                 onClick={() => {
                   setShowMenu(false);
@@ -1211,6 +1439,14 @@ function FeedCardComponent({
             {/* Timestamp */}
             <span className="text-[11px] text-[var(--color-text-muted)]">
               · {timeAgo(post.created_at)}
+              {localPostEditedAt && (
+                <span
+                  className="ml-1 opacity-70"
+                  title={`수정됨: ${new Date(localPostEditedAt).toLocaleString()}`}
+                >
+                  (수정됨)
+                </span>
+              )}
             </span>
           </div>
 
@@ -1223,8 +1459,64 @@ function FeedCardComponent({
             <span className="opacity-60">{toLangCode}</span>
           </div>
 
-          {/* Content - Show shimmer when translation is pending */}
-          {isTranslationPending && !isSameLanguage ? (
+          {/* Content - Show edit mode, shimmer, or regular content */}
+          {isEditingPost ? (
+            <div className="mt-1.5 animate-fadeIn">
+              <textarea
+                ref={postEditInputRef}
+                value={editPostContent}
+                onChange={(e) => {
+                  setEditPostContent(e.target.value);
+                  e.target.style.height = "auto";
+                  e.target.style.height = `${Math.min(e.target.scrollHeight, 200)}px`;
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
+                    e.preventDefault();
+                    handlePostEditSubmit();
+                  } else if (e.key === "Escape") {
+                    handlePostEditCancel();
+                  }
+                }}
+                disabled={isSubmittingPostEdit}
+                rows={2}
+                className={cn(
+                  "w-full px-3 py-2 text-[13px] rounded-lg",
+                  "bg-[var(--color-bg-card)] border border-[var(--color-claude-coral)]/50",
+                  "placeholder:text-[var(--color-text-muted)]",
+                  "focus:outline-none focus:border-[var(--color-claude-coral)]",
+                  "text-[var(--color-text-primary)]",
+                  "resize-none overflow-hidden min-h-[60px] max-h-[200px]"
+                )}
+              />
+              <div className="flex items-center gap-2 mt-2">
+                <button
+                  onClick={handlePostEditCancel}
+                  className={cn(
+                    "px-3 py-1 rounded text-[11px]",
+                    "text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]",
+                    "hover:bg-white/10 transition-colors"
+                  )}
+                >
+                  취소
+                </button>
+                <button
+                  onClick={handlePostEditSubmit}
+                  disabled={!editPostContent.trim() || isSubmittingPostEdit}
+                  className={cn(
+                    "px-3 py-1 rounded text-[11px]",
+                    "bg-[var(--color-claude-coral)] text-white",
+                    "hover:bg-[var(--color-claude-coral)]/80 transition-colors",
+                    "disabled:opacity-50 disabled:cursor-not-allowed",
+                    "flex items-center gap-1"
+                  )}
+                >
+                  {isSubmittingPostEdit ? <Loader2 size={12} className="animate-spin" /> : null}
+                  저장
+                </button>
+              </div>
+            </div>
+          ) : isTranslationPending && !isSameLanguage ? (
             <div className="mt-1.5">
               <TextShimmer contentLength={post.content.length} variant="default" />
             </div>

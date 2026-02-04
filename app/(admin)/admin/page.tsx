@@ -79,6 +79,7 @@ export default function AdminUsersPage() {
   }
 
   async function fetchUsers() {
+    setLoading(true);
     try {
       const response = await fetch("/api/admin/users");
       if (response.ok) {
@@ -155,6 +156,7 @@ export default function AdminUsersPage() {
   });
 
   const formatNumber = (num: number) => {
+    if (num >= 1000000000) return (num / 1000000000).toFixed(1) + "B";
     if (num >= 1000000) return (num / 1000000).toFixed(1) + "M";
     if (num >= 1000) return (num / 1000).toFixed(1) + "K";
     return num.toString();
