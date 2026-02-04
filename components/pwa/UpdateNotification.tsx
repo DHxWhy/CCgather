@@ -62,10 +62,10 @@ function usePWAUpdate() {
     navigator.serviceWorker.ready.then(handleUpdate);
 
     // Also listen for controller change (another tab triggered update)
-    let refreshing = false;
+    // Use window-level flag to prevent multiple reloads across component remounts
     const handleControllerChange = () => {
-      if (refreshing) return;
-      refreshing = true;
+      if ((window as Window & { __swRefreshing?: boolean }).__swRefreshing) return;
+      (window as Window & { __swRefreshing?: boolean }).__swRefreshing = true;
       window.location.reload();
     };
     navigator.serviceWorker.addEventListener("controllerchange", handleControllerChange);
@@ -119,7 +119,9 @@ export function UpdateNotification({ className }: UpdateNotificationProps) {
     return undefined;
   }, [updateAvailable]);
 
-  if (!updateAvailable) return null;
+  // Skip rendering in development mode - PWA is disabled
+  // Also skip if no update available
+  if (process.env.NODE_ENV === "development" || !updateAvailable) return null;
 
   const mode: UpdateMode = isStandalone ? "restart" : "refresh";
 

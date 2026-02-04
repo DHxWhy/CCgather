@@ -52,6 +52,22 @@ export default function SSOCallbackPage() {
     }
   }, [isLoaded, isSignedIn, isValidCallback, router]);
 
+  // Clerk loading timeout - redirect if Clerk fails to initialize
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      if (!isLoaded) {
+        console.warn("[SSO] Clerk failed to load after 10s, redirecting...");
+        router.replace("/leaderboard");
+      }
+    }, 10000);
+
+    if (isLoaded) {
+      clearTimeout(timeout);
+    }
+
+    return () => clearTimeout(timeout);
+  }, [isLoaded, router]);
+
   // Timeout detection - if callback takes too long, show error state
   useEffect(() => {
     // Don't start timeout if we're redirecting anyway

@@ -176,7 +176,12 @@ export function OnboardingGuard({ children }: OnboardingGuardProps) {
 
   // 모든 훅 호출 후 단일 렌더링 로직 (조건부 early return 제거)
   // React 훅 규칙: 렌더링 간에 훅 개수가 일정해야 함
-  const showLoading = hasMounted && (isChecking || isRedirecting) && isSignedIn && !shouldSkipCheck;
+  // 로그인 사용자만 선제적 로딩 표시 (깜빡임 방지)
+  const showLoading =
+    // 1. 로그인 확인됨 + /api/me 아직 로드 안됨 → 로딩
+    (isLoaded && isSignedIn && !isMeFetched && !shouldSkipCheck) ||
+    // 2. 기존 체킹 로직 (recovery-check 등)
+    (hasMounted && (isChecking || isRedirecting) && isSignedIn && !shouldSkipCheck);
   const showRecoveryModal = !!pendingDeletionInfo;
 
   // 렌더링 우선순위: 로딩 > 복구 모달 > children
