@@ -217,8 +217,8 @@ export const TopCountriesSection = forwardRef<TopCountriesSectionRef, TopCountri
     ) => {
       const percentage =
         sortBy === "tokens" ? (stat.tokens / totalTokens) * 100 : (stat.cost / totalCost) * 100;
-      const barWidth =
-        sortBy === "tokens" ? (stat.tokens / maxTokens) * 100 : (stat.cost / maxCost) * 100;
+      // 게이지바도 전체 대비 비율(percentage)과 동일하게 표시
+      const barWidth = percentage;
       const barColor = sortBy === "tokens" ? "var(--color-claude-coral)" : "#f59e0b";
       const displayRank = showRank !== undefined ? showRank : index + 1;
 
