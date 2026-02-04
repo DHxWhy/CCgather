@@ -7,7 +7,8 @@ declare const self: ServiceWorkerGlobalScope;
 // =====================================================
 
 self.addEventListener("message", (event) => {
-  if (event.data && event.data.type === "SKIP_WAITING") {
+  // Validate message structure before processing
+  if (event.data && typeof event.data === "object" && event.data.type === "SKIP_WAITING") {
     console.log("[SW] Received SKIP_WAITING message, activating new version");
     self.skipWaiting();
   }
@@ -72,9 +73,25 @@ self.addEventListener("notificationclick", (event) => {
 
   event.notification.close();
 
-  // Get URL from notification data
-  const urlToOpen = (event.notification.data as { url?: string })?.url || "/";
-  const fullUrl = new URL(urlToOpen, self.location.origin).href;
+  // Get URL from notification data with security validation
+  const rawUrl = (event.notification.data as { url?: string })?.url || "/";
+
+  // Security: Only allow relative URLs or same-origin URLs
+  // This prevents open redirect attacks via malicious push notifications
+  let fullUrl: string;
+  try {
+    const parsed = new URL(rawUrl, self.location.origin);
+    // Reject if URL points to different origin (potential phishing)
+    if (parsed.origin !== self.location.origin) {
+      console.warn("[SW] Blocked external redirect attempt:", rawUrl);
+      fullUrl = new URL("/", self.location.origin).href;
+    } else {
+      fullUrl = parsed.href;
+    }
+  } catch {
+    // Invalid URL, fallback to home
+    fullUrl = new URL("/", self.location.origin).href;
+  }
 
   event.waitUntil(
     self.clients

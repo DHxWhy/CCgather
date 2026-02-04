@@ -63,11 +63,17 @@ function usePWAUpdate() {
 
     // Also listen for controller change (another tab triggered update)
     let refreshing = false;
-    navigator.serviceWorker.addEventListener("controllerchange", () => {
+    const handleControllerChange = () => {
       if (refreshing) return;
       refreshing = true;
       window.location.reload();
-    });
+    };
+    navigator.serviceWorker.addEventListener("controllerchange", handleControllerChange);
+
+    // Cleanup event listeners to prevent memory leaks
+    return () => {
+      navigator.serviceWorker.removeEventListener("controllerchange", handleControllerChange);
+    };
   }, []);
 
   const applyUpdate = useCallback(() => {
@@ -120,17 +126,20 @@ export function UpdateNotification({ className }: UpdateNotificationProps) {
   const content = {
     refresh: {
       icon: <RefreshCw size={18} className="text-[var(--color-claude-coral)]" />,
-      title: "새로운 버전이 준비됐어요!",
-      description: "더 나은 경험을 위해 업데이트하세요",
-      buttonText: "지금 업데이트",
+      title: "A new version is ready!",
+      description: "Update now for a better experience",
+      buttonText: "Update Now",
       buttonAction: applyUpdate,
     },
     restart: {
       icon: <Sparkles size={18} className="text-[var(--color-claude-coral)]" />,
-      title: "새로운 버전이 준비됐어요!",
-      description: "앱을 다시 열면 업데이트가 적용됩니다",
-      buttonText: "알겠어요",
-      buttonAction: dismissUpdate,
+      title: "A new version is ready!",
+      description: "Reopen the app to apply the update",
+      buttonText: "Got it",
+      buttonAction: () => {
+        applyUpdate(); // Trigger skipWaiting so update is ready on next launch
+        dismissUpdate();
+      },
     },
   };
 
@@ -196,7 +205,7 @@ export function UpdateNotification({ className }: UpdateNotificationProps) {
                 "text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]",
                 "hover:bg-[var(--glass-bg)] transition-colors"
               )}
-              aria-label="닫기"
+              aria-label="Close"
             >
               <X size={16} />
             </button>

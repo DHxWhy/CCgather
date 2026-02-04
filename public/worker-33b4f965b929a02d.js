@@ -11,6 +11,9 @@
     c.done ? t(l) : Promise.resolve(l).then(r, o);
   }
   function t(e) {
+    return e && "u" > typeof Symbol && e.constructor === Symbol ? "symbol" : typeof e;
+  }
+  function n(e) {
     if (!e) return "";
     for (var t = new Uint8Array(e), n = "", r = 0; r < t.byteLength; r++) {
       var o = t[r];
@@ -19,6 +22,13 @@
     return btoa(n).replace(/\+/g, "-").replace(/\//g, "_").replace(/=/g, "");
   }
   ("function" == typeof SuppressedError && SuppressedError,
+    self.addEventListener("message", function (e) {
+      e.data &&
+        "object" === t(e.data) &&
+        "SKIP_WAITING" === e.data.type &&
+        (console.log("[SW] Received SKIP_WAITING message, activating new version"),
+        self.skipWaiting());
+    }),
     self.addEventListener("push", function (e) {
       if ((console.log("[SW] Push notification received"), !e.data))
         return void console.warn("[SW] Push event has no data");
@@ -42,76 +52,79 @@
     }),
     self.addEventListener("notificationclick", function (e) {
       (console.log("[SW] Notification clicked:", e.notification.tag), e.notification.close());
-      var t,
-        n = new URL(
-          (null == (t = e.notification.data) ? void 0 : t.url) || "/",
-          self.location.origin
-        ).href;
+      var n,
+        r,
+        o = (null == (n = e.notification.data) ? void 0 : n.url) || "/";
+      try {
+        var i = new URL(o, self.location.origin);
+        i.origin !== self.location.origin
+          ? (console.warn("[SW] Blocked external redirect attempt:", o),
+            (r = new URL("/", self.location.origin).href))
+          : (r = i.href);
+      } catch (e) {
+        r = new URL("/", self.location.origin).href;
+      }
       e.waitUntil(
         self.clients.matchAll({ type: "window", includeUncontrolled: !0 }).then(function (e) {
-          var t = !0,
-            r = !1,
-            o = void 0;
+          var n = !0,
+            o = !1,
+            i = void 0;
           try {
-            for (var i, a = e[Symbol.iterator](); !(t = (i = a.next()).done); t = !0) {
-              var c = i.value;
-              if (c.url === n && "focus" in c) return c.focus();
+            for (var a, c = e[Symbol.iterator](); !(n = (a = c.next()).done); n = !0) {
+              var l = a.value;
+              if (l.url === r && "focus" in l) return l.focus();
             }
           } catch (e) {
-            ((r = !0), (o = e));
+            ((o = !0), (i = e));
           } finally {
             try {
-              t || null == a.return || a.return();
+              n || null == c.return || c.return();
             } finally {
-              if (r) throw o;
+              if (o) throw i;
             }
           }
-          var l = !0,
-            s = !1,
-            u = void 0;
+          var s = !0,
+            u = !1,
+            f = void 0;
           try {
-            for (var f, d = e[Symbol.iterator](); !(l = (f = d.next()).done); l = !0) {
-              var p = (function () {
-                var e = f.value;
+            for (var d, p = e[Symbol.iterator](); !(s = (d = p.next()).done); s = !0) {
+              var h = (function () {
+                var e = d.value;
                 if (
                   new URL(e.url).origin === self.location.origin &&
                   "focus" in e &&
                   "navigate" in e
                 )
                   return {
-                    v: e.navigate(n).then(function () {
+                    v: e.navigate(r).then(function () {
                       return e.focus();
                     }),
                   };
               })();
-              if (
-                "object" ==
-                (p && "u" > typeof Symbol && p.constructor === Symbol ? "symbol" : typeof p)
-              )
-                return p.v;
+              if ("object" === t(h)) return h.v;
             }
           } catch (e) {
-            ((s = !0), (u = e));
+            ((u = !0), (f = e));
           } finally {
             try {
-              l || null == d.return || d.return();
+              s || null == p.return || p.return();
             } finally {
-              if (s) throw u;
+              if (u) throw f;
             }
           }
-          if (self.clients.openWindow) return self.clients.openWindow(n);
+          if (self.clients.openWindow) return self.clients.openWindow(r);
         })
       );
     }),
     self.addEventListener("notificationclose", function (e) {
       console.log("[SW] Notification closed:", e.notification.tag);
     }),
-    self.addEventListener("pushsubscriptionchange", function (n) {
+    self.addEventListener("pushsubscriptionchange", function (t) {
       var r;
       (console.log("[SW] Push subscription changed"),
-        n.waitUntil(
+        t.waitUntil(
           ((r = function () {
-            var e, n, r;
+            var e, t, r;
             return (function (e, t) {
               var n,
                 r,
@@ -210,7 +223,7 @@
                   return [4, e.json()];
                 case 2:
                   return (
-                    (n = (function (e) {
+                    (t = (function (e) {
                       for (
                         var t = "=".repeat((4 - (e.length % 4)) % 4),
                           n = atob((e + t).replace(/-/g, "+").replace(/_/g, "/")),
@@ -226,7 +239,7 @@
                       4,
                       self.registration.pushManager.subscribe({
                         userVisibleOnly: !0,
-                        applicationServerKey: n.buffer,
+                        applicationServerKey: t.buffer,
                       }),
                     ]
                   );
@@ -238,7 +251,7 @@
                       headers: { "Content-Type": "application/json" },
                       body: JSON.stringify({
                         endpoint: (r = o.sent()).endpoint,
-                        keys: { p256dh: t(r.getKey("p256dh")), auth: t(r.getKey("auth")) },
+                        keys: { p256dh: n(r.getKey("p256dh")), auth: n(r.getKey("auth")) },
                       }),
                     }),
                   ];
