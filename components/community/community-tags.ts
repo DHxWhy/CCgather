@@ -20,15 +20,6 @@ export interface CommunityTag {
 
 export const COMMUNITY_FILTER_TAGS: CommunityTag[] = [
   {
-    id: "general",
-    label: "General",
-    emoji: "☕",
-    description: "Chat about anything",
-    icon: MessageCircle,
-    color: "text-[var(--color-claude-coral)]",
-    bgColor: "bg-[var(--color-claude-coral)]/10",
-  },
-  {
     id: "showcase",
     label: "Showcase",
     emoji: "✨",
@@ -36,6 +27,15 @@ export const COMMUNITY_FILTER_TAGS: CommunityTag[] = [
     icon: Sparkles,
     color: "text-purple-400",
     bgColor: "bg-purple-400/10",
+  },
+  {
+    id: "general",
+    label: "General",
+    emoji: "☕",
+    description: "Chat about anything",
+    icon: MessageCircle,
+    color: "text-[var(--color-claude-coral)]",
+    bgColor: "bg-[var(--color-claude-coral)]/10",
   },
   {
     id: "help",
