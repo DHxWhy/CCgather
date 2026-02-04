@@ -240,7 +240,7 @@ export default function PostComposer({
               {/* Emoji Picker */}
               <EmojiPicker
                 onEmojiSelect={handleEmojiSelect}
-                position="top"
+                position="bottom"
                 align="left"
                 size="sm"
               />

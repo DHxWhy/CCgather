@@ -138,13 +138,13 @@ export function EmojiPicker({
                   </div>
                 </FrimousseEmojiPicker.Empty>
                 <FrimousseEmojiPicker.List
-                  className="grid grid-cols-8 gap-0.5"
                   components={{
                     CategoryHeader: ({ category }) => (
-                      <div className="col-span-8 sticky top-0 py-1.5 text-[10px] font-medium text-[var(--color-text-muted)] uppercase tracking-wide bg-[var(--color-bg-card)] dark:bg-[#1a1a1c]">
+                      <div className="w-full sticky top-0 py-1.5 text-[10px] font-medium text-[var(--color-text-muted)] uppercase tracking-wide bg-[var(--color-bg-card)] dark:bg-[#1a1a1c]">
                         {category.label}
                       </div>
                     ),
+                    Row: ({ children }) => <div className="flex gap-0.5">{children}</div>,
                     Emoji: ({ emoji, ...props }) => (
                       <button
                         type="button"

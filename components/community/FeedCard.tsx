@@ -1809,7 +1809,7 @@ function FeedCardComponent({
                               {/* Emoji picker for reply */}
                               <EmojiPicker
                                 onEmojiSelect={handleReplyEmojiSelect}
-                                position="top"
+                                position="bottom"
                                 align="right"
                                 size="sm"
                               />
@@ -2005,7 +2005,7 @@ function FeedCardComponent({
                 {isSignedIn && hasSubmissionHistory && (
                   <EmojiPicker
                     onEmojiSelect={handleCommentEmojiSelect}
-                    position="top"
+                    position="bottom"
                     align="right"
                     size="sm"
                   />
