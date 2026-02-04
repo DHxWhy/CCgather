@@ -12,7 +12,9 @@ const withPWA = withPWAInit({
   publicExcludes: ["!manifest.webmanifest"],
   // Workbox 옵션
   workboxOptions: {
-    skipWaiting: true,
+    // skipWaiting: false - 사용자가 업데이트 버튼 클릭 시 수동으로 활성화
+    // 자동 skipWaiting 제거하여 UpdateNotification 컴포넌트가 제어
+    skipWaiting: false,
     clientsClaim: true,
     // 런타임 캐싱 전략
     runtimeCaching: [

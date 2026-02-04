@@ -2,6 +2,7 @@ import { Header } from "@/components/layout/header";
 import { Footer } from "@/components/layout/footer";
 import { OnboardingGuard } from "@/components/auth/OnboardingGuard";
 import { InstallBanner } from "@/components/pwa/InstallBanner";
+import { UpdateNotification } from "@/components/pwa/UpdateNotification";
 import { ProductHuntBadge } from "@/components/marketing/ProductHuntBadge";
 
 export const dynamic = "force-dynamic";
@@ -14,6 +15,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
         <main className="flex-1 pt-12">{children}</main>
         <Footer />
         <InstallBanner />
+        <UpdateNotification />
         <ProductHuntBadge />
       </div>
     </OnboardingGuard>

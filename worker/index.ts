@@ -3,6 +3,17 @@
 declare const self: ServiceWorkerGlobalScope;
 
 // =====================================================
+// Skip Waiting Message Handler (for manual update trigger)
+// =====================================================
+
+self.addEventListener("message", (event) => {
+  if (event.data && event.data.type === "SKIP_WAITING") {
+    console.log("[SW] Received SKIP_WAITING message, activating new version");
+    self.skipWaiting();
+  }
+});
+
+// =====================================================
 // Push Notification Event Handler
 // =====================================================
 
