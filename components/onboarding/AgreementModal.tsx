@@ -1,29 +1,217 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Users, ShieldCheck, Globe } from "lucide-react";
+import { X, Users, ShieldCheck, Globe, Languages } from "lucide-react";
 import Link from "next/link";
+import { TextShimmer } from "@/components/ui/TextShimmer";
+import type { AgreementTexts } from "@/app/api/translate/agreement/route";
+
+// =====================================================
+// Types
+// =====================================================
 
 interface AgreementModalProps {
   isOpen: boolean;
   onClose: () => void;
   onAgree: (profileConsent: boolean, integrityConsent: boolean) => void;
   isSubmitting?: boolean;
+  /** Selected country code for translation */
+  selectedCountry?: string | null;
 }
 
-export function AgreementModal({ isOpen, onClose, onAgree, isSubmitting }: AgreementModalProps) {
+interface TranslationState {
+  isLoading: boolean;
+  isOriginal: boolean;
+  translations: AgreementTexts | null;
+  targetLanguage: string;
+  error: string | null;
+}
+
+// Abuse prevention constants
+const WARNING_THRESHOLD = 5;
+const BLOCK_THRESHOLD = 10;
+
+// =====================================================
+// Original English Texts (Fallback)
+// =====================================================
+
+const ORIGINAL_TEXTS: AgreementTexts = {
+  joinTitle: "Join CCgather",
+  communityParticipation: "Community Participation",
+  byJoiningYouAgree: "By joining, you agree to:",
+  displayGitHubProfile: "Display your GitHub profile on the public leaderboard",
+  receiveAnnouncements: "Receive important service announcements",
+  receiveUpdates: "Receive major feature updates & account notifications",
+  agreeToParticipate: "I agree to participate in the community",
+  dataIntegrity: "Data Integrity",
+  manipulatingWarningTitle: "Manipulating usage data may result in:",
+  manipulatingWarningContent: "Claude Code malfunction \u2022 Account suspension",
+  promiseNotToManipulate: "I promise not to manipulate my usage data",
+  typeAgreeToConfirm: 'Type "agree" to confirm',
+  termsAndPrivacy: "By joining, you agree to our Terms and Privacy Policy",
+  joiningButton: "Joining...",
+  joinCommunityButton: "Join the Community",
+  communityIncomplete: "Community",
+};
+
+// =====================================================
+// Component
+// =====================================================
+
+export function AgreementModal({
+  isOpen,
+  onClose,
+  onAgree,
+  isSubmitting,
+  selectedCountry,
+}: AgreementModalProps) {
   const [communityConsent, setCommunityConsent] = useState(false);
   const [integrityInput, setIntegrityInput] = useState("");
+  const [showOriginal, setShowOriginal] = useState(false);
+
+  // Abuse prevention state
+  const [translationRequestCount, setTranslationRequestCount] = useState(0);
+  const [isBlocked, setIsBlocked] = useState(false);
+  const [showWarning, setShowWarning] = useState(false);
+
+  // Translation state
+  const [translationState, setTranslationState] = useState<TranslationState>({
+    isLoading: false,
+    isOriginal: true,
+    translations: null,
+    targetLanguage: "en",
+    error: null,
+  });
 
   const integrityAgreed = integrityInput.toLowerCase() === "agree";
   const canProceed = communityConsent && integrityAgreed;
+
+  // Get current texts (translated or original)
+  const texts =
+    !showOriginal && translationState.translations ? translationState.translations : ORIGINAL_TEXTS;
+
+  // Fetch translation when country changes
+  const fetchTranslation = useCallback(
+    async (countryCode: string) => {
+      // Check if blocked due to abuse
+      if (isBlocked) {
+        setTranslationState({
+          isLoading: false,
+          isOriginal: true,
+          translations: null,
+          targetLanguage: "en",
+          error: null,
+        });
+        return;
+      }
+
+      // Increment request count and check thresholds
+      const newCount = translationRequestCount + 1;
+      setTranslationRequestCount(newCount);
+
+      if (newCount >= BLOCK_THRESHOLD) {
+        setIsBlocked(true);
+        setShowWarning(false);
+        setTranslationState({
+          isLoading: false,
+          isOriginal: true,
+          translations: null,
+          targetLanguage: "en",
+          error: null,
+        });
+        return;
+      }
+
+      if (newCount >= WARNING_THRESHOLD) {
+        setShowWarning(true);
+      }
+
+      setTranslationState((prev) => ({
+        ...prev,
+        isLoading: true,
+        error: null,
+      }));
+
+      try {
+        const response = await fetch("/api/translate/agreement", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ countryCode }),
+        });
+
+        if (!response.ok) {
+          throw new Error("Translation request failed");
+        }
+
+        const data = await response.json();
+
+        setTranslationState({
+          isLoading: false,
+          isOriginal: data.isOriginal,
+          translations: data.translations,
+          targetLanguage: data.targetLanguage,
+          error: data.error || null,
+        });
+      } catch (error) {
+        console.error("[AgreementModal] Translation error:", error);
+        setTranslationState({
+          isLoading: false,
+          isOriginal: true,
+          translations: null,
+          targetLanguage: "en",
+          error: error instanceof Error ? error.message : "Translation failed",
+        });
+      }
+    },
+    [isBlocked, translationRequestCount]
+  );
+
+  // Effect: Fetch translation on country change
+  useEffect(() => {
+    if (isOpen && selectedCountry) {
+      fetchTranslation(selectedCountry);
+    } else if (!selectedCountry) {
+      // Reset to original if no country selected
+      setTranslationState({
+        isLoading: false,
+        isOriginal: true,
+        translations: null,
+        targetLanguage: "en",
+        error: null,
+      });
+    }
+  }, [isOpen, selectedCountry, fetchTranslation]);
+
+  // Effect: Reset translation state when country changes (prevents stale translation flash)
+  useEffect(() => {
+    if (selectedCountry) {
+      // Immediately reset to loading state when country changes
+      setTranslationState((prev) => ({
+        ...prev,
+        isLoading: true,
+        error: null,
+      }));
+    }
+  }, [selectedCountry]);
+
+  // Reset showOriginal when translations change
+  useEffect(() => {
+    setShowOriginal(false);
+  }, [translationState.translations]);
 
   const handleSubmit = () => {
     if (canProceed) {
       onAgree(communityConsent, integrityAgreed);
     }
   };
+
+  const handleToggleLanguage = () => {
+    setShowOriginal((prev) => !prev);
+  };
+
+  // Check if translation toggle should be shown
+  const showLanguageToggle = !translationState.isOriginal && translationState.translations !== null;
 
   return (
     <AnimatePresence>
@@ -52,16 +240,58 @@ export function AgreementModal({ isOpen, onClose, onAgree, isSubmitting }: Agree
                 <div className="flex items-center gap-2">
                   <Users className="w-5 h-5 text-[var(--color-text-secondary)]" />
                   <h2 className="text-base font-semibold text-[var(--color-text-primary)]">
-                    Join CCgather
+                    {translationState.isLoading ? (
+                      <TextShimmer lines={1} className="w-24" variant="compact" />
+                    ) : (
+                      texts.joinTitle
+                    )}
                   </h2>
                 </div>
-                <button
-                  onClick={onClose}
-                  className="p-1.5 rounded-lg hover:bg-white/10 transition-colors text-[var(--color-text-muted)]"
-                >
-                  <X className="w-5 h-5" />
-                </button>
+                <div className="flex items-center gap-1">
+                  {/* Language Toggle Button */}
+                  {showLanguageToggle && (
+                    <button
+                      onClick={handleToggleLanguage}
+                      className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs text-[var(--color-text-muted)] hover:bg-white/10 hover:text-[var(--color-text-secondary)] transition-colors"
+                      title={showOriginal ? "View Translation" : "View Original"}
+                    >
+                      <Languages className="w-3.5 h-3.5" />
+                      <span className="hidden sm:inline">
+                        {showOriginal ? "View Translation" : "View Original"}
+                      </span>
+                    </button>
+                  )}
+                  <button
+                    onClick={onClose}
+                    className="p-1.5 rounded-lg hover:bg-white/10 transition-colors text-[var(--color-text-muted)]"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
               </div>
+
+              {/* Gentle reminder for frequent country changes */}
+              {(showWarning || isBlocked) && (
+                <div
+                  className={`px-4 py-2.5 text-xs text-center ${
+                    isBlocked
+                      ? "bg-[var(--color-bg-tertiary)] text-[var(--color-text-muted)] border-b border-[var(--border-default)]"
+                      : "bg-amber-500/10 text-amber-300 border-b border-amber-500/20"
+                  }`}
+                >
+                  {isBlocked ? (
+                    <>
+                      🌍 English only mode
+                      <br />
+                      <span className="text-[10px] opacity-80">
+                        Pick your country and click Join!
+                      </span>
+                    </>
+                  ) : (
+                    <>💡 {BLOCK_THRESHOLD - translationRequestCount} country changes left</>
+                  )}
+                </div>
+              )}
 
               {/* Content - Dense */}
               <div className="p-4 space-y-3 overflow-y-auto flex-1">
@@ -69,21 +299,27 @@ export function AgreementModal({ isOpen, onClose, onAgree, isSubmitting }: Agree
                 <div className="space-y-2">
                   <p className="flex items-center gap-1.5 text-xs text-[var(--color-text-muted)] uppercase tracking-wider font-medium">
                     <Globe className="w-3.5 h-3.5 text-[var(--color-text-secondary)]" />
-                    Community Participation
+                    {translationState.isLoading ? (
+                      <TextShimmer lines={1} className="w-32" variant="compact" />
+                    ) : (
+                      texts.communityParticipation
+                    )}
                   </p>
                   <div className="text-xs text-[var(--color-text-muted)] bg-[var(--color-bg-tertiary)] rounded-lg p-2.5">
-                    <p className="text-[var(--color-text-secondary)] mb-1.5">
-                      By joining, you agree to:
-                    </p>
-                    <div className="space-y-0.5">
-                      <span className="block">
-                        • Display your GitHub profile on the public leaderboard
-                      </span>
-                      <span className="block">• Receive important service announcements</span>
-                      <span className="block">
-                        • Receive major feature updates & account notifications
-                      </span>
-                    </div>
+                    {translationState.isLoading ? (
+                      <TextShimmer lines={4} variant="compact" />
+                    ) : (
+                      <>
+                        <p className="text-[var(--color-text-secondary)] mb-1.5">
+                          {texts.byJoiningYouAgree}
+                        </p>
+                        <div className="space-y-0.5">
+                          <span className="block">• {texts.displayGitHubProfile}</span>
+                          <span className="block">• {texts.receiveAnnouncements}</span>
+                          <span className="block">• {texts.receiveUpdates}</span>
+                        </div>
+                      </>
+                    )}
                   </div>
                   <label
                     className={`flex items-center gap-2.5 p-2.5 rounded-lg border cursor-pointer transition-colors ${communityConsent ? "border-green-500" : "border-[var(--border-default)] hover:border-primary/50"}`}
@@ -110,7 +346,11 @@ export function AgreementModal({ isOpen, onClose, onAgree, isSubmitting }: Agree
                       )}
                     </div>
                     <span className="text-xs text-[var(--color-text-primary)]">
-                      I agree to participate in the community
+                      {translationState.isLoading ? (
+                        <TextShimmer lines={1} className="w-48" variant="compact" />
+                      ) : (
+                        texts.agreeToParticipate
+                      )}
                     </span>
                   </label>
                 </div>
@@ -119,28 +359,44 @@ export function AgreementModal({ isOpen, onClose, onAgree, isSubmitting }: Agree
                 <div className="space-y-2">
                   <p className="flex items-center gap-1.5 text-xs text-[var(--color-text-muted)] uppercase tracking-wider font-medium">
                     <ShieldCheck className="w-3.5 h-3.5 text-[var(--color-text-secondary)]" />
-                    Data Integrity
+                    {translationState.isLoading ? (
+                      <TextShimmer lines={1} className="w-24" variant="compact" />
+                    ) : (
+                      texts.dataIntegrity
+                    )}
                   </p>
                   <div className="text-xs bg-red-500/15 border border-red-500/40 rounded-lg p-3">
                     <div className="flex items-start gap-2.5">
                       <span className="text-lg leading-none">🚨</span>
                       <div>
-                        <p className="text-red-400 font-medium">
-                          Manipulating usage data may result in:
-                        </p>
-                        <p className="text-red-400/80 mt-1">
-                          • Claude Code malfunction • Account suspension
-                        </p>
+                        {translationState.isLoading ? (
+                          <TextShimmer lines={2} variant="compact" />
+                        ) : (
+                          <>
+                            <p className="text-red-400 font-medium">
+                              {texts.manipulatingWarningTitle}
+                            </p>
+                            <p className="text-red-400/80 mt-1">
+                              • {texts.manipulatingWarningContent}
+                            </p>
+                          </>
+                        )}
                       </div>
                     </div>
                   </div>
                   <div className="p-2.5 rounded-lg border border-[var(--border-default)] bg-[var(--color-bg-tertiary)]">
-                    <p className="text-xs text-[var(--color-text-primary)] mb-2">
-                      I promise not to manipulate my usage data
-                    </p>
-                    <p className="text-xs text-[var(--color-text-muted)] mb-2">
-                      Type &quot;agree&quot; to confirm
-                    </p>
+                    {translationState.isLoading ? (
+                      <TextShimmer lines={2} className="mb-2" variant="compact" />
+                    ) : (
+                      <>
+                        <p className="text-xs text-[var(--color-text-primary)] mb-2">
+                          {texts.promiseNotToManipulate}
+                        </p>
+                        <p className="text-xs text-[var(--color-text-muted)] mb-2">
+                          {texts.typeAgreeToConfirm}
+                        </p>
+                      </>
+                    )}
                     <div className="relative">
                       {/* Visual placeholder - won't be translated */}
                       {!integrityInput && (
@@ -181,14 +437,24 @@ export function AgreementModal({ isOpen, onClose, onAgree, isSubmitting }: Agree
 
                 {/* Terms & Privacy - Inline */}
                 <p className="text-[10px] text-[var(--color-text-muted)] text-center pt-2 border-t border-[var(--border-default)]">
-                  By joining, you agree to our{" "}
-                  <Link href="/terms" target="_blank" className="underline hover:text-primary">
-                    Terms
-                  </Link>{" "}
-                  and{" "}
-                  <Link href="/privacy" target="_blank" className="underline hover:text-primary">
-                    Privacy Policy
-                  </Link>
+                  {translationState.isLoading ? (
+                    <TextShimmer lines={1} className="mx-auto w-48" variant="compact" />
+                  ) : (
+                    <>
+                      {texts.termsAndPrivacy.split("Terms")[0]}
+                      <Link href="/terms" target="_blank" className="underline hover:text-primary">
+                        Terms
+                      </Link>
+                      {" and "}
+                      <Link
+                        href="/privacy"
+                        target="_blank"
+                        className="underline hover:text-primary"
+                      >
+                        Privacy Policy
+                      </Link>
+                    </>
+                  )}
                 </p>
               </div>
 
@@ -206,19 +472,19 @@ export function AgreementModal({ isOpen, onClose, onAgree, isSubmitting }: Agree
                         animate={{ rotate: 360 }}
                         transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
                       />
-                      <span>Joining...</span>
+                      <span>{texts.joiningButton}</span>
                     </>
                   ) : (
                     <>
                       <Users className="w-4 h-4" />
-                      <span>Join the Community</span>
+                      <span>{texts.joinCommunityButton}</span>
                     </>
                   )}
                 </button>
 
                 {!canProceed && (
                   <p className="text-[10px] text-center text-[var(--color-text-muted)] mt-2">
-                    {!communityConsent && "☐ Community • "}
+                    {!communityConsent && `☐ ${texts.communityIncomplete} • `}
                     {!integrityAgreed && (
                       <span className="notranslate" translate="no">
                         ☐ Type &quot;agree&quot;

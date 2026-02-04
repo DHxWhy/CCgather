@@ -19,3 +19,13 @@ export {
   formatPercentage,
   formatRelativeTime,
 } from "./format";
+
+// Re-export translation utilities
+export {
+  SUPPORTED_LANGUAGES,
+  countryToLanguage,
+  isSupportedLanguage,
+  isEnglishCountry,
+  getLanguageDisplayName,
+  detectLanguage,
+} from "./translation";

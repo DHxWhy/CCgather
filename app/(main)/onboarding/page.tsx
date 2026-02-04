@@ -201,6 +201,7 @@ export default function OnboardingPage() {
         onClose={() => setShowAgreementModal(false)}
         onAgree={handleAgree}
         isSubmitting={isSubmitting}
+        selectedCountry={selectedCountry || null}
       />
 
       {/* CLI Guide Modal */}
