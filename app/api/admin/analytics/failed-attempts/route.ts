@@ -34,7 +34,7 @@ export async function GET(request: NextRequest) {
     const startDate = searchParams.get("startDate") || "";
     const endDate = searchParams.get("endDate") || "";
 
-    const supabase = createServiceClient();
+    const supabase = await createServiceClient();
     const offset = (page - 1) * pageSize;
 
     // 기본 날짜 범위: 최근 30일
