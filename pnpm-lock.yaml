@@ -77,6 +77,9 @@ importers:
       framer-motion:
         specifier: ^12.23.27
         version: 12.27.3(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+      frimousse:
+        specifier: ^0.3.0
+        version: 0.3.0(react@19.2.3)(typescript@5.9.3)
       lite-youtube-embed:
         specifier: ^0.3.4
         version: 0.3.4
@@ -2798,6 +2801,15 @@ packages:
       react:
         optional: true
       react-dom:
+        optional: true
+
+  frimousse@0.3.0:
+    resolution: {integrity: sha512-kO6LMoKY/cLAYEhXXtqLRaLIE6L/DagpFPrUZaLv3LsUa1/8Iza3HhwZcgN8eZ+weXnhv69eoclNUPohcCa/IQ==}
+    peerDependencies:
+      react: ^18 || ^19
+      typescript: '>=5.1.0'
+    peerDependenciesMeta:
+      typescript:
         optional: true
 
   fs-extra@9.1.0:
@@ -7172,6 +7184,12 @@ snapshots:
     optionalDependencies:
       react: 19.2.3
       react-dom: 19.2.3(react@19.2.3)
+
+  frimousse@0.3.0(react@19.2.3)(typescript@5.9.3):
+    dependencies:
+      react: 19.2.3
+    optionalDependencies:
+      typescript: 5.9.3
 
   fs-extra@9.1.0:
     dependencies:

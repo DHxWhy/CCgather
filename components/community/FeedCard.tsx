@@ -19,6 +19,7 @@ import {
 import { cn } from "@/lib/utils";
 import { FlagIcon } from "@/components/ui/FlagIcon";
 import { TextShimmer } from "@/components/ui/TextShimmer";
+import { EmojiPicker } from "@/components/ui/EmojiPicker";
 import LinkPreview from "./LinkPreview";
 import { getTagEmoji } from "./community-tags";
 import { getFirstEmbeddableUrl } from "@/lib/url-parser";
@@ -738,6 +739,45 @@ function FeedCardComponent({
   const [loadingReplies, setLoadingReplies] = useState<Set<string>>(new Set());
   // Shimmer state for newly loaded comments/replies (show shimmer for 1s)
   const [shimmeringComments, setShimmeringComments] = useState<Set<string>>(new Set());
+
+  // Emoji handlers for comment and reply inputs
+  const handleCommentEmojiSelect = useCallback(
+    (emoji: string) => {
+      const textarea = commentInputRef.current;
+      if (textarea) {
+        const start = textarea.selectionStart;
+        const end = textarea.selectionEnd;
+        const newText = commentText.slice(0, start) + emoji + commentText.slice(end);
+        setCommentText(newText);
+        setTimeout(() => {
+          textarea.selectionStart = textarea.selectionEnd = start + emoji.length;
+          textarea.focus();
+        }, 0);
+      } else {
+        setCommentText((prev) => prev + emoji);
+      }
+    },
+    [commentText]
+  );
+
+  const handleReplyEmojiSelect = useCallback(
+    (emoji: string) => {
+      const textarea = replyInputRef.current;
+      if (textarea) {
+        const start = textarea.selectionStart;
+        const end = textarea.selectionEnd;
+        const newText = replyText.slice(0, start) + emoji + replyText.slice(end);
+        setReplyText(newText);
+        setTimeout(() => {
+          textarea.selectionStart = textarea.selectionEnd = start + emoji.length;
+          textarea.focus();
+        }, 0);
+      } else {
+        setReplyText((prev) => prev + emoji);
+      }
+    },
+    [replyText]
+  );
 
   // Post edit state
   const [isEditingPost, setIsEditingPost] = useState(false);
@@ -1766,6 +1806,13 @@ function FeedCardComponent({
                                   "resize-none overflow-hidden min-h-[28px] max-h-[100px]"
                                 )}
                               />
+                              {/* Emoji picker for reply */}
+                              <EmojiPicker
+                                onEmojiSelect={handleReplyEmojiSelect}
+                                position="top"
+                                align="right"
+                                size="sm"
+                              />
                               <button
                                 onClick={handleCancelReply}
                                 className="p-1.5 mt-0.5 text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] transition-colors"
@@ -1954,6 +2001,15 @@ function FeedCardComponent({
                     )}
                   />
                 </div>
+                {/* Emoji picker for comment */}
+                {isSignedIn && hasSubmissionHistory && (
+                  <EmojiPicker
+                    onEmojiSelect={handleCommentEmojiSelect}
+                    position="top"
+                    align="right"
+                    size="sm"
+                  />
+                )}
                 <button
                   onClick={handleCommentSubmit}
                   disabled={

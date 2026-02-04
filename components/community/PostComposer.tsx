@@ -5,6 +5,7 @@ import Image from "next/image";
 import { Send, Globe, Sparkles, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/Button";
+import { EmojiPicker } from "@/components/ui/EmojiPicker";
 import type { CommunityFilterTag } from "./community-tags";
 import LinkPreview from "./LinkPreview";
 import { getFirstEmbeddableUrl, type ParsedUrl } from "@/lib/url-parser";
@@ -96,6 +97,27 @@ export default function PostComposer({
       handlePost();
     }
   };
+
+  // Handle emoji selection - insert at cursor or end
+  const handleEmojiSelect = useCallback(
+    (emoji: string) => {
+      const textarea = textareaRef.current;
+      if (textarea) {
+        const start = textarea.selectionStart;
+        const end = textarea.selectionEnd;
+        const newContent = content.slice(0, start) + emoji + content.slice(end);
+        setContent(newContent);
+        // Reset cursor position after emoji
+        setTimeout(() => {
+          textarea.selectionStart = textarea.selectionEnd = start + emoji.length;
+          textarea.focus();
+        }, 0);
+      } else {
+        setContent((prev) => prev + emoji);
+      }
+    },
+    [content]
+  );
 
   return (
     <div
@@ -213,16 +235,25 @@ export default function PostComposer({
         {/* Footer: Actions + Character count + Post button */}
         {isFocused && (
           <div className="flex items-center justify-between mt-2 pt-2 border-t border-[var(--border-default)] animate-fadeIn">
-            {/* Left: Language indicator */}
-            <div
-              className={cn(
-                "flex items-center gap-1 px-1.5 py-0.5 rounded",
-                "text-[9px] text-[var(--color-text-muted)]",
-                "bg-[var(--glass-bg)]"
-              )}
-            >
-              <Globe size={10} />
-              <span>Auto-translate · Paste URL for preview</span>
+            {/* Left: Emoji + Language indicator */}
+            <div className="flex items-center gap-2">
+              {/* Emoji Picker */}
+              <EmojiPicker
+                onEmojiSelect={handleEmojiSelect}
+                position="top"
+                align="left"
+                size="sm"
+              />
+              <div
+                className={cn(
+                  "flex items-center gap-1 px-1.5 py-0.5 rounded",
+                  "text-[9px] text-[var(--color-text-muted)]",
+                  "bg-[var(--glass-bg)]"
+                )}
+              >
+                <Globe size={10} />
+                <span>Auto-translate</span>
+              </div>
             </div>
 
             {/* Right: Character count + Post button */}

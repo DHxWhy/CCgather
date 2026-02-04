@@ -59,6 +59,7 @@
     "date-fns": "^4.1.0",
     "date-fns-tz": "^3.2.0",
     "framer-motion": "^12.23.27",
+    "frimousse": "^0.3.0",
     "lite-youtube-embed": "^0.3.4",
     "lucide-react": "^0.562.0",
     "next": "^16.1.1",
