@@ -111,6 +111,96 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
 }
 
 // =====================================================
+// PATCH /api/community/posts/[id] - 포스트 수정 (5분 이내)
+// =====================================================
+const EDIT_TIME_LIMIT_MS = 5 * 60 * 1000; // 5분
+
+export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  try {
+    const { id } = await params;
+    const { userId: clerkId } = await auth();
+
+    if (!clerkId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const supabase = createServiceClient();
+    const body = await request.json();
+    const { content } = body;
+
+    if (!content || typeof content !== "string" || content.trim().length === 0) {
+      return NextResponse.json({ error: "Content is required" }, { status: 400 });
+    }
+
+    if (content.length > 2000) {
+      return NextResponse.json({ error: "Content too long (max 2000 chars)" }, { status: 400 });
+    }
+
+    // Get user from database
+    const { data: user } = await supabase
+      .from("users")
+      .select("id")
+      .eq("clerk_id", clerkId)
+      .single();
+
+    if (!user) {
+      return NextResponse.json({ error: "User not found" }, { status: 404 });
+    }
+
+    // Get post
+    const { data: post } = await supabase
+      .from("posts")
+      .select("id, author_id, content, created_at")
+      .eq("id", id)
+      .is("deleted_at", null)
+      .single();
+
+    if (!post) {
+      return NextResponse.json({ error: "Post not found" }, { status: 404 });
+    }
+
+    // Check ownership
+    if (post.author_id !== user.id) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
+    // Check time limit (5 minutes)
+    const createdAt = new Date(post.created_at).getTime();
+    const now = Date.now();
+    if (now - createdAt > EDIT_TIME_LIMIT_MS) {
+      return NextResponse.json(
+        { error: "Edit time expired. Posts can only be edited within 5 minutes." },
+        { status: 403 }
+      );
+    }
+
+    // Update the post
+    const { data: updatedPost, error: updateError } = await supabase
+      .from("posts")
+      .update({
+        content: content.trim(),
+        edited_at: new Date().toISOString(),
+      })
+      .eq("id", id)
+      .select("id, content, edited_at")
+      .single();
+
+    if (updateError) {
+      console.error("Error updating post:", updateError);
+      return NextResponse.json({ error: "Failed to update post" }, { status: 500 });
+    }
+
+    return NextResponse.json({
+      success: true,
+      post: updatedPost,
+    });
+  } catch (error) {
+    console.error("Error in PATCH /api/community/posts/[id]:", error);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+  }
+}
+
+// =====================================================
 // DELETE /api/community/posts/[id] - 포스트 삭제 (Soft Delete)
 // Cascade: 해당 포스트의 모든 댓글도 soft delete
 // =====================================================

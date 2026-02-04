@@ -3,6 +3,96 @@ import { auth } from "@clerk/nextjs/server";
 import { createServiceClient } from "@/lib/supabase/server";
 
 // =====================================================
+// PATCH /api/community/comments/[id] - 댓글 수정 (5분 이내)
+// =====================================================
+const EDIT_TIME_LIMIT_MS = 5 * 60 * 1000; // 5분
+
+export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  try {
+    const { id } = await params;
+    const { userId: clerkId } = await auth();
+
+    if (!clerkId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const supabase = createServiceClient();
+    const body = await request.json();
+    const { content } = body;
+
+    if (!content || typeof content !== "string" || content.trim().length === 0) {
+      return NextResponse.json({ error: "Content is required" }, { status: 400 });
+    }
+
+    if (content.length > 1000) {
+      return NextResponse.json({ error: "Content too long (max 1000 chars)" }, { status: 400 });
+    }
+
+    // Get user from database
+    const { data: user } = await supabase
+      .from("users")
+      .select("id")
+      .eq("clerk_id", clerkId)
+      .single();
+
+    if (!user) {
+      return NextResponse.json({ error: "User not found" }, { status: 404 });
+    }
+
+    // Get comment
+    const { data: comment } = await supabase
+      .from("comments")
+      .select("id, author_id, content, created_at")
+      .eq("id", id)
+      .is("deleted_at", null)
+      .single();
+
+    if (!comment) {
+      return NextResponse.json({ error: "Comment not found" }, { status: 404 });
+    }
+
+    // Check ownership
+    if (comment.author_id !== user.id) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
+    // Check time limit (5 minutes)
+    const createdAt = new Date(comment.created_at).getTime();
+    const now = Date.now();
+    if (now - createdAt > EDIT_TIME_LIMIT_MS) {
+      return NextResponse.json(
+        { error: "Edit time expired. Comments can only be edited within 5 minutes." },
+        { status: 403 }
+      );
+    }
+
+    // Update the comment
+    const { data: updatedComment, error: updateError } = await supabase
+      .from("comments")
+      .update({
+        content: content.trim(),
+        edited_at: new Date().toISOString(),
+      })
+      .eq("id", id)
+      .select("id, content, edited_at")
+      .single();
+
+    if (updateError) {
+      console.error("Error updating comment:", updateError);
+      return NextResponse.json({ error: "Failed to update comment" }, { status: 500 });
+    }
+
+    return NextResponse.json({
+      success: true,
+      comment: updatedComment,
+    });
+  } catch (error) {
+    console.error("Error in PATCH /api/community/comments/[id]:", error);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+  }
+}
+
+// =====================================================
 // DELETE /api/community/comments/[id] - 댓글 삭제 (Soft Delete)
 // Cascade: 해당 댓글의 모든 대댓글도 soft delete
 // =====================================================

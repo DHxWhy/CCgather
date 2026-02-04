@@ -14,6 +14,7 @@ import {
   Loader2,
   MoreHorizontal,
   X,
+  Pencil,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { FlagIcon } from "@/components/ui/FlagIcon";
@@ -41,6 +42,7 @@ export interface FeedComment {
   original_language?: string; // Original language code from API (for lazy-loaded replies)
   is_translated?: boolean; // Whether this comment was translated
   created_at: string;
+  edited_at?: string; // When the comment was last edited
   parent_comment_id?: string | null;
   likes_count?: number;
   is_liked?: boolean;
@@ -75,6 +77,7 @@ export interface FeedPost {
   likes_count: number;
   comments_count: number;
   created_at: string;
+  edited_at?: string; // When the post was last edited
   is_liked?: boolean;
   liked_by?: LikedByUser[];
   comments?: FeedComment[];

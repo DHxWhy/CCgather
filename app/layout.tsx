@@ -71,7 +71,7 @@ export const metadata: Metadata = {
       "Proof of your Claude Code dedication. Track your tokens and rise through the global rankings!",
     images: [
       {
-        url: "/logos/og-image.png",
+        url: "https://ccgather.com/logos/og-image.png",
         width: 1200,
         height: 630,
         alt: "CCgather - Claude Code Rankings",
@@ -83,7 +83,7 @@ export const metadata: Metadata = {
     title: "CCgather - Claude Code Rankings",
     description:
       "Proof of your Claude Code dedication. Track your tokens and rise through the rankings!",
-    images: ["/logos/og-image.png"],
+    images: ["https://ccgather.com/logos/og-image.png"],
     creator: "@ccgather",
   },
   robots: {
