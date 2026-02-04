@@ -1484,13 +1484,17 @@ function FeedCardComponent({
             </span>
           </div>
 
-          {/* Language indicator - always shown with simple codes (e.g., EN→KR, KR→KR) */}
+          {/* Language indicator - show origin only for same language, full arrow for different */}
           <div className="flex items-center gap-1 mt-0.5 text-[10px] text-[var(--color-text-muted)]">
             <span className={isSameLanguage ? "opacity-60" : "text-[var(--color-accent-cyan)]"}>
               {fromLangCode}
             </span>
-            <span className="opacity-40">→</span>
-            <span className="opacity-60">{toLangCode}</span>
+            {!isSameLanguage && (
+              <>
+                <span className="opacity-40">→</span>
+                <span className="opacity-60">{toLangCode}</span>
+              </>
+            )}
           </div>
 
           {/* Content - Show edit mode, shimmer, or regular content */}
@@ -1688,14 +1692,15 @@ function FeedCardComponent({
               </button>
 
               {/* Share button with inline feedback */}
-              <div className="flex items-center gap-1">
-                {/* Inline "Link copied!" message */}
+              <div className="relative">
+                {/* Inline "Link copied!" message - absolute to not affect layout */}
                 <span
                   className={cn(
+                    "absolute right-full mr-1 top-1/2 -translate-y-1/2 whitespace-nowrap",
                     "text-[10px] text-[var(--color-accent-green)] transition-all duration-300",
                     shareSuccess
                       ? "opacity-100 translate-x-0"
-                      : "opacity-0 -translate-x-2 pointer-events-none"
+                      : "opacity-0 translate-x-2 pointer-events-none"
                   )}
                 >
                   Link copied!

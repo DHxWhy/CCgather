@@ -1240,6 +1240,7 @@ export default function LeaderboardPage() {
               country_code: post.author.country_code,
             },
             content: post.content, // Original content (translations loaded lazily)
+            tab: post.tab, // Board/category: general, showcase, help
             original_language: post.original_language || "en",
             is_translated: false, // Will be updated by lazy translation
             created_at: post.created_at,
@@ -1530,6 +1531,7 @@ export default function LeaderboardPage() {
               country_code: data.post.author.country_code,
             },
             content: data.post.content,
+            tab: data.post.tab, // Board/category: general, showcase, help
             original_language: data.post.original_language || "en",
             is_translated: data.post.is_translated || false,
             translated_content: data.post.translated_content,
