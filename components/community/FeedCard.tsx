@@ -554,6 +554,17 @@ function FeedCardComponent({
   const localTranslatedContent = post.translated_content;
   const [isLiked, setIsLiked] = useState(post.is_liked ?? false);
   const [likesCount, setLikesCount] = useState(post.likes_count);
+
+  // Sync state when post props change (after API response updates parent state)
+  // This fixes the bug where likes state was not syncing after page refresh
+  useEffect(() => {
+    setIsLiked(post.is_liked ?? false);
+  }, [post.is_liked]);
+
+  useEffect(() => {
+    setLikesCount(post.likes_count);
+  }, [post.likes_count]);
+
   const [isHovered, setIsHovered] = useState(false);
   const [showComments, setShowComments] = useState(false);
   const [commentText, setCommentText] = useState("");
@@ -574,7 +585,8 @@ function FeedCardComponent({
   );
   const [replyText, setReplyText] = useState("");
   const [isSubmittingReply, setIsSubmittingReply] = useState(false);
-  const replyInputRef = useRef<HTMLInputElement>(null);
+  const replyInputRef = useRef<HTMLTextAreaElement>(null);
+  const commentInputRef = useRef<HTMLTextAreaElement>(null);
   // Replies expansion state (per comment)
   const [expandedReplies, setExpandedReplies] = useState<Set<string>>(new Set());
   const [loadingReplies, setLoadingReplies] = useState<Set<string>>(new Set());
@@ -871,6 +883,10 @@ function FeedCardComponent({
       setLocalComments((prev) => [...prev, newComment]);
       setCommentsCount((prev) => prev + 1);
       setCommentText("");
+      // Reset textarea height
+      if (commentInputRef.current) {
+        commentInputRef.current.style.height = "auto";
+      }
       setShowComments(true);
 
       // Notify parent
@@ -959,6 +975,10 @@ function FeedCardComponent({
         )
       );
       setCommentsCount((prev) => prev + 1);
+      // Reset textarea height before clearing state
+      if (replyInputRef.current) {
+        replyInputRef.current.style.height = "auto";
+      }
       setReplyingTo(null);
       setReplyText("");
       onCommentReply?.(replyingTo.commentId, replyingTo.authorName);
@@ -1409,32 +1429,44 @@ function FeedCardComponent({
                         {/* Reply Input - show when replying to this comment */}
                         {replyingTo?.commentId === comment.id && (
                           <div className="ml-8 mt-2 animate-fadeIn">
-                            <div className="flex items-center gap-2">
-                              <input
+                            <div className="flex items-start gap-2">
+                              <textarea
                                 ref={replyInputRef}
-                                type="text"
                                 value={replyText}
-                                onChange={(e) => setReplyText(e.target.value)}
+                                onChange={(e) => {
+                                  setReplyText(e.target.value);
+                                  // Auto-resize textarea
+                                  e.target.style.height = "auto";
+                                  e.target.style.height = `${Math.min(e.target.scrollHeight, 100)}px`;
+                                }}
                                 onKeyDown={(e) => {
-                                  if (e.key === "Enter" && !e.nativeEvent.isComposing) {
+                                  // Enter만 누르면 제출, Shift+Enter는 줄바꿈
+                                  if (
+                                    e.key === "Enter" &&
+                                    !e.shiftKey &&
+                                    !e.nativeEvent.isComposing
+                                  ) {
+                                    e.preventDefault();
                                     handleReplySubmit();
                                   } else if (e.key === "Escape") {
                                     handleCancelReply();
                                   }
                                 }}
                                 disabled={isSubmittingReply}
-                                placeholder={`${replyingTo.authorName}님에게 답글 작성...`}
+                                placeholder={`${replyingTo.authorName}님에게 답글 작성... (Shift+Enter for new line)`}
+                                rows={1}
                                 className={cn(
                                   "flex-1 px-3 py-1.5 text-[11px] rounded-lg",
                                   "bg-[var(--color-bg-card)] border border-[var(--color-claude-coral)]/50",
                                   "placeholder:text-[var(--color-text-muted)]",
                                   "focus:outline-none focus:border-[var(--color-claude-coral)]",
-                                  "text-[var(--color-text-primary)]"
+                                  "text-[var(--color-text-primary)]",
+                                  "resize-none overflow-hidden min-h-[28px] max-h-[100px]"
                                 )}
                               />
                               <button
                                 onClick={handleCancelReply}
-                                className="p-1.5 text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] transition-colors"
+                                className="p-1.5 mt-0.5 text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] transition-colors"
                                 aria-label="취소"
                               >
                                 <X size={14} />
@@ -1443,7 +1475,7 @@ function FeedCardComponent({
                                 onClick={handleReplySubmit}
                                 disabled={!replyText.trim() || isSubmittingReply}
                                 className={cn(
-                                  "p-1.5 transition-colors rounded-lg",
+                                  "p-1.5 mt-0.5 transition-colors rounded-lg",
                                   "text-[var(--color-text-muted)]",
                                   "hover:text-[var(--color-claude-coral)] hover:bg-[var(--color-claude-coral)]/10",
                                   "disabled:opacity-50 disabled:cursor-not-allowed"
@@ -1570,7 +1602,7 @@ function FeedCardComponent({
               )}
 
               {/* Comment Input */}
-              <div className="flex items-center gap-2">
+              <div className="flex items-start gap-2">
                 <div
                   className={cn(
                     "flex-1 relative",
@@ -1584,27 +1616,38 @@ function FeedCardComponent({
                     }
                   }}
                 >
-                  <input
-                    type="text"
+                  <textarea
+                    ref={commentInputRef}
                     value={commentText}
-                    onChange={(e) => setCommentText(e.target.value)}
-                    onKeyDown={(e) =>
-                      e.key === "Enter" && !e.nativeEvent.isComposing && handleCommentSubmit()
-                    }
+                    onChange={(e) => {
+                      setCommentText(e.target.value);
+                      // Auto-resize textarea
+                      e.target.style.height = "auto";
+                      e.target.style.height = `${Math.min(e.target.scrollHeight, 120)}px`;
+                    }}
+                    onKeyDown={(e) => {
+                      // Enter만 누르면 제출, Shift+Enter는 줄바꿈
+                      if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
+                        e.preventDefault();
+                        handleCommentSubmit();
+                      }
+                    }}
                     disabled={!isSignedIn || !hasSubmissionHistory || isSubmitting}
                     placeholder={
                       !isSignedIn
                         ? "Sign in to comment"
                         : !hasSubmissionHistory
                           ? "Submit data to comment"
-                          : "Write a comment..."
+                          : "Write a comment... (Shift+Enter for new line)"
                     }
+                    rows={1}
                     className={cn(
                       "w-full px-3 py-1.5 text-[12px] rounded-lg",
                       "bg-[var(--color-bg-card)] border border-[var(--border-default)]",
                       "placeholder:text-[var(--color-text-muted)]",
                       "focus:outline-none focus:border-[var(--color-claude-coral)]",
                       "text-[var(--color-text-primary)]",
+                      "resize-none overflow-hidden min-h-[32px] max-h-[120px]",
                       (!isSignedIn || !hasSubmissionHistory) && "pointer-events-none"
                     )}
                   />
@@ -1615,7 +1658,7 @@ function FeedCardComponent({
                     !isSignedIn || !hasSubmissionHistory || !commentText.trim() || isSubmitting
                   }
                   className={cn(
-                    "p-1.5 transition-colors rounded-lg",
+                    "p-1.5 transition-colors rounded-lg mt-0.5",
                     "text-[var(--color-text-muted)]",
                     "hover:text-[var(--color-claude-coral)] hover:bg-[var(--color-claude-coral)]/10",
                     "disabled:opacity-50 disabled:cursor-not-allowed"
