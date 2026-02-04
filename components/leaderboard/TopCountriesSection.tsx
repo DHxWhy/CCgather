@@ -86,10 +86,6 @@ export const TopCountriesSection = forwardRef<TopCountriesSectionRef, TopCountri
       [stats, sortBy, maxItems]
     );
 
-    // Calculate max values for progress bars (memoized)
-    const maxTokens = useMemo(() => Math.max(...stats.map((s) => s.tokens), 1), [stats]);
-    const maxCost = useMemo(() => Math.max(...stats.map((s) => s.cost), 1), [stats]);
-
     // Find user's country data and rank (memoized to prevent infinite loops)
     const userCountryIndex = useMemo(
       () =>
