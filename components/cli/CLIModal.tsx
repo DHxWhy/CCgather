@@ -108,18 +108,19 @@ export function CLIModal({ isOpen, onClose }: CLIModalProps) {
       <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm" onClick={onClose} />
 
       {/* Modal */}
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none">
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 pointer-events-none">
         <div
           className={cn(
             "pointer-events-auto w-full max-w-lg",
             "bg-[var(--color-bg-secondary)] border border-[var(--border-default)]",
-            "rounded-2xl shadow-2xl",
-            "animate-in fade-in zoom-in-95 duration-200"
+            "rounded-xl sm:rounded-2xl shadow-2xl",
+            "animate-in fade-in zoom-in-95 duration-200",
+            "max-h-[95vh] sm:max-h-[90vh] flex flex-col"
           )}
           onClick={(e) => e.stopPropagation()}
         >
           {/* Header */}
-          <div className="flex items-center justify-between p-4 border-b border-[var(--border-default)]">
+          <div className="flex items-center justify-between p-3 sm:p-4 border-b border-[var(--border-default)] flex-shrink-0">
             <div className="flex items-center gap-2">
               <Terminal className="w-5 h-5 text-[var(--color-claude-coral)]" />
               <h2 className="text-lg font-semibold text-[var(--color-text-primary)]">
@@ -157,7 +158,7 @@ export function CLIModal({ isOpen, onClose }: CLIModalProps) {
           </div>
 
           {/* Content */}
-          <div className="p-4 space-y-4 max-h-[60vh] overflow-y-auto">
+          <div className="p-3 sm:p-4 space-y-3 sm:space-y-4 overflow-y-auto flex-1">
             {activeTab === "overview" ? (
               <>
                 {/* Quick Install */}
@@ -258,84 +259,99 @@ export function CLIModal({ isOpen, onClose }: CLIModalProps) {
               </>
             ) : (
               /* FAQ Tab */
-              <div className="space-y-4">
-                <div className="space-y-1.5">
+              <div className="space-y-3 sm:space-y-4">
+                <div className="p-3 rounded-lg bg-black/20 space-y-2">
                   <p className="text-sm font-medium text-[var(--color-text-primary)]">
                     Is my code or chat history uploaded?
                   </p>
-                  <p className="text-xs text-[var(--color-text-muted)] leading-relaxed">
-                    <span className="text-green-400 font-medium">No.</span> We only collect
-                    aggregated usage metrics (token counts, costs, models). Your actual
-                    conversations and code{" "}
-                    <span className="text-[var(--color-text-primary)]">
-                      never leave your device
+                  <p className="text-xs sm:text-sm text-[var(--color-text-muted)] leading-relaxed">
+                    <span className="text-green-400 font-medium">No.</span>
+                    <br className="sm:hidden" />
+                    <span className="sm:ml-1">
+                      We only collect usage metrics
+                      <br className="hidden sm:inline" /> (token counts, costs, models).
                     </span>
-                    .
+                    <br />
+                    <span className="text-[var(--color-text-primary)]">
+                      Your conversations and code never leave your device.
+                    </span>
                   </p>
                 </div>
 
-                <div className="space-y-1.5">
+                <div className="p-3 rounded-lg bg-black/20 space-y-2">
                   <p className="text-sm font-medium text-[var(--color-text-primary)]">
                     How often should I submit?
                   </p>
-                  <p className="text-xs text-[var(--color-text-muted)] leading-relaxed">
-                    As often as you&apos;d like! Claude Code stores local session data for
-                    approximately{" "}
-                    <span className="text-[var(--color-claude-coral)] font-medium">30 days</span>.
-                    Submit before that to ensure your stats are captured.
+                  <p className="text-xs sm:text-sm text-[var(--color-text-muted)] leading-relaxed">
+                    As often as you&apos;d like!
+                    <br />
+                    Claude Code stores local data for{" "}
+                    <span className="text-[var(--color-claude-coral)] font-medium">~30 days</span>.
+                    <br className="sm:hidden" />
+                    <span className="sm:ml-1">Submit before that.</span>
                   </p>
                 </div>
 
-                <div className="space-y-1.5">
+                <div className="p-3 rounded-lg bg-black/20 space-y-2">
                   <p className="text-sm font-medium text-[var(--color-text-primary)]">
                     What is a session fingerprint?
                   </p>
-                  <p className="text-xs text-[var(--color-text-muted)] leading-relaxed">
-                    A unique hash generated from your session metadata to{" "}
+                  <p className="text-xs sm:text-sm text-[var(--color-text-muted)] leading-relaxed">
+                    A unique hash to{" "}
                     <span className="text-[var(--color-text-primary)]">
                       prevent duplicate submissions
                     </span>
-                    . It doesn&apos;t contain any personal or code information.
+                    .
+                    <br />
+                    It contains no personal or code information.
                   </p>
                 </div>
 
-                <div className="space-y-1.5">
+                <div className="p-3 rounded-lg bg-black/20 space-y-2">
                   <p className="text-sm font-medium text-[var(--color-text-primary)]">
                     Can I submit from multiple projects?
                   </p>
-                  <p className="text-xs text-[var(--color-text-muted)] leading-relaxed">
-                    <span className="text-green-400 font-medium">Yes!</span> The CLI automatically
-                    scans{" "}
-                    <span className="text-[var(--color-text-primary)]">
-                      all Claude Code projects
-                    </span>{" "}
-                    on your PC in a single run.
+                  <p className="text-xs sm:text-sm text-[var(--color-text-muted)] leading-relaxed">
+                    <span className="text-green-400 font-medium">Yes!</span>
+                    <br className="sm:hidden" />
+                    <span className="sm:ml-1">
+                      The CLI scans{" "}
+                      <span className="text-[var(--color-text-primary)]">
+                        all Claude Code projects
+                      </span>
+                      <br className="hidden sm:inline" /> on your PC in a single run.
+                    </span>
                   </p>
                 </div>
 
-                <div className="space-y-1.5">
+                <div className="p-3 rounded-lg bg-black/20 space-y-2">
                   <p className="text-sm font-medium text-[var(--color-text-primary)]">
                     Why do I need to sign in?
                   </p>
-                  <p className="text-xs text-[var(--color-text-muted)] leading-relaxed">
-                    To link your usage data to your{" "}
-                    <span className="text-[var(--color-text-primary)]">
-                      CCgather profile and leaderboard rank
-                    </span>
-                    . Authentication is done securely via your browser.
+                  <p className="text-xs sm:text-sm text-[var(--color-text-muted)] leading-relaxed">
+                    To link usage data to your{" "}
+                    <span className="text-[var(--color-text-primary)]">CCgather profile</span>
+                    .
+                    <br />
+                    Authentication is done securely via browser.
                   </p>
                 </div>
 
-                <div className="space-y-1.5">
+                <div className="p-3 rounded-lg bg-black/20 space-y-2">
                   <p className="text-sm font-medium text-[var(--color-text-primary)]">
                     Is the CLI open source?
                   </p>
-                  <p className="text-xs text-[var(--color-text-muted)] leading-relaxed">
-                    <span className="text-green-400 font-medium">Yes!</span> Check out the source at{" "}
-                    <span className="text-[var(--color-claude-coral)]">
-                      github.com/DHxWhy/CCgather
+                  <p className="text-xs sm:text-sm text-[var(--color-text-muted)] leading-relaxed">
+                    <span className="text-green-400 font-medium">Yes!</span>
+                    <br className="sm:hidden" />
+                    <span className="sm:ml-1">
+                      Source at{" "}
+                      <span className="text-[var(--color-claude-coral)]">
+                        github.com/DHxWhy/CCgather
+                      </span>
                     </span>
-                    . A star would mean a lot!
+                    <br />
+                    <span className="text-[var(--color-text-muted)]">A star would mean a lot!</span>
                   </p>
                 </div>
               </div>
@@ -343,7 +359,7 @@ export function CLIModal({ isOpen, onClose }: CLIModalProps) {
           </div>
 
           {/* Footer */}
-          <div className="p-4 border-t border-[var(--border-default)] flex items-center justify-between">
+          <div className="p-3 sm:p-4 border-t border-[var(--border-default)] flex items-center justify-between flex-shrink-0">
             <span className="text-xs text-[var(--color-text-muted)]">
               {activeTab === "overview"
                 ? "Submit when you want to update your rank"
