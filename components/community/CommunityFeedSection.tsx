@@ -63,9 +63,12 @@ interface CommunityFeedSectionProps {
   getCommentTranslation?: (id: string) => string | undefined;
   // Translation statistics for banner display
   translationStats?: {
-    postsCount: number;
-    commentsCount: number;
+    postsCount: number; // Posts needing translation
+    commentsCount: number; // Comments needing translation
     totalCount: number;
+    // Total counts for UX display (e.g., "Translating 1 of 2 posts")
+    totalPostsCount?: number;
+    totalCommentsCount?: number;
   };
 }
 
@@ -309,7 +312,7 @@ function CommunityFeedSectionComponent({
                   ? "Loading preferences..."
                   : isTranslationLoading && autoTranslateEnabled
                     ? translationStats && translationStats.totalCount > 0
-                      ? `${translationStats.postsCount} ${translationStats.postsCount === 1 ? "post" : "posts"}, ${translationStats.commentsCount} ${translationStats.commentsCount === 1 ? "comment" : "comments"}...`
+                      ? `${translationStats.postsCount}${translationStats.totalPostsCount ? ` of ${translationStats.totalPostsCount}` : ""} ${translationStats.totalPostsCount === 1 || (!translationStats.totalPostsCount && translationStats.postsCount === 1) ? "post" : "posts"}, ${translationStats.commentsCount}${translationStats.totalCommentsCount ? ` of ${translationStats.totalCommentsCount}` : ""} ${translationStats.totalCommentsCount === 1 || (!translationStats.totalCommentsCount && translationStats.commentsCount === 1) ? "comment" : "comments"}...`
                       : "Processing..."
                     : autoTranslateEnabled
                       ? "Posts appear in your language"

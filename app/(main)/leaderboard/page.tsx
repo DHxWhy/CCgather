@@ -1355,6 +1355,27 @@ export default function LeaderboardPage() {
     return pendingIds;
   }, [autoTranslateEnabled, isTranslationLoading, translationItems, translations]);
 
+  // Extend translation stats with total counts for better UX display
+  // e.g., "Translating 1 of 2 posts, 0 of 1 comments..."
+  const extendedTranslationStats = useMemo(() => {
+    if (!translationStats) return undefined;
+
+    // Calculate total posts count
+    const totalPostsCount = communityPosts.length;
+
+    // Calculate total comments count (sum of all comments across posts)
+    const totalCommentsCount = communityPosts.reduce(
+      (sum, post) => sum + (post.comments?.length || 0),
+      0
+    );
+
+    return {
+      ...translationStats,
+      totalPostsCount,
+      totalCommentsCount,
+    };
+  }, [translationStats, communityPosts]);
+
   // Apply translations to posts (memoized to prevent unnecessary re-renders)
   const translatedCommunityPosts = useMemo(() => {
     if (!autoTranslateEnabled || translations.size === 0) {
@@ -3063,7 +3084,7 @@ export default function LeaderboardPage() {
                     isTranslationLoading={isTranslationLoading}
                     pendingTranslationIds={pendingTranslationIds}
                     getCommentTranslation={(id) => getTranslation(id, "comment")}
-                    translationStats={translationStats}
+                    translationStats={extendedTranslationStats}
                   />
                 </div>
               )}
