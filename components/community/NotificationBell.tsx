@@ -140,12 +140,16 @@ export default function NotificationBell({ className }: NotificationBellProps) {
       setIsLoading(true);
       const response = await fetch("/api/community/notifications?limit=20");
 
-      // Silently handle 401 (user not logged in) - don't log as error
-      if (response.status === 401) {
+      // Silently handle 401 (user not logged in) or 404 (user not in DB yet)
+      if (response.status === 401 || response.status === 404) {
         return;
       }
 
-      if (!response.ok) throw new Error("Failed to fetch");
+      if (!response.ok) {
+        // Don't throw, just return silently to avoid console spam
+        return;
+      }
+
       const data = await response.json();
       setNotifications(data.notifications);
 
@@ -159,9 +163,8 @@ export default function NotificationBell({ className }: NotificationBellProps) {
       prevUnreadCountRef.current = newUnreadCount;
       isFirstLoadRef.current = false;
       setUnreadCount(newUnreadCount);
-    } catch (error) {
-      // Only log actual network/parsing errors, not auth failures
-      console.error("Error fetching notifications:", error);
+    } catch {
+      // Network errors - silently ignore to avoid console spam during polling
     } finally {
       setIsLoading(false);
     }
