@@ -3,6 +3,15 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* 브라우저 강제 다크모드 비활성화 - 자체 테마 시스템 사용 */
+:root {
+  color-scheme: only dark;
+}
+
+:root.light {
+  color-scheme: only light;
+}
+
 /* ============================================
    CCgather Design System
    Synk Style + Claude Identity
