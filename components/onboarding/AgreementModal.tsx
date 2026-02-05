@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { X, Users, ShieldCheck, Globe, Languages } from "lucide-react";
 import Link from "next/link";
@@ -31,6 +31,8 @@ interface TranslationState {
 // Abuse prevention constants
 const WARNING_THRESHOLD = 5;
 const BLOCK_THRESHOLD = 10;
+// Minimum loading time for shimmer visibility (ms)
+const MIN_LOADING_TIME = 400;
 
 // =====================================================
 // Original English Texts (Fallback)
@@ -70,10 +72,12 @@ export function AgreementModal({
   const [integrityInput, setIntegrityInput] = useState("");
   const [showOriginal, setShowOriginal] = useState(false);
 
-  // Abuse prevention state
-  const [translationRequestCount, setTranslationRequestCount] = useState(0);
-  const [isBlocked, setIsBlocked] = useState(false);
-  const [showWarning, setShowWarning] = useState(false);
+  // Abuse prevention - use ref to avoid infinite loop in useCallback
+  const requestCountRef = useRef(0);
+  const [abuseState, setAbuseState] = useState({
+    isBlocked: false,
+    remainingChanges: BLOCK_THRESHOLD,
+  });
 
   // Translation state
   const [translationState, setTranslationState] = useState<TranslationState>({
@@ -92,84 +96,97 @@ export function AgreementModal({
     !showOriginal && translationState.translations ? translationState.translations : ORIGINAL_TEXTS;
 
   // Fetch translation when country changes
-  const fetchTranslation = useCallback(
-    async (countryCode: string) => {
-      // Check if blocked due to abuse
-      if (isBlocked) {
-        setTranslationState({
-          isLoading: false,
-          isOriginal: true,
-          translations: null,
-          targetLanguage: "en",
-          error: null,
-        });
-        return;
+  const fetchTranslation = useCallback(async (countryCode: string) => {
+    // Increment count using ref (won't recreate callback)
+    requestCountRef.current += 1;
+    const currentCount = requestCountRef.current;
+
+    // Update abuse state for UI
+    const remaining = BLOCK_THRESHOLD - currentCount;
+    const nowBlocked = currentCount >= BLOCK_THRESHOLD;
+
+    setAbuseState({
+      isBlocked: nowBlocked,
+      remainingChanges: remaining,
+    });
+
+    // If blocked, show English only
+    if (nowBlocked) {
+      setTranslationState({
+        isLoading: false,
+        isOriginal: true,
+        translations: null,
+        targetLanguage: "en",
+        error: null,
+      });
+      return;
+    }
+
+    // Show loading state
+    setTranslationState((prev) => ({
+      ...prev,
+      isLoading: true,
+      error: null,
+    }));
+
+    // Track loading start time for minimum shimmer visibility
+    const loadingStartTime = Date.now();
+
+    try {
+      const response = await fetch("/api/translate/agreement", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ countryCode }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Translation request failed");
       }
 
-      // Increment request count and check thresholds
-      const newCount = translationRequestCount + 1;
-      setTranslationRequestCount(newCount);
+      const data = await response.json();
 
-      if (newCount >= BLOCK_THRESHOLD) {
-        setIsBlocked(true);
-        setShowWarning(false);
-        setTranslationState({
-          isLoading: false,
-          isOriginal: true,
-          translations: null,
-          targetLanguage: "en",
-          error: null,
-        });
-        return;
+      // Ensure minimum loading time for shimmer visibility
+      const elapsed = Date.now() - loadingStartTime;
+      if (elapsed < MIN_LOADING_TIME) {
+        await new Promise((resolve) => setTimeout(resolve, MIN_LOADING_TIME - elapsed));
       }
 
-      if (newCount >= WARNING_THRESHOLD) {
-        setShowWarning(true);
+      setTranslationState({
+        isLoading: false,
+        isOriginal: data.isOriginal,
+        translations: data.translations,
+        targetLanguage: data.targetLanguage,
+        error: data.error || null,
+      });
+    } catch (error) {
+      console.error("[AgreementModal] Translation error:", error);
+
+      // Still wait minimum time on error for consistent UX
+      const elapsed = Date.now() - loadingStartTime;
+      if (elapsed < MIN_LOADING_TIME) {
+        await new Promise((resolve) => setTimeout(resolve, MIN_LOADING_TIME - elapsed));
       }
 
+      setTranslationState({
+        isLoading: false,
+        isOriginal: true,
+        translations: null,
+        targetLanguage: "en",
+        error: error instanceof Error ? error.message : "Translation failed",
+      });
+    }
+  }, []); // No dependencies - uses ref for count
+
+  // Effect: Fetch translation on country change
+  useEffect(() => {
+    if (isOpen && selectedCountry) {
+      // Immediately show loading (prevents stale translation flash)
       setTranslationState((prev) => ({
         ...prev,
         isLoading: true,
         error: null,
       }));
-
-      try {
-        const response = await fetch("/api/translate/agreement", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ countryCode }),
-        });
-
-        if (!response.ok) {
-          throw new Error("Translation request failed");
-        }
-
-        const data = await response.json();
-
-        setTranslationState({
-          isLoading: false,
-          isOriginal: data.isOriginal,
-          translations: data.translations,
-          targetLanguage: data.targetLanguage,
-          error: data.error || null,
-        });
-      } catch (error) {
-        console.error("[AgreementModal] Translation error:", error);
-        setTranslationState({
-          isLoading: false,
-          isOriginal: true,
-          translations: null,
-          targetLanguage: "en",
-          error: error instanceof Error ? error.message : "Translation failed",
-        });
-      }
-    },
-    [isBlocked, translationRequestCount]
-  );
-
-  // Effect: Fetch translation on country change
-  useEffect(() => {
-    if (isOpen && selectedCountry) {
+      // Then fetch translation
       fetchTranslation(selectedCountry);
     } else if (!selectedCountry) {
       // Reset to original if no country selected
@@ -182,18 +199,6 @@ export function AgreementModal({
       });
     }
   }, [isOpen, selectedCountry, fetchTranslation]);
-
-  // Effect: Reset translation state when country changes (prevents stale translation flash)
-  useEffect(() => {
-    if (selectedCountry) {
-      // Immediately reset to loading state when country changes
-      setTranslationState((prev) => ({
-        ...prev,
-        isLoading: true,
-        error: null,
-      }));
-    }
-  }, [selectedCountry]);
 
   // Reset showOriginal when translations change
   useEffect(() => {
@@ -271,15 +276,16 @@ export function AgreementModal({
               </div>
 
               {/* Gentle reminder for frequent country changes */}
-              {(showWarning || isBlocked) && (
+              {(abuseState.remainingChanges <= BLOCK_THRESHOLD - WARNING_THRESHOLD ||
+                abuseState.isBlocked) && (
                 <div
                   className={`px-4 py-2.5 text-xs text-center ${
-                    isBlocked
+                    abuseState.isBlocked
                       ? "bg-[var(--color-bg-tertiary)] text-[var(--color-text-muted)] border-b border-[var(--border-default)]"
                       : "bg-amber-500/10 text-amber-300 border-b border-amber-500/20"
                   }`}
                 >
-                  {isBlocked ? (
+                  {abuseState.isBlocked ? (
                     <>
                       🌍 English only mode
                       <br />
@@ -288,7 +294,7 @@ export function AgreementModal({
                       </span>
                     </>
                   ) : (
-                    <>💡 {BLOCK_THRESHOLD - translationRequestCount} country changes left</>
+                    <>💡 {abuseState.remainingChanges} country changes left</>
                   )}
                 </div>
               )}
