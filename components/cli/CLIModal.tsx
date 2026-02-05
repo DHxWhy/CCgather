@@ -282,7 +282,7 @@ export function CLIModal({ isOpen, onClose }: CLIModalProps) {
                   },
                   {
                     q: "Is the CLI open source?",
-                    a: "Yes! Check out the source code at github.com/hanjuho/ccgather-cli. A star would mean a lot!",
+                    a: "Yes! Check out the source code at github.com/DHxWhy/CCgather. A star would mean a lot!",
                   },
                 ].map((faq, idx) => (
                   <div key={idx} className="space-y-1.5">
