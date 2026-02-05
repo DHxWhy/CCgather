@@ -142,13 +142,13 @@ export function CLIModal({ isOpen, onClose }: CLIModalProps) {
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
                 className={cn(
-                  "flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium transition-colors relative",
+                  "flex items-center gap-1 px-3 py-2 text-xs font-medium transition-colors relative",
                   activeTab === tab.id
                     ? "text-[var(--color-claude-coral)]"
                     : "text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]"
                 )}
               >
-                <tab.icon className="w-4 h-4" />
+                <tab.icon className="w-3.5 h-3.5" />
                 {tab.label}
                 {activeTab === tab.id && (
                   <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-[var(--color-claude-coral)]" />
