@@ -210,6 +210,25 @@ export function Header() {
                 )}
               />
             </button>
+            {/* FAQ Button */}
+            <button
+              onClick={() => setFaqModalOpen(true)}
+              className={cn(
+                "relative text-[13px] font-medium transition-colors duration-200",
+                "group",
+                "text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]"
+              )}
+            >
+              FAQ
+              <span
+                className={cn(
+                  "absolute -bottom-0.5 left-0 h-0.5 rounded-full",
+                  "bg-gradient-to-r from-[var(--color-claude-coral)] to-[var(--color-claude-rust)]",
+                  "transition-all duration-300",
+                  "w-0 group-hover:w-full"
+                )}
+              />
+            </button>
           </div>
 
           {/* Desktop Right Section */}
@@ -229,21 +248,6 @@ export function Header() {
             )}
 
             <ThemeSwitcher size="sm" />
-
-            {/* FAQ Button */}
-            <button
-              onClick={() => setFaqModalOpen(true)}
-              className={cn(
-                "flex items-center justify-center w-8 h-8 rounded-full border transition-all group",
-                "border-[var(--border-default)] hover:border-[var(--color-text-muted)]"
-              )}
-              aria-label="FAQ"
-            >
-              <HelpCircle
-                size={14}
-                className="text-[var(--color-text-muted)] group-hover:text-[var(--color-text-secondary)] transition-colors"
-              />
-            </button>
 
             {/* Feedback Button - 온보딩 완료 사용자만 */}
             {isOnboardingDone && (
