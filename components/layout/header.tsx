@@ -191,7 +191,10 @@ export function Header() {
             ))}
             {/* CLI Button */}
             <button
-              onClick={() => setCLIModalOpen(true)}
+              onClick={() => {
+                setFaqModalOpen(false);
+                setCLIModalOpen(true);
+              }}
               className={cn(
                 "relative text-[13px] font-medium transition-colors duration-200",
                 "group",
@@ -212,7 +215,10 @@ export function Header() {
             </button>
             {/* FAQ Button */}
             <button
-              onClick={() => setFaqModalOpen(true)}
+              onClick={() => {
+                setCLIModalOpen(false);
+                setFaqModalOpen(true);
+              }}
               className={cn(
                 "relative text-[13px] font-medium transition-colors duration-200",
                 "group",

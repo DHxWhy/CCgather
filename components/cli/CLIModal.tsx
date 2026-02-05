@@ -123,7 +123,7 @@ export function CLIModal({ isOpen, onClose }: CLIModalProps) {
           <div className="flex items-center justify-between p-3 sm:p-4 border-b border-[var(--border-default)] flex-shrink-0">
             <div className="flex items-center gap-2">
               <Terminal className="w-5 h-5 text-[var(--color-claude-coral)]" />
-              <h2 className="text-lg font-semibold text-[var(--color-text-primary)]">
+              <h2 className="text-base font-semibold text-[var(--color-text-primary)]">
                 CCgather CLI
               </h2>
             </div>
@@ -163,7 +163,7 @@ export function CLIModal({ isOpen, onClose }: CLIModalProps) {
               <>
                 {/* Quick Install */}
                 <div>
-                  <p className="text-xs text-[var(--color-text-muted)] uppercase tracking-wider mb-2">
+                  <p className="text-[11px] text-[var(--color-text-muted)] uppercase tracking-wider mb-2">
                     Run
                   </p>
                   <div className="flex items-center justify-between bg-black/40 rounded-lg p-3">
@@ -178,7 +178,7 @@ export function CLIModal({ isOpen, onClose }: CLIModalProps) {
 
                 {/* How it works */}
                 <div>
-                  <p className="text-xs text-[var(--color-text-muted)] uppercase tracking-wider mb-2">
+                  <p className="text-[11px] text-[var(--color-text-muted)] uppercase tracking-wider mb-2">
                     How it works
                   </p>
                   <div className="space-y-2 text-sm">
@@ -205,7 +205,7 @@ export function CLIModal({ isOpen, onClose }: CLIModalProps) {
 
                 {/* Menu Options */}
                 <div>
-                  <p className="text-xs text-[var(--color-text-muted)] uppercase tracking-wider mb-2">
+                  <p className="text-[11px] text-[var(--color-text-muted)] uppercase tracking-wider mb-2">
                     Menu Options
                   </p>
                   <div className="space-y-1.5 text-xs font-mono">
@@ -234,7 +234,7 @@ export function CLIModal({ isOpen, onClose }: CLIModalProps) {
 
                 {/* What We Collect - Privacy Section */}
                 <div>
-                  <p className="text-xs text-[var(--color-text-muted)] uppercase tracking-wider mb-2">
+                  <p className="text-[11px] text-[var(--color-text-muted)] uppercase tracking-wider mb-2">
                     What We Collect
                   </p>
                   <div className="space-y-2 text-xs bg-black/20 rounded-lg p-3">
@@ -279,10 +279,10 @@ export function CLIModal({ isOpen, onClose }: CLIModalProps) {
               /* FAQ Tab */
               <div className="space-y-3 sm:space-y-4">
                 <div className="p-3 rounded-lg bg-black/20 space-y-2">
-                  <p className="text-sm font-medium text-[var(--color-text-primary)]">
+                  <p className="text-[13px] font-medium text-[var(--color-text-primary)]">
                     Is my code or chat history uploaded?
                   </p>
-                  <p className="text-xs sm:text-sm text-[var(--color-text-muted)] leading-relaxed">
+                  <p className="text-[11px] sm:text-[13px] text-[var(--color-text-muted)] leading-relaxed">
                     <span className="text-green-400 font-medium">No.</span>
                     <br className="sm:hidden" />
                     <span className="sm:ml-1">
@@ -297,10 +297,10 @@ export function CLIModal({ isOpen, onClose }: CLIModalProps) {
                 </div>
 
                 <div className="p-3 rounded-lg bg-black/20 space-y-2">
-                  <p className="text-sm font-medium text-[var(--color-text-primary)]">
+                  <p className="text-[13px] font-medium text-[var(--color-text-primary)]">
                     How often should I submit?
                   </p>
-                  <p className="text-xs sm:text-sm text-[var(--color-text-muted)] leading-relaxed">
+                  <p className="text-[11px] sm:text-[13px] text-[var(--color-text-muted)] leading-relaxed">
                     As often as you&apos;d like!
                     <br />
                     Claude Code stores local data for{" "}
@@ -311,10 +311,10 @@ export function CLIModal({ isOpen, onClose }: CLIModalProps) {
                 </div>
 
                 <div className="p-3 rounded-lg bg-black/20 space-y-2">
-                  <p className="text-sm font-medium text-[var(--color-text-primary)]">
+                  <p className="text-[13px] font-medium text-[var(--color-text-primary)]">
                     What is a session fingerprint?
                   </p>
-                  <p className="text-xs sm:text-sm text-[var(--color-text-muted)] leading-relaxed">
+                  <p className="text-[11px] sm:text-[13px] text-[var(--color-text-muted)] leading-relaxed">
                     A unique hash to{" "}
                     <span className="text-[var(--color-text-primary)]">
                       prevent duplicate submissions
@@ -326,10 +326,10 @@ export function CLIModal({ isOpen, onClose }: CLIModalProps) {
                 </div>
 
                 <div className="p-3 rounded-lg bg-black/20 space-y-2">
-                  <p className="text-sm font-medium text-[var(--color-text-primary)]">
+                  <p className="text-[13px] font-medium text-[var(--color-text-primary)]">
                     Can I submit from multiple projects?
                   </p>
-                  <p className="text-xs sm:text-sm text-[var(--color-text-muted)] leading-relaxed">
+                  <p className="text-[11px] sm:text-[13px] text-[var(--color-text-muted)] leading-relaxed">
                     <span className="text-green-400 font-medium">Yes!</span>
                     <br className="sm:hidden" />
                     <span className="sm:ml-1">
@@ -343,10 +343,10 @@ export function CLIModal({ isOpen, onClose }: CLIModalProps) {
                 </div>
 
                 <div className="p-3 rounded-lg bg-black/20 space-y-2">
-                  <p className="text-sm font-medium text-[var(--color-text-primary)]">
+                  <p className="text-[13px] font-medium text-[var(--color-text-primary)]">
                     Why do I need to sign in?
                   </p>
-                  <p className="text-xs sm:text-sm text-[var(--color-text-muted)] leading-relaxed">
+                  <p className="text-[11px] sm:text-[13px] text-[var(--color-text-muted)] leading-relaxed">
                     To link usage data to your{" "}
                     <span className="text-[var(--color-text-primary)]">CCgather profile</span>
                     .
@@ -356,10 +356,10 @@ export function CLIModal({ isOpen, onClose }: CLIModalProps) {
                 </div>
 
                 <div className="p-3 rounded-lg bg-black/20 space-y-2">
-                  <p className="text-sm font-medium text-[var(--color-text-primary)]">
+                  <p className="text-[13px] font-medium text-[var(--color-text-primary)]">
                     Is the CLI open source?
                   </p>
-                  <p className="text-xs sm:text-sm text-[var(--color-text-muted)] leading-relaxed">
+                  <p className="text-[11px] sm:text-[13px] text-[var(--color-text-muted)] leading-relaxed">
                     <span className="text-green-400 font-medium">Yes!</span>
                     <br className="sm:hidden" />
                     <span className="sm:ml-1">
@@ -378,14 +378,14 @@ export function CLIModal({ isOpen, onClose }: CLIModalProps) {
 
           {/* Footer */}
           <div className="p-3 sm:p-4 border-t border-[var(--border-default)] flex items-center justify-between flex-shrink-0">
-            <span className="text-xs text-[var(--color-text-muted)]">
+            <span className="text-[11px] text-[var(--color-text-muted)]">
               {activeTab === "overview"
                 ? "Submit when you want to update your rank"
                 : "Questions? Join our Discord community"}
             </span>
             <button
               onClick={onClose}
-              className="px-4 py-2 rounded-lg bg-[var(--color-claude-coral)] text-white text-sm font-medium hover:opacity-90 transition-opacity"
+              className="px-4 py-2 rounded-lg bg-[var(--color-claude-coral)] text-white text-[13px] font-medium hover:opacity-90 transition-opacity"
             >
               Got it
             </button>

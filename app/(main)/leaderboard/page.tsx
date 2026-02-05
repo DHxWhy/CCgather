@@ -497,6 +497,8 @@ export default function LeaderboardPage() {
   // Track whether user's position is above or below the viewport
   const [myPositionDirection, setMyPositionDirection] = useState<"above" | "below" | null>(null);
   const currentUserRowRef = useRef<HTMLTableRowElement>(null);
+  // Separately fetched current user data (when user is not in loaded list)
+  const [separateCurrentUserData, setSeparateCurrentUserData] = useState<DisplayUser | null>(null);
 
   // TopCountriesSection ref for programmatic scroll
   const topCountriesSectionRef = useRef<TopCountriesSectionRef>(null);
@@ -957,10 +959,103 @@ export default function LeaderboardPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [highlightUsername, users, scopeFilter, currentUserCountry]);
 
-  // Find current user
+  // Find current user - prioritize from loaded list, fallback to separately fetched data
   const currentUserData = useMemo(() => {
-    return users.find((u) => u.isCurrentUser);
-  }, [users]);
+    const fromList = users.find((u) => u.isCurrentUser);
+    return fromList || separateCurrentUserData;
+  }, [users, separateCurrentUserData]);
+
+  // Fetch current user's position separately when not in loaded list
+  // This ensures My Position sticky works even when user is outside visible range
+  useEffect(() => {
+    async function fetchCurrentUserPosition() {
+      // Skip if no username or user is already in the list
+      if (!currentUsername || users.find((u) => u.isCurrentUser)) {
+        setSeparateCurrentUserData(null);
+        return;
+      }
+
+      try {
+        const params = new URLSearchParams();
+        params.set("findUser", currentUsername);
+        params.set("limit", String(ITEMS_PER_PAGE));
+        params.set("period", periodFilter);
+
+        // Add timezone
+        try {
+          params.set("tz", Intl.DateTimeFormat().resolvedOptions().timeZone);
+        } catch {
+          params.set("tz", "UTC");
+        }
+
+        // Add scope filter
+        if (scopeFilter === "country" && currentUserCountry) {
+          params.set("country", currentUserCountry);
+        }
+
+        const response = await fetch(`/api/leaderboard?${params}`);
+        const data = await response.json();
+
+        if (data.found && data.user) {
+          // Fetch full user details for display
+          const detailParams = new URLSearchParams();
+          detailParams.set("page", String(data.user.page));
+          detailParams.set("limit", String(ITEMS_PER_PAGE));
+          detailParams.set("period", periodFilter);
+          try {
+            detailParams.set("tz", Intl.DateTimeFormat().resolvedOptions().timeZone);
+          } catch {
+            detailParams.set("tz", "UTC");
+          }
+          if (scopeFilter === "country" && currentUserCountry) {
+            detailParams.set("country", currentUserCountry);
+          }
+
+          const detailResponse = await fetch(`/api/leaderboard?${detailParams}`);
+          const detailData = await detailResponse.json();
+
+          // Find current user in the response
+          const userDetail = detailData.users?.find(
+            (u: DisplayUser) => u.username === currentUsername
+          );
+
+          if (userDetail) {
+            setSeparateCurrentUserData({
+              ...userDetail,
+              isCurrentUser: true,
+              rank: data.user.rank,
+            });
+
+            // Set initial direction based on loaded page range
+            if (data.user.page > loadedPageRange.end) {
+              setMyPositionDirection("below");
+            } else if (data.user.page < loadedPageRange.start) {
+              setMyPositionDirection("above");
+            }
+          }
+        }
+      } catch {
+        // Silently fail - user will see sticky when they scroll to their position
+      }
+    }
+
+    fetchCurrentUserPosition();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    currentUsername,
+    periodFilter,
+    scopeFilter,
+    currentUserCountry,
+    loadedPageRange.start,
+    loadedPageRange.end,
+  ]);
+
+  // Clear separate user data when user appears in the list
+  useEffect(() => {
+    if (users.find((u) => u.isCurrentUser) && separateCurrentUserData) {
+      setSeparateCurrentUserData(null);
+    }
+  }, [users, separateCurrentUserData]);
 
   // IntersectionObserver for current user row visibility in developer leaderboard
   // Also tracks direction (above/below) when not visible
