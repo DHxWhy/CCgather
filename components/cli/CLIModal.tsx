@@ -259,39 +259,85 @@ export function CLIModal({ isOpen, onClose }: CLIModalProps) {
             ) : (
               /* FAQ Tab */
               <div className="space-y-4">
-                {[
-                  {
-                    q: "Is my code or chat history uploaded?",
-                    a: "No. We only collect aggregated usage metrics (token counts, costs, models). Your actual conversations and code never leave your device.",
-                  },
-                  {
-                    q: "How often should I submit?",
-                    a: "As often as you'd like! Claude Code stores local session data for approximately 30 days. Submit before that to ensure your stats are captured.",
-                  },
-                  {
-                    q: "What is a session fingerprint?",
-                    a: "A unique hash generated from your session metadata to prevent duplicate submissions. It doesn't contain any personal or code information.",
-                  },
-                  {
-                    q: "Can I submit from multiple projects?",
-                    a: "Yes! The CLI automatically scans all Claude Code projects on your PC in a single run. No need to run it separately for each project.",
-                  },
-                  {
-                    q: "Why do I need to sign in?",
-                    a: "To link your usage data to your CCgather profile and leaderboard rank. Authentication is done securely via your browser.",
-                  },
-                  {
-                    q: "Is the CLI open source?",
-                    a: "Yes! Check out the source code at github.com/DHxWhy/CCgather. A star would mean a lot!",
-                  },
-                ].map((faq, idx) => (
-                  <div key={idx} className="space-y-1.5">
-                    <p className="text-sm font-medium text-[var(--color-text-primary)]">{faq.q}</p>
-                    <p className="text-xs text-[var(--color-text-muted)] leading-relaxed">
-                      {faq.a}
-                    </p>
-                  </div>
-                ))}
+                <div className="space-y-1.5">
+                  <p className="text-sm font-medium text-[var(--color-text-primary)]">
+                    Is my code or chat history uploaded?
+                  </p>
+                  <p className="text-xs text-[var(--color-text-muted)] leading-relaxed">
+                    <span className="text-green-400 font-medium">No.</span> We only collect
+                    aggregated usage metrics (token counts, costs, models). Your actual
+                    conversations and code{" "}
+                    <span className="text-[var(--color-text-primary)]">
+                      never leave your device
+                    </span>
+                    .
+                  </p>
+                </div>
+
+                <div className="space-y-1.5">
+                  <p className="text-sm font-medium text-[var(--color-text-primary)]">
+                    How often should I submit?
+                  </p>
+                  <p className="text-xs text-[var(--color-text-muted)] leading-relaxed">
+                    As often as you&apos;d like! Claude Code stores local session data for
+                    approximately{" "}
+                    <span className="text-[var(--color-claude-coral)] font-medium">30 days</span>.
+                    Submit before that to ensure your stats are captured.
+                  </p>
+                </div>
+
+                <div className="space-y-1.5">
+                  <p className="text-sm font-medium text-[var(--color-text-primary)]">
+                    What is a session fingerprint?
+                  </p>
+                  <p className="text-xs text-[var(--color-text-muted)] leading-relaxed">
+                    A unique hash generated from your session metadata to{" "}
+                    <span className="text-[var(--color-text-primary)]">
+                      prevent duplicate submissions
+                    </span>
+                    . It doesn&apos;t contain any personal or code information.
+                  </p>
+                </div>
+
+                <div className="space-y-1.5">
+                  <p className="text-sm font-medium text-[var(--color-text-primary)]">
+                    Can I submit from multiple projects?
+                  </p>
+                  <p className="text-xs text-[var(--color-text-muted)] leading-relaxed">
+                    <span className="text-green-400 font-medium">Yes!</span> The CLI automatically
+                    scans{" "}
+                    <span className="text-[var(--color-text-primary)]">
+                      all Claude Code projects
+                    </span>{" "}
+                    on your PC in a single run.
+                  </p>
+                </div>
+
+                <div className="space-y-1.5">
+                  <p className="text-sm font-medium text-[var(--color-text-primary)]">
+                    Why do I need to sign in?
+                  </p>
+                  <p className="text-xs text-[var(--color-text-muted)] leading-relaxed">
+                    To link your usage data to your{" "}
+                    <span className="text-[var(--color-text-primary)]">
+                      CCgather profile and leaderboard rank
+                    </span>
+                    . Authentication is done securely via your browser.
+                  </p>
+                </div>
+
+                <div className="space-y-1.5">
+                  <p className="text-sm font-medium text-[var(--color-text-primary)]">
+                    Is the CLI open source?
+                  </p>
+                  <p className="text-xs text-[var(--color-text-muted)] leading-relaxed">
+                    <span className="text-green-400 font-medium">Yes!</span> Check out the source at{" "}
+                    <span className="text-[var(--color-claude-coral)]">
+                      github.com/DHxWhy/CCgather
+                    </span>
+                    . A star would mean a lot!
+                  </p>
+                </div>
               </div>
             )}
           </div>
