@@ -31,8 +31,8 @@ interface TranslationState {
 // Abuse prevention constants
 const WARNING_THRESHOLD = 5;
 const BLOCK_THRESHOLD = 10;
-// Minimum loading time for shimmer visibility (ms)
-const MIN_LOADING_TIME = 400;
+// Minimum loading time for shimmer visibility (ms) - matches community translation shimmer
+const MIN_LOADING_TIME = 1000;
 
 // =====================================================
 // Original English Texts (Fallback)
@@ -144,6 +144,16 @@ export function AgreementModal({
       }
 
       const data = await response.json();
+
+      // Debug log for translation response
+      if (data.isOriginal && data.targetLanguage !== "en") {
+        console.warn("[AgreementModal] Translation returned original for non-English:", {
+          countryCode,
+          targetLanguage: data.targetLanguage,
+          error: data.error,
+          fromCache: data.fromCache,
+        });
+      }
 
       // Ensure minimum loading time for shimmer visibility
       const elapsed = Date.now() - loadingStartTime;
@@ -296,6 +306,13 @@ export function AgreementModal({
                   ) : (
                     <>💡 {abuseState.remainingChanges} country changes left</>
                   )}
+                </div>
+              )}
+
+              {/* Translation error notice (for debugging) */}
+              {translationState.error && !translationState.isLoading && (
+                <div className="px-4 py-2 text-[10px] text-center bg-red-500/10 text-red-300 border-b border-red-500/20">
+                  ⚠️ Translation unavailable: {translationState.error}
                 </div>
               )}
 
