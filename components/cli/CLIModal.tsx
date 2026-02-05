@@ -274,7 +274,7 @@ export function CLIModal({ isOpen, onClose }: CLIModalProps) {
                   },
                   {
                     q: "Can I submit from multiple projects?",
-                    a: "Yes! Run `npx ccgather` in each project folder. Each project's sessions will be submitted separately.",
+                    a: "Yes! The CLI automatically scans all Claude Code projects on your PC in a single run. No need to run it separately for each project.",
                   },
                   {
                     q: "Why do I need to sign in?",
@@ -282,7 +282,7 @@ export function CLIModal({ isOpen, onClose }: CLIModalProps) {
                   },
                   {
                     q: "Is the CLI open source?",
-                    a: "Yes! Check out the source code at github.com/hanjuho/ccgather-cli. Contributions welcome.",
+                    a: "Yes! Check out the source code at github.com/hanjuho/ccgather-cli. A star would mean a lot!",
                   },
                 ].map((faq, idx) => (
                   <div key={idx} className="space-y-1.5">
