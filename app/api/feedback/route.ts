@@ -2,6 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { createServiceClient } from "@/lib/supabase/server";
 import { z } from "zod";
+import {
+  sendPushNotificationToUser,
+  createFeedbackStatusNotification,
+  type FeedbackStatus,
+} from "@/lib/push/send-notification";
 
 // ===========================================
 // Validation Schema
@@ -139,6 +144,13 @@ export async function GET(request: NextRequest) {
 // PATCH - Update Feedback Status (Admin only)
 // ===========================================
 
+// Status types that should trigger notifications
+const NOTIFIABLE_STATUSES: Record<string, FeedbackStatus> = {
+  in_progress: "in_progress",
+  resolved: "resolved",
+  closed: "closed",
+};
+
 export async function PATCH(request: NextRequest) {
   const { userId } = await auth();
 
@@ -167,6 +179,13 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: "Missing feedback ID" }, { status: 400 });
     }
 
+    // Fetch current feedback data before update (for notification)
+    const { data: currentFeedback } = await supabase
+      .from("feedback")
+      .select("user_id, type, content, status")
+      .eq("id", id)
+      .single();
+
     const updateData: Record<string, unknown> = {};
     if (status) updateData.status = status;
     if (admin_note !== undefined) updateData.admin_note = admin_note;
@@ -176,6 +195,62 @@ export async function PATCH(request: NextRequest) {
     if (error) {
       console.error("Failed to update feedback:", error);
       return NextResponse.json({ error: "Failed to update feedback" }, { status: 500 });
+    }
+
+    // Send notification if status changed to a notifiable status
+    if (
+      currentFeedback?.user_id &&
+      status &&
+      status !== currentFeedback.status &&
+      NOTIFIABLE_STATUSES[status]
+    ) {
+      const notificationStatus = NOTIFIABLE_STATUSES[status];
+      const feedbackType = currentFeedback.type as "bug" | "feature" | "general";
+
+      // Create in-app notification
+      const notificationData = {
+        user_id: currentFeedback.user_id,
+        type: `feedback_${notificationStatus}`,
+        title:
+          notificationStatus === "resolved"
+            ? "Your feedback has been resolved!"
+            : notificationStatus === "in_progress"
+              ? "Your feedback is being reviewed"
+              : "Your feedback has been closed",
+        body: currentFeedback.content.slice(0, 100),
+        data: {
+          feedback_id: id,
+          feedback_type: feedbackType,
+          admin_note: admin_note || null,
+        },
+      };
+
+      const { error: notificationError } = await supabase
+        .from("notifications")
+        .insert(notificationData);
+
+      if (notificationError) {
+        console.error("Failed to create notification:", notificationError);
+        // Don't fail the request, notification is secondary
+      }
+
+      // Send push notification
+      try {
+        const pushPayload = createFeedbackStatusNotification(
+          notificationStatus,
+          feedbackType,
+          currentFeedback.content,
+          admin_note || undefined
+        );
+
+        const pushResult = await sendPushNotificationToUser(currentFeedback.user_id, pushPayload);
+        console.log(
+          `Push notification sent for feedback ${id}: ${pushResult.success} success, ${pushResult.failed} failed`
+        );
+      } catch (pushError) {
+        console.error("Failed to send push notification:", pushError);
+        // Don't fail the request, push is secondary
+      }
     }
 
     return NextResponse.json({ success: true });

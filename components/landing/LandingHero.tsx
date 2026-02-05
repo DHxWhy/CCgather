@@ -190,18 +190,16 @@ export function LandingHero({ initialStats }: LandingHeroProps) {
               </span>
             </div>
 
-            {/* Headline - Dedication & Investment focus */}
+            {/* Headline - Usage tracking focus for SEO */}
             <h1 className="text-2xl md:text-3xl lg:text-4xl font-bold text-[var(--color-text-primary)] leading-tight mb-4">
-              Proof of your
+              Track Your
               <br />
-              <span className="shimmer-text whitespace-nowrap">Claude Code dedication</span>
+              <span className="shimmer-text whitespace-nowrap">Claude Code Usage</span>
             </h1>
 
             {/* Subheadline */}
             <p className="text-sm md:text-base lg:text-lg text-[var(--color-text-secondary)] max-w-lg mx-auto md:mx-0 mb-8 leading-relaxed">
-              The global leaderboard for developers
-              <br />
-              serious about AI-first development.
+              The global leaderboard for AI-first developers. Compare your ranking worldwide.
             </p>
 
             {/* Stats or Early Adopter Message */}

@@ -9,13 +9,13 @@ export const revalidate = 300;
 
 // Page-specific SEO metadata
 export const metadata: Metadata = {
-  title: "CCgather - Global Claude Code Leaderboard",
+  title: "CCgather - Claude Code Usage Leaderboard | Track Your Ranking",
   description:
-    "Proof of your Claude Code dedication. Track your tokens, prove your commitment, and rise through the global rankings!",
+    "Track and compare your Claude Code usage with developers worldwide. Global leaderboard, token analytics, and rankings for Claude Code users.",
   openGraph: {
-    title: "CCgather - Global Claude Code Leaderboard",
+    title: "CCgather - Claude Code Usage Leaderboard | Track Your Ranking",
     description:
-      "Proof of your Claude Code dedication. Track your tokens and rise through the global rankings!",
+      "Track and compare your Claude Code usage with developers worldwide. Global leaderboard and rankings.",
   },
 };
 
