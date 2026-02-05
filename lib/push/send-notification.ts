@@ -272,6 +272,61 @@ function formatTokensCompact(tokens: number): string {
   return tokens.toString();
 }
 
+// =====================================================
+// Notification Helpers - Feedback
+// =====================================================
+
+export type FeedbackStatus = "in_progress" | "resolved" | "closed";
+
+export function createFeedbackStatusNotification(
+  status: FeedbackStatus,
+  feedbackType: "bug" | "feature" | "general",
+  feedbackContent: string,
+  adminNote?: string
+): PushNotificationPayload {
+  const preview = truncateContent(feedbackContent, 40);
+  const typeLabel =
+    feedbackType === "bug"
+      ? "Bug Report"
+      : feedbackType === "feature"
+        ? "Feature Request"
+        : "Feedback";
+
+  const statusConfig: Record<FeedbackStatus, { title: string; emoji: string }> = {
+    in_progress: {
+      title: `Your ${typeLabel} is being reviewed`,
+      emoji: "🔍",
+    },
+    resolved: {
+      title: `Your ${typeLabel} has been resolved!`,
+      emoji: "✅",
+    },
+    closed: {
+      title: `Your ${typeLabel} has been closed`,
+      emoji: "📋",
+    },
+  };
+
+  const config = statusConfig[status];
+  const bodyLines = [`"${preview}"`];
+
+  if (adminNote) {
+    bodyLines.push(`\nAdmin: ${truncateContent(adminNote, 80)}`);
+  }
+
+  return {
+    title: `${config.emoji} ${config.title}`,
+    body: bodyLines.join(""),
+    icon: "/icons/icon-192x192.png",
+    badge: "/icons/badge-72x72.png",
+    tag: `feedback-${status}`,
+    data: {
+      url: "/settings",
+      type: `feedback_${status}`,
+    },
+  };
+}
+
 export function createSubmissionSummaryNotification(
   data: SubmissionSummaryData
 ): PushNotificationPayload {
