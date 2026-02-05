@@ -199,7 +199,9 @@ export function LandingHero({ initialStats }: LandingHeroProps) {
 
             {/* Subheadline */}
             <p className="text-sm md:text-base lg:text-lg text-[var(--color-text-secondary)] max-w-lg mx-auto md:mx-0 mb-8 leading-relaxed">
-              The global leaderboard for AI-first developers. Compare your ranking worldwide.
+              The global leaderboard for AI-first developers.
+              <br />
+              Compare your ranking worldwide.
             </p>
 
             {/* Stats or Early Adopter Message */}
