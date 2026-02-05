@@ -484,7 +484,12 @@ export default function TrafficSourcesPage() {
       {error && (
         <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-4">
           <div className="text-[13px] text-red-400 font-medium mb-1">⚠️ 데이터 로드 실패</div>
-          <p className="text-[12px] text-white/50">PostHog 연결을 확인해주세요.</p>
+          <p className="text-[12px] text-white/50">
+            {error instanceof Error ? error.message : "PostHog 연결을 확인해주세요."}
+          </p>
+          <p className="text-[11px] text-white/30 mt-2">
+            확인: POSTHOG_PERSONAL_API_KEY, POSTHOG_PROJECT_ID 환경 변수 설정
+          </p>
         </div>
       )}
 

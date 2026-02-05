@@ -284,6 +284,15 @@ export async function GET(request: Request) {
     });
   } catch (error) {
     console.error("[Analytics Traffic Sources] Error:", error);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    const errorMessage = error instanceof Error ? error.message : "Unknown error";
+    return NextResponse.json(
+      {
+        error: `PostHog API error: ${errorMessage}`,
+        details: posthogApi.isConfigured()
+          ? "API 키가 만료되었거나 잘못되었을 수 있습니다"
+          : "POSTHOG_PERSONAL_API_KEY 또는 POSTHOG_PROJECT_ID가 설정되지 않았습니다",
+      },
+      { status: 500 }
+    );
   }
 }
