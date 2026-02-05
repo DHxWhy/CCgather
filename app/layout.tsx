@@ -27,23 +27,25 @@ const spaceGrotesk = Space_Grotesk({
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL ?? "https://ccgather.com"),
   title: {
-    default: "CCgather - Claude Code Rankings",
+    default: "CCgather - Claude Code Usage Leaderboard | Track Your Ranking",
     template: "%s | CCgather",
   },
   description:
-    "Proof of your Claude Code dedication. Track your tokens, prove your commitment, and rise through the global rankings!",
+    "Track and compare your Claude Code usage with developers worldwide. Real-time leaderboard, token analytics, and global rankings for Claude Code users.",
   keywords: [
     "Claude Code",
     "Claude Code leaderboard",
     "Claude Code usage",
+    "Claude Code usage leaderboard",
+    "Claude Code ranking",
+    "Claude Code tracker",
+    "track Claude Code",
     "AI coding",
     "vibe coding",
     "developer leaderboard",
     "token tracker",
     "Anthropic",
     "Claude AI",
-    "AI development",
-    "code assistant stats",
   ],
   authors: [{ name: "CCgather" }],
   creator: "CCgather",
@@ -66,9 +68,9 @@ export const metadata: Metadata = {
     alternateLocale: ["ko_KR", "ja_JP"],
     url: "https://ccgather.com",
     siteName: "CCgather",
-    title: "CCgather - Claude Code Rankings",
+    title: "CCgather - Claude Code Usage Leaderboard | Track Your Ranking",
     description:
-      "Proof of your Claude Code dedication. Track your tokens and rise through the global rankings!",
+      "Track and compare your Claude Code usage with developers worldwide. Real-time leaderboard and global rankings.",
     images: [
       {
         url: "https://ccgather.com/logos/og-image.png",
@@ -80,9 +82,9 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "CCgather - Claude Code Rankings",
+    title: "CCgather - Claude Code Usage Leaderboard",
     description:
-      "Proof of your Claude Code dedication. Track your tokens and rise through the rankings!",
+      "Track and compare your Claude Code usage with developers worldwide. Real-time leaderboard and global rankings.",
     images: ["https://ccgather.com/logos/og-image.png"],
     creator: "@ccgather",
   },
