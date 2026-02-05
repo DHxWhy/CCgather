@@ -191,6 +191,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       suppressHydrationWarning
     >
       <head>
+        {/* 브라우저 강제 다크모드 비활성화 */}
+        <meta name="color-scheme" content="light dark" />
+        <meta name="darkreader-lock" />
         {/* Preconnect to external services for faster loading */}
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
