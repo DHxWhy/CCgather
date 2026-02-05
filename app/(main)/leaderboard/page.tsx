@@ -2627,7 +2627,7 @@ export default function LeaderboardPage() {
                     {/* Scrollable table container - flex-1 on mobile, fixed height on tablet/PC */}
                     <div
                       ref={tableContainerRef}
-                      className="overflow-y-auto overflow-x-hidden scrollbar-hide flex-1 md:flex-none"
+                      className="overflow-y-auto md:overflow-hidden overflow-x-hidden scrollbar-hide flex-1 md:flex-none"
                       style={scrollContainerStyle}
                     >
                       {/* Load previous indicator */}
