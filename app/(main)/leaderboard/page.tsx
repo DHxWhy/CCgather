@@ -968,10 +968,14 @@ export default function LeaderboardPage() {
   // Fetch current user's position separately when not in loaded list
   // This ensures My Position sticky works even when user is outside visible range
   useEffect(() => {
+    // AbortController for race condition prevention (cancel previous request when filter changes)
+    const abortController = new AbortController();
+    let isMounted = true;
+
     async function fetchCurrentUserPosition() {
       // Skip if no username or user is already in the list
       if (!currentUsername || users.find((u) => u.isCurrentUser)) {
-        setSeparateCurrentUserData(null);
+        if (isMounted) setSeparateCurrentUserData(null);
         return;
       }
 
@@ -980,6 +984,12 @@ export default function LeaderboardPage() {
         params.set("findUser", currentUsername);
         params.set("limit", String(ITEMS_PER_PAGE));
         params.set("period", periodFilter);
+
+        // Add custom date range if selected
+        if (periodFilter === "custom" && customDateRange) {
+          params.set("startDate", customDateRange.start);
+          params.set("endDate", customDateRange.end);
+        }
 
         // Add timezone
         try {
@@ -993,8 +1003,13 @@ export default function LeaderboardPage() {
           params.set("country", currentUserCountry);
         }
 
-        const response = await fetch(`/api/leaderboard?${params}`);
+        const response = await fetch(`/api/leaderboard?${params}`, {
+          signal: abortController.signal,
+        });
         const data = await response.json();
+
+        // Check if request was aborted or component unmounted
+        if (abortController.signal.aborted || !isMounted) return;
 
         if (data.found && data.user) {
           // Fetch full user details for display
@@ -1002,6 +1017,13 @@ export default function LeaderboardPage() {
           detailParams.set("page", String(data.user.page));
           detailParams.set("limit", String(ITEMS_PER_PAGE));
           detailParams.set("period", periodFilter);
+
+          // Add custom date range for detail fetch too
+          if (periodFilter === "custom" && customDateRange) {
+            detailParams.set("startDate", customDateRange.start);
+            detailParams.set("endDate", customDateRange.end);
+          }
+
           try {
             detailParams.set("tz", Intl.DateTimeFormat().resolvedOptions().timeZone);
           } catch {
@@ -1011,15 +1033,20 @@ export default function LeaderboardPage() {
             detailParams.set("country", currentUserCountry);
           }
 
-          const detailResponse = await fetch(`/api/leaderboard?${detailParams}`);
+          const detailResponse = await fetch(`/api/leaderboard?${detailParams}`, {
+            signal: abortController.signal,
+          });
           const detailData = await detailResponse.json();
+
+          // Check again after second fetch
+          if (abortController.signal.aborted || !isMounted) return;
 
           // Find current user in the response
           const userDetail = detailData.users?.find(
             (u: DisplayUser) => u.username === currentUsername
           );
 
-          if (userDetail) {
+          if (userDetail && isMounted) {
             setSeparateCurrentUserData({
               ...userDetail,
               isCurrentUser: true,
@@ -1034,18 +1061,27 @@ export default function LeaderboardPage() {
             }
           }
         }
-      } catch {
-        // Silently fail - user will see sticky when they scroll to their position
+      } catch (error) {
+        // Ignore abort errors, silently fail others
+        if (error instanceof Error && error.name === "AbortError") return;
+        // User will see sticky when they scroll to their position
       }
     }
 
     fetchCurrentUserPosition();
+
+    // Cleanup: abort pending requests and mark as unmounted
+    return () => {
+      isMounted = false;
+      abortController.abort();
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     currentUsername,
     periodFilter,
     scopeFilter,
     currentUserCountry,
+    customDateRange,
     loadedPageRange.start,
     loadedPageRange.end,
   ]);
