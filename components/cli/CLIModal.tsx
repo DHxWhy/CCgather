@@ -95,7 +95,7 @@ export function CLIModal({ isOpen, onClose }: CLIModalProps) {
       <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 pointer-events-none">
         <div
           className={cn(
-            "pointer-events-auto w-full max-w-lg",
+            "pointer-events-auto w-full max-w-md",
             "bg-[var(--color-bg-secondary)] border border-[var(--border-default)]",
             "rounded-xl sm:rounded-2xl shadow-2xl",
             "animate-in fade-in zoom-in-95 duration-200",

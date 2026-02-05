@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect } from "react";
-import { X, HelpCircle } from "lucide-react";
+import { useState, useEffect } from "react";
+import { X, HelpCircle, ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface FAQModalProps {
@@ -9,7 +9,81 @@ interface FAQModalProps {
   onClose: () => void;
 }
 
+interface FAQItem {
+  question: string;
+  answer: React.ReactNode;
+}
+
+const faqItems: FAQItem[] = [
+  {
+    question: "Is my code or chat history uploaded?",
+    answer: (
+      <>
+        <span className="text-green-400 font-medium">No.</span> We only collect usage metrics (token
+        counts, costs, models).
+        <br />
+        <span className="text-[var(--color-text-primary)]">
+          Your conversations and code never leave your device.
+        </span>
+      </>
+    ),
+  },
+  {
+    question: "How often should I submit?",
+    answer: (
+      <>
+        As often as you&apos;d like! Claude Code stores local data for{" "}
+        <span className="text-[var(--color-claude-coral)] font-medium">~30 days</span>. Submit
+        before that.
+      </>
+    ),
+  },
+  {
+    question: "What is a session fingerprint?",
+    answer: (
+      <>
+        A unique hash to{" "}
+        <span className="text-[var(--color-text-primary)]">prevent duplicate submissions</span>.
+        <br />
+        It contains no personal or code information.
+      </>
+    ),
+  },
+  {
+    question: "Can I submit from multiple projects?",
+    answer: (
+      <>
+        <span className="text-green-400 font-medium">Yes!</span> The CLI scans{" "}
+        <span className="text-[var(--color-text-primary)]">all Claude Code projects</span> on your
+        PC in a single run.
+      </>
+    ),
+  },
+  {
+    question: "Why do I need to sign in?",
+    answer: (
+      <>
+        To link usage data to your{" "}
+        <span className="text-[var(--color-text-primary)]">CCgather profile</span>. Authentication
+        is done securely via browser.
+      </>
+    ),
+  },
+  {
+    question: "Is the CLI open source?",
+    answer: (
+      <>
+        <span className="text-green-400 font-medium">Yes!</span> Source at{" "}
+        <span className="text-[var(--color-claude-coral)]">github.com/DHxWhy/CCgather</span>.
+        <br />A star would mean a lot!
+      </>
+    ),
+  },
+];
+
 export function FAQModal({ isOpen, onClose }: FAQModalProps) {
+  const [expandedIndex, setExpandedIndex] = useState<number | null>(0); // First item expanded by default
+
   // Close on escape key
   useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {
@@ -27,7 +101,18 @@ export function FAQModal({ isOpen, onClose }: FAQModalProps) {
     };
   }, [isOpen, onClose]);
 
+  // Reset expanded state when modal closes
+  useEffect(() => {
+    if (!isOpen) {
+      setExpandedIndex(null);
+    }
+  }, [isOpen]);
+
   if (!isOpen) return null;
+
+  const toggleItem = (index: number) => {
+    setExpandedIndex(expandedIndex === index ? null : index);
+  };
 
   return (
     <>
@@ -61,98 +146,35 @@ export function FAQModal({ isOpen, onClose }: FAQModalProps) {
           </div>
 
           {/* Content */}
-          <div className="p-3 sm:p-4 space-y-3 sm:space-y-4 overflow-y-auto flex-1">
-            <div className="p-3 rounded-lg bg-black/20 space-y-2">
-              <p className="text-[13px] font-medium text-[var(--color-text-primary)]">
-                Is my code or chat history uploaded?
-              </p>
-              <p className="text-[11px] sm:text-[13px] text-[var(--color-text-muted)] leading-relaxed">
-                <span className="text-green-400 font-medium">No.</span>
-                <br className="sm:hidden" />
-                <span className="sm:ml-1">
-                  We only collect usage metrics
-                  <br className="hidden sm:inline" /> (token counts, costs, models).
-                </span>
-                <br />
-                <span className="text-[var(--color-text-primary)]">
-                  Your conversations and code never leave your device.
-                </span>
-              </p>
-            </div>
-
-            <div className="p-3 rounded-lg bg-black/20 space-y-2">
-              <p className="text-[13px] font-medium text-[var(--color-text-primary)]">
-                How often should I submit?
-              </p>
-              <p className="text-[11px] sm:text-[13px] text-[var(--color-text-muted)] leading-relaxed">
-                As often as you&apos;d like!
-                <br />
-                Claude Code stores local data for{" "}
-                <span className="text-[var(--color-claude-coral)] font-medium">~30 days</span>.
-                <br className="sm:hidden" />
-                <span className="sm:ml-1">Submit before that.</span>
-              </p>
-            </div>
-
-            <div className="p-3 rounded-lg bg-black/20 space-y-2">
-              <p className="text-[13px] font-medium text-[var(--color-text-primary)]">
-                What is a session fingerprint?
-              </p>
-              <p className="text-[11px] sm:text-[13px] text-[var(--color-text-muted)] leading-relaxed">
-                A unique hash to{" "}
-                <span className="text-[var(--color-text-primary)]">
-                  prevent duplicate submissions
-                </span>
-                .
-                <br />
-                It contains no personal or code information.
-              </p>
-            </div>
-
-            <div className="p-3 rounded-lg bg-black/20 space-y-2">
-              <p className="text-[13px] font-medium text-[var(--color-text-primary)]">
-                Can I submit from multiple projects?
-              </p>
-              <p className="text-[11px] sm:text-[13px] text-[var(--color-text-muted)] leading-relaxed">
-                <span className="text-green-400 font-medium">Yes!</span>
-                <br className="sm:hidden" />
-                <span className="sm:ml-1">
-                  The CLI scans{" "}
-                  <span className="text-[var(--color-text-primary)]">all Claude Code projects</span>
-                  <br className="hidden sm:inline" /> on your PC in a single run.
-                </span>
-              </p>
-            </div>
-
-            <div className="p-3 rounded-lg bg-black/20 space-y-2">
-              <p className="text-[13px] font-medium text-[var(--color-text-primary)]">
-                Why do I need to sign in?
-              </p>
-              <p className="text-[11px] sm:text-[13px] text-[var(--color-text-muted)] leading-relaxed">
-                To link usage data to your{" "}
-                <span className="text-[var(--color-text-primary)]">CCgather profile</span>.
-                <br />
-                Authentication is done securely via browser.
-              </p>
-            </div>
-
-            <div className="p-3 rounded-lg bg-black/20 space-y-2">
-              <p className="text-[13px] font-medium text-[var(--color-text-primary)]">
-                Is the CLI open source?
-              </p>
-              <p className="text-[11px] sm:text-[13px] text-[var(--color-text-muted)] leading-relaxed">
-                <span className="text-green-400 font-medium">Yes!</span>
-                <br className="sm:hidden" />
-                <span className="sm:ml-1">
-                  Source at{" "}
-                  <span className="text-[var(--color-claude-coral)]">
-                    github.com/DHxWhy/CCgather
+          <div className="p-3 sm:p-4 space-y-2 overflow-y-auto flex-1">
+            {faqItems.map((item, index) => (
+              <div key={index} className="rounded-lg bg-black/20 overflow-hidden">
+                <button
+                  onClick={() => toggleItem(index)}
+                  className="w-full flex items-center justify-between p-3 text-left hover:bg-white/5 transition-colors"
+                >
+                  <span className="text-[13px] font-medium text-[var(--color-text-primary)] pr-2">
+                    {item.question}
                   </span>
-                </span>
-                <br />
-                <span className="text-[var(--color-text-muted)]">A star would mean a lot!</span>
-              </p>
-            </div>
+                  <ChevronDown
+                    className={cn(
+                      "w-4 h-4 text-[var(--color-text-muted)] transition-transform duration-200 flex-shrink-0",
+                      expandedIndex === index && "rotate-180"
+                    )}
+                  />
+                </button>
+                <div
+                  className={cn(
+                    "overflow-hidden transition-all duration-200",
+                    expandedIndex === index ? "max-h-40 opacity-100" : "max-h-0 opacity-0"
+                  )}
+                >
+                  <p className="px-3 pb-3 text-[12px] text-[var(--color-text-muted)] leading-relaxed">
+                    {item.answer}
+                  </p>
+                </div>
+              </div>
+            ))}
           </div>
 
           {/* Footer */}
