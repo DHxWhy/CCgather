@@ -1,9 +1,11 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { X, Copy, Check, Terminal } from "lucide-react";
+import { X, Copy, Check, Terminal, HelpCircle, Info } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { posthog } from "@/components/providers/PostHogProvider";
+
+type TabType = "overview" | "faq";
 
 interface CLIModalProps {
   isOpen: boolean;
@@ -67,6 +69,8 @@ function CopyButton({ text, trackEvent }: { text: string; trackEvent?: string })
 }
 
 export function CLIModal({ isOpen, onClose }: CLIModalProps) {
+  const [activeTab, setActiveTab] = useState<TabType>("overview");
+
   // Close on escape key
   useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {
@@ -84,7 +88,19 @@ export function CLIModal({ isOpen, onClose }: CLIModalProps) {
     };
   }, [isOpen, onClose]);
 
+  // Reset tab when modal closes
+  useEffect(() => {
+    if (!isOpen) {
+      setActiveTab("overview");
+    }
+  }, [isOpen]);
+
   if (!isOpen) return null;
+
+  const tabs = [
+    { id: "overview" as const, label: "Overview", icon: Info },
+    { id: "faq" as const, label: "FAQ", icon: HelpCircle },
+  ];
 
   return (
     <>
@@ -118,88 +134,174 @@ export function CLIModal({ isOpen, onClose }: CLIModalProps) {
             </button>
           </div>
 
+          {/* Tabs */}
+          <div className="flex border-b border-[var(--border-default)]">
+            {tabs.map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={cn(
+                  "flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium transition-colors relative",
+                  activeTab === tab.id
+                    ? "text-[var(--color-claude-coral)]"
+                    : "text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]"
+                )}
+              >
+                <tab.icon className="w-4 h-4" />
+                {tab.label}
+                {activeTab === tab.id && (
+                  <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-[var(--color-claude-coral)]" />
+                )}
+              </button>
+            ))}
+          </div>
+
           {/* Content */}
-          <div className="p-4 space-y-4 max-h-[70vh] overflow-y-auto">
-            {/* Quick Install */}
-            <div>
-              <p className="text-xs text-[var(--color-text-muted)] uppercase tracking-wider mb-2">
-                Run
-              </p>
-              <div className="flex items-center justify-between bg-black/40 rounded-lg p-3">
-                <code className="text-sm font-mono">
-                  <span className="text-[var(--color-text-muted)]">$</span>{" "}
-                  <span className="text-[var(--color-claude-coral)]">npx</span>{" "}
-                  <span className="text-[var(--color-text-primary)]">ccgather</span>
-                </code>
-                <CopyButton text="npx ccgather" trackEvent="cli_install_click" />
-              </div>
-            </div>
+          <div className="p-4 space-y-4 max-h-[60vh] overflow-y-auto">
+            {activeTab === "overview" ? (
+              <>
+                {/* Quick Install */}
+                <div>
+                  <p className="text-xs text-[var(--color-text-muted)] uppercase tracking-wider mb-2">
+                    Run
+                  </p>
+                  <div className="flex items-center justify-between bg-black/40 rounded-lg p-3">
+                    <code className="text-sm font-mono">
+                      <span className="text-[var(--color-text-muted)]">$</span>{" "}
+                      <span className="text-[var(--color-claude-coral)]">npx</span>{" "}
+                      <span className="text-[var(--color-text-primary)]">ccgather</span>
+                    </code>
+                    <CopyButton text="npx ccgather" trackEvent="cli_install_click" />
+                  </div>
+                </div>
 
-            {/* How it works */}
-            <div>
-              <p className="text-xs text-[var(--color-text-muted)] uppercase tracking-wider mb-2">
-                How it works
-              </p>
-              <div className="space-y-2 text-sm">
-                <div className="flex items-start gap-3">
-                  <span className="text-[var(--color-claude-coral)] font-mono text-xs">1.</span>
-                  <span className="text-[var(--color-text-muted)]">
-                    Run <code className="text-[var(--color-claude-coral)]">npx ccgather</code>
-                  </span>
+                {/* How it works */}
+                <div>
+                  <p className="text-xs text-[var(--color-text-muted)] uppercase tracking-wider mb-2">
+                    How it works
+                  </p>
+                  <div className="space-y-2 text-sm">
+                    <div className="flex items-start gap-3">
+                      <span className="text-[var(--color-claude-coral)] font-mono text-xs">1.</span>
+                      <span className="text-[var(--color-text-muted)]">
+                        Run <code className="text-[var(--color-claude-coral)]">npx ccgather</code>
+                      </span>
+                    </div>
+                    <div className="flex items-start gap-3">
+                      <span className="text-[var(--color-claude-coral)] font-mono text-xs">2.</span>
+                      <span className="text-[var(--color-text-muted)]">
+                        Sign in via browser (first time only)
+                      </span>
+                    </div>
+                    <div className="flex items-start gap-3">
+                      <span className="text-[var(--color-claude-coral)] font-mono text-xs">3.</span>
+                      <span className="text-[var(--color-text-muted)]">
+                        Select &quot;Submit usage data&quot; to sync your stats
+                      </span>
+                    </div>
+                  </div>
                 </div>
-                <div className="flex items-start gap-3">
-                  <span className="text-[var(--color-claude-coral)] font-mono text-xs">2.</span>
-                  <span className="text-[var(--color-text-muted)]">
-                    Sign in via browser (first time only)
-                  </span>
-                </div>
-                <div className="flex items-start gap-3">
-                  <span className="text-[var(--color-claude-coral)] font-mono text-xs">3.</span>
-                  <span className="text-[var(--color-text-muted)]">
-                    Select &quot;Submit usage data&quot; to sync your stats
-                  </span>
-                </div>
-              </div>
-            </div>
 
-            {/* Menu Options */}
-            <div>
-              <p className="text-xs text-[var(--color-text-muted)] uppercase tracking-wider mb-2">
-                Menu Options
-              </p>
-              <div className="space-y-1.5 text-xs font-mono">
+                {/* Menu Options */}
+                <div>
+                  <p className="text-xs text-[var(--color-text-muted)] uppercase tracking-wider mb-2">
+                    Menu Options
+                  </p>
+                  <div className="space-y-1.5 text-xs font-mono">
+                    {[
+                      {
+                        icon: "📤",
+                        name: "Submit usage data",
+                        desc: "Scan & submit to leaderboard",
+                      },
+                      { icon: "⚙️", name: "Settings", desc: "Re-authenticate" },
+                    ].map((item) => (
+                      <div
+                        key={item.name}
+                        className="flex items-center justify-between py-1.5 px-2 rounded bg-black/20"
+                      >
+                        <span className="text-[var(--color-text-primary)] font-sans">
+                          {item.icon} {item.name}
+                        </span>
+                        <span className="text-[var(--color-text-muted)] font-sans">
+                          {item.desc}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* What We Collect - Privacy Section */}
+                <div>
+                  <p className="text-xs text-[var(--color-text-muted)] uppercase tracking-wider mb-2">
+                    What We Collect
+                  </p>
+                  <div className="space-y-2 text-xs bg-black/20 rounded-lg p-3">
+                    <div className="flex items-center gap-2">
+                      <span className="text-green-400">✓</span>
+                      <span className="text-[var(--color-text-muted)]">
+                        Token counts, cost estimates, models used
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-red-400">✗</span>
+                      <span className="text-[var(--color-text-muted)]">
+                        No chat history or code content — never uploaded
+                      </span>
+                    </div>
+                    <div className="mt-2 pt-2 border-t border-white/5 text-[var(--color-text-muted)]">
+                      <span className="text-[var(--color-claude-coral)]">Tip:</span> Claude Code
+                      keeps local data ~30 days. Submit manually before it expires.
+                    </div>
+                  </div>
+                </div>
+              </>
+            ) : (
+              /* FAQ Tab */
+              <div className="space-y-4">
                 {[
-                  { icon: "📤", name: "Submit usage data", desc: "Scan & submit to leaderboard" },
-                  { icon: "⚙️", name: "Settings", desc: "Re-authenticate" },
-                ].map((item) => (
-                  <div
-                    key={item.name}
-                    className="flex items-center justify-between py-1.5 px-2 rounded bg-black/20"
-                  >
-                    <span className="text-[var(--color-text-primary)] font-sans">
-                      {item.icon} {item.name}
-                    </span>
-                    <span className="text-[var(--color-text-muted)] font-sans">{item.desc}</span>
+                  {
+                    q: "Is my code or chat history uploaded?",
+                    a: "No. We only collect aggregated usage metrics (token counts, costs, models). Your actual conversations and code never leave your device.",
+                  },
+                  {
+                    q: "How often should I submit?",
+                    a: "As often as you'd like! Claude Code stores local session data for approximately 30 days. Submit before that to ensure your stats are captured.",
+                  },
+                  {
+                    q: "What is a session fingerprint?",
+                    a: "A unique hash generated from your session metadata to prevent duplicate submissions. It doesn't contain any personal or code information.",
+                  },
+                  {
+                    q: "Can I submit from multiple projects?",
+                    a: "Yes! Run `npx ccgather` in each project folder. Each project's sessions will be submitted separately.",
+                  },
+                  {
+                    q: "Why do I need to sign in?",
+                    a: "To link your usage data to your CCgather profile and leaderboard rank. Authentication is done securely via your browser.",
+                  },
+                  {
+                    q: "Is the CLI open source?",
+                    a: "Yes! Check out the source code at github.com/hanjuho/ccgather-cli. Contributions welcome.",
+                  },
+                ].map((faq, idx) => (
+                  <div key={idx} className="space-y-1.5">
+                    <p className="text-sm font-medium text-[var(--color-text-primary)]">{faq.q}</p>
+                    <p className="text-xs text-[var(--color-text-muted)] leading-relaxed">
+                      {faq.a}
+                    </p>
                   </div>
                 ))}
               </div>
-            </div>
-
-            {/* Data Sources */}
-            <div>
-              <p className="text-xs text-[var(--color-text-muted)] uppercase tracking-wider mb-2">
-                Data Source
-              </p>
-              <div className="text-xs text-[var(--color-text-muted)]">
-                Scans session logs from your current project folder
-              </div>
-            </div>
+            )}
           </div>
 
           {/* Footer */}
           <div className="p-4 border-t border-[var(--border-default)] flex items-center justify-between">
             <span className="text-xs text-[var(--color-text-muted)]">
-              Run when you want to update your rank
+              {activeTab === "overview"
+                ? "Submit when you want to update your rank"
+                : "Questions? Join our Discord community"}
             </span>
             <button
               onClick={onClose}
