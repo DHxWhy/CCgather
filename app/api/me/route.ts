@@ -671,11 +671,20 @@ export async function DELETE() {
 
     if (error) {
       console.error("Soft delete error:", error);
-      return NextResponse.json({ error: "Failed to delete account" }, { status: 500 });
+      return NextResponse.json(
+        { error: "Failed to delete account. Please try again later." },
+        { status: 500 }
+      );
     }
 
     if (!data.success) {
-      return NextResponse.json({ error: data.error }, { status: 400 });
+      // Provide more context for the error
+      const errorMessage = data.error || "Unknown error";
+      console.log("Soft delete failed:", { clerk_id: userId, error: errorMessage });
+      return NextResponse.json(
+        { error: `Account deletion failed: ${errorMessage}` },
+        { status: 400 }
+      );
     }
 
     return NextResponse.json({

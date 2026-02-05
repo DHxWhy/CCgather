@@ -31,7 +31,8 @@ export function AccountDeleteModal({
   const [isDeleting, setIsDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const isConfirmEnabled = inputValue === username;
+  // Case-insensitive comparison for better UX
+  const isConfirmEnabled = inputValue.toLowerCase() === username.toLowerCase();
 
   const handleDelete = async () => {
     if (!isConfirmEnabled) return;
@@ -44,7 +45,15 @@ export function AccountDeleteModal({
       onClose();
     } catch (err) {
       console.error("Account deletion failed:", err);
-      setError("An error occurred while deleting your account. Please try again.");
+      const errorMessage = err instanceof Error ? err.message : "Unknown error";
+      // Show specific error from API, or generic message
+      if (errorMessage.includes("not found") || errorMessage.includes("already deleted")) {
+        setError(
+          "Account not found or already pending deletion. Please refresh the page and try again."
+        );
+      } else {
+        setError(`Failed to delete account: ${errorMessage}`);
+      }
       setIsDeleting(false);
     }
   };
