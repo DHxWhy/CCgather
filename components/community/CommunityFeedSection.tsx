@@ -309,7 +309,7 @@ function CommunityFeedSectionComponent({
                   ? "Loading preferences..."
                   : isTranslationLoading && autoTranslateEnabled
                     ? translationStats && translationStats.totalCount > 0
-                      ? `${translationStats.postsCount} posts, ${translationStats.commentsCount} comments...`
+                      ? `${translationStats.postsCount} ${translationStats.postsCount === 1 ? "post" : "posts"}, ${translationStats.commentsCount} ${translationStats.commentsCount === 1 ? "comment" : "comments"}...`
                       : "Processing..."
                     : autoTranslateEnabled
                       ? "Posts appear in your language"
