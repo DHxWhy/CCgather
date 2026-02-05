@@ -4,7 +4,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@clerk/nextjs";
-import { Menu, Settings, Github, Bug } from "lucide-react";
+import { Menu, Settings, Github, Bug, HelpCircle } from "lucide-react";
 import { useState, useEffect, lazy, Suspense } from "react";
 import { cn } from "@/lib/utils";
 import { ThemeSwitcher } from "@/components/ui/theme-switcher";
@@ -16,6 +16,9 @@ import { useMe } from "@/hooks/use-me";
 // Modal 컴포넌트 지연 로딩 - 초기 번들 크기 감소
 const CLIModal = lazy(() =>
   import("@/components/cli/CLIModal").then((mod) => ({ default: mod.CLIModal }))
+);
+const FAQModal = lazy(() =>
+  import("@/components/cli/FAQModal").then((mod) => ({ default: mod.FAQModal }))
 );
 const AuthModal = lazy(() =>
   import("@/components/auth/AuthModal").then((mod) => ({ default: mod.AuthModal }))
@@ -104,6 +107,7 @@ export function Header() {
   const pathname = usePathname();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [cliModalOpen, setCLIModalOpen] = useState(false);
+  const [faqModalOpen, setFaqModalOpen] = useState(false);
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const [feedbackModalOpen, setFeedbackModalOpen] = useState(false);
   const [clerkFailed, setClerkFailed] = useState(false);
@@ -225,6 +229,21 @@ export function Header() {
             )}
 
             <ThemeSwitcher size="sm" />
+
+            {/* FAQ Button */}
+            <button
+              onClick={() => setFaqModalOpen(true)}
+              className={cn(
+                "flex items-center justify-center w-8 h-8 rounded-full border transition-all group",
+                "border-[var(--border-default)] hover:border-[var(--color-text-muted)]"
+              )}
+              aria-label="FAQ"
+            >
+              <HelpCircle
+                size={14}
+                className="text-[var(--color-text-muted)] group-hover:text-[var(--color-text-secondary)] transition-colors"
+              />
+            </button>
 
             {/* Feedback Button - 온보딩 완료 사용자만 */}
             {isOnboardingDone && (
@@ -350,6 +369,22 @@ export function Header() {
             <ThemeSwitcher size="sm" />
           </div>
 
+          {/* FAQ Button */}
+          <button
+            onClick={() => {
+              closeMobileMenu();
+              setFaqModalOpen(true);
+            }}
+            className={cn(
+              "flex items-center gap-3 px-4 py-3 rounded-xl",
+              "text-base font-medium transition-all duration-200",
+              "text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--glass-bg)]"
+            )}
+          >
+            <HelpCircle size={18} />
+            FAQ
+          </button>
+
           {/* GitHub Link */}
           <a
             href="https://github.com/DHxWhy/CCgather"
@@ -422,6 +457,13 @@ export function Header() {
       {cliModalOpen && (
         <Suspense fallback={null}>
           <CLIModal isOpen={cliModalOpen} onClose={() => setCLIModalOpen(false)} />
+        </Suspense>
+      )}
+
+      {/* FAQ Modal - 지연 로딩 */}
+      {faqModalOpen && (
+        <Suspense fallback={null}>
+          <FAQModal isOpen={faqModalOpen} onClose={() => setFaqModalOpen(false)} />
         </Suspense>
       )}
 

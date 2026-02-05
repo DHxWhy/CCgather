@@ -238,21 +238,39 @@ export function CLIModal({ isOpen, onClose }: CLIModalProps) {
                     What We Collect
                   </p>
                   <div className="space-y-2 text-xs bg-black/20 rounded-lg p-3">
-                    <div className="flex items-center gap-2">
-                      <span className="text-green-400">✓</span>
+                    <div className="flex items-start gap-2">
+                      <span className="text-green-400 font-bold">✓</span>
                       <span className="text-[var(--color-text-muted)]">
-                        Token counts, cost estimates, models used
+                        <span className="text-[var(--color-text-primary)] font-medium">
+                          Token counts
+                        </span>
+                        ,{" "}
+                        <span className="text-[var(--color-text-primary)] font-medium">
+                          cost estimates
+                        </span>
+                        ,{" "}
+                        <span className="text-[var(--color-text-primary)] font-medium">
+                          models used
+                        </span>
                       </span>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-red-400">✗</span>
+                    <div className="flex items-start gap-2">
+                      <span className="text-red-400 font-bold">✗</span>
                       <span className="text-[var(--color-text-muted)]">
-                        No chat history or code content — never uploaded
+                        No chat history or code content —{" "}
+                        <span className="text-red-400 font-medium underline decoration-red-400/50">
+                          never uploaded
+                        </span>
                       </span>
                     </div>
                     <div className="mt-2 pt-2 border-t border-white/5 text-[var(--color-text-muted)]">
-                      <span className="text-[var(--color-claude-coral)]">Tip:</span> Claude Code
-                      keeps local data ~30 days. Submit manually before it expires.
+                      <span className="text-[var(--color-claude-coral)] font-medium">Tip:</span>{" "}
+                      Claude Code keeps local data{" "}
+                      <span className="text-[var(--color-claude-coral)] font-medium">~30 days</span>
+                      .
+                      <br />
+                      <span className="text-[var(--color-text-primary)]">Submit manually</span>{" "}
+                      before it expires.
                     </div>
                   </div>
                 </div>
