@@ -288,7 +288,7 @@ function NotificationItem({
                 animate={{ height: "auto", opacity: 1 }}
                 exit={{ height: 0, opacity: 0 }}
                 transition={{ duration: 0.2 }}
-                className="text-[11px] text-[var(--color-text-secondary)] mt-1.5 leading-relaxed overflow-hidden"
+                className="text-[11px] text-[var(--color-text-secondary)] mt-1.5 leading-relaxed overflow-hidden select-text cursor-text"
               >
                 {notification.body}
               </motion.p>
