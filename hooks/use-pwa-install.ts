@@ -44,15 +44,7 @@ export function usePWAInstall() {
         return;
       }
 
-      // 2. Check localStorage (이전에 설치했던 기록)
-      const wasInstalled = localStorage.getItem(INSTALLED_KEY) === "true";
-      if (wasInstalled) {
-        setIsInstalled(true);
-        setIsDismissed(false);
-        return;
-      }
-
-      // 3. Check getInstalledRelatedApps API (Chrome/Edge 지원)
+      // 2. Check getInstalledRelatedApps API (Chrome/Edge 지원)
       if (nav.getInstalledRelatedApps) {
         try {
           const relatedApps = await nav.getInstalledRelatedApps();
@@ -62,8 +54,20 @@ export function usePWAInstall() {
             setIsDismissed(false);
             return;
           }
+          // API says not installed — clear stale localStorage flag
+          localStorage.removeItem(INSTALLED_KEY);
         } catch {
-          // API 실패 시 무시
+          // API 실패 시 localStorage fallback 허용
+        }
+      }
+
+      // 3. Fallback: Check localStorage (API 미지원 브라우저에서만)
+      if (!nav.getInstalledRelatedApps) {
+        const wasInstalled = localStorage.getItem(INSTALLED_KEY) === "true";
+        if (wasInstalled) {
+          setIsInstalled(true);
+          setIsDismissed(false);
+          return;
         }
       }
 
@@ -92,6 +96,12 @@ export function usePWAInstall() {
       e.preventDefault();
       setDeferredPrompt(e as BeforeInstallPromptEvent);
       setIsInstallable(true);
+      // beforeinstallprompt fires only when app is NOT installed
+      // Clear stale installed flag (e.g. user uninstalled the app)
+      if (localStorage.getItem(INSTALLED_KEY) === "true") {
+        localStorage.removeItem(INSTALLED_KEY);
+        setIsInstalled(false);
+      }
     };
 
     window.addEventListener("beforeinstallprompt", handler);

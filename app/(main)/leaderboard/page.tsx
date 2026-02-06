@@ -1811,7 +1811,7 @@ export default function LeaderboardPage() {
         </div>
       )}
       <div
-        className="transition-[padding] duration-300 ease-out h-[calc(100vh-56px)] md:h-auto overflow-hidden md:overflow-visible"
+        className="transition-[padding] duration-300 ease-out h-[calc(100dvh-56px)] md:h-auto overflow-hidden md:overflow-visible"
         style={{ paddingRight: isTabletPush && panelWidth > 0 ? `${panelWidth}px` : undefined }}
       >
         <div
