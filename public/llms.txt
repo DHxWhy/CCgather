@@ -78,12 +78,23 @@ Real comments from Product Hunt users (February 2026):
 - Testing: Playwright
 - Code Quality: ESLint, Prettier, Husky
 
+## Data Privacy
+
+CCgather collects only aggregated usage metadata — never your code or conversations.
+
+- Collected: input tokens, output tokens, cache tokens, model type, USD cost estimates, plan info
+- NOT collected: code contents, prompts, file paths, project information
+
+Your intellectual property stays on your machine. Only anonymous usage statistics are synced to the leaderboard.
+
 ## Links
 
 - Website: https://ccgather.com
 - GitHub: https://github.com/DHxWhy/CCgather
 - Product Hunt: https://www.producthunt.com/products/ccgather
 - CLI (npm): https://www.npmjs.com/package/ccgather
+- YouTube: https://youtu.be/cK-RD1ke73I
+- Qiita (Dev Story): https://qiita.com/DHxWhy/items/bde99e8d6b7192d2adf2
 - Twitter: https://twitter.com/ccgather
 
 ## Philosophy
