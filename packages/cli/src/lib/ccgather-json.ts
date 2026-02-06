@@ -3,6 +3,7 @@ import * as path from "path";
 import * as os from "os";
 import * as crypto from "crypto";
 import { readCredentials } from "./credentials.js";
+import { estimateCost } from "./pricing.js";
 
 export interface DailyUsage {
   date: string; // YYYY-MM-DD
@@ -316,44 +317,6 @@ function findJsonlFiles(dir: string): string[] {
     // Ignore permission errors
   }
   return files;
-}
-
-/**
- * Estimate cost based on model and tokens (including cache tokens)
- */
-function estimateCost(
-  model: string,
-  inputTokens: number,
-  outputTokens: number,
-  cacheWriteTokens: number = 0,
-  cacheReadTokens: number = 0
-): number {
-  // Pricing per million tokens (official Claude pricing)
-  const pricing: Record<
-    string,
-    { input: number; output: number; cacheWrite: number; cacheRead: number }
-  > = {
-    "claude-opus-4": { input: 15, output: 75, cacheWrite: 18.75, cacheRead: 1.5 },
-    "claude-sonnet-4": { input: 3, output: 15, cacheWrite: 3.75, cacheRead: 0.3 },
-    "claude-haiku": { input: 0.25, output: 1.25, cacheWrite: 0.3125, cacheRead: 0.025 },
-    default: { input: 3, output: 15, cacheWrite: 3.75, cacheRead: 0.3 },
-  };
-
-  let modelKey = "default";
-  for (const key of Object.keys(pricing)) {
-    if (model.includes(key.replace("claude-", ""))) {
-      modelKey = key;
-      break;
-    }
-  }
-
-  const price = pricing[modelKey];
-  const inputCost = (inputTokens / 1_000_000) * price.input;
-  const outputCost = (outputTokens / 1_000_000) * price.output;
-  const cacheWriteCost = (cacheWriteTokens / 1_000_000) * price.cacheWrite;
-  const cacheReadCost = (cacheReadTokens / 1_000_000) * price.cacheRead;
-
-  return Math.round((inputCost + outputCost + cacheWriteCost + cacheReadCost) * 100) / 100;
 }
 
 /**

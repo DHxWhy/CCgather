@@ -11,6 +11,7 @@ import {
   hasOpusUsageInProject,
   getSessionPathDebugInfo,
 } from "../lib/ccgather-json.js";
+import { initPricing } from "../lib/pricing.js";
 import {
   colors,
   formatNumber,
@@ -103,7 +104,7 @@ async function reportSubmitAttempt(
   try {
     const config = getConfig();
     const apiUrl = getApiUrl();
-    const token = config.apiToken;
+    const token = config.get("apiToken");
 
     await fetch(`${apiUrl}/cli/submit-attempt`, {
       method: "POST",
@@ -377,6 +378,9 @@ export async function submit(options: SubmitOptions): Promise<void> {
 
   const username = tokenCheck.username || config.get("username");
   verifySpinner.succeed(colors.success(`Authenticated as ${colors.white(username || "unknown")}`));
+
+  // Initialize dynamic pricing from LiteLLM (cached, non-blocking fallback)
+  await initPricing();
 
   // ═══════════════════════════════════════════════════════════════════════════
   // SCAN ALL PROJECTS (v2.0 - Level-based League System)
