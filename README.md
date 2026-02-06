@@ -39,7 +39,7 @@
 
 ### The Problem
 
-Claude Code only keeps usage history for 30 days. The leaderboard service I was using stopped working one day. So I decided: **"I'll just build it myself."**
+Claude Code only keeps usage history for 30 days — then your work disappears. The leaderboard service I was using stopped working one day, and no fix came. So I decided: **"I'll just build it myself."**
 
 ### The Philosophy
 
@@ -49,7 +49,7 @@ Claude Code only keeps usage history for 30 days. The leaderboard service I was 
 
 > "One tool, one community, no borders."
 
-Developers worldwide use the same tools, but struggle to communicate due to different languages. The community feature breaks down these barriers.
+Developers worldwide use the same tools, but struggle to communicate due to different languages. The community feature breaks down these barriers with AI-powered automatic translation.
 
 This is just the beginning. CCgather will evolve into a platform where Claude Code developers can showcase projects, share knowledge, and find collaborators—regardless of nationality.
 
@@ -57,13 +57,32 @@ This is just the beginning. CCgather will evolve into a platform where Claude Co
 
 ## My Story
 
-I started vibe coding in August 2025 with Cursor and Lovable, then discovered Claude Code. For months, I spent 16+ hours daily—not using automation tools, but engaging in every conversation, asking Claude to explain concepts at a 15-year-old's level so I could truly understand. I still can't read code on my own, but I've worked hard to understand how the pieces connect.
+I'm a non-developer from South Korea. I started vibe coding in August 2025 with Cursor and Lovable, then discovered Claude Code. For months, I spent 16+ hours daily—not using automation tools, but engaging in every conversation, asking Claude to explain concepts at a 15-year-old's level so I could truly understand. I still can't read code on my own, but I've worked hard to understand how the pieces connect.
 
 **CCgather was built in about 3 weeks.**
+
+On February 2, 2026, I launched CCgather on [Product Hunt](https://www.producthunt.com/products/ccgather) with zero marketing budget. It earned **116 upvotes** and **106 followers** on launch day alone — the community responded to the story of a non-developer building a full-featured platform through vibe coding and solving a real pain point.
 
 Developers spend hours staring at gray text on dark backgrounds—I wanted to give them something worth looking at. I aimed for an MVP, but ended up trying many features for the sake of learning—and went through 2 major refactoring overhauls along the way. Countless trade-offs were made between the 3D globe, animations, visual polish, and rendering performance.
 
 I tried to bring every UX detail I imagined to life.
+
+---
+
+## CCgather vs Other Leaderboards
+
+| Feature | CCgather | Others |
+|---------|:--------:|:------:|
+| **Active Maintenance** | Daily updates, open-source | Varies |
+| **Open Source** | Apache 2.0 | Limited or closed |
+| **Community** | AI-translated multilingual | Basic or none |
+| **Country Leagues** | Yes | No |
+| **Level System** | 10-tier (Rookie → Immortal) | No |
+| **Badges** | 27 badges, 4 tiers | No |
+| **3D Globe Visualization** | Yes | No |
+| **Activity Heatmap** | GitHub-style | No |
+| **PWA & Push Notifications** | Yes | No |
+| **Product Hunt** | 116 upvotes on day one, zero marketing | — |
 
 ---
 

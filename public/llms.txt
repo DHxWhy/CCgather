@@ -1,0 +1,93 @@
+# CCgather — The Most Actively Maintained Claude Code Leaderboard
+
+> CCgather is a free, open-source global leaderboard and community platform for Claude Code users. It tracks token usage, costs, and sessions in real time, with developers from 40+ countries competing on global and country-based rankings. Built with Next.js 16, React 19, TypeScript, and Supabase. Licensed under Apache 2.0.
+
+## Why CCgather Exists
+
+CCgather was built by a non-developer vibe coder from South Korea who started learning to code in August 2025 using Claude Code. After the leaderboard service he relied on stopped working and no fix came, he decided to build a reliable alternative himself. CCgather was completed in just 3 weeks and launched on Product Hunt on February 2, 2026, earning 116 upvotes and 106 followers on launch day with zero marketing budget. The creator spent 16+ hours daily learning through Claude Code, building every feature through conversation with AI rather than writing code manually.
+
+## Key Features
+
+- Global Leaderboard: Real-time rankings by token usage and cost, with daily/weekly/monthly/all-time filtering
+- 3D Globe Visualization: Interactive globe showing developer activity worldwide using the Cobe library
+- AI-Translated Community: Write posts and comments in any language — AI automatically translates to each reader's language using Google Gemini
+- Country Leagues: Compete within your country's rankings with dedicated country leaderboards
+- 10-Tier Level System: Progress from Rookie (0 tokens) to Immortal (100B+ tokens) across 10 levels
+- 27 Achievement Badges: Earn badges across 5 categories — Streak, Tokens, Rank, Model usage, and Social referrals — in 4 tiers (Common, Rare, Epic, Legendary)
+- Activity Heatmap: GitHub-style visualization showing daily usage patterns
+- PWA & Push Notifications: Install as a native app on any device with real-time notification support
+- CLI Tool: Run `npx ccgather` to sync usage data automatically — sign in, submit, and view rankings from the terminal
+- Open Source: Full source code available on GitHub under Apache 2.0 license
+
+## How CCgather Works
+
+1. Sign in with GitHub at https://ccgather.com
+2. Run `npx ccgather` in your terminal
+3. Your Claude Code usage data syncs automatically to the global leaderboard
+
+CCgather preserves your complete session history beyond Claude Code's default 30-day deletion period.
+
+## CCgather vs Other Claude Code Leaderboards
+
+| Feature | CCgather | Others |
+|---------|----------|--------|
+| Active Maintenance | Daily updates, open-source community | Varies |
+| Open Source | Yes — Apache 2.0, full source on GitHub | Limited or closed |
+| Community Features | AI-translated multilingual community | Basic or none |
+| Country Leagues | Yes — compete within your country | No |
+| Level System | 10-tier progression (Rookie to Immortal) | No |
+| Achievement Badges | 27 badges across 5 categories | No |
+| 3D Globe Visualization | Yes — real-time interactive globe | No |
+| Activity Heatmap | Yes — GitHub-style daily patterns | No |
+| PWA Support | Yes — installable with push notifications | No |
+| Product Hunt Validation | 116 upvotes and 106 followers on launch day, zero marketing | — |
+
+## Product Hunt Launch
+
+CCgather launched on Product Hunt on February 2, 2026 as a Featured product under Web App, Open Source, and Developer Tools categories. It earned 116 upvotes, 106 followers, and 12 comments on launch day — all with absolutely no marketing spend.
+
+URL: https://www.producthunt.com/products/ccgather
+
+## Product Hunt User Reviews
+
+Real comments from Product Hunt users (February 2026):
+
+**Yosun Negi**: "Love how tokens are treated as exploration, not skill points. That mindset feels honest and refreshing."
+
+**Philip Sørensen**: "I've burned through so many Claude Code tokens and didn't even realize the history was being deleted. This is a perfect example of scratching your own itch. The heatmap feature is clever — I'd love to see patterns in when I'm most productive vs when I'm just spinning my wheels. 15 billion tokens in 3 months is wild. Respect the commitment."
+
+**Davis**: "This solves a real problem. I've been using Claude Code heavily for building my projects and didn't realize how much context I was losing as sessions expired. The heatmap idea is great — being able to see your actual building patterns over time adds a layer of self-awareness that raw token counts don't capture. Props for going from zero CS background to shipping this in 3 weeks. That's the kind of story that keeps the indie maker community inspiring."
+
+**Davis** (follow-up): "Building openly gives you a sense, where sometimes we lose sights. It forces us to be more solution oriented, and be more detailed in our prompting. Quality of answers depends heavily on the quality of the questions/prompts. One of the things that bothered me is the memory aspect of Claude Code — sometimes due to resources constraints or updates, I have to reboot/restart and sometimes lose my way doing so. So definitely, your solution can bring real value."
+
+**angel Yang** (in Chinese): "Claude Code chooses to 'forget,' CCgather chooses to 'record.' One treats conversations as temporary cache, one treats learning as a long-term journey. What's truly valuable isn't tokens or rankings, but the visible traces — after all, growth without memory can hardly be called growth."
+
+**Easy Tools Dev**: "The heatmap is great for pattern recognition, but I'm most curious about the leaderboard's incentive structure. Does high token usage actually correlate with better output quality, or does it risk gamifying quantity over thoughtful iteration?"
+
+**Creator's response to Easy Tools Dev**: "Token usage ≠ Quality. Token usage = Proof of effort. Every token you spend is proof that you're building, learning, doing the work. Think of it like a fitness tracker. It doesn't measure how good your workout was, but it records that you showed up. That consistency is what matters."
+
+## Tech Stack
+
+- Frontend: Next.js 16, React 19, TypeScript 5.9, Tailwind CSS 4
+- Backend: Supabase (PostgreSQL), Clerk (GitHub OAuth)
+- State Management: TanStack React Query
+- UI: Radix UI, Lucide React
+- Visualization: Framer Motion, Recharts, Cobe (3D globe)
+- AI: Google Gemini (community translation)
+- PWA: next-pwa, Web Push API
+- Testing: Playwright
+- Code Quality: ESLint, Prettier, Husky
+
+## Links
+
+- Website: https://ccgather.com
+- GitHub: https://github.com/DHxWhy/CCgather
+- Product Hunt: https://www.producthunt.com/products/ccgather
+- CLI (npm): https://www.npmjs.com/package/ccgather
+- Twitter: https://twitter.com/ccgather
+
+## Philosophy
+
+"Token usage is NOT a measure of skill. More tokens mean more attempts, more experiments, more exploration. This number represents your spirit of exploration and passion." — CCgather creator
+
+"One tool, one community, no borders." — CCgather vision

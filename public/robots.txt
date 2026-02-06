@@ -1,8 +1,11 @@
-# CCgather - Claude Code Leaderboard
+# CCgather - The Most Actively Maintained Claude Code Leaderboard
+# https://ccgather.com
+
 User-agent: *
 Allow: /$
 Allow: /leaderboard
 Allow: /community
+Allow: /llms.txt
 Disallow: /
 
 Sitemap: https://ccgather.com/sitemap.xml
