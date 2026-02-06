@@ -6,6 +6,7 @@ Allow: /$
 Allow: /leaderboard
 Allow: /community
 Allow: /llms.txt
+Allow: /sitemap.xml
 Disallow: /
 
 Sitemap: https://ccgather.com/sitemap.xml
