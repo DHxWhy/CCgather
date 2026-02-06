@@ -19,8 +19,7 @@ import {
   ChevronDown,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { formatDistanceToNow } from "date-fns";
-import { ko } from "date-fns/locale";
+import { formatDistanceToNowStrict } from "date-fns";
 import { BrandSpinner } from "@/components/shared/BrandSpinner";
 import Link from "next/link";
 
@@ -145,6 +144,20 @@ const NOTIFICATION_CONFIG: Record<string, NotificationConfigItem> = {
     category: "system",
   },
 };
+
+// Short time format: "1h ago", "3d ago", "2m ago"
+function shortTimeAgo(date: Date): string {
+  const str = formatDistanceToNowStrict(date, { addSuffix: false });
+  return (
+    str
+      .replace(/ seconds?/, "s")
+      .replace(/ minutes?/, "m")
+      .replace(/ hours?/, "h")
+      .replace(/ days?/, "d")
+      .replace(/ months?/, "mo")
+      .replace(/ years?/, "y") + " ago"
+  );
+}
 
 function getNotificationConfig(type: string): NotificationConfigItem {
   return NOTIFICATION_CONFIG[type] || NOTIFICATION_CONFIG.system!;
@@ -295,10 +308,7 @@ function NotificationItem({
             )}
           </AnimatePresence>
           <p className="text-[10px] text-[var(--color-text-muted)] mt-0.5">
-            {formatDistanceToNow(new Date(notification.created_at), {
-              addSuffix: true,
-              locale: ko,
-            })}
+            {shortTimeAgo(new Date(notification.created_at))}
           </p>
         </div>
 
@@ -498,12 +508,8 @@ export default function NotificationsPage() {
     }
   };
 
-  // Navigate to relevant page
-  const handleNavigate = (notification: Notification) => {
-    if (notification.post_id) {
-      window.location.href = `/community?post=${notification.post_id}`;
-    }
-  };
+  // No navigation action - notifications are read-only
+  const handleNavigate = () => {};
 
   // Filter notifications by category
   const filteredNotifications = notifications.filter((n) => {

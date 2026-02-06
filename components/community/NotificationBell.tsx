@@ -14,8 +14,7 @@ import {
   Check,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { formatDistanceToNow } from "date-fns";
-import { ko } from "date-fns/locale";
+import { formatDistanceToNowStrict } from "date-fns";
 import { useNotificationSound } from "@/hooks/use-notification-sound";
 import Link from "next/link";
 
@@ -118,6 +117,20 @@ const NOTIFICATION_CONFIG: Record<string, NotificationConfigItem> = {
     getMessage: () => "Your weekly digest is ready",
   },
 };
+
+// Short time format: "1h ago", "3d ago", "2m ago"
+function shortTimeAgo(date: Date): string {
+  const str = formatDistanceToNowStrict(date, { addSuffix: false });
+  return (
+    str
+      .replace(/ seconds?/, "s")
+      .replace(/ minutes?/, "m")
+      .replace(/ hours?/, "h")
+      .replace(/ days?/, "d")
+      .replace(/ months?/, "mo")
+      .replace(/ years?/, "y") + " ago"
+  );
+}
 
 // Helper to safely get notification config
 function getNotificationConfig(type: string): NotificationConfigItem {
@@ -232,11 +245,15 @@ export default function NotificationBell({ className }: NotificationBellProps) {
     }
   };
 
+  // Snapshot of unread notification IDs when dropdown opens
+  // So items don't disappear while the dropdown is still open
+  const [visibleIds, setVisibleIds] = useState<Set<string>>(new Set());
+
   // State for micro-interaction
   const [clearingId, setClearingId] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
-  // Handle notification click with micro-interaction
+  // Handle notification click - mark as read + expand system notices
   const handleNotificationClick = (notification: Notification) => {
     if (!notification.is_read) {
       setClearingId(notification.id);
@@ -249,17 +266,6 @@ export default function NotificationBell({ className }: NotificationBellProps) {
     // Expandable notifications (system_notice with body)
     if (notification.type === "system_notice" && notification.body) {
       setExpandedId((prev) => (prev === notification.id ? null : notification.id));
-      return;
-    }
-
-    // Navigate to post if applicable
-    if (notification.post_id) {
-      setTimeout(() => {
-        setIsOpen(false);
-        window.location.href = `/community?post=${notification.post_id}`;
-      }, 350);
-    } else {
-      setIsOpen(false);
     }
   };
 
@@ -267,7 +273,13 @@ export default function NotificationBell({ className }: NotificationBellProps) {
     <div ref={dropdownRef} className={cn("relative", className)}>
       {/* Bell Button */}
       <button
-        onClick={() => setIsOpen(!isOpen)}
+        onClick={() => {
+          if (!isOpen) {
+            // Snapshot unread IDs when opening
+            setVisibleIds(new Set(notifications.filter((n) => !n.is_read).map((n) => n.id)));
+          }
+          setIsOpen(!isOpen);
+        }}
         className={cn(
           "relative p-2 rounded-lg transition-colors",
           "hover:bg-white/10",
@@ -308,108 +320,109 @@ export default function NotificationBell({ className }: NotificationBellProps) {
               <div className="p-8 text-center">
                 <div className="animate-spin w-6 h-6 border-2 border-[var(--color-accent-cyan)] border-t-transparent rounded-full mx-auto" />
               </div>
-            ) : notifications.length === 0 ? (
+            ) : notifications.filter((n) => visibleIds.has(n.id)).length === 0 ? (
               <div className="p-8 text-center">
                 <Bell size={32} className="mx-auto mb-2 text-[var(--color-text-muted)]" />
-                <p className="text-sm text-[var(--color-text-muted)]">No notifications yet</p>
+                <p className="text-sm text-[var(--color-text-muted)]">
+                  {notifications.length === 0 ? "No notifications yet" : "All caught up!"}
+                </p>
               </div>
             ) : (
-              notifications.map((notification) => {
-                const config = getNotificationConfig(notification.type);
-                const Icon = config.icon;
-                const isClearing = clearingId === notification.id;
+              notifications
+                .filter((n) => visibleIds.has(n.id))
+                .map((notification) => {
+                  const config = getNotificationConfig(notification.type);
+                  const Icon = config.icon;
+                  const isClearing = clearingId === notification.id;
 
-                return (
-                  <motion.button
-                    key={notification.id}
-                    onClick={() => handleNotificationClick(notification)}
-                    whileTap={{ scale: 0.98 }}
-                    className={cn(
-                      "w-full flex items-start gap-3 px-4 py-3 text-left transition-colors relative overflow-hidden",
-                      "hover:bg-white/5",
-                      !notification.is_read && "bg-white/[0.03]"
-                    )}
-                  >
-                    {/* Icon with check overlay */}
-                    <div
+                  return (
+                    <motion.button
+                      key={notification.id}
+                      onClick={() => handleNotificationClick(notification)}
+                      whileTap={{ scale: 0.98 }}
                       className={cn(
-                        "relative flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center",
-                        "bg-white/10"
+                        "w-full flex items-start gap-3 px-4 py-3 text-left transition-colors relative overflow-hidden",
+                        "hover:bg-white/5",
+                        !notification.is_read && "bg-white/[0.03]"
                       )}
                     >
-                      {notification.actor?.avatar_url ? (
-                        <img
-                          src={notification.actor.avatar_url}
-                          alt=""
-                          className="w-full h-full rounded-full object-cover"
-                        />
-                      ) : (
-                        <Icon size={14} className={config.color} />
-                      )}
-
-                      {/* Checkmark animation on clear */}
-                      <AnimatePresence>
-                        {isClearing && (
-                          <motion.div
-                            initial={{ scale: 0, opacity: 0 }}
-                            animate={{ scale: 1, opacity: 1 }}
-                            exit={{ scale: 0, opacity: 0 }}
-                            className="absolute inset-0 flex items-center justify-center bg-green-500 rounded-full"
-                          >
-                            <Check size={14} className="text-white" />
-                          </motion.div>
-                        )}
-                      </AnimatePresence>
-                    </div>
-
-                    {/* Content */}
-                    <div className="flex-1 min-w-0">
-                      <p
+                      {/* Icon with check overlay */}
+                      <div
                         className={cn(
-                          "text-xs transition-opacity",
-                          notification.is_read
-                            ? "text-[var(--color-text-muted)]"
-                            : "text-[var(--color-text-primary)]",
-                          isClearing && "opacity-60"
+                          "relative flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center",
+                          "bg-white/10"
                         )}
                       >
-                        {config.getMessage(notification.actor, notification)}
-                      </p>
+                        {notification.actor?.avatar_url ? (
+                          <img
+                            src={notification.actor.avatar_url}
+                            alt=""
+                            className="w-full h-full rounded-full object-cover"
+                          />
+                        ) : (
+                          <Icon size={14} className={config.color} />
+                        )}
+
+                        {/* Checkmark animation on clear */}
+                        <AnimatePresence>
+                          {isClearing && (
+                            <motion.div
+                              initial={{ scale: 0, opacity: 0 }}
+                              animate={{ scale: 1, opacity: 1 }}
+                              exit={{ scale: 0, opacity: 0 }}
+                              className="absolute inset-0 flex items-center justify-center bg-green-500 rounded-full"
+                            >
+                              <Check size={14} className="text-white" />
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
+                      </div>
+
+                      {/* Content */}
+                      <div className="flex-1 min-w-0">
+                        <p
+                          className={cn(
+                            "text-xs transition-opacity",
+                            notification.is_read
+                              ? "text-[var(--color-text-muted)]"
+                              : "text-[var(--color-text-primary)]",
+                            isClearing && "opacity-60"
+                          )}
+                        >
+                          {config.getMessage(notification.actor, notification)}
+                        </p>
+                        <AnimatePresence>
+                          {expandedId === notification.id && notification.body && (
+                            <motion.p
+                              initial={{ height: 0, opacity: 0 }}
+                              animate={{ height: "auto", opacity: 1 }}
+                              exit={{ height: 0, opacity: 0 }}
+                              transition={{ duration: 0.2 }}
+                              className="text-[11px] text-[var(--color-text-secondary)] mt-1.5 leading-relaxed overflow-hidden select-text cursor-text"
+                            >
+                              {notification.body}
+                            </motion.p>
+                          )}
+                        </AnimatePresence>
+                        <p className="text-[10px] text-[var(--color-text-muted)] mt-0.5">
+                          {shortTimeAgo(new Date(notification.created_at))}
+                        </p>
+                      </div>
+
+                      {/* Unread indicator with animation */}
                       <AnimatePresence>
-                        {expandedId === notification.id && notification.body && (
-                          <motion.p
-                            initial={{ height: 0, opacity: 0 }}
-                            animate={{ height: "auto", opacity: 1 }}
-                            exit={{ height: 0, opacity: 0 }}
+                        {!notification.is_read && !isClearing && (
+                          <motion.div
+                            initial={{ scale: 1 }}
+                            exit={{ scale: 0, opacity: 0 }}
                             transition={{ duration: 0.2 }}
-                            className="text-[11px] text-[var(--color-text-secondary)] mt-1.5 leading-relaxed overflow-hidden select-text cursor-text"
-                          >
-                            {notification.body}
-                          </motion.p>
+                            className="flex-shrink-0 w-2 h-2 rounded-full bg-[var(--color-accent-cyan)] shadow-[0_0_6px_var(--color-accent-cyan)]"
+                          />
                         )}
                       </AnimatePresence>
-                      <p className="text-[10px] text-[var(--color-text-muted)] mt-0.5">
-                        {formatDistanceToNow(new Date(notification.created_at), {
-                          addSuffix: true,
-                          locale: ko,
-                        })}
-                      </p>
-                    </div>
-
-                    {/* Unread indicator with animation */}
-                    <AnimatePresence>
-                      {!notification.is_read && !isClearing && (
-                        <motion.div
-                          initial={{ scale: 1 }}
-                          exit={{ scale: 0, opacity: 0 }}
-                          transition={{ duration: 0.2 }}
-                          className="flex-shrink-0 w-2 h-2 rounded-full bg-[var(--color-accent-cyan)] shadow-[0_0_6px_var(--color-accent-cyan)]"
-                        />
-                      )}
-                    </AnimatePresence>
-                  </motion.button>
-                );
-              })
+                    </motion.button>
+                  );
+                })
             )}
           </div>
 
