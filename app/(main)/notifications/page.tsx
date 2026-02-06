@@ -15,6 +15,8 @@ import {
   Filter,
   Check,
   Sparkles,
+  Trash2,
+  ChevronDown,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatDistanceToNow } from "date-fns";
@@ -39,6 +41,8 @@ interface Notification {
   actor: NotificationActor | null;
   post_id: string | null;
   comment_id: string | null;
+  title: string | null;
+  body: string | null;
   data: Record<string, unknown> | null;
   is_read: boolean;
   created_at: string;
@@ -54,7 +58,7 @@ type NotificationConfigItem = {
   icon: typeof Heart;
   color: string;
   bgColor: string;
-  getMessage: (actor: NotificationActor | null) => string;
+  getMessage: (actor: NotificationActor | null, notification?: Notification | null) => string;
   category: "likes" | "comments" | "social" | "system";
 };
 
@@ -126,6 +130,13 @@ const NOTIFICATION_CONFIG: Record<string, NotificationConfigItem> = {
     getMessage: () => "System announcement",
     category: "system",
   },
+  system_notice: {
+    icon: Megaphone,
+    color: "text-[var(--color-accent-cyan)]",
+    bgColor: "bg-[var(--color-accent-cyan)]/10",
+    getMessage: (_actor, notification) => notification?.title || "System notice",
+    category: "system",
+  },
   weekly_digest: {
     icon: Megaphone,
     color: "text-[var(--color-claude-coral)]",
@@ -158,137 +169,181 @@ const FILTER_TABS: { value: FilterType; label: string; icon?: typeof Filter }[] 
 interface NotificationItemProps {
   notification: Notification;
   onMarkAsRead: (id: string) => void;
+  onDelete: (id: string) => void;
   onNavigate: (notification: Notification) => void;
 }
 
-function NotificationItem({ notification, onMarkAsRead, onNavigate }: NotificationItemProps) {
+function NotificationItem({
+  notification,
+  onMarkAsRead,
+  onDelete,
+  onNavigate,
+}: NotificationItemProps) {
   const [isClearing, setIsClearing] = useState(false);
   const [showCheck, setShowCheck] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(false);
   const config = getNotificationConfig(notification.type);
   const Icon = config.icon;
+  const isExpandable = notification.type === "system_notice" && notification.body;
 
   const handleClick = () => {
     if (!notification.is_read) {
       setIsClearing(true);
       setShowCheck(true);
-
-      // Show checkmark animation before marking as read
       setTimeout(() => {
         onMarkAsRead(notification.id);
         setShowCheck(false);
       }, 400);
     }
+
+    if (isExpandable) {
+      setIsExpanded((prev) => !prev);
+      return;
+    }
+
     onNavigate(notification);
   };
 
   return (
-    <motion.button
-      layout
-      onClick={handleClick}
-      whileTap={{ scale: 0.98 }}
-      className={cn(
-        "w-full flex items-start gap-3 p-3 text-left transition-all duration-300 rounded-lg",
-        "hover:bg-white/5 group relative overflow-hidden",
-        !notification.is_read && "bg-white/[0.03]"
-      )}
-    >
-      {/* Background highlight for unread */}
-      <AnimatePresence>
-        {!notification.is_read && !isClearing && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0, x: -100 }}
-            transition={{ duration: 0.3 }}
-            className="absolute inset-0 bg-gradient-to-r from-[var(--color-claude-coral)]/5 to-transparent pointer-events-none"
-          />
-        )}
-      </AnimatePresence>
-
-      {/* Icon / Avatar */}
-      <motion.div
-        animate={isClearing ? { scale: [1, 1.1, 1] } : {}}
-        transition={{ duration: 0.3 }}
+    <motion.div layout className="relative group">
+      <motion.button
+        onClick={handleClick}
+        whileTap={{ scale: 0.98 }}
         className={cn(
-          "relative flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center",
-          config.bgColor
+          "w-full flex items-start gap-3 p-3 text-left transition-all duration-300 rounded-lg",
+          "hover:bg-white/5 relative overflow-hidden",
+          !notification.is_read && "bg-white/[0.03]"
         )}
       >
-        {notification.actor?.avatar_url ? (
-          <img
-            src={notification.actor.avatar_url}
-            alt=""
-            className="w-full h-full rounded-full object-cover"
-          />
-        ) : (
-          <Icon size={14} className={config.color} />
-        )}
-
-        {/* Checkmark overlay animation */}
+        {/* Background highlight for unread */}
         <AnimatePresence>
-          {showCheck && (
+          {!notification.is_read && !isClearing && (
             <motion.div
-              initial={{ scale: 0, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0, opacity: 0 }}
-              className="absolute inset-0 flex items-center justify-center bg-green-500 rounded-full"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0, x: -100 }}
+              transition={{ duration: 0.3 }}
+              className="absolute inset-0 bg-gradient-to-r from-[var(--color-claude-coral)]/5 to-transparent pointer-events-none"
+            />
+          )}
+        </AnimatePresence>
+
+        {/* Icon / Avatar */}
+        <motion.div
+          animate={isClearing ? { scale: [1, 1.1, 1] } : {}}
+          transition={{ duration: 0.3 }}
+          className={cn(
+            "relative flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center",
+            config.bgColor
+          )}
+        >
+          {notification.actor?.avatar_url ? (
+            <img
+              src={notification.actor.avatar_url}
+              alt=""
+              className="w-full h-full rounded-full object-cover"
+            />
+          ) : (
+            <Icon size={14} className={config.color} />
+          )}
+
+          <AnimatePresence>
+            {showCheck && (
+              <motion.div
+                initial={{ scale: 0, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0, opacity: 0 }}
+                className="absolute inset-0 flex items-center justify-center bg-green-500 rounded-full"
+              >
+                <Check size={14} className="text-white" />
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </motion.div>
+
+        {/* Content */}
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-1.5">
+            <motion.p
+              animate={isClearing ? { opacity: [1, 0.7, 1] } : {}}
+              className={cn(
+                "text-xs",
+                notification.is_read
+                  ? "text-[var(--color-text-muted)]"
+                  : "text-[var(--color-text-primary)]"
+              )}
             >
-              <Check size={14} className="text-white" />
+              {config.getMessage(notification.actor, notification)}
+            </motion.p>
+            {isExpandable && (
+              <motion.div animate={{ rotate: isExpanded ? 180 : 0 }} transition={{ duration: 0.2 }}>
+                <ChevronDown size={12} className="text-[var(--color-text-muted)]" />
+              </motion.div>
+            )}
+          </div>
+          <AnimatePresence>
+            {isExpanded && notification.body && (
+              <motion.p
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: "auto", opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                transition={{ duration: 0.2 }}
+                className="text-[11px] text-[var(--color-text-secondary)] mt-1.5 leading-relaxed overflow-hidden"
+              >
+                {notification.body}
+              </motion.p>
+            )}
+          </AnimatePresence>
+          <p className="text-[10px] text-[var(--color-text-muted)] mt-0.5">
+            {formatDistanceToNow(new Date(notification.created_at), {
+              addSuffix: true,
+              locale: ko,
+            })}
+          </p>
+        </div>
+
+        {/* Unread indicator */}
+        <AnimatePresence>
+          {!notification.is_read && !isClearing && (
+            <motion.div
+              initial={{ scale: 0 }}
+              animate={{ scale: 1 }}
+              exit={{ scale: 0, opacity: 0 }}
+              transition={{ type: "spring", stiffness: 500, damping: 30 }}
+              className="flex-shrink-0 self-center"
+            >
+              <div className="w-2 h-2 rounded-full bg-[var(--color-accent-cyan)] shadow-[0_0_6px_var(--color-accent-cyan)]" />
             </motion.div>
           )}
         </AnimatePresence>
-      </motion.div>
 
-      {/* Content */}
-      <div className="flex-1 min-w-0">
-        <motion.p
-          animate={isClearing ? { opacity: [1, 0.7, 1] } : {}}
-          className={cn(
-            "text-xs",
-            notification.is_read
-              ? "text-[var(--color-text-muted)]"
-              : "text-[var(--color-text-primary)]"
+        {/* Sparkle effect on clear */}
+        <AnimatePresence>
+          {showCheck && (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.5 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.5 }}
+              className="absolute right-3 top-1/2 -translate-y-1/2"
+            >
+              <Sparkles size={12} className="text-amber-400" />
+            </motion.div>
           )}
-        >
-          {config.getMessage(notification.actor)}
-        </motion.p>
-        <p className="text-[10px] text-[var(--color-text-muted)] mt-0.5">
-          {formatDistanceToNow(new Date(notification.created_at), {
-            addSuffix: true,
-            locale: ko,
-          })}
-        </p>
-      </div>
+        </AnimatePresence>
+      </motion.button>
 
-      {/* Unread indicator with animation */}
-      <AnimatePresence>
-        {!notification.is_read && !isClearing && (
-          <motion.div
-            initial={{ scale: 0 }}
-            animate={{ scale: 1 }}
-            exit={{ scale: 0, opacity: 0 }}
-            transition={{ type: "spring", stiffness: 500, damping: 30 }}
-            className="flex-shrink-0 self-center"
-          >
-            <div className="w-2 h-2 rounded-full bg-[var(--color-accent-cyan)] shadow-[0_0_6px_var(--color-accent-cyan)]" />
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Sparkle effect on clear */}
-      <AnimatePresence>
-        {showCheck && (
-          <motion.div
-            initial={{ opacity: 0, scale: 0.5 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.5 }}
-            className="absolute right-3 top-1/2 -translate-y-1/2"
-          >
-            <Sparkles size={12} className="text-amber-400" />
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </motion.button>
+      {/* Delete button (visible on hover) */}
+      <button
+        onClick={(e) => {
+          e.stopPropagation();
+          onDelete(notification.id);
+        }}
+        className="absolute right-2 top-2 p-1.5 rounded-md opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-500/10 text-[var(--color-text-muted)] hover:text-red-400"
+        aria-label="Delete notification"
+      >
+        <Trash2 size={12} />
+      </button>
+    </motion.div>
   );
 }
 
@@ -428,10 +483,24 @@ export default function NotificationsPage() {
     }
   };
 
+  // Delete notification
+  const deleteNotification = async (notificationId: string) => {
+    setNotifications((prev) => prev.filter((n) => n.id !== notificationId));
+    try {
+      await fetch("/api/community/notifications", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ notification_ids: [notificationId] }),
+      });
+    } catch (error) {
+      console.error("Error deleting notification:", error);
+      fetchNotifications();
+    }
+  };
+
   // Navigate to relevant page
   const handleNavigate = (notification: Notification) => {
     if (notification.post_id) {
-      // Navigate to post (could open in modal or page)
       window.location.href = `/community?post=${notification.post_id}`;
     }
   };
@@ -562,6 +631,7 @@ export default function NotificationsPage() {
                     key={notification.id}
                     notification={notification}
                     onMarkAsRead={markAsRead}
+                    onDelete={deleteNotification}
                     onNavigate={handleNavigate}
                   />
                 ))}

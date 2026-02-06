@@ -19,6 +19,8 @@ interface NotificationResponse {
   actor: NotificationActor | null;
   post_id: string | null;
   comment_id: string | null;
+  title: string | null;
+  body: string | null;
   data: Record<string, unknown> | null;
   is_read: boolean;
   created_at: string;
@@ -62,6 +64,8 @@ export async function GET(request: NextRequest) {
         type,
         post_id,
         comment_id,
+        title,
+        body,
         data,
         is_read,
         created_at,
@@ -105,6 +109,8 @@ export async function GET(request: NextRequest) {
           type: string;
           post_id: string | null;
           comment_id: string | null;
+          title: string | null;
+          body: string | null;
           data: unknown;
           is_read: boolean;
           created_at: string;
@@ -124,6 +130,8 @@ export async function GET(request: NextRequest) {
               : null,
             post_id: notification.post_id,
             comment_id: notification.comment_id,
+            title: notification.title,
+            body: notification.body,
             data: notification.data as Record<string, unknown> | null,
             is_read: notification.is_read,
             created_at: notification.created_at,
@@ -208,6 +216,57 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({ error: "Invalid request" }, { status: 400 });
   } catch (error) {
     console.error("Error in PATCH /api/community/notifications:", error);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+  }
+}
+
+// =====================================================
+// DELETE /api/community/notifications - 알림 삭제
+// =====================================================
+export async function DELETE(request: NextRequest) {
+  try {
+    const { userId: clerkId } = await auth();
+
+    if (!clerkId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const supabase = createServiceClient();
+
+    const { data: user } = await supabase
+      .from("users")
+      .select("id")
+      .eq("clerk_id", clerkId)
+      .single();
+
+    if (!user) {
+      return NextResponse.json({ error: "User not found" }, { status: 404 });
+    }
+
+    const body = await request.json();
+    const { notification_ids } = body;
+
+    if (!notification_ids || !Array.isArray(notification_ids) || notification_ids.length === 0) {
+      return NextResponse.json({ error: "notification_ids required" }, { status: 400 });
+    }
+
+    const { error } = await supabase
+      .from("notifications")
+      .delete()
+      .eq("user_id", user.id)
+      .in("id", notification_ids);
+
+    if (error) {
+      console.error("Error deleting notifications:", error);
+      return NextResponse.json({ error: "Failed to delete notifications" }, { status: 500 });
+    }
+
+    return NextResponse.json({
+      success: true,
+      message: `${notification_ids.length} notification(s) deleted`,
+    });
+  } catch (error) {
+    console.error("Error in DELETE /api/community/notifications:", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }

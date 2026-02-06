@@ -36,6 +36,8 @@ interface Notification {
   actor: NotificationActor | null;
   post_id: string | null;
   comment_id: string | null;
+  title: string | null;
+  body: string | null;
   data: Record<string, unknown> | null;
   is_read: boolean;
   created_at: string;
@@ -52,7 +54,7 @@ interface NotificationBellProps {
 type NotificationConfigItem = {
   icon: typeof Heart;
   color: string;
-  getMessage: (actor: NotificationActor | null) => string;
+  getMessage: (actor: NotificationActor | null, notification?: Notification | null) => string;
 };
 
 const NOTIFICATION_CONFIG: Record<string, NotificationConfigItem> = {
@@ -104,6 +106,11 @@ const NOTIFICATION_CONFIG: Record<string, NotificationConfigItem> = {
     icon: Megaphone,
     color: "text-[var(--color-accent-cyan)]",
     getMessage: () => "System announcement",
+  },
+  system_notice: {
+    icon: Megaphone,
+    color: "text-[var(--color-accent-cyan)]",
+    getMessage: (_actor, notification) => notification?.title || "System notice",
   },
   weekly_digest: {
     icon: Megaphone,
@@ -227,17 +234,24 @@ export default function NotificationBell({ className }: NotificationBellProps) {
 
   // State for micro-interaction
   const [clearingId, setClearingId] = useState<string | null>(null);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
 
   // Handle notification click with micro-interaction
   const handleNotificationClick = (notification: Notification) => {
     if (!notification.is_read) {
       setClearingId(notification.id);
-      // Delay mark as read for animation
       setTimeout(() => {
         markAsRead(notification.id);
         setClearingId(null);
       }, 300);
     }
+
+    // Expandable notifications (system_notice with body)
+    if (notification.type === "system_notice" && notification.body) {
+      setExpandedId((prev) => (prev === notification.id ? null : notification.id));
+      return;
+    }
+
     // Navigate to post if applicable
     if (notification.post_id) {
       setTimeout(() => {
@@ -359,8 +373,21 @@ export default function NotificationBell({ className }: NotificationBellProps) {
                           isClearing && "opacity-60"
                         )}
                       >
-                        {config.getMessage(notification.actor)}
+                        {config.getMessage(notification.actor, notification)}
                       </p>
+                      <AnimatePresence>
+                        {expandedId === notification.id && notification.body && (
+                          <motion.p
+                            initial={{ height: 0, opacity: 0 }}
+                            animate={{ height: "auto", opacity: 1 }}
+                            exit={{ height: 0, opacity: 0 }}
+                            transition={{ duration: 0.2 }}
+                            className="text-[11px] text-[var(--color-text-secondary)] mt-1.5 leading-relaxed overflow-hidden"
+                          >
+                            {notification.body}
+                          </motion.p>
+                        )}
+                      </AnimatePresence>
                       <p className="text-[10px] text-[var(--color-text-muted)] mt-0.5">
                         {formatDistanceToNow(new Date(notification.created_at), {
                           addSuffix: true,
