@@ -23,32 +23,32 @@ export async function getGlobalStats(): Promise<GlobalStats> {
   try {
     const supabase = createServiceClient();
 
-    // Get total users with usage data
-    const { count: totalUsers } = await supabase
-      .from("users")
-      .select("*", { count: "exact", head: true })
-      .eq("onboarding_completed", true)
-      .gt("total_tokens", 0);
+    // Parallel queries: count + (countries, tokens, cost combined)
+    const [countResult, aggregateResult] = await Promise.all([
+      // Query 1: total user count
+      supabase
+        .from("users")
+        .select("*", { count: "exact", head: true })
+        .eq("onboarding_completed", true)
+        .gt("total_tokens", 0),
+      // Query 2: countries + tokens + cost in a single query
+      supabase
+        .from("users")
+        .select("country_code, total_tokens, total_cost")
+        .eq("onboarding_completed", true)
+        .gt("total_tokens", 0),
+    ]);
 
-    // Get unique countries
-    const { data: countriesData } = await supabase
-      .from("users")
-      .select("country_code")
-      .eq("onboarding_completed", true)
-      .gt("total_tokens", 0)
-      .not("country_code", "is", null);
+    const totalUsers = countResult.count;
+
+    const aggregateData = aggregateResult.data;
 
     const uniqueCountries = new Set(
-      countriesData?.map((u: { country_code: string }) => u.country_code) || []
+      aggregateData
+        ?.filter((u: { country_code: string | null }) => u.country_code !== null)
+        .map((u: { country_code: string }) => u.country_code) || []
     );
     const totalCountries = uniqueCountries.size;
-
-    // Get total tokens and cost
-    const { data: aggregateData } = await supabase
-      .from("users")
-      .select("total_tokens, total_cost")
-      .eq("onboarding_completed", true)
-      .gt("total_tokens", 0);
 
     const totalTokens =
       aggregateData?.reduce(
