@@ -4,7 +4,7 @@ import React, { useState, useMemo, useEffect, useLayoutEffect, useCallback, useR
 import { useSearchParams, usePathname } from "next/navigation";
 import dynamic from "next/dynamic";
 import Image from "next/image";
-import { TableVirtuoso } from "react-virtuoso";
+import { TableVirtuoso, type TableComponents } from "react-virtuoso";
 import { FlagIcon } from "@/components/ui/FlagIcon";
 import { useUser } from "@clerk/nextjs";
 import { GlobeStatsSection } from "@/components/leaderboard/GlobeStatsSection";
@@ -284,6 +284,24 @@ interface DisplayUser extends LeaderboardUser {
   periodCost?: number;
 }
 
+// Stable Virtuoso sub-components (no external state dependency → module-level)
+const VirtuosoTable = ({ style, ...props }: React.ComponentProps<"table">) => (
+  <table {...props} className="w-full table-fixed" style={{ ...style, tableLayout: "fixed" }} />
+);
+
+const VirtuosoTableHead = React.forwardRef<HTMLTableSectionElement, React.ComponentProps<"thead">>(
+  function VirtuosoTableHead(props, ref) {
+    return (
+      <thead
+        {...props}
+        ref={ref}
+        className="sticky top-0 z-10 bg-[var(--glass-bg)] backdrop-blur-md"
+        style={{ boxShadow: "inset 0 -1px 0 0 rgba(113, 113, 122, 0.3)" }}
+      />
+    );
+  }
+);
+
 export default function LeaderboardPage() {
   const { user: clerkUser } = useUser();
   const searchParams = useSearchParams();
@@ -483,6 +501,8 @@ export default function LeaderboardPage() {
   const [stickyLocked, setStickyLocked] = useState(false);
   // Prevent re-lock during expand animation
   const isExpandingRef = useRef(false);
+  // RAF throttle for scroll handler
+  const scrollRafRef = useRef<number | null>(null);
   // Shake expand button when trying to scroll up at top
   const [shakeExpandButton, setShakeExpandButton] = useState(false);
 
@@ -503,19 +523,23 @@ export default function LeaderboardPage() {
   // TopCountriesSection ref for programmatic scroll
   const topCountriesSectionRef = useRef<TopCountriesSectionRef>(null);
 
-  // Handle left column scroll for Globe fade effect
+  // Handle left column scroll for Globe fade effect (RAF-throttled)
   const handleLeftColumnScroll = useCallback(() => {
-    if (!leftColumnRef.current) return;
-    const { scrollTop } = leftColumnRef.current;
-    // Calculate scroll progress (0 to 1) based on first 200px of scroll
-    const fadeThreshold = 200;
-    const progress = Math.min(scrollTop / fadeThreshold, 1);
-    setLeftColumnScrollProgress(progress);
+    if (scrollRafRef.current !== null) return;
+    scrollRafRef.current = requestAnimationFrame(() => {
+      scrollRafRef.current = null;
+      if (!leftColumnRef.current) return;
+      const { scrollTop } = leftColumnRef.current;
+      // Calculate scroll progress (0 to 1) based on first 200px of scroll
+      const fadeThreshold = 200;
+      const progress = Math.min(scrollTop / fadeThreshold, 1);
+      setLeftColumnScrollProgress(progress);
 
-    // Auto-lock sticky when scrolled past threshold (no forced scroll reset)
-    if (progress > 0.3 && !stickyLocked && !isExpandingRef.current) {
-      setStickyLocked(true);
-    }
+      // Auto-lock sticky when scrolled past threshold (no forced scroll reset)
+      if (progress > 0.3 && !stickyLocked && !isExpandingRef.current) {
+        setStickyLocked(true);
+      }
+    });
   }, [stickyLocked]);
 
   // Expand Globe: unlock sticky and reset scroll
@@ -532,6 +556,15 @@ export default function LeaderboardPage() {
     setTimeout(() => {
       isExpandingRef.current = false;
     }, 100);
+  }, []);
+
+  // Cleanup RAF on unmount
+  useEffect(() => {
+    return () => {
+      if (scrollRafRef.current !== null) {
+        cancelAnimationFrame(scrollRafRef.current);
+      }
+    };
   }, []);
 
   // Handle wheel event to shake expand button when trying to scroll up at top
@@ -1185,7 +1218,7 @@ export default function LeaderboardPage() {
     };
   }, [loading, stickyLocked, viewportWidth]);
 
-  const handleRowClick = (user: DisplayUser) => {
+  const handleRowClick = useCallback((user: DisplayUser) => {
     // 이전 닫기 타이머가 있으면 취소 (race condition 방지)
     if (closePanelTimerRef.current) {
       clearTimeout(closePanelTimerRef.current);
@@ -1198,7 +1231,48 @@ export default function LeaderboardPage() {
     setSelectedUserCountryRank(user.period_country_rank ?? user.country_rank ?? undefined);
     setIsPanelOpen(true);
     setHighlightMyRank(false);
-  };
+  }, []);
+
+  // Memoized Virtuoso components — prevents row remount on every parent render
+  const virtuosoComponents = useMemo<TableComponents<DisplayUser>>(
+    () => ({
+      Table: VirtuosoTable as TableComponents<DisplayUser>["Table"],
+      TableHead: VirtuosoTableHead as TableComponents<DisplayUser>["TableHead"],
+      TableRow: (({ item: user, ...props }) => {
+        const index = (props as unknown as { "data-item-index": number })["data-item-index"];
+        return (
+          <tr
+            {...(props as unknown as React.HTMLAttributes<HTMLTableRowElement>)}
+            ref={user.isCurrentUser ? currentUserRowRef : undefined}
+            data-user-id={user.id}
+            onClick={() => handleRowClick(user)}
+            className={`h-10 transition-colors cursor-pointer hover:!bg-[var(--color-table-row-hover)] border-b border-[var(--border-default)]/30 ${
+              user.isCurrentUser ? "bg-[var(--user-country-bg)]" : ""
+            } ${selectedUserId === user.id && isPanelOpen ? "!bg-[var(--color-table-row-hover)]" : ""} ${
+              user.isCurrentUser && highlightMyRank
+                ? "!bg-[var(--color-claude-coral)]/50 ring-2 ring-[var(--color-claude-coral)]"
+                : ""
+            } ${
+              highlightedUsername && user.username.toLowerCase() === highlightedUsername
+                ? "!bg-[var(--color-claude-coral)]/50 ring-2 ring-[var(--color-claude-coral)] animate-pulse"
+                : ""
+            }`}
+            style={{
+              backgroundColor:
+                !user.isCurrentUser &&
+                !(selectedUserId === user.id && isPanelOpen) &&
+                !highlightMyRank &&
+                !(highlightedUsername && user.username.toLowerCase() === highlightedUsername) &&
+                index % 2 === 1
+                  ? "var(--color-table-row-even)"
+                  : undefined,
+            }}
+          />
+        );
+      }) as TableComponents<DisplayUser>["TableRow"],
+    }),
+    [selectedUserId, isPanelOpen, highlightMyRank, highlightedUsername, handleRowClick]
+  );
 
   // Open profile for a user by ID (ProfileSidePanel fetches data internally)
   const handleOpenProfileById = useCallback((userId: string) => {
@@ -2848,61 +2922,7 @@ export default function LeaderboardPage() {
                           data={users}
                           overscan={200}
                           className="scrollbar-hide"
-                          components={{
-                            Table: ({ style, ...props }) => (
-                              <table
-                                {...props}
-                                className="w-full table-fixed"
-                                style={{ ...style, tableLayout: "fixed" }}
-                              />
-                            ),
-                            TableHead: React.forwardRef(function TableHead(props, ref) {
-                              return (
-                                <thead
-                                  {...props}
-                                  ref={ref}
-                                  className="sticky top-0 z-10 bg-[var(--glass-bg)] backdrop-blur-md"
-                                  style={{ boxShadow: "inset 0 -1px 0 0 rgba(113, 113, 122, 0.3)" }}
-                                />
-                              );
-                            }),
-                            TableRow: ({ item: user, ...props }) => {
-                              const index = users.findIndex((u) => u.id === user.id);
-                              return (
-                                <tr
-                                  {...props}
-                                  ref={user.isCurrentUser ? currentUserRowRef : undefined}
-                                  data-user-id={user.id}
-                                  onClick={() => handleRowClick(user)}
-                                  className={`h-10 transition-colors cursor-pointer hover:!bg-[var(--color-table-row-hover)] border-b border-[var(--border-default)]/30 ${
-                                    user.isCurrentUser ? "bg-[var(--user-country-bg)]" : ""
-                                  } ${selectedUserId === user.id && isPanelOpen ? "!bg-[var(--color-table-row-hover)]" : ""} ${
-                                    user.isCurrentUser && highlightMyRank
-                                      ? "!bg-[var(--color-claude-coral)]/50 ring-2 ring-[var(--color-claude-coral)]"
-                                      : ""
-                                  } ${
-                                    highlightedUsername &&
-                                    user.username.toLowerCase() === highlightedUsername
-                                      ? "!bg-[var(--color-claude-coral)]/50 ring-2 ring-[var(--color-claude-coral)] animate-pulse"
-                                      : ""
-                                  }`}
-                                  style={{
-                                    backgroundColor:
-                                      !user.isCurrentUser &&
-                                      !(selectedUserId === user.id && isPanelOpen) &&
-                                      !highlightMyRank &&
-                                      !(
-                                        highlightedUsername &&
-                                        user.username.toLowerCase() === highlightedUsername
-                                      ) &&
-                                      index % 2 === 1
-                                        ? "var(--color-table-row-even)"
-                                        : undefined,
-                                  }}
-                                />
-                              );
-                            },
-                          }}
+                          components={virtuosoComponents}
                           fixedHeaderContent={() => (
                             <tr className="h-10">
                               <th
