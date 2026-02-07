@@ -5,7 +5,6 @@ User-agent: *
 Allow: /$
 Allow: /leaderboard
 Allow: /community
-Allow: /llms.txt
 Allow: /sitemap.xml
 Disallow: /
 
