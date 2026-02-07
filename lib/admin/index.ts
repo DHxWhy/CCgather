@@ -17,11 +17,6 @@ export async function checkAdmin(): Promise<string | null> {
     return null;
   }
 
-  // In development, allow all authenticated users
-  if (process.env.NODE_ENV === "development") {
-    return userId;
-  }
-
   // Check admin status in database
   try {
     const supabase = await createClient();
@@ -56,10 +51,7 @@ export async function checkAdminAccess(): Promise<boolean> {
   const { userId } = await auth();
   if (!userId) return false;
 
-  // Development mode: allow all authenticated users
-  if (process.env.NODE_ENV === "development") return true;
-
-  // Production: verify is_admin flag in database
+  // Verify is_admin flag in database
   const supabase = await createClient();
   const { data } = await supabase.from("users").select("is_admin").eq("clerk_id", userId).single();
 

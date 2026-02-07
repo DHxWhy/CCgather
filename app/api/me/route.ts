@@ -4,12 +4,14 @@ import { createServiceClient } from "@/lib/supabase/server";
 import { z } from "zod";
 import { randomBytes } from "crypto";
 
-// Generate 5-character alphanumeric referral code
+// Generate 5-character alphanumeric referral code (CSPRNG)
 function generateShortCode(): string {
   const chars = "abcdefghijklmnopqrstuvwxyz0123456789";
+  const bytes = new Uint8Array(5);
+  crypto.getRandomValues(bytes);
   let code = "";
   for (let i = 0; i < 5; i++) {
-    code += chars.charAt(Math.floor(Math.random() * chars.length));
+    code += chars.charAt(bytes[i]! % chars.length);
   }
   return code;
 }

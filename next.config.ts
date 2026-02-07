@@ -80,13 +80,49 @@ const withPWA = withPWAInit({
 const nextConfig: NextConfig = {
   // Turbopack 설정 (Next.js 16 기본 번들러)
   turbopack: {},
-  // 외부 이미지 도메인 허용 (뉴스 기사 OG 이미지 등)
+  // Security headers + CORS
+  async headers() {
+    const securityHeaders = [
+      { key: "X-Frame-Options", value: "DENY" },
+      { key: "X-Content-Type-Options", value: "nosniff" },
+      { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+      { key: "X-DNS-Prefetch-Control", value: "on" },
+      {
+        key: "Strict-Transport-Security",
+        value: "max-age=63072000; includeSubDomains; preload",
+      },
+      {
+        key: "Permissions-Policy",
+        value: "camera=(), microphone=(), geolocation=()",
+      },
+    ];
+    return [
+      { source: "/(.*)", headers: securityHeaders },
+      {
+        source: "/api/:path*",
+        headers: [
+          ...securityHeaders,
+          {
+            key: "Access-Control-Allow-Origin",
+            value:
+              process.env.NODE_ENV === "development"
+                ? "http://localhost:3000"
+                : "https://ccgather.com",
+          },
+          { key: "Access-Control-Allow-Methods", value: "GET,POST,PATCH,DELETE,OPTIONS" },
+          { key: "Access-Control-Allow-Headers", value: "Content-Type, Authorization" },
+        ],
+      },
+    ];
+  },
+  // 외부 이미지 도메인 허용 (허용된 소스만)
   images: {
     remotePatterns: [
-      {
-        protocol: "https",
-        hostname: "**",
-      },
+      { protocol: "https", hostname: "img.clerk.com" },
+      { protocol: "https", hostname: "avatars.githubusercontent.com" },
+      { protocol: "https", hostname: "api.dicebear.com" },
+      { protocol: "https", hostname: "www.google.com" },
+      { protocol: "https", hostname: "logo.clearbit.com" },
     ],
     // SVG 아바타 지원 (dicebear 등)
     dangerouslyAllowSVG: true,

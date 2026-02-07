@@ -230,12 +230,11 @@ export async function GET(request: NextRequest) {
       myVotedToolIds = myVotes?.map((v: { tool_id: string }) => v.tool_id) || [];
     }
 
-    const response: GetToolsResponse & { currentUserDbId?: string } = {
+    const response: GetToolsResponse = {
       tools: toolsWithVoters,
       total: count || 0,
       hasMore: (params.offset || 0) + (params.limit || 20) < (count || 0),
       myVotedToolIds, // 현재 사용자가 투표한 도구 ID 목록
-      currentUserDbId: currentUserDbId || undefined, // 현재 사용자의 DB ID (아바타 필터링용)
     };
 
     return NextResponse.json(response);
