@@ -79,12 +79,22 @@ function usePWAUpdate() {
   const applyUpdate = useCallback(() => {
     if (!waitingWorker) return;
 
+    // Hide notification immediately so it doesn't reappear
+    setUpdateAvailable(false);
+
     // Tell waiting SW to skip waiting and activate
     waitingWorker.postMessage({ type: "SKIP_WAITING" });
 
     // For standalone PWA, we can't force reload - user needs to restart
     if (!isStandalone) {
-      // Browser will reload via controllerchange event
+      // Browser should reload via controllerchange event,
+      // but add fallback in case the event doesn't fire
+      setTimeout(() => {
+        if (!(window as Window & { __swRefreshing?: boolean }).__swRefreshing) {
+          (window as Window & { __swRefreshing?: boolean }).__swRefreshing = true;
+          window.location.reload();
+        }
+      }, 3000);
     }
   }, [waitingWorker, isStandalone]);
 

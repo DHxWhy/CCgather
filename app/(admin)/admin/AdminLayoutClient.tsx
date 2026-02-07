@@ -38,7 +38,10 @@ const ADMIN_MENU = [
   },
   {
     section: "시스템",
-    items: [{ id: "ai-usage", label: "AI 사용량", href: "/admin/ai-usage", icon: "🤖" }],
+    items: [
+      { id: "ai-usage", label: "AI 사용량", href: "/admin/ai-usage", icon: "🤖" },
+      { id: "deleted-users", label: "탈퇴 사용자", href: "/admin/deleted-users", icon: "🚫" },
+    ],
   },
 ];
 
