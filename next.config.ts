@@ -58,15 +58,18 @@ const withPWA = withPWAInit({
           },
         },
       },
-      // JS/CSS 캐싱 (StaleWhileRevalidate - 빠른 로딩 + 최신화)
+      // JS/CSS 캐싱 — _next/static은 precache가 이미 처리하므로 제외
+      // 외부 스크립트/스타일만 NetworkFirst로 캐싱 (StaleWhileRevalidate는
+      // SW 업데이트 중 stale 자원을 제공하여 React Error #185 유발 가능)
       {
-        urlPattern: /\.(?:js|css)$/i,
-        handler: "StaleWhileRevalidate",
+        urlPattern: ({ url }: { url: URL }) =>
+          /\.(?:js|css)$/i.test(url.pathname) && !url.pathname.startsWith("/_next/"),
+        handler: "NetworkFirst",
         options: {
-          cacheName: "static-resources",
+          cacheName: "external-resources",
           expiration: {
-            maxEntries: 64,
-            maxAgeSeconds: 7 * 24 * 60 * 60, // 7일
+            maxEntries: 32,
+            maxAgeSeconds: 24 * 60 * 60, // 1일
           },
         },
       },

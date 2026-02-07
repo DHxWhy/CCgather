@@ -50,11 +50,14 @@ export function ProductHuntBadge() {
           target="_blank"
           rel="noopener noreferrer"
         >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=1071381&theme=light&t=1770059953257"
             alt="CCgather - Document your Claude Code journey | Product Hunt"
             width="140"
             height="30"
+            loading="lazy"
+            fetchPriority="low"
             className="hover:opacity-90 transition-opacity"
           />
         </a>

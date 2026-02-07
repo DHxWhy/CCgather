@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useCallback, useRef } from "react";
 import { AlertTriangle, RefreshCw, Home } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 
@@ -10,10 +10,40 @@ interface ErrorProps {
 }
 
 export default function Error({ error, reset }: ErrorProps) {
+  const retryCount = useRef(0);
+
   useEffect(() => {
     // Log error to monitoring service (e.g., Sentry)
     console.error("Application Error:", error);
   }, [error]);
+
+  // First attempt: React error boundary reset (lightweight).
+  // Second attempt: Clear stale SW caches + hard reload (full recovery).
+  const handleRetry = useCallback(async () => {
+    retryCount.current += 1;
+
+    if (retryCount.current <= 1) {
+      // Lightweight retry — re-render without full page reload
+      reset();
+      return;
+    }
+
+    // Full recovery — clear stale caches and hard reload
+    try {
+      if ("caches" in window) {
+        const cacheNames = await caches.keys();
+        // Only clear workbox runtime caches — precache is version-managed by SW itself
+        const staleCaches = cacheNames.filter(
+          (name) =>
+            name === "static-resources" || name === "external-resources" || name === "start-url"
+        );
+        await Promise.all(staleCaches.map((name) => caches.delete(name)));
+      }
+    } catch {
+      // Ignore cache cleanup errors
+    }
+    window.location.reload();
+  }, [reset]);
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-bg-primary px-4">
@@ -43,7 +73,7 @@ export default function Error({ error, reset }: ErrorProps) {
 
         {/* Action Buttons */}
         <div className="flex flex-col sm:flex-row gap-3 justify-center">
-          <Button variant="primary" onClick={reset}>
+          <Button variant="primary" onClick={handleRetry}>
             <RefreshCw className="w-4 h-4 mr-2" />
             Try Again
           </Button>

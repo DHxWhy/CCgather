@@ -66,7 +66,11 @@ function usePWAUpdate() {
     const handleControllerChange = () => {
       if ((window as Window & { __swRefreshing?: boolean }).__swRefreshing) return;
       (window as Window & { __swRefreshing?: boolean }).__swRefreshing = true;
-      window.location.reload();
+      // Delay reload to let React finish current render cycle and SW activation complete.
+      // Immediate reload during React rendering can cause "Maximum update depth exceeded" (Error #185).
+      setTimeout(() => {
+        window.location.reload();
+      }, 100);
     };
     navigator.serviceWorker.addEventListener("controllerchange", handleControllerChange);
 
@@ -88,13 +92,14 @@ function usePWAUpdate() {
     // For standalone PWA, we can't force reload - user needs to restart
     if (!isStandalone) {
       // Browser should reload via controllerchange event,
-      // but add fallback in case the event doesn't fire
+      // but add fallback in case the event doesn't fire.
+      // Use 2s timeout — enough for SW activation but not so long users navigate away.
       setTimeout(() => {
         if (!(window as Window & { __swRefreshing?: boolean }).__swRefreshing) {
           (window as Window & { __swRefreshing?: boolean }).__swRefreshing = true;
-          window.location.reload();
+          setTimeout(() => window.location.reload(), 100);
         }
-      }, 3000);
+      }, 2000);
     }
   }, [waitingWorker, isStandalone]);
 
