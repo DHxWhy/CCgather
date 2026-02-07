@@ -3154,6 +3154,9 @@ export default function LeaderboardPage() {
                             </div>
                           );
                         })()}
+                      {/* Bottom padding for mobile browsers — ensures last rows
+                          aren't hidden behind browser nav bar + sticky My Position bar */}
+                      <div className="h-28 md:h-0" aria-hidden="true" />
                     </div>
                   </div>
                 </div>
