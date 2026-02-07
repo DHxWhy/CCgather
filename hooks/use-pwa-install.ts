@@ -133,6 +133,10 @@ export function usePWAInstall() {
         setIsInstalled(true);
         setIsInstallable(false);
         localStorage.setItem(INSTALLED_KEY, "true");
+      } else {
+        // User dismissed the native install prompt — hide banner for this session.
+        // isInstallable resets to true on next session when beforeinstallprompt fires again.
+        setIsInstallable(false);
       }
 
       setDeferredPrompt(null);
