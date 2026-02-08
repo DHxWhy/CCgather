@@ -9,7 +9,7 @@ type ErrorType = "timeout" | "auth" | "session";
 export default function SSOCallbackPage() {
   const router = useRouter();
   const { signOut } = useClerk();
-  const { isSignedIn, isLoaded } = useAuth();
+  const { isLoaded } = useAuth();
   const [hasError, setHasError] = useState(false);
   const [isTimedOut, setIsTimedOut] = useState(false);
   const [errorType, setErrorType] = useState<ErrorType>("auth");
@@ -35,22 +35,20 @@ export default function SSOCallbackPage() {
     }
   }, []);
 
-  // Redirect immediately if already signed in or invalid callback
+  // Redirect only for stale/direct navigation (no OAuth params)
+  // IMPORTANT: Do NOT redirect based on isSignedIn here.
+  // AuthenticateWithRedirectCallback must complete its full flow
+  // (session cookie setup + full-page redirect) without being unmounted.
+  // router.replace() is a client-side navigation that races ahead of cookie setup.
   useEffect(() => {
     if (!isLoaded) return;
 
-    // Already signed in → go to leaderboard
-    if (isSignedIn) {
-      router.replace("/leaderboard");
-      return;
-    }
-
-    // No valid callback params (stale PWA navigation) → go to leaderboard
+    // No valid callback params (stale PWA navigation or direct visit) → go to leaderboard
     if (!isValidCallback) {
       router.replace("/leaderboard");
       return;
     }
-  }, [isLoaded, isSignedIn, isValidCallback, router]);
+  }, [isLoaded, isValidCallback, router]);
 
   // Clerk loading timeout - redirect if Clerk fails to initialize
   useEffect(() => {
@@ -133,8 +131,8 @@ export default function SSOCallbackPage() {
     router.push("/");
   };
 
-  // Redirecting: already signed in or stale PWA navigation
-  if (!isLoaded || isSignedIn || !isValidCallback) {
+  // Redirecting: stale PWA navigation or Clerk not loaded yet
+  if (!isLoaded || !isValidCallback) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[var(--color-bg-primary)]">
         <div className="text-center">
