@@ -17,23 +17,12 @@ const withPWA = withPWAInit({
     skipWaiting: false,
     clientsClaim: true,
     // 런타임 캐싱 전략
+    // API(/api/*) 및 Clerk 라우트는 runtimeCaching에서 의도적으로 제외:
+    // NetworkOnly 전략이라도 SW가 요청을 가로채면 SW 활성화/전환 중
+    // Workbox no-response 에러 발생 가능 → React Error #185로 페이지 크래시
+    // runtimeCaching에 미등록 시 SW fetch 핸들러가 가로채지 않고
+    // 브라우저가 직접 네트워크 요청을 처리하여 에러를 완전히 방지
     runtimeCaching: [
-      // API 호출은 항상 네트워크에서 (실시간 데이터)
-      {
-        urlPattern: /^https?:\/\/.*\/api\/.*/i,
-        handler: "NetworkOnly",
-        options: {
-          cacheName: "api-calls",
-        },
-      },
-      // Clerk 인증 관련은 캐싱하지 않음
-      {
-        urlPattern: /^https?:\/\/.*clerk.*/i,
-        handler: "NetworkOnly",
-        options: {
-          cacheName: "clerk-auth",
-        },
-      },
       // 이미지 캐싱 (빠른 로딩)
       {
         urlPattern: /\.(?:jpg|jpeg|gif|png|svg|ico|webp)$/i,
@@ -143,7 +132,6 @@ const nextConfig: NextConfig = {
       "cobe",
       "posthog-js",
     ],
-    optimizeCss: true,
   },
   // PostHog 프록시는 vercel.json rewrites로 처리
   // Next.js rewrites는 POST 요청에서 405 에러 발생하여 Vercel rewrites로 대체
