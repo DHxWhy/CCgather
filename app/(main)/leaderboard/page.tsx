@@ -1877,10 +1877,7 @@ export default function LeaderboardPage() {
           style={PARTICLE_CONTAINER_STYLE}
         >
           <div className="absolute" style={particleInnerStyle}>
-            <GlobeParticles
-              size={isTablet ? 280 : 320}
-              speed={viewMode === "community" ? 0.4 : 1}
-            />
+            <GlobeParticles size={isTablet ? 280 : 320} />
           </div>
         </div>
       )}
