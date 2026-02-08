@@ -131,7 +131,6 @@ const nextConfig: NextConfig = {
   },
   // 성능 최적화
   experimental: {
-    // 모던 번들 최적화 - 트리 쉐이킹 개선
     optimizePackageImports: [
       "lucide-react",
       "@clerk/nextjs",
@@ -144,6 +143,7 @@ const nextConfig: NextConfig = {
       "cobe",
       "posthog-js",
     ],
+    optimizeCss: true,
   },
   // PostHog 프록시는 vercel.json rewrites로 처리
   // Next.js rewrites는 POST 요청에서 405 에러 발생하여 Vercel rewrites로 대체

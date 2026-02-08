@@ -81,12 +81,10 @@
     "zod": "^4.3.5"
   },
   "browserslist": [
-    "last 2 Chrome versions",
-    "last 2 Firefox versions",
-    "last 2 Safari versions",
-    "last 2 Edge versions",
-    "not dead",
-    "not IE 11"
+    "Chrome >= 105",
+    "Firefox >= 104",
+    "Safari >= 15.6",
+    "Edge >= 105"
   ],
   "devDependencies": {
     "@eslint/eslintrc": "^3.3.3",
