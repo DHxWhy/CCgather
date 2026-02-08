@@ -305,12 +305,15 @@ export async function POST(request: NextRequest) {
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
-    // STEP 0.7: Reinstall detection via session hash + device_id mismatch
-    // If the same session hashes appear with a different device_id, the CLI was
-    // reinstalled (new salt → new device_id, but session files unchanged).
-    // Clean up the old device's usage_stats rows (date-scoped) and update
-    // submitted_sessions to the new device_id.
+    // STEP 0.7: Reinstall detection — QUERY ONLY (cleanup deferred to STEP 1.7)
+    // Detect if same session hashes appear with a different device_id, indicating
+    // a CLI reinstall. Actual cleanup runs AFTER successful upsert to prevent
+    // data loss if upsert fails.
+    // NOTE: This query must run AFTER session hash insertion (lines above) because
+    // new hashes are inserted with the current device_id and won't match here.
     // ═══════════════════════════════════════════════════════════════════════════
+    let staleDeviceInfo: { staleDeviceIds: string[]; staleHashes: string[] } | null = null;
+
     if (deviceId !== "legacy" && body.sessionFingerprint?.sessionHashes?.length) {
       const { data: staleDeviceRows } = await supabase
         .from("submitted_sessions")
@@ -321,52 +324,14 @@ export async function POST(request: NextRequest) {
         .neq("device_id", deviceId);
 
       if (staleDeviceRows && staleDeviceRows.length > 0) {
-        // Collect stale device_ids that need cleanup
-        const staleDeviceIds = [
-          ...new Set(
-            staleDeviceRows.map((r: { device_id: string | null }) => r.device_id as string)
-          ),
-        ];
-        const submittingDates = body.dailyUsage?.map((d) => d.date) || [];
-
-        if (submittingDates.length > 0) {
-          console.log(
-            `[CLI Submit] Reinstall detected for user ${authenticatedUser.username}: ` +
-              `old devices [${staleDeviceIds.join(",")}] → new device ${deviceId}. ` +
-              `Cleaning ${submittingDates.length} date(s).`
-          );
-
-          // Delete old device's usage_stats rows for the submitting dates only
-          for (const staleId of staleDeviceIds) {
-            const { error: cleanupError, count: cleanedCount } = await supabase
-              .from("usage_stats")
-              .delete({ count: "exact" })
-              .eq("user_id", authenticatedUser.id)
-              .eq("device_id", staleId)
-              .in("date", submittingDates);
-
-            if (cleanupError) {
-              console.error(
-                `[CLI Submit] Reinstall cleanup error for device ${staleId}:`,
-                cleanupError
-              );
-            } else if (cleanedCount && cleanedCount > 0) {
-              console.log(`[CLI Submit] Cleaned ${cleanedCount} rows from stale device ${staleId}`);
-            }
-          }
-        }
-
-        // Update submitted_sessions to the new device_id
-        const staleHashes = staleDeviceRows.map((r: { session_hash: string }) => r.session_hash);
-        const { error: updateError } = await supabase
-          .from("submitted_sessions")
-          .update({ device_id: deviceId })
-          .eq("user_id", authenticatedUser.id)
-          .in("session_hash", staleHashes);
-
-        if (updateError) {
-          console.error("[CLI Submit] Failed to update session device_id:", updateError);
-        }
+        const staleIds = staleDeviceRows.map(
+          (r: { device_id: string | null }) => r.device_id as string
+        );
+        const staleHashList = staleDeviceRows.map((r: { session_hash: string }) => r.session_hash);
+        staleDeviceInfo = {
+          staleDeviceIds: [...new Set<string>(staleIds)],
+          staleHashes: staleHashList,
+        };
       }
     }
 
@@ -478,6 +443,51 @@ export async function POST(request: NextRequest) {
         console.log(
           `[CLI Submit] Cleaned ${deletedCount} legacy rows for user ${authenticatedUser.username}`
         );
+      }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // STEP 1.7: Reinstall cleanup (deferred from STEP 0.7, guarded by upsertSucceeded)
+    // Only runs after new data is safely written, preventing data loss if upsert fails.
+    // Also guards submitted_sessions update with submittingDates to avoid orphaned rows.
+    // ═══════════════════════════════════════════════════════════════════════════
+    if (upsertSucceeded && staleDeviceInfo && body.dailyUsage && body.dailyUsage.length > 0) {
+      const submittingDates = body.dailyUsage.map((d) => d.date);
+
+      console.log(
+        `[CLI Submit] Reinstall detected for user ${authenticatedUser.username}: ` +
+          `old devices [${staleDeviceInfo.staleDeviceIds.join(",")}] → new device ${deviceId}. ` +
+          `Cleaning ${submittingDates.length} date(s).`
+      );
+
+      // Delete old device's usage_stats rows for the submitting dates only
+      for (const staleId of staleDeviceInfo.staleDeviceIds) {
+        const { error: cleanupError, count: cleanedCount } = await supabase
+          .from("usage_stats")
+          .delete({ count: "exact" })
+          .eq("user_id", authenticatedUser.id)
+          .eq("device_id", staleId)
+          .in("date", submittingDates);
+
+        if (cleanupError) {
+          console.error(
+            `[CLI Submit] Reinstall cleanup error for device ${staleId}:`,
+            cleanupError
+          );
+        } else if (cleanedCount && cleanedCount > 0) {
+          console.log(`[CLI Submit] Cleaned ${cleanedCount} rows from stale device ${staleId}`);
+        }
+      }
+
+      // Update submitted_sessions to the new device_id (only when cleanup ran)
+      const { error: updateError } = await supabase
+        .from("submitted_sessions")
+        .update({ device_id: deviceId })
+        .eq("user_id", authenticatedUser.id)
+        .in("session_hash", staleDeviceInfo.staleHashes);
+
+      if (updateError) {
+        console.error("[CLI Submit] Failed to update session device_id:", updateError);
       }
     }
 
