@@ -173,7 +173,7 @@ export function LandingHero({ initialStats }: LandingHeroProps) {
                 className={`absolute inset-0 transition-opacity duration-500 ${mounted ? "opacity-100" : "opacity-0"}`}
               >
                 <GlobeParticles size={globeSize} />
-                <Globe markers={GLOBE_STATS} size={globeSize} />
+                <Globe markers={GLOBE_STATS} size={globeSize} autoRotate={false} initialPhi={4.5} />
               </div>
             </div>
           </div>

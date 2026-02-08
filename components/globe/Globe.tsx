@@ -244,6 +244,8 @@ interface GlobeProps {
   userCountryCode?: string;
   forceDark?: boolean;
   scopeFilter?: "global" | "country";
+  autoRotate?: boolean;
+  initialPhi?: number;
 }
 
 // Project lat/lng to screen coordinates matching cobe's rendering
@@ -289,6 +291,8 @@ export function Globe({
   userCountryCode,
   forceDark,
   scopeFilter = "global",
+  autoRotate = true,
+  initialPhi = 0,
 }: GlobeProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const userDotRef = useRef<HTMLDivElement>(null);
@@ -351,7 +355,7 @@ export function Globe({
   );
 
   useEffect(() => {
-    let phi = 0;
+    let phi = initialPhi;
     const theta = 0.3;
 
     // Theme-aware globe settings
@@ -400,8 +404,8 @@ export function Globe({
       mapSamples,
       markers: globeMarkers,
       onRender: (state) => {
-        if (!pointerInteracting.current) {
-          phi += 0.00154; // 20% faster rotation
+        if (autoRotate && !pointerInteracting.current) {
+          phi += 0.00154;
         }
         state.phi = phi + rotationRef.current;
         state.width = size * dpr;
