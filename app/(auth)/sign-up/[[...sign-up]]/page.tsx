@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { useSignUp, useAuth } from "@clerk/nextjs";
+import { useSignIn, useAuth } from "@clerk/nextjs";
 import { AuthLeftPanel } from "@/components/auth/AuthLeftPanel";
 import dynamic from "next/dynamic";
 import { useState, useEffect } from "react";
@@ -51,7 +51,10 @@ function isInAppBrowser(): boolean {
 }
 
 export default function SignUpPage() {
-  const { signUp, isLoaded } = useSignUp();
+  // Use signIn instead of signUp for GitHub OAuth:
+  // OAuth auto-creates accounts for new users, and signIn flow
+  // is proven to persist sessions correctly (avoids "transferable" state issue)
+  const { signIn, isLoaded } = useSignIn();
   const { isSignedIn } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -72,14 +75,19 @@ export default function SignUpPage() {
       return;
     }
 
-    if (!signUp) {
+    if (!signIn) {
       setError("Connection failed. Please refresh the page.");
       return;
     }
 
     setIsLoading(true);
     try {
-      await signUp.authenticateWithRedirect({
+      // Reset any stale/partial sign-in state to prevent session issues
+      if (signIn.status !== null) {
+        await signIn.create({});
+      }
+
+      await signIn.authenticateWithRedirect({
         strategy: "oauth_github",
         redirectUrl: "/sso-callback",
         redirectUrlComplete: "/leaderboard",
