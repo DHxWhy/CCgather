@@ -515,80 +515,6 @@ export type Database = {
           },
         ];
       };
-      tools: {
-        Row: {
-          approved_at: string | null;
-          bookmark_count: number | null;
-          category: string;
-          created_at: string | null;
-          description: string | null;
-          id: string;
-          logo_url: string | null;
-          name: string;
-          pricing_type: string | null;
-          slug: string;
-          source: string | null;
-          status: string | null;
-          submitted_by: string | null;
-          tagline: string;
-          tags: string[] | null;
-          updated_at: string | null;
-          upvote_count: number | null;
-          website_url: string;
-          weighted_score: number | null;
-        };
-        Insert: {
-          approved_at?: string | null;
-          bookmark_count?: number | null;
-          category: string;
-          created_at?: string | null;
-          description?: string | null;
-          id?: string;
-          logo_url?: string | null;
-          name: string;
-          pricing_type?: string | null;
-          slug: string;
-          source?: string | null;
-          status?: string | null;
-          submitted_by?: string | null;
-          tagline: string;
-          tags?: string[] | null;
-          updated_at?: string | null;
-          upvote_count?: number | null;
-          website_url: string;
-          weighted_score?: number | null;
-        };
-        Update: {
-          approved_at?: string | null;
-          bookmark_count?: number | null;
-          category?: string;
-          created_at?: string | null;
-          description?: string | null;
-          id?: string;
-          logo_url?: string | null;
-          name?: string;
-          pricing_type?: string | null;
-          slug?: string;
-          source?: string | null;
-          status?: string | null;
-          submitted_by?: string | null;
-          tagline?: string;
-          tags?: string[] | null;
-          updated_at?: string | null;
-          upvote_count?: number | null;
-          website_url?: string;
-          weighted_score?: number | null;
-        };
-        Relationships: [
-          {
-            foreignKeyName: "tools_submitted_by_fkey";
-            columns: ["submitted_by"];
-            isOneToOne: false;
-            referencedRelation: "users";
-            referencedColumns: ["id"];
-          },
-        ];
-      };
       usage_stats: {
         Row: {
           cache_read_tokens: number | null;
@@ -877,7 +803,6 @@ export type UserBadge = Database["public"]["Tables"]["user_badges"]["Row"];
 export type BadgeDisplay = Database["public"]["Tables"]["badge_display"]["Row"];
 export type CountryStats = Database["public"]["Tables"]["country_stats"]["Row"];
 export type DailySnapshot = Database["public"]["Tables"]["daily_snapshots"]["Row"];
-export type Tool = Database["public"]["Tables"]["tools"]["Row"];
 export type SubmittedSession = Database["public"]["Tables"]["submitted_sessions"]["Row"];
 
 export type CCPlanType = string;

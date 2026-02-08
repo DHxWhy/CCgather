@@ -145,8 +145,7 @@ function GlobalJsonLd() {
     name: "CCgather",
     url: "https://ccgather.com",
     logo: "https://ccgather.com/logos/logo.png",
-    description:
-      "Where Claude Code developers gather. Real-time leaderboards, curated AI news, and developer tools.",
+    description: "Where Claude Code developers gather. Real-time leaderboards and curated AI news.",
     sameAs: [
       "https://twitter.com/ccgather",
       "https://github.com/DHxWhy/CCgather",
@@ -165,15 +164,7 @@ function GlobalJsonLd() {
     name: "CCgather",
     url: "https://ccgather.com",
     description:
-      "Real-time global leaderboard for Claude Code usage. Track your tokens, compete with developers worldwide, and discover AI tools.",
-    potentialAction: {
-      "@type": "SearchAction",
-      target: {
-        "@type": "EntryPoint",
-        urlTemplate: "https://ccgather.com/tools?search={search_term_string}",
-      },
-      "query-input": "required name=search_term_string",
-    },
+      "Real-time global leaderboard for Claude Code usage. Track your tokens and compete with developers worldwide.",
     publisher: {
       "@type": "Organization",
       name: "CCgather",

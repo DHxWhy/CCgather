@@ -68,9 +68,9 @@ export function AccountDeleteModal({
   // Data that will be deleted
   const deletedData = [
     { icon: ChartBar, label: "Usage Statistics", desc: "Token usage, cost history" },
-    { icon: Vote, label: "Vote History", desc: "Tools you've upvoted" },
+    { icon: Vote, label: "Vote History", desc: "Community votes" },
     { icon: Award, label: "Badges & Level", desc: "Earned badges, level info" },
-    { icon: MessageSquare, label: "Activity History", desc: "Submitted tools, comments" },
+    { icon: MessageSquare, label: "Activity History", desc: "Posts, comments" },
   ];
 
   return (

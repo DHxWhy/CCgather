@@ -33,7 +33,6 @@ const ADMIN_MENU = [
     items: [
       { id: "community", label: "Community", href: "/admin/community", icon: "💬" },
       { id: "feedback", label: "Feedback", href: "/admin/feedback", icon: "🐛" },
-      { id: "tools", label: "Tools 관리", href: "/admin/tools", icon: "🔧" },
     ],
   },
   {

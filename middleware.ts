@@ -7,8 +7,6 @@ const isPublicRoute = createRouteMatcher([
   "/community(.*)",
   "/u/(.*)",
   "/league/(.*)",
-  "/tools",
-  "/tools/(.*)",
   "/terms",
   "/privacy",
   "/cli",
@@ -22,8 +20,6 @@ const isPublicRoute = createRouteMatcher([
   "/api/user/(.*)",
   "/api/users/(.*)",
   "/api/countries(.*)",
-  "/api/tools",
-  "/api/tools/((?!vote|submit|eligibility|analyze).*)",
   "/api/cli/(.*)",
 ]);
 

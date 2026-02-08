@@ -38,6 +38,6 @@ export default function manifest(): MetadataRoute.Manifest {
         purpose: "any",
       },
     ],
-    categories: ["developer-tools", "productivity"],
+    categories: ["productivity"],
   };
 }

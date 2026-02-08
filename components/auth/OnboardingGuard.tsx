@@ -13,7 +13,6 @@ interface PendingDeletionInfo {
   expires_at: string;
   remaining_hours: number;
   stats: {
-    tools_submitted: number;
     votes_count: number;
     level: number;
     username: string;

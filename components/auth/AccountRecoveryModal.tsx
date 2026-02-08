@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { RefreshCw, Trash2, Clock, Trophy, ThumbsUp, Wrench, AlertTriangle } from "lucide-react";
+import { RefreshCw, Trash2, Clock, Trophy, ThumbsUp, AlertTriangle } from "lucide-react";
 
 interface PendingDeletionInfo {
   pending_deletion: true;
@@ -10,7 +10,6 @@ interface PendingDeletionInfo {
   expires_at: string;
   remaining_hours: number;
   stats: {
-    tools_submitted: number;
     votes_count: number;
     level: number;
     username: string;
@@ -107,14 +106,7 @@ export function AccountRecoveryModal({
                   <span className="font-medium text-white">{pendingInfo.stats.username}</span>
                   &apos;s activity
                 </div>
-                <div className="grid grid-cols-3 gap-4">
-                  <div className="text-center">
-                    <div className="flex items-center justify-center gap-1 text-zinc-300 mb-1">
-                      <Wrench className="w-4 h-4" />
-                      <span className="font-semibold">{pendingInfo.stats.tools_submitted}</span>
-                    </div>
-                    <span className="text-xs text-zinc-500">Tools</span>
-                  </div>
+                <div className="grid grid-cols-2 gap-4">
                   <div className="text-center">
                     <div className="flex items-center justify-center gap-1 text-zinc-300 mb-1">
                       <ThumbsUp className="w-4 h-4" />
