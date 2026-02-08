@@ -6,9 +6,12 @@ import { cn } from "@/lib/utils";
 interface GlobeParticlesProps {
   size: number;
   className?: string;
+  animated?: boolean;
 }
 
 const PARTICLE_COLORS = ["#FBBF24", "#DA7756", "#DA7756", "#10b981", "#3B82F6"];
+
+const WAVE_DELAYS = { 1: 0, 3: 20, 2: 40 };
 
 function createSeededRandom(seed: number) {
   return () => {
@@ -23,7 +26,26 @@ function getParticleCount(viewportWidth: number): number {
   return 40;
 }
 
-export const GlobeParticles: React.FC<GlobeParticlesProps> = ({ size, className }) => {
+interface Particle {
+  index: number;
+  startX: number;
+  startY: number;
+  distanceX: number;
+  distanceY: number;
+  staticX: number;
+  staticY: number;
+  duration: number;
+  delay: number;
+  particleSize: number;
+  opacity: number;
+  color: string;
+}
+
+export const GlobeParticles: React.FC<GlobeParticlesProps> = ({
+  size,
+  className,
+  animated = false,
+}) => {
   const [mounted, setMounted] = useState(false);
   const [viewportWidth, setViewportWidth] = useState(1024);
   const [isVisible, setIsVisible] = useState(false);
@@ -43,19 +65,13 @@ export const GlobeParticles: React.FC<GlobeParticlesProps> = ({ size, className 
 
     const baseCount = getParticleCount(viewportWidth);
     const globeRadius = size / 2;
-    const result: Array<{
-      index: number;
-      x: number;
-      y: number;
-      particleSize: number;
-      opacity: number;
-      color: string;
-    }> = [];
+    const result: Particle[] = [];
 
     const generateWave = (
       count: number,
       startIndex: number,
       seed: number,
+      wave: number,
       angleFn: (rng: () => number, random: (min: number, max: number) => number) => number,
       distanceFn: (angle: number, random: (min: number, max: number) => number) => number
     ) => {
@@ -67,11 +83,23 @@ export const GlobeParticles: React.FC<GlobeParticlesProps> = ({ size, className 
       for (let i = 0; i < count; i++) {
         const angle = angleFn(rng, random);
         const travel = distanceFn(angle, random);
-        // Place at a random point along the travel path (simulates frozen animation)
-        const progress = rng() * 0.6 + 0.4; // 40%~100% of travel distance
-        const fromCenter = globeRadius * 0.65 + travel * progress;
-        const x = Math.cos(angle) * fromCenter;
-        const y = Math.sin(angle) * fromCenter;
+
+        const startRadius = globeRadius * 0.65;
+        const startX = Math.cos(angle) * startRadius;
+        const startY = Math.sin(angle) * startRadius;
+        const distanceX = Math.cos(angle) * travel;
+        const distanceY = Math.sin(angle) * travel;
+
+        // Static position: frozen at random point along travel path
+        const progress = rng() * 0.6 + 0.4;
+        const fromCenter = startRadius + travel * progress;
+        const staticX = Math.cos(angle) * fromCenter;
+        const staticY = Math.sin(angle) * fromCenter;
+
+        // Animation timing
+        const duration = wave === 2 ? random(80, 130) : random(90, 150);
+        const animationProgress = rng();
+        const waveDelay = WAVE_DELAYS[wave as keyof typeof WAVE_DELAYS] || 0;
 
         const color = randomColor();
         const isCoral = color === "#DA7756";
@@ -80,8 +108,14 @@ export const GlobeParticles: React.FC<GlobeParticlesProps> = ({ size, className 
 
         result.push({
           index: startIndex + i,
-          x,
-          y,
+          startX,
+          startY,
+          distanceX,
+          distanceY,
+          staticX,
+          staticY,
+          duration,
+          delay: -animationProgress * duration + waveDelay,
           particleSize,
           opacity: rng() < 0.5 ? 0.7 : 1,
           color,
@@ -92,11 +126,11 @@ export const GlobeParticles: React.FC<GlobeParticlesProps> = ({ size, className 
     const firstCount = Math.floor(baseCount / 2);
     const thirdCount = baseCount - firstCount;
 
-    // Wave 1: 85% right-bottom bias
     generateWave(
       firstCount,
       0,
       size * 1000 + 42,
+      1,
       (rng, random) =>
         rng() < 0.85 ? random(-Math.PI / 3, (2 * Math.PI) / 3) : random(-Math.PI, Math.PI),
       (angle, random) => {
@@ -108,11 +142,11 @@ export const GlobeParticles: React.FC<GlobeParticlesProps> = ({ size, className 
       }
     );
 
-    // Wave 3: 75% right-bottom, 25% elsewhere
     generateWave(
       thirdCount,
       firstCount,
       size * 3000 + 77,
+      3,
       (rng, random) => {
         let angle: number;
         if (rng() < 0.75) {
@@ -131,13 +165,13 @@ export const GlobeParticles: React.FC<GlobeParticlesProps> = ({ size, className 
       }
     );
 
-    // Wave 2: desktop only, 2시/4시/6시 directions
     if (viewportWidth >= 1024) {
       const dirs = [-Math.PI / 3, Math.PI / 6, Math.PI / 2];
       generateWave(
         20,
         baseCount,
         size * 2000 + 99,
+        2,
         (rng, random) => {
           const base = dirs[Math.floor(rng() * dirs.length)] ?? dirs[0]!;
           return base + random(-Math.PI / 12, Math.PI / 12);
@@ -161,18 +195,33 @@ export const GlobeParticles: React.FC<GlobeParticlesProps> = ({ size, className 
         className
       )}
     >
-      {particles.map(({ index, x, y, particleSize, opacity, color }) => (
+      {particles.map((p) => (
         <div
-          key={`particle-${index}`}
-          className="globe-particle absolute rounded-full"
-          style={{
-            width: particleSize,
-            height: particleSize,
-            left: `calc(50% + ${x}px)`,
-            top: `calc(50% + ${y}px)`,
-            opacity,
-            ["--particle-color" as string]: color,
-          }}
+          key={`particle-${p.index}`}
+          className={`absolute rounded-full ${animated ? "globe-particle-animated" : "globe-particle"}`}
+          style={
+            animated
+              ? {
+                  width: p.particleSize,
+                  height: p.particleSize,
+                  left: `calc(50% + ${p.startX}px)`,
+                  top: `calc(50% + ${p.startY}px)`,
+                  opacity: p.opacity,
+                  ["--distance-x" as string]: p.distanceX,
+                  ["--distance-y" as string]: p.distanceY,
+                  ["--particle-color" as string]: p.color,
+                  animationDuration: `${p.duration}s, ${p.duration}s`,
+                  animationDelay: `${p.delay}s, ${p.delay}s`,
+                }
+              : {
+                  width: p.particleSize,
+                  height: p.particleSize,
+                  left: `calc(50% + ${p.staticX}px)`,
+                  top: `calc(50% + ${p.staticY}px)`,
+                  opacity: p.opacity,
+                  ["--particle-color" as string]: p.color,
+                }
+          }
         />
       ))}
     </div>

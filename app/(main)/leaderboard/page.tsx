@@ -1877,7 +1877,7 @@ export default function LeaderboardPage() {
           style={PARTICLE_CONTAINER_STYLE}
         >
           <div className="absolute" style={particleInnerStyle}>
-            <GlobeParticles size={isTablet ? 280 : 320} />
+            <GlobeParticles size={isTablet ? 280 : 320} animated />
           </div>
         </div>
       )}

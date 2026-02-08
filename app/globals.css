@@ -952,6 +952,43 @@ button,
   transform: translate(-50%, -50%);
 }
 
+@keyframes globe-particle-travel {
+  0% {
+    transform: translate(-50%, -50%);
+    opacity: 1;
+  }
+  100% {
+    transform: translate(
+      calc(-50% + var(--distance-x) * 1px),
+      calc(-50% + var(--distance-y) * 1px)
+    );
+    opacity: 1;
+  }
+}
+
+@keyframes globe-particle-glow {
+  0% {
+    background: rgba(255, 255, 255, 0.9);
+    box-shadow: 0 0 2px rgba(255, 255, 255, 0.8);
+  }
+  50% {
+    background: var(--particle-color, #da7756);
+    box-shadow: 0 0 6px var(--particle-color, #da7756);
+  }
+  100% {
+    background: var(--particle-color, #da7756);
+    box-shadow: 0 0 3px var(--particle-color, #da7756);
+  }
+}
+
+.globe-particle-animated {
+  --particle-color: #da7756;
+  animation:
+    globe-particle-travel 15s ease-out infinite,
+    globe-particle-glow 15s ease-out infinite;
+  transform: translate(-50%, -50%);
+}
+
 /* ========================================
    RESPONSIVE TYPOGRAPHY
    ======================================== */
