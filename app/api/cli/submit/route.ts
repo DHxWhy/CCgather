@@ -7,6 +7,7 @@ import {
   sendPushNotificationToUser,
   createSubmissionSummaryNotification,
 } from "@/lib/push/send-notification";
+import { aggregateByDate } from "@/lib/utils/usage-aggregation";
 
 interface DailyUsage {
   date: string;
@@ -209,19 +210,27 @@ export async function POST(request: NextRequest) {
       .eq("user_id", authenticatedUser.id)
       .order("date", { ascending: true });
 
-    const previousDates = [
-      ...new Set(previousDailyData?.map((d: { date: string }) => d.date) || []),
-    ];
-    const previousDailyMap = new Map<string, { tokens: number; cost: number }>();
-    previousDailyData?.forEach((d: { date: string; total_tokens: number; cost_usd: number }) => {
-      const existing = previousDailyMap.get(d.date);
-      if (existing) {
-        existing.tokens += d.total_tokens;
-        existing.cost += d.cost_usd;
-      } else {
-        previousDailyMap.set(d.date, { tokens: d.total_tokens, cost: d.cost_usd });
-      }
-    });
+    const previousDailyAggregated = aggregateByDate<{
+      date: string;
+      total_tokens: number;
+      cost_usd: number;
+    }>(
+      previousDailyData as { date: string; total_tokens: number; cost_usd: number }[] | null,
+      (d) => d.date,
+      (d) => d.total_tokens ?? 0,
+      (d) => d.cost_usd ?? 0
+    );
+    const previousDates = previousDailyAggregated.map((d) => d.date);
+    const previousDailyMap = new Map(
+      previousDailyAggregated.map((d) => [d.date, { tokens: d.tokens, cost: d.cost }])
+    );
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // STEP 0.5: Validate deviceId input (before session hash storage)
+    // ═══════════════════════════════════════════════════════════════════════════
+    const rawDeviceId = body.deviceId || "legacy";
+    const deviceId =
+      rawDeviceId === "legacy" || /^[a-f0-9]{8,16}$/.test(rawDeviceId) ? rawDeviceId : "legacy";
 
     // Session fingerprint duplicate check (1 Project 1 Person principle)
     if (body.sessionFingerprint?.sessionHashes?.length) {
@@ -264,6 +273,7 @@ export async function POST(request: NextRequest) {
         const hashRecords = newHashes.map((hash: string) => ({
           session_hash: hash,
           user_id: authenticatedUser.id,
+          device_id: deviceId !== "legacy" ? deviceId : null,
         }));
 
         const { error: insertError } = await supabase
@@ -281,13 +291,6 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // ═══════════════════════════════════════════════════════════════════════════
-    // STEP 0.5: Validate deviceId input
-    // ═══════════════════════════════════════════════════════════════════════════
-    const rawDeviceId = body.deviceId || "legacy";
-    const deviceId =
-      rawDeviceId === "legacy" || /^[a-f0-9]{8,16}$/.test(rawDeviceId) ? rawDeviceId : "legacy";
-
     // Validate dailyUsage date formats
     if (body.dailyUsage) {
       const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
@@ -297,6 +300,72 @@ export async function POST(request: NextRequest) {
             { error: `Invalid date format: ${day.date}. Expected YYYY-MM-DD.` },
             { status: 400 }
           );
+        }
+      }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // STEP 0.7: Reinstall detection via session hash + device_id mismatch
+    // If the same session hashes appear with a different device_id, the CLI was
+    // reinstalled (new salt → new device_id, but session files unchanged).
+    // Clean up the old device's usage_stats rows (date-scoped) and update
+    // submitted_sessions to the new device_id.
+    // ═══════════════════════════════════════════════════════════════════════════
+    if (deviceId !== "legacy" && body.sessionFingerprint?.sessionHashes?.length) {
+      const { data: staleDeviceRows } = await supabase
+        .from("submitted_sessions")
+        .select("session_hash, device_id")
+        .eq("user_id", authenticatedUser.id)
+        .in("session_hash", body.sessionFingerprint.sessionHashes)
+        .not("device_id", "is", null)
+        .neq("device_id", deviceId);
+
+      if (staleDeviceRows && staleDeviceRows.length > 0) {
+        // Collect stale device_ids that need cleanup
+        const staleDeviceIds = [
+          ...new Set(
+            staleDeviceRows.map((r: { device_id: string | null }) => r.device_id as string)
+          ),
+        ];
+        const submittingDates = body.dailyUsage?.map((d) => d.date) || [];
+
+        if (submittingDates.length > 0) {
+          console.log(
+            `[CLI Submit] Reinstall detected for user ${authenticatedUser.username}: ` +
+              `old devices [${staleDeviceIds.join(",")}] → new device ${deviceId}. ` +
+              `Cleaning ${submittingDates.length} date(s).`
+          );
+
+          // Delete old device's usage_stats rows for the submitting dates only
+          for (const staleId of staleDeviceIds) {
+            const { error: cleanupError, count: cleanedCount } = await supabase
+              .from("usage_stats")
+              .delete({ count: "exact" })
+              .eq("user_id", authenticatedUser.id)
+              .eq("device_id", staleId)
+              .in("date", submittingDates);
+
+            if (cleanupError) {
+              console.error(
+                `[CLI Submit] Reinstall cleanup error for device ${staleId}:`,
+                cleanupError
+              );
+            } else if (cleanedCount && cleanedCount > 0) {
+              console.log(`[CLI Submit] Cleaned ${cleanedCount} rows from stale device ${staleId}`);
+            }
+          }
+        }
+
+        // Update submitted_sessions to the new device_id
+        const staleHashes = staleDeviceRows.map((r: { session_hash: string }) => r.session_hash);
+        const { error: updateError } = await supabase
+          .from("submitted_sessions")
+          .update({ device_id: deviceId })
+          .eq("user_id", authenticatedUser.id)
+          .in("session_hash", staleHashes);
+
+        if (updateError) {
+          console.error("[CLI Submit] Failed to update session device_id:", updateError);
         }
       }
     }
@@ -444,7 +513,7 @@ export async function POST(request: NextRequest) {
     const deviceTotals = new Map<string, { tokens: number; cost: number }>();
     if (allDailyUsage) {
       for (const day of allDailyUsage) {
-        const did = (day as { device_id?: string }).device_id || "legacy";
+        const did = day.device_id || "legacy";
         const existing = deviceTotals.get(did);
         if (existing) {
           existing.tokens += day.total_tokens || 0;

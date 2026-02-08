@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { aggregateByDate } from "@/lib/utils/usage-aggregation";
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -39,27 +40,12 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   }
 
   // Aggregate by date: SUM tokens/cost across devices for the same date
-  const dailyMap = new Map<string, { tokens: number; cost: number }>();
-  for (const h of history || []) {
-    const existing = dailyMap.get(h.date);
-    if (existing) {
-      existing.tokens += h.total_tokens || 0;
-      existing.cost += h.cost_usd || 0;
-    } else {
-      dailyMap.set(h.date, {
-        tokens: h.total_tokens || 0,
-        cost: h.cost_usd || 0,
-      });
-    }
-  }
-
-  const transformedHistory = Array.from(dailyMap.entries())
-    .sort(([a], [b]) => a.localeCompare(b))
-    .map(([date, data]) => ({
-      date,
-      tokens: data.tokens,
-      cost: data.cost,
-    }));
+  const transformedHistory = aggregateByDate(
+    history,
+    (h) => h.date,
+    (h) => h.total_tokens || 0,
+    (h) => h.cost_usd || 0
+  );
 
   // If no usage_stats but user has data, create synthetic "today" entry
   // This handles cases where user re-registered or data was imported

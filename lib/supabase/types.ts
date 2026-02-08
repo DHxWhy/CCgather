@@ -482,6 +482,7 @@ export type Database = {
       };
       submitted_sessions: {
         Row: {
+          device_id: string | null;
           id: string;
           project_hash: string | null;
           session_hash: string;
@@ -489,6 +490,7 @@ export type Database = {
           user_id: string;
         };
         Insert: {
+          device_id?: string | null;
           id?: string;
           project_hash?: string | null;
           session_hash: string;
@@ -496,6 +498,7 @@ export type Database = {
           user_id: string;
         };
         Update: {
+          device_id?: string | null;
           id?: string;
           project_hash?: string | null;
           session_hash?: string;
@@ -593,6 +596,7 @@ export type Database = {
           ccplan_at_submission: string | null;
           cost_usd: number | null;
           date: string;
+          device_id: string;
           id: string;
           input_tokens: number | null;
           league_reason: string | null;
@@ -612,6 +616,7 @@ export type Database = {
           ccplan_at_submission?: string | null;
           cost_usd?: number | null;
           date: string;
+          device_id?: string;
           id?: string;
           input_tokens?: number | null;
           league_reason?: string | null;
@@ -631,6 +636,7 @@ export type Database = {
           ccplan_at_submission?: string | null;
           cost_usd?: number | null;
           date?: string;
+          device_id?: string;
           id?: string;
           input_tokens?: number | null;
           league_reason?: string | null;
@@ -834,6 +840,7 @@ export type Database = {
       calculate_country_ranks: { Args: Record<string, never>; Returns: undefined };
       calculate_global_ranks: { Args: Record<string, never>; Returns: undefined };
       calculate_level: { Args: { tokens: number }; Returns: number };
+      count_unique_usage_days: { Args: { p_user_id: string }; Returns: number };
       cleanup_deleted_users: { Args: Record<string, never>; Returns: Json };
       cleanup_expired_device_codes: { Args: Record<string, never>; Returns: undefined };
       generate_referral_code: { Args: { p_username: string }; Returns: string };

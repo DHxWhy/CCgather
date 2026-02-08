@@ -28,14 +28,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
-    // Count unique data days (distinct dates, not rows — multi-device safe)
-    const { data: uniqueDaysData } = await supabase
-      .from("usage_stats")
-      .select("date")
-      .eq("user_id", user.id);
-    const uniqueDataDays = uniqueDaysData
-      ? new Set(uniqueDaysData.map((r: { date: string }) => r.date)).size
-      : 0;
+    // Count unique data days via server-side RPC (multi-device safe)
+    const { data: uniqueDaysResult } = await supabase.rpc("count_unique_usage_days", {
+      p_user_id: user.id,
+    });
+    const uniqueDataDays = (uniqueDaysResult as number) ?? 0;
 
     // Verify eligibility (Level 7+ OR 7+ unique data days)
     const eligibility = checkSuggestionEligibility({

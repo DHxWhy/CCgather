@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { aggregateByDate } from "@/lib/utils/usage-aggregation";
 
 /**
  * Usage Summary API - Central data source for all usage-related UI components
@@ -130,27 +131,12 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   }
 
   // Aggregate by date: SUM tokens/cost across devices for the same date
-  const dailyMap = new Map<string, { tokens: number; cost: number }>();
-  for (const d of usageData || []) {
-    const existing = dailyMap.get(d.date);
-    if (existing) {
-      existing.tokens += d.total_tokens || 0;
-      existing.cost += d.cost_usd || 0;
-    } else {
-      dailyMap.set(d.date, {
-        tokens: d.total_tokens || 0,
-        cost: d.cost_usd || 0,
-      });
-    }
-  }
-
-  const daily: DailyUsage[] = Array.from(dailyMap.entries())
-    .sort(([a], [b]) => a.localeCompare(b))
-    .map(([date, data]) => ({
-      date,
-      tokens: data.tokens,
-      cost: data.cost,
-    }));
+  const daily: DailyUsage[] = aggregateByDate(
+    usageData,
+    (d) => d.date,
+    (d) => d.total_tokens || 0,
+    (d) => d.cost_usd || 0
+  );
 
   // Calculate averages from daily data
   const totalDailyTokens = daily.reduce((sum, d) => sum + d.tokens, 0);
