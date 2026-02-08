@@ -7,7 +7,11 @@ const withPWA = withPWAInit({
   register: true,
   reloadOnOnline: true,
   cacheOnFrontEndNav: false,
-  cacheStartUrl: true,
+  // cacheStartUrl: false — start URL을 precache에 추가하지 않음
+  cacheStartUrl: false,
+  // dynamicStartUrl: false — SW가 "/" 핸들러를 생성하면 미들웨어 리다이렉트(302)를
+  // opaque redirect → 200 OK 변환 후 캐시하여 인증 플로우 및 로그인 리디렉트 방해
+  dynamicStartUrl: false,
   // Clerk 인증 및 API 경로 캐싱 제외
   publicExcludes: ["!manifest.webmanifest"],
   // Workbox 옵션
@@ -16,6 +20,9 @@ const withPWA = withPWAInit({
     // 자동 skipWaiting 제거하여 UpdateNotification 컴포넌트가 제어
     skipWaiting: false,
     clientsClaim: true,
+    // 인증 관련 경로는 SW navigation fallback에서 완전 제외
+    // OAuth 콜백 체인이 SW 간섭 없이 브라우저가 직접 처리
+    navigateFallbackDenylist: [/^\/sso-callback/, /^\/sign-in/, /^\/sign-up/, /^\/api\//],
     // 런타임 캐싱 전략
     // API(/api/*) 및 Clerk 라우트는 runtimeCaching에서 의도적으로 제외:
     // NetworkOnly 전략이라도 SW가 요청을 가로채면 SW 활성화/전환 중

@@ -79,6 +79,11 @@ export default function SignInPage() {
 
     setIsLoading(true);
     try {
+      // Reset any stale/partial sign-in state to prevent Error #185
+      if (signIn.status !== null) {
+        await signIn.create({});
+      }
+
       await signIn.authenticateWithRedirect({
         strategy: "oauth_github",
         redirectUrl: "/sso-callback",

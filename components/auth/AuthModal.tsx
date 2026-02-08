@@ -58,6 +58,12 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
 
     setIsLoading(true);
     try {
+      // Reset any stale/partial sign-in state to prevent Error #185
+      // (infinite render loop from corrupted Clerk internal state)
+      if (signIn.status !== null) {
+        await signIn.create({});
+      }
+
       await signIn.authenticateWithRedirect({
         strategy: "oauth_github",
         redirectUrl: "/sso-callback",
@@ -65,13 +71,25 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
       });
     } catch (err: unknown) {
       console.error("GitHub sign in error:", err);
-      // Handle "already signed in" error
       const errorMessage = err instanceof Error ? err.message : String(err);
+
+      // Handle "already signed in" error
       if (errorMessage.includes("already signed in")) {
         onClose();
         router.push("/leaderboard");
         return;
       }
+
+      // If Clerk state is corrupted, force full page navigation to sign-in
+      if (
+        errorMessage.includes("Maximum update depth") ||
+        errorMessage.includes("too many re-renders")
+      ) {
+        onClose();
+        window.location.href = "/sign-in";
+        return;
+      }
+
       setError("Failed to connect to GitHub. Please try again.");
       setIsLoading(false);
     }

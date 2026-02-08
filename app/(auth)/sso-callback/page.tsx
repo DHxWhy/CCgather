@@ -1,10 +1,26 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { AuthenticateWithRedirectCallback, useClerk, useAuth } from "@clerk/nextjs";
 import { useRouter } from "next/navigation";
 
 type ErrorType = "timeout" | "auth" | "session";
+
+// Check if URL has valid OAuth callback parameters
+function hasValidCallbackParams(): boolean {
+  if (typeof window === "undefined") return false;
+  const params = new URLSearchParams(window.location.search);
+  const hash = window.location.hash;
+  return (
+    params.has("code") ||
+    params.has("state") ||
+    params.has("__clerk_status") ||
+    params.has("__clerk_created_session") ||
+    hash.includes("access_token") ||
+    params.has("error") ||
+    params.has("error_description")
+  );
+}
 
 export default function SSOCallbackPage() {
   const router = useRouter();
@@ -13,125 +29,92 @@ export default function SSOCallbackPage() {
   const [hasError, setHasError] = useState(false);
   const [isTimedOut, setIsTimedOut] = useState(false);
   const [errorType, setErrorType] = useState<ErrorType>("auth");
-  const [isValidCallback, setIsValidCallback] = useState(true);
+  // Check immediately (not in effect) to avoid race with AuthenticateWithRedirectCallback
+  const [isValidCallback] = useState(() => hasValidCallbackParams());
+  const redirectedRef = useRef(false);
 
-  // Check if this is a valid OAuth callback or stale PWA navigation
+  // Stale navigation: no OAuth params → redirect to leaderboard (once)
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const hash = window.location.hash;
-
-    // Valid OAuth callback should have: code, state, or hash with access_token
-    const hasOAuthParams =
-      params.has("code") ||
-      params.has("state") ||
-      params.has("__clerk_status") ||
-      hash.includes("access_token");
-
-    // If no OAuth params and no error params, this is likely a stale PWA navigation
-    const hasErrorParams = params.has("error") || params.has("error_description");
-
-    if (!hasOAuthParams && !hasErrorParams) {
-      setIsValidCallback(false);
-    }
-  }, []);
-
-  // Redirect only for stale/direct navigation (no OAuth params)
-  // IMPORTANT: Do NOT redirect based on isSignedIn here.
-  // AuthenticateWithRedirectCallback must complete its full flow
-  // (session cookie setup + full-page redirect) without being unmounted.
-  // router.replace() is a client-side navigation that races ahead of cookie setup.
-  useEffect(() => {
-    if (!isLoaded) return;
-
-    // No valid callback params (stale PWA navigation or direct visit) → go to leaderboard
-    if (!isValidCallback) {
-      router.replace("/leaderboard");
-      return;
-    }
+    if (!isLoaded || isValidCallback || redirectedRef.current) return;
+    redirectedRef.current = true;
+    router.replace("/leaderboard");
   }, [isLoaded, isValidCallback, router]);
 
-  // Clerk loading timeout - redirect if Clerk fails to initialize
+  // Clerk loading timeout (10s)
   useEffect(() => {
+    if (isLoaded) return;
     const timeout = setTimeout(() => {
-      if (!isLoaded) {
+      if (!redirectedRef.current) {
         console.warn("[SSO] Clerk failed to load after 10s, redirecting...");
-        router.replace("/leaderboard");
+        redirectedRef.current = true;
+        window.location.href = "/leaderboard";
       }
     }, 10000);
-
-    if (isLoaded) {
-      clearTimeout(timeout);
-    }
-
     return () => clearTimeout(timeout);
-  }, [isLoaded, router]);
+  }, [isLoaded]);
 
-  // Timeout detection - if callback takes too long, show error state
+  // Callback processing timeout (20s) - only for valid callbacks
   useEffect(() => {
-    // Don't start timeout if we're redirecting anyway
     if (!isValidCallback) return;
-
     const timeout = setTimeout(() => {
       setIsTimedOut(true);
       setErrorType("timeout");
-    }, 15000); // 15 seconds timeout
-
+    }, 20000);
     return () => clearTimeout(timeout);
   }, [isValidCallback]);
 
-  // Handle URL error params and session issues
+  // Handle URL error params
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const error = params.get("error");
     const errorDescription = params.get("error_description");
 
-    if (error || errorDescription) {
-      setHasError(true);
+    if (!error && !errorDescription) return;
 
-      // Check for session-related errors (deleted user, invalid session)
-      const sessionErrors = [
-        "session",
-        "user_not_found",
-        "account_not_found",
-        "invalid_session",
-        "session_expired",
-      ];
-      const isSessionError = sessionErrors.some(
-        (e) => error?.toLowerCase().includes(e) || errorDescription?.toLowerCase().includes(e)
-      );
+    setHasError(true);
 
-      if (isSessionError) {
-        setErrorType("session");
-        // Auto sign out to clear invalid session
-        signOut({ redirectUrl: "/sign-in" }).catch(() => {
-          router.push("/sign-in");
-        });
-        return;
-      }
+    const sessionErrors = [
+      "session",
+      "user_not_found",
+      "account_not_found",
+      "invalid_session",
+      "session_expired",
+    ];
+    const isSessionError = sessionErrors.some(
+      (e) => error?.toLowerCase().includes(e) || errorDescription?.toLowerCase().includes(e)
+    );
 
-      setErrorType("auth");
+    if (isSessionError) {
+      setErrorType("session");
+      signOut({ redirectUrl: "/sign-in" }).catch(() => {
+        window.location.href = "/sign-in";
+      });
+      return;
     }
-  }, [signOut, router]);
+
+    setErrorType("auth");
+  }, [signOut]);
 
   const handleSignIn = async () => {
-    // Clear any stale session before redirecting to sign-in
+    // Clear stale session/sign-in state completely before retry
     try {
       await signOut();
     } catch {
-      // Ignore errors, proceed to sign-in
+      // Ignore - proceed to sign-in regardless
     }
-    router.push("/sign-in");
+    // Use full page navigation to ensure clean Clerk state
+    window.location.href = "/sign-in";
   };
 
   const handleRetry = () => {
-    router.push("/leaderboard");
+    window.location.href = "/leaderboard";
   };
 
   const handleGoHome = () => {
-    router.push("/");
+    window.location.href = "/";
   };
 
-  // Redirecting: stale PWA navigation or Clerk not loaded yet
+  // Loading: Clerk not ready or stale navigation
   if (!isLoaded || !isValidCallback) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[var(--color-bg-primary)]">
@@ -143,7 +126,7 @@ export default function SSOCallbackPage() {
     );
   }
 
-  // Session error: auto-clearing, show loading
+  // Session error: auto-clearing
   if (errorType === "session") {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[var(--color-bg-primary)]">
@@ -158,7 +141,7 @@ export default function SSOCallbackPage() {
     );
   }
 
-  // Show error state
+  // Error or timeout
   if (hasError || isTimedOut) {
     const errorMessages: Record<ErrorType, { title: string; description: string }> = {
       timeout: {
@@ -182,7 +165,7 @@ export default function SSOCallbackPage() {
       <div className="min-h-screen flex items-center justify-center bg-[var(--color-bg-primary)]">
         <div className="max-w-md w-full mx-4 text-center">
           <div className="bg-[var(--color-bg-secondary)] border border-[#DA7756]/30 rounded-xl p-8">
-            <div className="text-5xl mb-4">⚠️</div>
+            <div className="text-5xl mb-4">&#x26A0;&#xFE0F;</div>
             <h1 className="text-xl font-bold text-[#DA7756] mb-2">{title}</h1>
             <p className="text-zinc-400 text-sm mb-6">{description}</p>
             <div className="space-y-3">
@@ -206,8 +189,8 @@ export default function SSOCallbackPage() {
               </button>
             </div>
             <p className="text-xs text-zinc-500 mt-6">
-              💡 Tip: If using Safari, try disabling &quot;Prevent cross-site tracking&quot; in
-              Privacy settings.
+              If using Safari, try disabling &quot;Prevent cross-site tracking&quot; in Privacy
+              settings.
             </p>
           </div>
         </div>
@@ -215,7 +198,10 @@ export default function SSOCallbackPage() {
     );
   }
 
-  // Normal loading state with Clerk callback
+  // Normal: render Clerk callback handler
+  // IMPORTANT: Do not add effects that redirect based on isSignedIn here.
+  // AuthenticateWithRedirectCallback must complete its full flow
+  // (session cookie setup + full-page redirect) without being unmounted.
   return (
     <div className="min-h-screen flex items-center justify-center bg-[var(--color-bg-primary)]">
       <div className="text-center">
