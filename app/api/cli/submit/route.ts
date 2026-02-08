@@ -282,49 +282,30 @@ export async function POST(request: NextRequest) {
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
-    // STEP 0.5: Date-scoped legacy cleanup (Rule 1)
-    // When submitting with a real device ID, DELETE legacy rows ONLY for the
-    // dates being submitted. This prevents duplication (legacy + real device
-    // rows for same date) while preserving legacy data for other dates.
-    // Legacy rows for unsubmitted dates are left untouched and will be cleaned
-    // up naturally when those dates are eventually resubmitted.
+    // STEP 0.5: Validate deviceId input
     // ═══════════════════════════════════════════════════════════════════════════
-    const deviceId = body.deviceId || "legacy";
+    const rawDeviceId = body.deviceId || "legacy";
+    const deviceId =
+      rawDeviceId === "legacy" || /^[a-f0-9]{8,16}$/.test(rawDeviceId) ? rawDeviceId : "legacy";
 
-    if (deviceId !== "legacy" && body.dailyUsage && body.dailyUsage.length > 0) {
-      const submittingDates = body.dailyUsage.map((d) => d.date);
-
-      const { data: legacyToDelete, error: legacyCheckError } = await supabase
-        .from("usage_stats")
-        .select("date")
-        .eq("user_id", authenticatedUser.id)
-        .eq("device_id", "legacy")
-        .in("date", submittingDates);
-
-      if (legacyCheckError) {
-        console.error("[CLI Submit] Legacy check error:", legacyCheckError);
-      } else if (legacyToDelete && legacyToDelete.length > 0) {
-        const { error: deleteError } = await supabase
-          .from("usage_stats")
-          .delete()
-          .eq("user_id", authenticatedUser.id)
-          .eq("device_id", "legacy")
-          .in("date", submittingDates);
-
-        if (deleteError) {
-          console.error("[CLI Submit] Legacy cleanup error:", deleteError);
-        } else {
-          console.log(
-            `[CLI Submit] Cleaned ${legacyToDelete.length} legacy rows for dates [${legacyToDelete.map((r: { date: string }) => r.date).join(", ")}] for user ${authenticatedUser.username}`
+    // Validate dailyUsage date formats
+    if (body.dailyUsage) {
+      const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+      for (const day of body.dailyUsage) {
+        if (!dateRegex.test(day.date)) {
+          return NextResponse.json(
+            { error: `Invalid date format: ${day.date}. Expected YYYY-MM-DD.` },
+            { status: 400 }
           );
         }
       }
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
-    // STEP 1: Insert/Update daily usage records FIRST
+    // STEP 1: Insert/Update daily usage records FIRST (before legacy cleanup)
     // ═══════════════════════════════════════════════════════════════════════════
     const overallPrimaryModel = getPrimaryModel(body.dailyUsage);
+    let upsertSucceeded = false;
 
     if (body.dailyUsage && body.dailyUsage.length > 0) {
       // Bulk insert daily usage data (upsert - replace existing records for same date)
@@ -369,6 +350,7 @@ export async function POST(request: NextRequest) {
       if (statsError) {
         console.error("[CLI Submit] Bulk usage stats upsert error:", statsError);
       } else {
+        upsertSucceeded = true;
         console.log(
           `[CLI Submit] Inserted ${usageRecords.length} daily usage records for user ${authenticatedUser.username}`
         );
@@ -399,6 +381,34 @@ export async function POST(request: NextRequest) {
 
       if (statsError) {
         console.error("[CLI Submit] Usage stats upsert error:", statsError);
+      } else {
+        upsertSucceeded = true;
+      }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // STEP 1.5: Date-scoped legacy cleanup (AFTER successful upsert)
+    // Only delete legacy rows for dates that were just upserted with a real
+    // device ID. This prevents duplication without risking data loss.
+    // ═══════════════════════════════════════════════════════════════════════════
+    if (upsertSucceeded && deviceId !== "legacy" && body.dailyUsage && body.dailyUsage.length > 0) {
+      const submittingDates = body.dailyUsage.map((d) => d.date);
+
+      const { error: deleteError, count: deletedCount } = await supabase
+        .from("usage_stats")
+        .delete({ count: "exact" })
+        .eq("user_id", authenticatedUser.id)
+        .eq("device_id", "legacy")
+        .in("date", submittingDates);
+
+      if (deleteError) {
+        console.error("[CLI Submit] Legacy cleanup error:", deleteError);
+        // Non-fatal: duplicate rows may remain, but STEP 2 SUM will be higher.
+        // Next submission will retry cleanup. No data loss occurs.
+      } else if (deletedCount && deletedCount > 0) {
+        console.log(
+          `[CLI Submit] Cleaned ${deletedCount} legacy rows for user ${authenticatedUser.username}`
+        );
       }
     }
 
@@ -713,12 +723,11 @@ export async function POST(request: NextRequest) {
       totalBadges: allBadges.length,
     };
 
-    // Include multi-device breakdown
-    // Count real devices (exclude "legacy" from device count)
-    const hasLegacyData = deviceTotals.has("legacy");
-    const realDeviceCount = hasLegacyData ? deviceTotals.size - 1 : deviceTotals.size;
+    // Include multi-device breakdown only when genuinely multiple real devices
+    // Exclude "legacy" from device count — legacy is not a real device
+    const realDeviceIds = Array.from(deviceTotals.keys()).filter((k) => k !== "legacy");
 
-    if (realDeviceCount > 1 || (realDeviceCount === 1 && hasLegacyData)) {
+    if (realDeviceIds.length > 1) {
       const thisDevice = deviceTotals.get(deviceId) || { tokens: 0, cost: 0 };
       let otherTokens = 0;
       let otherCost = 0;
@@ -730,14 +739,13 @@ export async function POST(request: NextRequest) {
       });
 
       response.deviceInfo = {
-        totalDevices: realDeviceCount,
+        totalDevices: realDeviceIds.length,
         thisDeviceTokens: thisDevice.tokens,
         thisDeviceCost: thisDevice.cost,
         otherDevicesTokens: otherTokens,
         otherDevicesCost: otherCost,
         combinedTokens: finalTotalTokens,
         combinedCost: finalTotalCost,
-        hasLegacyData,
       };
     }
 

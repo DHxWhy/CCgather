@@ -89,7 +89,6 @@ interface DeviceInfo {
   otherDevicesCost: number;
   combinedTokens: number;
   combinedCost: number;
-  hasLegacyData?: boolean;
 }
 
 interface SubmitResponse {

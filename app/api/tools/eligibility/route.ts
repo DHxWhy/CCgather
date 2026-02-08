@@ -27,11 +27,14 @@ export async function GET() {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
-    // Count unique data days from usage_stats
-    const { count: uniqueDataDays } = await supabase
+    // Count unique data days (distinct dates, not rows — multi-device safe)
+    const { data: uniqueDaysData } = await supabase
       .from("usage_stats")
-      .select("date", { count: "exact", head: true })
+      .select("date")
       .eq("user_id", user.id);
+    const uniqueDataDays = uniqueDaysData
+      ? new Set(uniqueDaysData.map((r: { date: string }) => r.date)).size
+      : 0;
 
     // Check eligibility with both paths
     const eligibility = checkSuggestionEligibility({

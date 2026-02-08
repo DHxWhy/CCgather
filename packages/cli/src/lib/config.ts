@@ -33,10 +33,15 @@ export function getConfig(): Conf<CliConfig> {
 
 export function resetConfig(): void {
   const config = getConfig();
+  // Preserve deviceId across resets — it's a machine identifier, not a user preference
+  const preservedDeviceId = config.get("deviceId");
   config.clear();
   Object.entries(defaults).forEach(([key, value]) => {
     config.set(key as keyof CliConfig, value);
   });
+  if (preservedDeviceId) {
+    config.set("deviceId", preservedDeviceId);
+  }
 }
 
 export function isAuthenticated(): boolean {
