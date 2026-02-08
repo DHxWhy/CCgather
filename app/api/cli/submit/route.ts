@@ -377,12 +377,27 @@ export async function POST(request: NextRequest) {
         };
       });
 
+      // Primary upsert with device_id-aware constraint
       const { error: statsError } = await supabase
         .from("usage_stats")
         .upsert(usageRecords, { onConflict: "user_id,date,device_id" });
 
       if (statsError) {
-        console.error("[CLI Submit] Bulk usage stats upsert error:", statsError);
+        // Fallback: retry without device_id in records and use legacy constraint
+        console.warn("[CLI Submit] Primary upsert failed, trying fallback:", statsError.message);
+        const legacyRecords = usageRecords.map(({ device_id: _d, ...rest }) => rest);
+        const { error: fallbackError } = await supabase
+          .from("usage_stats")
+          .upsert(legacyRecords, { onConflict: "user_id,date" });
+
+        if (fallbackError) {
+          console.error("[CLI Submit] Fallback upsert also failed:", fallbackError);
+        } else {
+          upsertSucceeded = true;
+          console.log(
+            `[CLI Submit] Inserted ${usageRecords.length} daily usage records (fallback mode) for user ${authenticatedUser.username}`
+          );
+        }
       } else {
         upsertSucceeded = true;
         console.log(
@@ -414,7 +429,31 @@ export async function POST(request: NextRequest) {
       );
 
       if (statsError) {
-        console.error("[CLI Submit] Usage stats upsert error:", statsError);
+        // Fallback: retry without device_id field and use legacy constraint
+        console.warn("[CLI Submit] Today upsert failed, trying fallback:", statsError.message);
+        const { error: fallbackError } = await supabase.from("usage_stats").upsert(
+          {
+            user_id: authenticatedUser.id,
+            date: today,
+            total_tokens: body.totalTokens,
+            input_tokens: body.inputTokens || 0,
+            output_tokens: body.outputTokens || 0,
+            cache_read_tokens: body.cacheReadTokens || 0,
+            cache_write_tokens: body.cacheWriteTokens || 0,
+            cost_usd: body.totalSpent,
+            primary_model: overallPrimaryModel,
+            submitted_at: new Date().toISOString(),
+            submission_source: "cli",
+            league_reason: isOpusModel ? "opus" : null,
+          },
+          { onConflict: "user_id,date" }
+        );
+
+        if (fallbackError) {
+          console.error("[CLI Submit] Fallback today upsert also failed:", fallbackError);
+        } else {
+          upsertSucceeded = true;
+        }
       } else {
         upsertSucceeded = true;
       }
@@ -493,11 +532,39 @@ export async function POST(request: NextRequest) {
 
     // ═══════════════════════════════════════════════════════════════════════════
     // STEP 2: Calculate cumulative totals from ALL daily usage records
+    // Uses a two-query strategy: primary query includes device_id for breakdown,
+    // fallback query omits device_id to survive missing-column scenarios.
     // ═══════════════════════════════════════════════════════════════════════════
-    const { data: allDailyUsage, error: sumError } = await supabase
+    let allDailyUsage:
+      | { total_tokens: number; cost_usd: number; sessions: number; device_id?: string }[]
+      | null = null;
+    let sumError: { message: string } | null = null;
+
+    // Primary query: includes device_id for per-device breakdown
+    const primaryResult = await supabase
       .from("usage_stats")
       .select("total_tokens, cost_usd, sessions, device_id")
       .eq("user_id", authenticatedUser.id);
+
+    if (primaryResult.error || !primaryResult.data) {
+      // Fallback query: omit device_id column (survives missing-column/migration scenarios)
+      console.warn(
+        "[CLI Submit] Primary SUM query failed, trying fallback without device_id:",
+        primaryResult.error
+      );
+      const fallbackResult = await supabase
+        .from("usage_stats")
+        .select("total_tokens, cost_usd, sessions")
+        .eq("user_id", authenticatedUser.id);
+
+      if (fallbackResult.error || !fallbackResult.data) {
+        sumError = fallbackResult.error || { message: "No data returned from fallback" };
+      } else {
+        allDailyUsage = fallbackResult.data;
+      }
+    } else {
+      allDailyUsage = primaryResult.data;
+    }
 
     // Sum all daily usage for true cumulative totals (tokens, cost, sessions)
     let finalTotalTokens = 0;
@@ -528,7 +595,7 @@ export async function POST(request: NextRequest) {
     const deviceTotals = new Map<string, { tokens: number; cost: number }>();
     if (allDailyUsage) {
       for (const day of allDailyUsage) {
-        const did = day.device_id || "legacy";
+        const did = (day as { device_id?: string }).device_id || "legacy";
         const existing = deviceTotals.get(did);
         if (existing) {
           existing.tokens += day.total_tokens || 0;
