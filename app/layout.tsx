@@ -1,8 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Inter, JetBrains_Mono, Space_Grotesk } from "next/font/google";
 import Script from "next/script";
-import { Providers } from "./providers";
-import { ClerkProviderWrapper } from "@/components/providers/ClerkProviderWrapper";
 import "./globals.css";
 
 const inter = Inter({
@@ -299,7 +297,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <link rel="dns-prefetch" href="https://zrkrrvfoaoeodaovzqfs.supabase.co" />
         <GlobalJsonLd />
         {/* Twitter/X Ads Conversion Tracking Pixel */}
-        <Script id="twitter-pixel" strategy="afterInteractive">
+        <Script id="twitter-pixel" strategy="lazyOnload">
           {`
             !function(e,t,n,s,u,a){e.twq||(s=e.twq=function(){s.exe?s.exe.apply(s,arguments):s.queue.push(arguments);
             },s.version='1.1',s.queue=[],u=t.createElement(n),u.async=!0,u.src='https://static.ads-twitter.com/uwt.js',
@@ -309,11 +307,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           `}
         </Script>
       </head>
-      <body className="min-h-screen bg-bg-primary font-sans antialiased">
-        <ClerkProviderWrapper>
-          <Providers>{children}</Providers>
-        </ClerkProviderWrapper>
-      </body>
+      <body className="min-h-screen bg-bg-primary font-sans antialiased">{children}</body>
     </html>
   );
 }

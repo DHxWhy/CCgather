@@ -1,7 +1,7 @@
 "use client";
 
-import { motion } from "framer-motion";
-import { GetStartedButton } from "@/components/auth/GetStartedButton";
+import { useInView } from "@/hooks/use-in-view";
+import { GetStartedLink } from "@/components/landing/GetStartedLink";
 
 const REVIEWS = [
   {
@@ -22,15 +22,11 @@ const REVIEWS = [
 ];
 
 export function SocialProof() {
+  const containerRef = useInView<HTMLElement>();
+
   return (
-    <section className="pb-12 px-6">
-      <motion.div
-        initial={{ opacity: 0, y: 12 }}
-        whileInView={{ opacity: 1, y: 0 }}
-        viewport={{ once: true }}
-        transition={{ duration: 0.4 }}
-        className="max-w-2xl mx-auto"
-      >
+    <section className="pb-12 px-6" ref={containerRef}>
+      <div className="scroll-reveal max-w-2xl mx-auto">
         {/* Product Hunt badge */}
         <div className="flex items-center justify-center mb-6">
           <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/5 border border-white/10 text-xs text-[var(--color-text-muted)]">
@@ -46,36 +42,27 @@ export function SocialProof() {
         {/* Reviews */}
         <div className="space-y-3">
           {REVIEWS.map((review, index) => (
-            <motion.blockquote
+            <blockquote
               key={review.author}
-              initial={{ opacity: 0, y: 10 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ delay: index * 0.1, duration: 0.4 }}
-              className={`border-l-2 ${review.color} pl-4 text-xs text-[var(--color-text-muted)] italic`}
+              className={`scroll-reveal border-l-2 ${review.color} pl-4 text-xs text-[var(--color-text-muted)] italic`}
+              style={{ transitionDelay: `${index * 100}ms` }}
             >
               &quot;{review.text}&quot;
               <span className="block mt-1 not-italic">&mdash; {review.author}, Product Hunt</span>
-            </motion.blockquote>
+            </blockquote>
           ))}
         </div>
 
         {/* Bottom CTA */}
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
-          transition={{ delay: 0.3, duration: 0.4 }}
-          className="mt-10 text-center"
-        >
+        <div className="scroll-reveal mt-10 text-center" style={{ transitionDelay: "300ms" }}>
           <p className="text-sm text-[var(--color-text-secondary)] mb-4">
             Ready to track your Claude Code journey?
           </p>
-          <GetStartedButton className="inline-block px-5 py-2.5 rounded-xl bg-[var(--color-claude-coral)] text-white text-sm font-semibold hover:opacity-90 hover:scale-[1.02] active:scale-95 transition-all shadow-lg shadow-[var(--color-claude-coral)]/20">
+          <GetStartedLink className="inline-block px-5 py-2.5 rounded-xl bg-[var(--color-claude-coral)] text-white text-sm font-semibold hover:opacity-90 hover:scale-[1.02] active:scale-95 transition-all shadow-lg shadow-[var(--color-claude-coral)]/20">
             Get Started
-          </GetStartedButton>
-        </motion.div>
-      </motion.div>
+          </GetStartedLink>
+        </div>
+      </div>
     </section>
   );
 }
