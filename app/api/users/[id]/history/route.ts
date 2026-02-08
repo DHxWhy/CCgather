@@ -13,7 +13,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   const startDate = new Date();
   startDate.setDate(startDate.getDate() - days);
 
-  // Fetch usage history
+  // Fetch usage history (may have multiple rows per date from different devices)
   const { data: history, error: historyError } = await supabase
     .from("usage_stats")
     .select("date, total_tokens, cost_usd")
@@ -38,17 +38,33 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     return NextResponse.json({ error: "User not found" }, { status: 404 });
   }
 
-  // Transform to expected format
-  const transformedHistory = (history || []).map((h) => ({
-    date: h.date,
-    tokens: h.total_tokens || 0,
-    cost: h.cost_usd || 0,
-  }));
+  // Aggregate by date: SUM tokens/cost across devices for the same date
+  const dailyMap = new Map<string, { tokens: number; cost: number }>();
+  for (const h of history || []) {
+    const existing = dailyMap.get(h.date);
+    if (existing) {
+      existing.tokens += h.total_tokens || 0;
+      existing.cost += h.cost_usd || 0;
+    } else {
+      dailyMap.set(h.date, {
+        tokens: h.total_tokens || 0,
+        cost: h.cost_usd || 0,
+      });
+    }
+  }
+
+  const transformedHistory = Array.from(dailyMap.entries())
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([date, data]) => ({
+      date,
+      tokens: data.tokens,
+      cost: data.cost,
+    }));
 
   // If no usage_stats but user has data, create synthetic "today" entry
   // This handles cases where user re-registered or data was imported
   if (transformedHistory.length === 0 && (user.total_tokens || user.total_cost)) {
-    const today = new Date().toISOString().split("T")[0];
+    const today = new Date().toISOString().split("T")[0] as string;
     transformedHistory.push({
       date: today,
       tokens: user.total_tokens || 0,

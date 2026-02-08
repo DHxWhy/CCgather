@@ -76,6 +76,8 @@ interface SubmitPayload {
   // V2.0: Opus detection (for badge display)
   hasOpusUsage?: boolean;
   opusModels?: string[];
+  // Multi-device support
+  deviceId?: string;
 }
 
 // Known CCplan values
@@ -207,10 +209,18 @@ export async function POST(request: NextRequest) {
       .eq("user_id", authenticatedUser.id)
       .order("date", { ascending: true });
 
-    const previousDates = previousDailyData?.map((d: { date: string }) => d.date) || [];
+    const previousDates = [
+      ...new Set(previousDailyData?.map((d: { date: string }) => d.date) || []),
+    ];
     const previousDailyMap = new Map<string, { tokens: number; cost: number }>();
     previousDailyData?.forEach((d: { date: string; total_tokens: number; cost_usd: number }) => {
-      previousDailyMap.set(d.date, { tokens: d.total_tokens, cost: d.cost_usd });
+      const existing = previousDailyMap.get(d.date);
+      if (existing) {
+        existing.tokens += d.total_tokens;
+        existing.cost += d.cost_usd;
+      } else {
+        previousDailyMap.set(d.date, { tokens: d.total_tokens, cost: d.cost_usd });
+      }
     });
 
     // Session fingerprint duplicate check (1 Project 1 Person principle)
@@ -272,6 +282,46 @@ export async function POST(request: NextRequest) {
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
+    // STEP 0.5: Date-scoped legacy cleanup (Rule 1)
+    // When submitting with a real device ID, DELETE legacy rows ONLY for the
+    // dates being submitted. This prevents duplication (legacy + real device
+    // rows for same date) while preserving legacy data for other dates.
+    // Legacy rows for unsubmitted dates are left untouched and will be cleaned
+    // up naturally when those dates are eventually resubmitted.
+    // ═══════════════════════════════════════════════════════════════════════════
+    const deviceId = body.deviceId || "legacy";
+
+    if (deviceId !== "legacy" && body.dailyUsage && body.dailyUsage.length > 0) {
+      const submittingDates = body.dailyUsage.map((d) => d.date);
+
+      const { data: legacyToDelete, error: legacyCheckError } = await supabase
+        .from("usage_stats")
+        .select("date")
+        .eq("user_id", authenticatedUser.id)
+        .eq("device_id", "legacy")
+        .in("date", submittingDates);
+
+      if (legacyCheckError) {
+        console.error("[CLI Submit] Legacy check error:", legacyCheckError);
+      } else if (legacyToDelete && legacyToDelete.length > 0) {
+        const { error: deleteError } = await supabase
+          .from("usage_stats")
+          .delete()
+          .eq("user_id", authenticatedUser.id)
+          .eq("device_id", "legacy")
+          .in("date", submittingDates);
+
+        if (deleteError) {
+          console.error("[CLI Submit] Legacy cleanup error:", deleteError);
+        } else {
+          console.log(
+            `[CLI Submit] Cleaned ${legacyToDelete.length} legacy rows for dates [${legacyToDelete.map((r: { date: string }) => r.date).join(", ")}] for user ${authenticatedUser.username}`
+          );
+        }
+      }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
     // STEP 1: Insert/Update daily usage records FIRST
     // ═══════════════════════════════════════════════════════════════════════════
     const overallPrimaryModel = getPrimaryModel(body.dailyUsage);
@@ -306,6 +356,7 @@ export async function POST(request: NextRequest) {
           sessions: day.sessions || 0,
           primary_model: dayPrimaryModel,
           submitted_at: new Date().toISOString(),
+          device_id: deviceId,
           submission_source: "cli",
           league_reason: isOpusModel ? "opus" : null,
         };
@@ -313,7 +364,7 @@ export async function POST(request: NextRequest) {
 
       const { error: statsError } = await supabase
         .from("usage_stats")
-        .upsert(usageRecords, { onConflict: "user_id,date" });
+        .upsert(usageRecords, { onConflict: "user_id,date,device_id" });
 
       if (statsError) {
         console.error("[CLI Submit] Bulk usage stats upsert error:", statsError);
@@ -339,10 +390,11 @@ export async function POST(request: NextRequest) {
           cost_usd: body.totalSpent,
           primary_model: overallPrimaryModel,
           submitted_at: new Date().toISOString(),
+          device_id: deviceId,
           submission_source: "cli",
           league_reason: isOpusModel ? "opus" : null,
         },
-        { onConflict: "user_id,date" }
+        { onConflict: "user_id,date,device_id" }
       );
 
       if (statsError) {
@@ -355,7 +407,7 @@ export async function POST(request: NextRequest) {
     // ═══════════════════════════════════════════════════════════════════════════
     const { data: allDailyUsage, error: sumError } = await supabase
       .from("usage_stats")
-      .select("total_tokens, cost_usd, sessions")
+      .select("total_tokens, cost_usd, sessions, device_id")
       .eq("user_id", authenticatedUser.id);
 
     if (sumError) {
@@ -377,6 +429,24 @@ export async function POST(request: NextRequest) {
     console.log(
       `[CLI Submit] Cumulative totals for ${authenticatedUser.username}: ${finalTotalTokens} tokens, $${finalTotalCost.toFixed(2)}, ${finalTotalSessions} sessions`
     );
+
+    // Calculate per-device breakdown for multi-device display
+    const deviceTotals = new Map<string, { tokens: number; cost: number }>();
+    if (allDailyUsage) {
+      for (const day of allDailyUsage) {
+        const did = (day as { device_id?: string }).device_id || "legacy";
+        const existing = deviceTotals.get(did);
+        if (existing) {
+          existing.tokens += day.total_tokens || 0;
+          existing.cost += day.cost_usd || 0;
+        } else {
+          deviceTotals.set(did, {
+            tokens: day.total_tokens || 0,
+            cost: day.cost_usd || 0,
+          });
+        }
+      }
+    }
 
     // ═══════════════════════════════════════════════════════════════════════════
     // STEP 3: Update user stats with cumulative totals
@@ -524,8 +594,8 @@ export async function POST(request: NextRequest) {
       authenticatedUser.id,
       {
         id: authenticatedUser.id,
-        total_tokens: Math.max(authenticatedUser.total_tokens || 0, body.totalTokens),
-        total_cost: Math.max(authenticatedUser.total_cost || 0, body.totalSpent),
+        total_tokens: finalTotalTokens,
+        total_cost: finalTotalCost,
         global_rank: rank || 9999,
         country_rank: countryRank,
         country_code: authenticatedUser.country_code,
@@ -642,6 +712,34 @@ export async function POST(request: NextRequest) {
       })),
       totalBadges: allBadges.length,
     };
+
+    // Include multi-device breakdown
+    // Count real devices (exclude "legacy" from device count)
+    const hasLegacyData = deviceTotals.has("legacy");
+    const realDeviceCount = hasLegacyData ? deviceTotals.size - 1 : deviceTotals.size;
+
+    if (realDeviceCount > 1 || (realDeviceCount === 1 && hasLegacyData)) {
+      const thisDevice = deviceTotals.get(deviceId) || { tokens: 0, cost: 0 };
+      let otherTokens = 0;
+      let otherCost = 0;
+      deviceTotals.forEach((val, key) => {
+        if (key !== deviceId) {
+          otherTokens += val.tokens;
+          otherCost += val.cost;
+        }
+      });
+
+      response.deviceInfo = {
+        totalDevices: realDeviceCount,
+        thisDeviceTokens: thisDevice.tokens,
+        thisDeviceCost: thisDevice.cost,
+        otherDevicesTokens: otherTokens,
+        otherDevicesCost: otherCost,
+        combinedTokens: finalTotalTokens,
+        combinedCost: finalTotalCost,
+        hasLegacyData,
+      };
+    }
 
     // Include previous submission info if user has submitted before
     if (authenticatedUser.last_submission_at) {

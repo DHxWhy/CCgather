@@ -9,6 +9,7 @@ export interface CliConfig {
   lastSync?: string;
   userId?: string;
   username?: string;
+  deviceId?: string;
 }
 
 const defaults: CliConfig = {

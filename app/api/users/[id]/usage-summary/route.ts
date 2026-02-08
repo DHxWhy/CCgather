@@ -129,12 +129,28 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     return NextResponse.json({ error: "User not found" }, { status: 404 });
   }
 
-  // Transform daily data
-  const daily: DailyUsage[] = (usageData || []).map((d) => ({
-    date: d.date,
-    tokens: d.total_tokens || 0,
-    cost: d.cost_usd || 0,
-  }));
+  // Aggregate by date: SUM tokens/cost across devices for the same date
+  const dailyMap = new Map<string, { tokens: number; cost: number }>();
+  for (const d of usageData || []) {
+    const existing = dailyMap.get(d.date);
+    if (existing) {
+      existing.tokens += d.total_tokens || 0;
+      existing.cost += d.cost_usd || 0;
+    } else {
+      dailyMap.set(d.date, {
+        tokens: d.total_tokens || 0,
+        cost: d.cost_usd || 0,
+      });
+    }
+  }
+
+  const daily: DailyUsage[] = Array.from(dailyMap.entries())
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([date, data]) => ({
+      date,
+      tokens: data.tokens,
+      cost: data.cost,
+    }));
 
   // Calculate averages from daily data
   const totalDailyTokens = daily.reduce((sum, d) => sum + d.tokens, 0);

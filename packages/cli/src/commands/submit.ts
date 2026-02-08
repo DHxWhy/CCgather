@@ -1,6 +1,7 @@
 import ora from "ora";
 import inquirer from "inquirer";
 import { getApiUrl, getConfig } from "../lib/config.js";
+import { getDeviceId } from "../lib/device.js";
 import {
   scanAllProjects,
   getAllSessionsCount,
@@ -80,6 +81,17 @@ interface PreviousSubmission {
   previousLevel?: number;
 }
 
+interface DeviceInfo {
+  totalDevices: number;
+  thisDeviceTokens: number;
+  thisDeviceCost: number;
+  otherDevicesTokens: number;
+  otherDevicesCost: number;
+  combinedTokens: number;
+  combinedCost: number;
+  hasLegacyData?: boolean;
+}
+
 interface SubmitResponse {
   success: boolean;
   profileUrl?: string;
@@ -91,6 +103,7 @@ interface SubmitResponse {
   error?: string;
   retryAfterMinutes?: number;
   previous?: PreviousSubmission;
+  deviceInfo?: DeviceInfo;
 }
 
 /**
@@ -191,6 +204,8 @@ async function submitToServer(data: UsageData): Promise<SubmitResponse> {
         // Opus info for badge display
         hasOpusUsage: data.hasOpusUsage,
         opusModels: data.opusModels,
+        // Multi-device support
+        deviceId: getDeviceId(),
       }),
     });
 
@@ -555,7 +570,28 @@ export async function submit(options: SubmitOptions): Promise<void> {
     }
 
     // ═══════════════════════════════════════
-    // 1. RANK (Most Important)
+    // 1.5. MULTI-DEVICE (only if > 1 device)
+    // ═══════════════════════════════════════
+    if (result.deviceInfo && result.deviceInfo.totalDevices > 1) {
+      const di = result.deviceInfo;
+      const otherCount = di.totalDevices - 1;
+      console.log();
+      console.log(sectionHeader("🖥️", "Multi-Device"));
+      console.log();
+      console.log(
+        `     ${colors.muted("This PC")}     ⚡ ${colors.primary(formatNumber(di.thisDeviceTokens))} ${colors.dim("│")} 💰 ${colors.warning(formatCost(di.thisDeviceCost))}`
+      );
+      console.log(
+        `     ${colors.muted(`+ ${otherCount} other`)}   ⚡ ${colors.primary(formatNumber(di.otherDevicesTokens))} ${colors.dim("│")} 💰 ${colors.warning(formatCost(di.otherDevicesCost))}`
+      );
+      console.log(`     ${colors.dim("─".repeat(33))}`);
+      console.log(
+        `     ${colors.white.bold("Combined")}    ⚡ ${colors.primary(formatNumber(di.combinedTokens))} ${colors.dim("│")} 💰 ${colors.warning(formatCost(di.combinedCost))}  ${colors.success("✓")}`
+      );
+    }
+
+    // ═══════════════════════════════════════
+    // 2. RANK (Most Important)
     // ═══════════════════════════════════════
     if (result.rank || result.countryRank) {
       console.log();
