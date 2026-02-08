@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Inter, JetBrains_Mono, Space_Grotesk } from "next/font/google";
 import Script from "next/script";
+import { ClerkProviderWrapper } from "@/components/providers/ClerkProviderWrapper";
 import "./globals.css";
 
 const inter = Inter({
@@ -307,7 +308,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           `}
         </Script>
       </head>
-      <body className="min-h-screen bg-bg-primary font-sans antialiased">{children}</body>
+      <body className="min-h-screen bg-bg-primary font-sans antialiased">
+        <ClerkProviderWrapper>{children}</ClerkProviderWrapper>
+      </body>
     </html>
   );
 }
