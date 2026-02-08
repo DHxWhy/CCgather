@@ -300,6 +300,8 @@ export function Globe({
   const pointerInteracting = useRef<number | null>(null);
   const pointerInteractionMovement = useRef(0);
   const rotationRef = useRef(0);
+  const globeRef = useRef<ReturnType<typeof createGlobe> | null>(null);
+  const frameCountRef = useRef(0);
   const themeIsDark = useTheme();
   const isDark = forceDark ?? themeIsDark;
   const scopeFilterRef = useRef(scopeFilter);
@@ -354,14 +356,58 @@ export function Globe({
     [userCoords, size]
   );
 
+  // Shared globe config refs for recreation on drag
+  const phiRef = useRef(initialPhi);
+  const globeConfigRef = useRef<Record<string, unknown> | null>(null);
+
+  const spawnGlobe = useCallback(() => {
+    if (!canvasRef.current || globeRef.current) return;
+
+    const theta = 0.3;
+    const dpr = Math.min(window.devicePixelRatio || 1, 1.5);
+    const config = globeConfigRef.current;
+    if (!config) return;
+
+    frameCountRef.current = 0;
+
+    const globe = createGlobe(canvasRef.current, {
+      devicePixelRatio: dpr,
+      width: size * dpr,
+      height: size * dpr,
+      phi: 0,
+      theta,
+      ...(config as Partial<COBEOptions>),
+      onRender: (state: Record<string, number>) => {
+        if (autoRotate && !pointerInteracting.current) {
+          phiRef.current += 0.00154;
+        }
+        state.phi = phiRef.current + rotationRef.current;
+        state.width = size * dpr;
+        state.height = size * dpr;
+
+        updateUserDot(state.phi, theta);
+
+        // When not auto-rotating, destroy after render stabilizes to free CPU
+        if (!autoRotate) {
+          frameCountRef.current++;
+          if (frameCountRef.current >= 3 && !pointerInteracting.current) {
+            globe.destroy();
+            globeRef.current = null;
+          }
+        }
+      },
+    } as COBEOptions);
+
+    globeRef.current = globe;
+  }, [size, autoRotate, updateUserDot]);
+
   useEffect(() => {
-    let phi = initialPhi;
+    phiRef.current = initialPhi;
     const theta = 0.3;
 
     // Theme-aware globe settings
     const globeConfig = isDark
       ? {
-          // Dark mode: dark blue globe
           dark: 1,
           diffuse: 1.5,
           mapBrightness: 4,
@@ -370,7 +416,6 @@ export function Globe({
           glowColor: [0.5, 0.5, 0.5] as [number, number, number],
         }
       : {
-          // Light mode: soft continent dots, prominent country markers
           dark: 0,
           diffuse: 2.2,
           mapBrightness: 1.2,
@@ -379,11 +424,9 @@ export function Globe({
           glowColor: [0.96, 0.92, 0.88] as [number, number, number],
         };
 
-    // Optimize rendering based on device capability
-    const dpr = Math.min(window.devicePixelRatio || 1, 1.5); // Cap at 1.5 for quality
-    const mapSamples = 12000; // Optimized: balance between performance and visibility
+    const dpr = Math.min(window.devicePixelRatio || 1, 1.5);
+    const mapSamples = 12000;
 
-    // Generate markers inside useEffect (light mode: larger for visibility)
     const markerSize = isDark ? 0.03 : 0.045;
     const japanMarker = { location: [35.6762, 139.6503] as [number, number], size: markerSize };
     const otherMarkers = Object.entries(COUNTRY_COORDINATES)
@@ -394,27 +437,42 @@ export function Globe({
       }));
     const globeMarkers = [japanMarker, ...otherMarkers];
 
+    // Store config for recreation on drag
+    globeConfigRef.current = { ...globeConfig, mapSamples, markers: globeMarkers };
+
+    frameCountRef.current = 0;
+
     const globe = createGlobe(canvasRef.current!, {
       devicePixelRatio: dpr,
       width: size * dpr,
       height: size * dpr,
       phi: 0,
-      theta: theta,
+      theta,
       ...globeConfig,
       mapSamples,
       markers: globeMarkers,
       onRender: (state) => {
         if (autoRotate && !pointerInteracting.current) {
-          phi += 0.00154;
+          phiRef.current += 0.00154;
         }
-        state.phi = phi + rotationRef.current;
+        state.phi = phiRef.current + rotationRef.current;
         state.width = size * dpr;
         state.height = size * dpr;
 
-        // Update user's country dot position
         updateUserDot(state.phi, theta);
+
+        // When not auto-rotating, destroy after initial render to free CPU
+        if (!autoRotate) {
+          frameCountRef.current++;
+          if (frameCountRef.current >= 3 && !pointerInteracting.current) {
+            globe.destroy();
+            globeRef.current = null;
+          }
+        }
       },
     } as COBEOptions);
+
+    globeRef.current = globe;
 
     setTimeout(() => {
       if (canvasRef.current) {
@@ -424,6 +482,7 @@ export function Globe({
 
     return () => {
       globe.destroy();
+      globeRef.current = null;
     };
   }, [size, userCountryCode, updateUserDot, isDark]);
 
@@ -444,6 +503,10 @@ export function Globe({
           (e.target as HTMLElement).setPointerCapture(e.pointerId);
           if (canvasRef.current) {
             canvasRef.current.style.cursor = "grabbing";
+          }
+          // Recreate globe if it was destroyed (render-once mode)
+          if (!globeRef.current) {
+            spawnGlobe();
           }
         }}
         onPointerUp={(e) => {

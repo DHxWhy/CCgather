@@ -457,8 +457,24 @@ export function LeaderboardPreview() {
               {MOCK_LEADERBOARD.map((user, index) => {
                 const style = RANK_STYLES[user.rank as keyof typeof RANK_STYLES];
                 const isSelected = selectedUser?.username === user.username;
-                // Progressive opacity: 100% -> 100% -> 70% -> 50% -> 35%
-                const rowOpacity = index <= 1 ? 1 : index === 2 ? 0.7 : index === 3 ? 0.5 : 0.35;
+                // Visual hierarchy via color dimming instead of opacity (preserves WCAG contrast)
+                const isDimmed = index >= 3; // rows 4-5
+                const isVeryDimmed = index >= 4; // row 5 only
+                const nameColor = isVeryDimmed
+                  ? "text-[var(--color-text-muted)]"
+                  : isDimmed
+                    ? "text-[var(--color-text-secondary)]"
+                    : "text-[var(--color-text-primary)]";
+                const costColor = isVeryDimmed
+                  ? "text-[var(--color-text-muted)]"
+                  : isDimmed
+                    ? "text-[var(--color-text-secondary)]"
+                    : "text-emerald-400";
+                const tokenColor = isVeryDimmed
+                  ? "text-[var(--color-text-muted)]"
+                  : isDimmed
+                    ? "text-[var(--color-text-secondary)]"
+                    : "text-[var(--color-claude-coral)]";
                 return (
                   <div
                     key={user.rank}
@@ -467,7 +483,7 @@ export function LeaderboardPreview() {
                         ? "bg-[var(--color-claude-coral)]/10 border-l-2 border-l-[var(--color-claude-coral)]"
                         : `${style.bg} hover:bg-white/5`
                     }`}
-                    style={{ opacity: rowOpacity, transitionDelay: `${index * 100}ms` }}
+                    style={{ transitionDelay: `${index * 100}ms` }}
                     onClick={() => setSelectedUser(user)}
                   >
                     {/* Rank */}
@@ -494,7 +510,7 @@ export function LeaderboardPreview() {
                         height={28}
                         className="w-5 h-5 sm:w-7 sm:h-7 rounded-full bg-[var(--color-bg-secondary)]"
                       />
-                      <span className="text-[11px] sm:text-sm font-medium text-[var(--color-text-primary)] truncate">
+                      <span className={`text-[11px] sm:text-sm font-medium truncate ${nameColor}`}>
                         {user.displayName}
                       </span>
                     </div>
@@ -512,14 +528,16 @@ export function LeaderboardPreview() {
 
                     {/* Cost */}
                     <div className="col-span-3 sm:col-span-2 text-right">
-                      <span className="text-[11px] sm:text-sm font-mono text-emerald-400">
+                      <span className={`text-[11px] sm:text-sm font-mono ${costColor}`}>
                         {formatCost(user.cost)}
                       </span>
                     </div>
 
                     {/* Tokens */}
                     <div className="col-span-3 text-right">
-                      <span className="text-[11px] sm:text-sm font-mono text-[var(--color-claude-coral)] font-semibold">
+                      <span
+                        className={`text-[11px] sm:text-sm font-mono font-semibold ${tokenColor}`}
+                      >
                         {formatNumber(user.tokens)}
                       </span>
                     </div>
