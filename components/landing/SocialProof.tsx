@@ -58,7 +58,7 @@ export function SocialProof() {
           <p className="text-sm text-[var(--color-text-secondary)] mb-4">
             Ready to track your Claude Code journey?
           </p>
-          <GetStartedLink className="inline-block px-5 py-2.5 rounded-xl bg-[var(--color-claude-coral)] text-white text-sm font-semibold hover:opacity-90 hover:scale-[1.02] active:scale-95 transition-all shadow-lg shadow-[var(--color-claude-coral)]/20">
+          <GetStartedLink className="inline-block px-5 py-2.5 rounded-xl bg-[#b84c30] text-white text-sm font-semibold hover:opacity-90 hover:scale-[1.02] active:scale-95 transition-all shadow-lg shadow-[var(--color-claude-coral)]/20">
             Get Started
           </GetStartedLink>
         </div>
