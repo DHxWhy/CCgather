@@ -93,7 +93,8 @@ export async function GET() {
       referral_code,
       hide_profile_on_invite,
       ccplan,
-      created_at
+      created_at,
+      last_submission_at
     `
     )
     .eq("clerk_id", userId)
@@ -129,7 +130,8 @@ export async function GET() {
           onboarding_completed,
           is_admin,
           social_links,
-          created_at
+          created_at,
+          last_submission_at
         `
         )
         .eq("email", email)

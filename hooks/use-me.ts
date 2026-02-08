@@ -26,6 +26,7 @@ export interface MeData {
   hide_profile_on_invite: boolean;
   ccplan: string | null;
   created_at: string;
+  last_submission_at: string | null;
   referral_count?: number;
 }
 

@@ -499,15 +499,20 @@ export async function POST(request: NextRequest) {
       .select("total_tokens, cost_usd, sessions, device_id")
       .eq("user_id", authenticatedUser.id);
 
-    if (sumError) {
-      console.error("[CLI Submit] Failed to calculate cumulative totals:", sumError);
-    }
-
     // Sum all daily usage for true cumulative totals (tokens, cost, sessions)
     let finalTotalTokens = 0;
     let finalTotalCost = 0;
     let finalTotalSessions = 0;
-    if (allDailyUsage) {
+
+    if (sumError || !allDailyUsage) {
+      // CRITICAL: Preserve existing user values to prevent data loss.
+      // If SUM query fails, do NOT write 0 to users table.
+      // Next successful submission will recalculate from usage_stats.
+      console.error("[CLI Submit] CRITICAL: Failed to calculate cumulative totals:", sumError);
+      finalTotalTokens = authenticatedUser.total_tokens || 0;
+      finalTotalCost = authenticatedUser.total_cost || 0;
+      finalTotalSessions = authenticatedUser.total_sessions || 0;
+    } else {
       for (const day of allDailyUsage) {
         finalTotalTokens += day.total_tokens || 0;
         finalTotalCost += day.cost_usd || 0;

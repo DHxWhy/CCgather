@@ -117,7 +117,7 @@ export function Header() {
 
   // 사용자 데이터 (CLI 미제출 상태 확인용)
   const { data: me } = useMe({ enabled: isSignedIn === true });
-  const hasNeverSubmitted = isSignedIn && me && me.total_cost === 0;
+  const hasNeverSubmitted = isSignedIn && me && !me.last_submission_at;
   // 온보딩 완료 여부 (Settings, NotificationBell, FeedbackButton은 온보딩 완료 후에만 표시)
   const isOnboardingDone = isSignedIn && me?.onboarding_completed === true;
 
