@@ -1,12 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { motion } from "framer-motion";
 import { Github, Linkedin, Globe } from "lucide-react";
 import { FlagIcon } from "@/components/ui/FlagIcon";
 import { formatNumber, formatCost } from "@/lib/utils/format";
+import { useInView } from "@/hooks/use-in-view";
 
 // X (formerly Twitter) icon component
 function XIcon({ className }: { className?: string }) {
@@ -215,6 +215,18 @@ function MiniLineChart({ data }: { data: number[] }) {
 
 // Side Panel Component - matching real ProfileSidePanel layout
 function ProfilePanel({ user }: { user: (typeof MOCK_LEADERBOARD)[0] | null }) {
+  const panelRef = useRef<HTMLDivElement>(null);
+
+  // Trigger panel-reveal animation on user change
+  useEffect(() => {
+    if (!user || !panelRef.current) return;
+    const el = panelRef.current;
+    el.classList.remove("visible");
+    // Force reflow to restart animation
+    void el.offsetWidth;
+    el.classList.add("visible");
+  }, [user]);
+
   if (!user) {
     return (
       <div className="h-full flex items-center justify-center text-[var(--color-text-muted)] text-sm">
@@ -227,13 +239,7 @@ function ProfilePanel({ user }: { user: (typeof MOCK_LEADERBOARD)[0] | null }) {
   }
 
   return (
-    <motion.div
-      key={user.username}
-      initial={{ opacity: 0, x: 20 }}
-      animate={{ opacity: 1, x: 0 }}
-      transition={{ duration: 0.3 }}
-      className="p-4 flex flex-col gap-3"
-    >
+    <div ref={panelRef} className="panel-reveal p-4 flex flex-col gap-3">
       {/* 1. Profile Header */}
       <div className="flex items-start gap-3">
         <Image
@@ -369,7 +375,7 @@ function ProfilePanel({ user }: { user: (typeof MOCK_LEADERBOARD)[0] | null }) {
           tokens
         </div>
       </div>
-    </motion.div>
+    </div>
   );
 }
 
@@ -377,9 +383,10 @@ export function LeaderboardPreview() {
   const [selectedUser, setSelectedUser] = useState<(typeof MOCK_LEADERBOARD)[0] | null>(
     MOCK_LEADERBOARD[0] ?? null
   );
+  const containerRef = useInView<HTMLElement>();
 
   return (
-    <section className="py-20 px-4">
+    <section className="py-20 px-4" ref={containerRef}>
       <div className="max-w-[1000px] mx-auto">
         {/* Section header */}
         <div className="text-center mb-10">
@@ -453,19 +460,15 @@ export function LeaderboardPreview() {
                 // Progressive opacity: 100% -> 100% -> 70% -> 50% -> 35%
                 const rowOpacity = index <= 1 ? 1 : index === 2 ? 0.7 : index === 3 ? 0.5 : 0.35;
                 return (
-                  <motion.div
+                  <div
                     key={user.rank}
-                    initial={{ opacity: 0, x: -20 }}
-                    whileInView={{ opacity: rowOpacity, x: 0 }}
-                    viewport={{ once: true }}
-                    transition={{ delay: index * 0.1, duration: 0.4 }}
-                    onClick={() => setSelectedUser(user)}
-                    style={{ opacity: rowOpacity }}
-                    className={`grid grid-cols-12 gap-1 sm:gap-2 px-2 sm:px-4 py-2 sm:py-3 items-center cursor-pointer transition-colors ${
+                    className={`scroll-reveal-x grid grid-cols-12 gap-1 sm:gap-2 px-2 sm:px-4 py-2 sm:py-3 items-center cursor-pointer transition-colors ${
                       isSelected
                         ? "bg-[var(--color-claude-coral)]/10 border-l-2 border-l-[var(--color-claude-coral)]"
                         : `${style.bg} hover:bg-white/5`
                     }`}
+                    style={{ opacity: rowOpacity, transitionDelay: `${index * 100}ms` }}
+                    onClick={() => setSelectedUser(user)}
                   >
                     {/* Rank */}
                     <div className="col-span-1 text-center">
@@ -520,7 +523,7 @@ export function LeaderboardPreview() {
                         {formatNumber(user.tokens)}
                       </span>
                     </div>
-                  </motion.div>
+                  </div>
                 );
               })}
             </div>

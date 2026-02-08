@@ -491,6 +491,58 @@ button,
   animation: fadeInUp 0.5s ease-out forwards;
 }
 
+/* IntersectionObserver-based scroll reveal (framer-motion replacement) */
+.scroll-reveal {
+  opacity: 0;
+  transform: translateY(20px);
+  transition:
+    opacity 0.4s ease-out,
+    transform 0.4s ease-out;
+}
+
+.scroll-reveal.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* Slide in from left (for leaderboard rows) */
+.scroll-reveal-x {
+  opacity: 0;
+  transform: translateX(-20px);
+  transition:
+    opacity 0.4s ease-out,
+    transform 0.4s ease-out;
+}
+
+.scroll-reveal-x.visible {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+/* Panel slide in from right */
+.panel-reveal {
+  opacity: 0;
+  transform: translateX(20px);
+  transition:
+    opacity 0.3s ease-out,
+    transform 0.3s ease-out;
+}
+
+.panel-reveal.visible {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .scroll-reveal,
+  .scroll-reveal-x,
+  .panel-reveal {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+}
+
 /* Simple fade in */
 @keyframes fadeIn {
   from {

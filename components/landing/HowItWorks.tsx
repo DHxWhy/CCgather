@@ -1,6 +1,6 @@
 "use client";
 
-import { motion } from "framer-motion";
+import { useInView } from "@/hooks/use-in-view";
 import { CLIButton } from "@/components/cli/CLIButton";
 
 const STEPS = [
@@ -25,8 +25,10 @@ const STEPS = [
 ];
 
 export function HowItWorks() {
+  const containerRef = useInView<HTMLElement>();
+
   return (
-    <section className="py-16 px-6">
+    <section className="py-16 px-6" ref={containerRef}>
       <div className="max-w-2xl mx-auto">
         {/* Section header */}
         <div className="text-center mb-10">
@@ -41,13 +43,10 @@ export function HowItWorks() {
         {/* Steps - Horizontal on desktop, vertical on mobile */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-4 mb-10">
           {STEPS.map((step, index) => (
-            <motion.div
+            <div
               key={step.num}
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ delay: index * 0.15, duration: 0.4 }}
-              className="relative text-center"
+              className="scroll-reveal relative text-center"
+              style={{ transitionDelay: `${index * 150}ms` }}
             >
               {/* Connector line (desktop only) */}
               {index < STEPS.length - 1 && (
@@ -69,17 +68,14 @@ export function HowItWorks() {
 
               {/* Description */}
               <div className="text-xs text-[var(--color-text-muted)]">{step.desc}</div>
-            </motion.div>
+            </div>
           ))}
         </div>
 
         {/* CLI Install Command */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
-          transition={{ delay: 0.3, duration: 0.4 }}
-          className="glass rounded-xl p-4 max-w-md mx-auto"
+        <div
+          className="scroll-reveal glass rounded-xl p-4 max-w-md mx-auto"
+          style={{ transitionDelay: "300ms" }}
         >
           <div className="flex items-center justify-between mb-3">
             <span className="text-[10px] text-[var(--color-text-muted)] uppercase tracking-wider">
@@ -95,7 +91,7 @@ export function HowItWorks() {
             <span className="text-[var(--color-claude-coral)]">npx</span>{" "}
             <span className="text-[var(--color-text-primary)]">ccgather</span>
           </div>
-        </motion.div>
+        </div>
 
         {/* CLI commands link */}
         <div className="text-center mt-4">

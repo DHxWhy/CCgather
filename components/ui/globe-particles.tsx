@@ -28,9 +28,9 @@ function createSeededRandom(seed: number) {
 
 // Determine particle count based on viewport width
 function getParticleCount(viewportWidth: number): number {
-  if (viewportWidth >= 1024) return 150; // Desktop: 150 particles
-  if (viewportWidth >= 768) return 100; // Tablet: 100 particles
-  return 60; // Mobile: 60 particles
+  if (viewportWidth >= 1024) return 100; // Desktop: 100 particles (optimized from 150)
+  if (viewportWidth >= 768) return 70; // Tablet: 70 particles (optimized from 100)
+  return 40; // Mobile: 40 particles (optimized from 60)
 }
 
 export const GlobeParticles: React.FC<GlobeParticlesProps> = ({ size, className, speed = 1 }) => {
@@ -218,7 +218,7 @@ export const GlobeParticles: React.FC<GlobeParticlesProps> = ({ size, className,
         PARTICLE_COLORS[Math.floor(seededRandom2() * PARTICLE_COLORS.length)] ??
         PARTICLE_COLORS[0]!;
 
-      const secondWave = [...Array(50)].map((_, index) =>
+      const secondWave = [...Array(20)].map((_, index) =>
         generateParticle(
           firstWaveCount + thirdWaveCount + index,
           seededRandom2,

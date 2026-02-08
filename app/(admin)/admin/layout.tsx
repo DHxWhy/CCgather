@@ -4,6 +4,6 @@ import { AdminLayoutClient } from "./AdminLayoutClient";
 export const dynamic = "force-dynamic";
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
-  // ClerkProvider는 root layout에서 이미 제공됨 - 중복 감싸기 금지!
+  // ClerkProvider는 (admin)/layout.tsx에서 제공
   return <AdminLayoutClient>{children}</AdminLayoutClient>;
 }

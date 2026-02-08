@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
-import { GetStartedButton } from "@/components/auth/GetStartedButton";
+import { GetStartedLink } from "@/components/landing/GetStartedLink";
 import { GlobeParticles } from "@/components/ui/globe-particles";
 import { formatNumber, formatCost } from "@/lib/utils/format";
 import type { GlobalStats } from "@/lib/data/global-stats";
@@ -271,9 +271,9 @@ export function LandingHero({ initialStats }: LandingHeroProps) {
             {/* CTA Buttons - Stack on mobile (<400px), row on larger */}
             {/* Always show non-authenticated UI on landing page for performance */}
             <div className="flex flex-col min-[400px]:flex-row items-center justify-center md:justify-start gap-3">
-              <GetStartedButton className="w-full min-[400px]:w-auto px-5 py-2.5 rounded-xl bg-[var(--color-claude-coral)] text-white text-sm font-semibold hover:opacity-90 hover:scale-[1.02] active:scale-95 transition-all shadow-lg shadow-[var(--color-claude-coral)]/20">
+              <GetStartedLink className="w-full min-[400px]:w-auto px-5 py-2.5 rounded-xl bg-[var(--color-claude-coral)] text-white text-sm font-semibold hover:opacity-90 hover:scale-[1.02] active:scale-95 transition-all shadow-lg shadow-[var(--color-claude-coral)]/20 text-center">
                 Get Started
-              </GetStartedButton>
+              </GetStartedLink>
               <Link
                 href="/leaderboard"
                 className="w-full min-[400px]:w-auto px-5 py-2.5 rounded-xl bg-white/5 border border-white/10 text-[var(--color-text-secondary)] text-sm font-medium hover:bg-white/10 hover:text-[var(--color-text-primary)] transition-all text-center"

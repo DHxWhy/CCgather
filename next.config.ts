@@ -141,6 +141,8 @@ const nextConfig: NextConfig = {
       "@supabase/supabase-js",
       "clsx",
       "tailwind-merge",
+      "cobe",
+      "posthog-js",
     ],
   },
   // PostHog 프록시는 vercel.json rewrites로 처리
