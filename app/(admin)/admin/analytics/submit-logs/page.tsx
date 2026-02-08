@@ -196,7 +196,17 @@ function DailyDetailRow({ detail }: { detail: DailyDetail }) {
       </td>
       <td className="px-3 py-1.5" colSpan={2}></td>
       <td className="px-3 py-1.5">
-        <div className="text-[11px] text-white/50 font-mono">{formatDate(detail.date)}</div>
+        <div className="flex items-center">
+          <span className="text-[11px] text-white/50 font-mono">{formatDate(detail.date)}</span>
+          {detail.device_id && detail.device_id !== "legacy" && (
+            <span
+              className="ml-1 text-[9px] text-cyan-400/50"
+              title={`Device: ${detail.device_id}`}
+            >
+              +PC
+            </span>
+          )}
+        </div>
       </td>
       <td className="px-3 py-1.5 text-right">
         <div className="text-[11px] text-[var(--color-claude-coral)]/70 font-mono">
@@ -268,6 +278,11 @@ function SuccessLogRow({ log }: { log: SubmitLogItem }) {
               </div>
             )}
             <div className="text-[13px] text-white font-medium">{log.username}</div>
+            {log.device_count && log.device_count > 1 && (
+              <span className="ml-1.5 px-1 py-0.5 rounded text-[9px] bg-cyan-500/20 text-cyan-400">
+                {log.device_count}PC
+              </span>
+            )}
           </div>
         </td>
 

@@ -44,6 +44,22 @@ export async function GET() {
       return NextResponse.json({ error: "Failed to fetch users" }, { status: 500 });
     }
 
+    // Get per-user device count
+    const { data: deviceData } = await supabase.from("usage_stats").select("user_id, device_id");
+
+    const deviceCountMap = new Map<string, Set<string>>();
+    deviceData?.forEach((d: { user_id: string; device_id: string }) => {
+      if (d.device_id && d.device_id !== "legacy") {
+        if (!deviceCountMap.has(d.user_id)) deviceCountMap.set(d.user_id, new Set());
+        deviceCountMap.get(d.user_id)!.add(d.device_id);
+      }
+    });
+
+    const usersWithDeviceCount = (users || []).map((u: { id: string }) => ({
+      ...u,
+      device_count: deviceCountMap.get(u.id)?.size || 0,
+    }));
+
     // Calculate stats
     const totalUsers = users?.length || 0;
     const today = new Date();
@@ -87,7 +103,7 @@ export async function GET() {
     });
 
     return NextResponse.json({
-      users: users || [],
+      users: usersWithDeviceCount,
       stats: {
         totalUsers,
         activeToday,

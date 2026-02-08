@@ -12,6 +12,7 @@ interface DailyDetail {
   total_tokens: number;
   cost_usd: number;
   primary_model: string | null;
+  device_id?: string;
 }
 
 interface SubmitLogRow {
@@ -31,6 +32,8 @@ interface SubmitLogRow {
   // League placement audit
   league_reason: string | null;
   league_reason_details: string | null;
+  // Device tracking
+  device_count?: number;
   // Daily breakdown for accordion
   daily_details: DailyDetail[];
 }
@@ -85,6 +88,7 @@ export async function GET(request: NextRequest) {
           date,
           total_tokens,
           cost_usd,
+          device_id,
           submission_source,
           primary_model,
           league_reason,
@@ -124,6 +128,7 @@ export async function GET(request: NextRequest) {
           ccplan: string | null;
           rate_limit_tier: string | null;
           dates: Set<string>;
+          device_ids: Set<string>;
           total_tokens: number;
           total_cost: number;
           submission_source: string;
@@ -135,6 +140,7 @@ export async function GET(request: NextRequest) {
             total_tokens: number;
             cost_usd: number;
             primary_model: string | null;
+            device_id: string;
           }>;
         }
       >();
@@ -145,6 +151,7 @@ export async function GET(request: NextRequest) {
         date: string;
         total_tokens: number;
         cost_usd: number;
+        device_id: string;
         submission_source: string;
         league_reason: string | null;
         league_reason_details: string | null;
@@ -167,6 +174,7 @@ export async function GET(request: NextRequest) {
           total_tokens: row.total_tokens,
           cost_usd: row.cost_usd,
           primary_model: row.primary_model,
+          device_id: row.device_id,
         };
 
         if (!groupedLogs.has(key)) {
@@ -178,6 +186,7 @@ export async function GET(request: NextRequest) {
             ccplan: row.users.ccplan,
             rate_limit_tier: row.users.rate_limit_tier,
             dates: new Set([row.date]),
+            device_ids: new Set(row.device_id && row.device_id !== "legacy" ? [row.device_id] : []),
             total_tokens: row.total_tokens,
             total_cost: row.cost_usd,
             submission_source: row.submission_source,
@@ -189,6 +198,9 @@ export async function GET(request: NextRequest) {
         } else {
           const existing = groupedLogs.get(key)!;
           existing.dates.add(row.date);
+          if (row.device_id && row.device_id !== "legacy") {
+            existing.device_ids.add(row.device_id);
+          }
           existing.total_tokens += row.total_tokens;
           existing.total_cost += row.cost_usd;
           existing.daily_details.push(dailyItem);
@@ -250,7 +262,11 @@ export async function GET(request: NextRequest) {
           primary_model: log.primary_model,
           league_reason: log.league_reason,
           league_reason_details: log.league_reason_details,
-          daily_details: sortedDailyDetails,
+          device_count: log.device_ids.size,
+          daily_details: sortedDailyDetails.map((d) => ({
+            ...d,
+            device_id: d.device_id,
+          })),
         };
       });
 

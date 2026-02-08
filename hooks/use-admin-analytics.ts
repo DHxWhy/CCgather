@@ -163,6 +163,7 @@ export interface DailyDetail {
   total_tokens: number;
   cost_usd: number;
   primary_model: string | null;
+  device_id?: string;
 }
 
 export interface SubmitLogItem {
@@ -182,6 +183,8 @@ export interface SubmitLogItem {
   // League placement audit
   league_reason: string | null;
   league_reason_details: string | null;
+  // Device tracking
+  device_count?: number;
   // Daily breakdown for accordion
   daily_details: DailyDetail[];
 }

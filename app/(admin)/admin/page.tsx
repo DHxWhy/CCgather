@@ -18,6 +18,7 @@ interface User {
   onboarding_completed: boolean;
   ccplan: string | null;
   ccplan_updated_at: string | null;
+  device_count: number;
 }
 
 interface PlanStats {
@@ -536,6 +537,11 @@ export default function AdminUsersPage() {
                         <div>
                           <div className="text-[13px] text-white">
                             {user.display_name || user.username}
+                            {user.device_count > 1 && (
+                              <span className="ml-1 px-1 py-0.5 rounded text-[9px] bg-cyan-500/20 text-cyan-400">
+                                {user.device_count}PC
+                              </span>
+                            )}
                           </div>
                           <div className="text-[11px] text-white/40">@{user.username}</div>
                         </div>
