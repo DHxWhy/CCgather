@@ -19,7 +19,7 @@ import {
 import { cn } from "@/lib/utils";
 import { FlagIcon } from "@/components/ui/FlagIcon";
 import { TextShimmer } from "@/components/ui/TextShimmer";
-import { EmojiPicker } from "@/components/ui/EmojiPicker";
+import { InlineEmojiBar } from "@/components/ui/EmojiPicker";
 import LinkPreview from "./LinkPreview";
 import { getTagEmoji } from "./community-tags";
 import { getFirstEmbeddableUrl } from "@/lib/url-parser";
@@ -1811,13 +1811,8 @@ function FeedCardComponent({
                                   "resize-none overflow-hidden min-h-[28px] max-h-[100px]"
                                 )}
                               />
-                              {/* Emoji picker for reply */}
-                              <EmojiPicker
-                                onEmojiSelect={handleReplyEmojiSelect}
-                                position="bottom"
-                                align="right"
-                                size="sm"
-                              />
+                              {/* Emoji bar for reply */}
+                              <InlineEmojiBar onEmojiSelect={handleReplyEmojiSelect} size="sm" />
                               <button
                                 onClick={handleCancelReply}
                                 className="p-1.5 mt-0.5 text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] transition-colors"
@@ -2006,14 +2001,9 @@ function FeedCardComponent({
                     )}
                   />
                 </div>
-                {/* Emoji picker for comment */}
+                {/* Emoji bar for comment */}
                 {isSignedIn && hasSubmissionHistory && (
-                  <EmojiPicker
-                    onEmojiSelect={handleCommentEmojiSelect}
-                    position="bottom"
-                    align="right"
-                    size="sm"
-                  />
+                  <InlineEmojiBar onEmojiSelect={handleCommentEmojiSelect} size="sm" />
                 )}
                 <button
                   onClick={handleCommentSubmit}

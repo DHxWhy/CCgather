@@ -18,8 +18,92 @@ interface EmojiPickerProps {
   size?: "sm" | "md";
 }
 
+interface InlineEmojiBarProps {
+  onEmojiSelect: (emoji: string) => void;
+  className?: string;
+  size?: "sm" | "md";
+}
+
 // ===========================================
-// EmojiPicker Component
+// Quick emoji list for inline bar
+// ===========================================
+
+const QUICK_EMOJIS = ["😊", "👍", "❤️", "🔥", "😂", "👏"];
+
+// ===========================================
+// InlineEmojiBar - Compact horizontal emoji row for comments
+// ===========================================
+
+export function InlineEmojiBar({ onEmojiSelect, className, size = "sm" }: InlineEmojiBarProps) {
+  const [isOpen, setIsOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const handleClickOutside = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [isOpen]);
+
+  const iconSize = size === "sm" ? 14 : 16;
+
+  return (
+    <div ref={containerRef} className={cn("relative", className)}>
+      <button
+        type="button"
+        onClick={() => setIsOpen(!isOpen)}
+        className={cn(
+          "flex items-center justify-center rounded-full transition-colors",
+          "text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]",
+          "hover:bg-[var(--glass-bg)]",
+          size === "sm" ? "p-1.5" : "p-2",
+          isOpen && "text-[var(--color-claude-coral)] bg-[var(--color-claude-coral)]/10"
+        )}
+        aria-label="Add emoji"
+        aria-expanded={isOpen}
+      >
+        <Smile size={iconSize} />
+      </button>
+
+      {isOpen && (
+        <div
+          className={cn(
+            "absolute z-50 bottom-full mb-1 right-0 animate-fadeIn",
+            "flex items-center gap-0.5 px-1.5 py-1 rounded-full",
+            "border border-[var(--border-default)] shadow-lg"
+          )}
+          style={{ backgroundColor: "var(--color-bg-elevated)" }}
+        >
+          {QUICK_EMOJIS.map((emoji) => (
+            <button
+              key={emoji}
+              type="button"
+              onClick={() => {
+                onEmojiSelect(emoji);
+                setIsOpen(false);
+              }}
+              className={cn(
+                "w-7 h-7 flex items-center justify-center text-base rounded-full",
+                "hover:bg-[var(--glass-bg)] hover:scale-110 transition-all"
+              )}
+            >
+              {emoji}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ===========================================
+// EmojiPicker Component (full modal - for PostComposer)
 // ===========================================
 
 export function EmojiPicker({
@@ -103,14 +187,14 @@ export function EmojiPicker({
           <div
             className={cn(
               "w-[280px] h-[320px] rounded-lg border shadow-xl overflow-hidden",
-              // Light/Dark mode backgrounds
-              "bg-[var(--color-bg-card)] border-[var(--border-default)]",
-              "dark:bg-[#1a1a1c] dark:border-[#2a2a2e]"
+              "border-[var(--border-default)]"
             )}
+            style={{ backgroundColor: "var(--color-bg-card)" }}
           >
             <FrimousseEmojiPicker.Root
               className="flex flex-col h-full"
               onEmojiSelect={handleEmojiSelect}
+              style={{ backgroundColor: "var(--color-bg-card)" }}
             >
               {/* Search */}
               <div className="p-2 border-b border-[var(--border-default)]">
@@ -118,10 +202,11 @@ export function EmojiPicker({
                   placeholder="Search emoji..."
                   className={cn(
                     "w-full px-3 py-1.5 text-sm rounded-md",
-                    "bg-[var(--color-bg-secondary)] border border-[var(--border-default)]",
+                    "border border-[var(--border-default)]",
                     "text-[var(--color-text-primary)] placeholder:text-[var(--color-text-muted)]",
                     "focus:outline-none focus:border-[var(--color-claude-coral)]/50"
                   )}
+                  style={{ backgroundColor: "var(--color-bg-secondary)" }}
                 />
               </div>
 
@@ -140,7 +225,10 @@ export function EmojiPicker({
                 <FrimousseEmojiPicker.List
                   components={{
                     CategoryHeader: ({ category }) => (
-                      <div className="w-full sticky top-0 py-1.5 text-[10px] font-medium text-[var(--color-text-muted)] uppercase tracking-wide bg-[var(--color-bg-card)] dark:bg-[#1a1a1c]">
+                      <div
+                        className="w-full sticky top-0 py-1.5 text-[10px] font-medium text-[var(--color-text-muted)] uppercase tracking-wide"
+                        style={{ backgroundColor: "var(--color-bg-card)" }}
+                      >
                         {category.label}
                       </div>
                     ),
