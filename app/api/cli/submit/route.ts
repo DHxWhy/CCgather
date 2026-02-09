@@ -232,6 +232,18 @@ export async function POST(request: NextRequest) {
     const deviceId =
       rawDeviceId === "legacy" || /^[a-f0-9]{8,16}$/.test(rawDeviceId) ? rawDeviceId : "legacy";
 
+    // Reject legacy (no deviceId) submissions to prevent cross-device data overwrite
+    if (deviceId === "legacy") {
+      return NextResponse.json(
+        {
+          error:
+            "deviceId is required. Please update your CLI to the latest version: npm install -g ccgather",
+          code: "DEVICE_ID_REQUIRED",
+        },
+        { status: 400 }
+      );
+    }
+
     // Session fingerprint duplicate check (1 Project 1 Person principle)
     if (body.sessionFingerprint?.sessionHashes?.length) {
       const { sessionHashes } = body.sessionFingerprint;

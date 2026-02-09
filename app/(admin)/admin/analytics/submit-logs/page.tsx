@@ -278,11 +278,13 @@ function SuccessLogRow({ log }: { log: SubmitLogItem }) {
               </div>
             )}
             <div className="text-[13px] text-white font-medium">{log.username}</div>
-            {log.device_count && log.device_count > 1 && (
-              <span className="ml-1.5 px-1 py-0.5 rounded text-[9px] bg-cyan-500/20 text-cyan-400">
-                {log.device_count}PC
-              </span>
-            )}
+            {log.device_count != null &&
+              log.device_count >= 1 &&
+              (log.device_count === 1 ? (
+                <span className="ml-1 text-[10px] text-emerald-400/60">✓</span>
+              ) : (
+                <span className="ml-1 text-[9px] text-cyan-400/70">+{log.device_count - 1}</span>
+              ))}
           </div>
         </td>
 
