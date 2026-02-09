@@ -1,12 +1,19 @@
-# CCgather - The Most Actively Maintained Claude Code Leaderboard
+# CCgather - Global Claude Code Leaderboard
 # https://ccgather.com
 
 User-agent: *
-Allow: /$
-Allow: /leaderboard
-Allow: /community
-Allow: /sitemap.xml
-Disallow: /
+Allow: /
+
+Disallow: /api/
+Disallow: /admin/
+Disallow: /settings/
+Disallow: /onboarding/
+Disallow: /cli/
+Disallow: /sso-callback
+Disallow: /sign-in
+Disallow: /sign-up
+Disallow: /notifications
+Disallow: /j/
+Disallow: /join/
 
 Sitemap: https://ccgather.com/sitemap.xml
-Host: https://ccgather.com

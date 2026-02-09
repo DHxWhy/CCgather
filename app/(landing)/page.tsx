@@ -15,11 +15,14 @@ export const revalidate = 300;
 
 // Page-specific SEO metadata
 export const metadata: Metadata = {
-  title: "CCgather - Claude Code Usage Leaderboard | Track Your Ranking",
+  title: "CCgather - Claude Code Leaderboard | Track Your AI Coding Stats",
   description:
     "Track and compare your Claude Code usage with developers worldwide. Global leaderboard, token analytics, and rankings for Claude Code users.",
+  alternates: {
+    canonical: "https://ccgather.com",
+  },
   openGraph: {
-    title: "CCgather - Claude Code Usage Leaderboard | Track Your Ranking",
+    title: "CCgather - Claude Code Leaderboard | Track Your AI Coding Stats",
     description:
       "Track and compare your Claude Code usage with developers worldwide. Global leaderboard and rankings.",
   },

@@ -190,11 +190,11 @@ export function LandingHero({ initialStats }: LandingHeroProps) {
               </span>
             </div>
 
-            {/* Headline - Usage tracking focus for SEO */}
+            {/* Headline - Exact keyword match for "Claude Code Leaderboard" */}
             <h1 className="text-2xl md:text-3xl lg:text-4xl font-bold text-[var(--color-text-primary)] leading-tight mb-4">
-              Track Your
+              <span className="shimmer-text whitespace-nowrap">Claude Code Leaderboard</span>
               <br />
-              <span className="shimmer-text whitespace-nowrap">Claude Code Usage</span>
+              Track &amp; Compare Globally
             </h1>
 
             {/* Subheadline */}
