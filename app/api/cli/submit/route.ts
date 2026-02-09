@@ -232,15 +232,12 @@ export async function POST(request: NextRequest) {
     const deviceId =
       rawDeviceId === "legacy" || /^[a-f0-9]{8,16}$/.test(rawDeviceId) ? rawDeviceId : "legacy";
 
-    // Reject legacy (no deviceId) submissions to prevent cross-device data overwrite
+    // Warn legacy (no deviceId) submissions — log for monitoring but allow through
+    // to avoid breaking existing CLI users until npm publish includes deviceId support
     if (deviceId === "legacy") {
-      return NextResponse.json(
-        {
-          error:
-            "deviceId is required. Please update your CLI to the latest version: npm install -g ccgather",
-          code: "DEVICE_ID_REQUIRED",
-        },
-        { status: 400 }
+      console.warn(
+        `[CLI Submit] Legacy submission (no deviceId) from user ${authenticatedUser.username}. ` +
+          `Multi-device overwrite risk exists. User should update CLI.`
       );
     }
 
