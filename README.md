@@ -249,6 +249,19 @@ This project was inspired by the following projects:
 
 ---
 
+## Contributing
+
+We welcome contributions from developers worldwide! Whether you're fixing bugs, adding features, improving UI/UX, or helping with translations, your help is appreciated.
+
+Check out our **[Contributing Guide](CONTRIBUTING.md)** to get started.
+
+**Quick links:**
+- [Report a bug](https://github.com/DHxWhy/ccgather/issues/new?template=1-bug-report.yml)
+- [Request a feature](https://github.com/DHxWhy/ccgather/issues/new?template=2-feature-request.yml)
+- [View discussions](https://github.com/DHxWhy/ccgather/discussions)
+
+---
+
 ## License
 
 This project is distributed under the Apache License 2.0. See [`LICENSE`](LICENSE) for details.
