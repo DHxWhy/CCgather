@@ -24,6 +24,7 @@ import {
   progressBar,
   getLevelProgress,
   createBox,
+  getDisplayWidth,
 } from "../lib/ui.js";
 
 interface UsageData {
@@ -526,10 +527,11 @@ export async function submit(options: SubmitOptions): Promise<void> {
     submitSpinner.succeed(colors.success("Successfully submitted!"));
     console.log();
 
-    // Section header with trailing line
+    // Section header with trailing line (aligned to box width: 48 = 2 indent + 46 content + 2 borders)
     const sectionHeader = (icon: string, title: string) => {
       const text = `${icon} ${title} `;
-      const lineLength = 40 - text.length;
+      const textWidth = getDisplayWidth(text);
+      const lineLength = 48 - textWidth;
       return `  ${colors.white.bold(text)}${colors.dim("─".repeat(Math.max(0, lineLength)))}`;
     };
 
@@ -637,7 +639,7 @@ export async function submit(options: SubmitOptions): Promise<void> {
     // 2. LEVEL PROGRESS (based on accumulated server total)
     // ═══════════════════════════════════════
     console.log();
-    console.log(sectionHeader("⬆️", "Level Progress"));
+    console.log(sectionHeader("⬆️ ", "Level Progress"));
     console.log();
 
     // Show current level (using levelProgress calculated above)

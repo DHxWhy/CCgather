@@ -241,7 +241,7 @@ function _stripAnsi(str: string): string {
 
 // Get display width accounting for ANSI codes and OSC 8 hyperlinks
 // Relies on string-width for accurate Unicode/emoji measurement
-function getDisplayWidth(str: string): number {
+export function getDisplayWidth(str: string): number {
   const stripped = _stripAnsi(str);
   return stringWidth(stripped);
 }
