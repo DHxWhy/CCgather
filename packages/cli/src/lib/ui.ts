@@ -239,28 +239,11 @@ function _stripAnsi(str: string): string {
   return str.replace(/\x1B\[[0-9;]*[a-zA-Z]|\x1B\]8;;[^\x07]*\x07/g, "");
 }
 
-// Get display width with emoji correction
-// Emojis may display differently across terminals
+// Get display width accounting for ANSI codes and OSC 8 hyperlinks
+// Relies on string-width for accurate Unicode/emoji measurement
 function getDisplayWidth(str: string): number {
-  // Strip ANSI codes for accurate measurement
   const stripped = _stripAnsi(str);
-  let width = stringWidth(stripped);
-
-  // Count common emojis that may need width correction
-  // These emojis are typically displayed as 2 chars width in terminals
-  const emojiRegex = /[\u{1F300}-\u{1F9FF}]|[\u{2600}-\u{26FF}]|[\u{2700}-\u{27BF}]|✦/gu;
-  const emojis = stripped.match(emojiRegex);
-  if (emojis) {
-    // Adjust width: string-width may count as 1, but terminal shows as 2
-    for (const emoji of emojis) {
-      const emojiWidth = stringWidth(emoji);
-      if (emojiWidth === 1) {
-        width += 1; // Add 1 to make it 2
-      }
-    }
-  }
-
-  return width;
+  return stringWidth(stripped);
 }
 
 // Create a divider line
