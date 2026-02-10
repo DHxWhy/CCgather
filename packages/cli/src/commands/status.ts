@@ -100,7 +100,7 @@ export async function status(_options: StatusOptions): Promise<void> {
   // Footer with user-specific leaderboard URL
   const leaderboardUrl = `https://ccgather.com/leaderboard?u=${username}`;
   console.log();
-  console.log(colors.dim("  ─".repeat(25)));
+  console.log(`  ${colors.dim("─".repeat(48))}`);
   console.log(`  ${colors.muted("View on leaderboard:")} ${link(leaderboardUrl)}`);
   console.log();
 }

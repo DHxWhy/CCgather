@@ -418,7 +418,7 @@ export async function submit(options: SubmitOptions): Promise<void> {
 
     // Show debug info
     const debugInfo = getSessionPathDebugInfo();
-    console.log(`  ${colors.dim("─".repeat(40))}`);
+    console.log(`  ${colors.dim("─".repeat(48))}`);
     console.log(`  ${colors.muted("Searched paths:")}`);
     for (const pathInfo of debugInfo.searchedPaths) {
       const status = pathInfo.exists ? colors.success("✓") : colors.error("✗");
@@ -585,7 +585,7 @@ export async function submit(options: SubmitOptions): Promise<void> {
       console.log(
         `     ${colors.muted(`+ ${otherCount} other`)}   ⚡ ${colors.primary(formatNumber(di.otherDevicesTokens))} ${colors.dim("│")} 💰 ${colors.warning(formatCost(di.otherDevicesCost))}`
       );
-      console.log(`     ${colors.dim("─".repeat(33))}`);
+      console.log(`     ${colors.dim("─".repeat(45))}`);
       console.log(
         `     ${colors.white.bold("Combined")}    ⚡ ${colors.primary(formatNumber(di.combinedTokens))} ${colors.dim("│")} 💰 ${colors.warning(formatCost(di.combinedCost))}  ${colors.success("✓")}`
       );
@@ -676,7 +676,7 @@ export async function submit(options: SubmitOptions): Promise<void> {
     // ═══════════════════════════════════════
     console.log();
     const leaderboardUrl = `https://ccgather.com/leaderboard?u=${username}`;
-    console.log(`  ${colors.dim("─".repeat(40))}`);
+    console.log(`  ${colors.dim("─".repeat(48))}`);
     console.log(`  ${colors.muted("View full stats:")} ${link(leaderboardUrl)}`);
     console.log();
 
