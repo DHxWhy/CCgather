@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useInView } from "@/hooks/use-in-view";
 import { GetStartedLink } from "@/components/landing/GetStartedLink";
 
@@ -27,16 +28,24 @@ export function SocialProof() {
   return (
     <section className="pb-12 px-6" ref={containerRef}>
       <div className="scroll-reveal max-w-2xl mx-auto">
-        {/* Product Hunt badge */}
-        <div className="flex items-center justify-center mb-6">
-          <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/5 border border-white/10 text-xs text-[var(--color-text-muted)]">
-            <span className="text-[var(--color-claude-coral)]">&#9650;</span>
-            <span>
-              Featured on{" "}
-              <span className="text-[var(--color-text-secondary)] font-medium">Product Hunt</span>{" "}
-              &mdash; 116 upvotes on launch day
-            </span>
-          </span>
+        {/* Product Hunt badge with official embed */}
+        <div className="flex flex-col items-center gap-3 mb-6">
+          <a
+            href="https://www.producthunt.com/products/ccgather?embed=true&utm_source=badge-featured&utm_medium=badge&utm_campaign=badge-ccgather"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=1071381&theme=dark&t=1770059953257"
+              alt="CCgather - Document your Claude Code journey | Product Hunt"
+              width="250"
+              height="54"
+              loading="lazy"
+              className="hover:opacity-90 transition-opacity"
+            />
+          </a>
+          <span className="text-xs text-[var(--color-text-muted)]">116 upvotes on launch day</span>
         </div>
 
         {/* Reviews */}
@@ -58,9 +67,17 @@ export function SocialProof() {
           <p className="text-sm text-[var(--color-text-secondary)] mb-4">
             Ready to track your Claude Code journey?
           </p>
-          <GetStartedLink className="inline-block px-5 py-2.5 rounded-xl bg-[#b84c30] text-white text-sm font-semibold hover:opacity-90 hover:scale-[1.02] active:scale-95 transition-all shadow-lg shadow-[var(--color-claude-coral)]/20">
-            Get Started
-          </GetStartedLink>
+          <div className="flex items-center justify-center gap-3">
+            <GetStartedLink className="inline-block px-5 py-2.5 rounded-xl bg-[#b84c30] text-white text-sm font-semibold hover:opacity-90 hover:scale-[1.02] active:scale-95 transition-all shadow-lg shadow-[var(--color-claude-coral)]/20">
+              Get Started
+            </GetStartedLink>
+            <Link
+              href="/leaderboard"
+              className="inline-block px-5 py-2.5 rounded-xl border border-white/10 text-sm text-[var(--color-text-secondary)] hover:bg-white/5 hover:border-white/20 transition-all"
+            >
+              Explore Leaderboard
+            </Link>
+          </div>
         </div>
       </div>
     </section>

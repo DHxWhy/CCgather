@@ -31,15 +31,7 @@ export function hyperlink(text: string, url: string): string {
   return `\u001B]8;;${url}\u0007${text}\u001B]8;;\u0007`;
 }
 
-// ASCII Art Logo
-export const LOGO = `
-    ${colors.primary("██████╗ ██████╗")} ${colors.secondary("██████╗  █████╗ ████████╗██╗  ██╗███████╗██████╗")}
-   ${colors.primary("██╔════╝██╔════╝")}${colors.secondary("██╔════╝ ██╔══██╗╚══██╔══╝██║  ██║██╔════╝██╔══██╗")}
-   ${colors.primary("██║     ██║     ")}${colors.secondary("██║  ███╗███████║   ██║   ███████║█████╗  ██████╔╝")}
-   ${colors.primary("██║     ██║     ")}${colors.secondary("██║   ██║██╔══██║   ██║   ██╔══██║██╔══╝  ██╔══██╗")}
-   ${colors.primary("╚██████╗╚██████╗")}${colors.secondary("╚██████╔╝██║  ██║   ██║   ██║  ██║███████╗██║  ██║")}
-    ${colors.primary("╚═════╝ ╚═════╝")} ${colors.secondary("╚═════╝ ╚═╝  ╚═╝   ╚═╝   ╚═╝  ╚═╝╚══════╝╚═╝  ╚═╝")}
-`;
+// Legacy LOGO removed - replaced by chrome gradient logo in createProfessionalHeader()
 
 // Compact logo for smaller screens
 export const LOGO_COMPACT = `
@@ -81,6 +73,48 @@ const box = {
 
 const HEADER_WIDTH = 46;
 
+// Chrome font character map (cfonts "chrome" style - double-line box characters)
+const CHROME_FONT: Record<string, [string, string, string]> = {
+  C: ["╔═╗", "║  ", "╚═╝"],
+  G: ["╔═╗", "║ ╦", "╚═╝"],
+  A: ["╔═╗", "╠═╣", "╩ ╩"],
+  T: ["╔╦╗", " ║ ", " ╩ "],
+  H: ["╦ ╦", "╠═╣", "╩ ╩"],
+  E: ["╔═╗", "║╣ ", "╚═╝"],
+  R: ["╦═╗", "╠╦╝", "╩╚═"],
+};
+
+// Coral→Orange gradient interpolation (#DA7756 → #F7931E)
+function interpolateHex(t: number): string {
+  const r = Math.round(218 + 29 * t);
+  const g = Math.round(119 + 28 * t);
+  const b = Math.round(86 - 56 * t);
+  return `#${r.toString(16).padStart(2, "0")}${g.toString(16).padStart(2, "0")}${b.toString(16).padStart(2, "0")}`;
+}
+
+// Render "CCGATHER" in chrome font with coral→orange gradient
+function renderChromeGradientLogo(): [string, string, string] {
+  const word = "CCGATHER";
+  const rows: [string[], string[], string[]] = [[], [], []];
+  for (let i = 0; i < word.length; i++) {
+    const ch = word[i];
+    const glyph = CHROME_FONT[ch];
+    if (!glyph) continue;
+    const color = chalk.hex(interpolateHex(i / (word.length - 1)));
+    for (let row = 0; row < 3; row++) {
+      if (rows[row].length > 0) rows[row].push(color(" "));
+      rows[row].push(color(glyph[row]));
+    }
+  }
+  return [rows[0].join(""), rows[1].join(""), rows[2].join("")];
+}
+
+// Pad content line to exact HEADER_WIDTH (right-pad with spaces)
+function padLine(content: string): string {
+  const w = getDisplayWidth(content);
+  return content + " ".repeat(Math.max(0, HEADER_WIDTH - w));
+}
+
 // Center text within width
 function centerText(text: string, width: number): string {
   const len = getDisplayWidth(text);
@@ -99,53 +133,53 @@ function _rightAlignText(text: string, width: number): string {
   return " ".repeat(Math.max(0, pad)) + text;
 }
 
-// Create professional boxed header (medium block logo)
+// Create professional boxed header (chrome font gradient logo)
 export function createProfessionalHeader(): string[] {
   const lines: string[] = [];
   const v = boxRound.vertical;
   const h = boxRound.horizontal;
+  const dim = colors.dim;
 
-  lines.push(colors.dim(`  ${boxRound.topLeft}${h.repeat(HEADER_WIDTH)}${boxRound.topRight}`));
+  lines.push(dim(`  ${boxRound.topLeft}${h.repeat(HEADER_WIDTH)}${boxRound.topRight}`));
 
-  // CCGATHER logo (3 rows, same height) - centered
-  const logoLines = [
-    `${colors.primary("▄█▀▀ ▄█▀▀")} ${colors.secondary("▄█▀▀  ▄█▀█▄ ▀█▀ █  █ █▀▀ █▀█")}`,
-    `${colors.primary("█    █   ")} ${colors.secondary("█  ▀█ █▀▀█▀  █  █▀▀█ █▀▀ ██▀")}`,
-    `${colors.primary("▀█▄▄ ▀█▄▄")} ${colors.secondary("▀█▄▄▀ █  █   █  █  █ █▄▄ █ █")}`,
-  ];
-  for (const l of logoLines) {
-    lines.push(colors.dim(`  ${v}`) + centerText(l, HEADER_WIDTH) + colors.dim(v));
+  // Empty line above logo for breathing room
+  lines.push(dim(`  ${v}`) + padLine("") + dim(v));
+
+  // Chrome gradient logo - "CCGATHER" (8 chars × 3 width + 7 gaps = 31 display chars)
+  // Center within 46: left 7 + 31 content + right 8 = 46 (extra 1 right for odd split)
+  const logoRows = renderChromeGradientLogo();
+  const logoPadLeft = 7;
+  const logoPadRight = HEADER_WIDTH - logoPadLeft - 31; // = 8
+  for (const row of logoRows) {
+    lines.push(dim(`  ${v}`) + " ".repeat(logoPadLeft) + row + " ".repeat(logoPadRight) + dim(v));
   }
 
-  // Version right-aligned (2-space padding)
+  // Version right-aligned (2-space padding from right edge)
   const versionStr = `v${VERSION}`;
-  const versionPad = HEADER_WIDTH - versionStr.length - 2;
-  lines.push(
-    colors.dim(`  ${v}`) + " ".repeat(versionPad) + colors.dim(versionStr) + "  " + colors.dim(v)
-  );
+  const versionPad = HEADER_WIDTH - getDisplayWidth(versionStr) - 2;
+  lines.push(dim(`  ${v}`) + " ".repeat(Math.max(0, versionPad)) + dim(versionStr) + "  " + dim(v));
 
-  lines.push(colors.dim(`  ${boxRound.leftT}${h.repeat(HEADER_WIDTH)}${boxRound.rightT}`));
+  lines.push(dim(`  ${boxRound.leftT}${h.repeat(HEADER_WIDTH)}${boxRound.rightT}`));
   lines.push(
-    colors.dim(`  ${v}`) +
-      centerText(colors.muted("Proof of your Claude Code dedication"), HEADER_WIDTH) +
-      colors.dim(v)
+    dim(`  ${v}`) +
+      padLine(centerText(colors.muted("Proof of your Claude Code dedication"), HEADER_WIDTH)) +
+      dim(v)
   );
   lines.push(
-    colors.dim(`  ${v}`) +
-      centerText(colors.dim("Track · Prove · Rise"), HEADER_WIDTH) +
-      colors.dim(v)
+    dim(`  ${v}`) + padLine(centerText(colors.dim("Track · Prove · Rise"), HEADER_WIDTH)) + dim(v)
   );
-  lines.push(colors.dim(`  ${v}`) + " ".repeat(HEADER_WIDTH) + colors.dim(v));
+  lines.push(dim(`  ${v}`) + padLine("") + dim(v));
 
   // Bottom border with clickable ccgather.com link
   const siteLabel = " 🌐 ccgather.com ";
   const siteLink = hyperlink(colors.secondary(siteLabel), "https://ccgather.com");
+  const siteLabelWidth = getDisplayWidth(siteLabel);
   const leftDashes = 13;
-  const rightDashes = HEADER_WIDTH - leftDashes - siteLabel.length;
+  const rightDashes = HEADER_WIDTH - leftDashes - siteLabelWidth;
   lines.push(
-    colors.dim(`  ${boxRound.bottomLeft}${h.repeat(leftDashes)}`) +
+    dim(`  ${boxRound.bottomLeft}${h.repeat(leftDashes)}`) +
       siteLink +
-      colors.dim(`${h.repeat(rightDashes)}${boxRound.bottomRight}`)
+      dim(`${h.repeat(Math.max(0, rightDashes))}${boxRound.bottomRight}`)
   );
 
   return lines;
@@ -200,9 +234,9 @@ export async function printAnimatedLines(
   }
 }
 
-// Strip ANSI codes for length calculation
+// Strip ANSI codes for length calculation (CSI sequences + OSC 8 hyperlinks)
 function _stripAnsi(str: string): string {
-  return str.replace(/\x1B\[[0-9;]*[a-zA-Z]/g, "");
+  return str.replace(/\x1B\[[0-9;]*[a-zA-Z]|\x1B\]8;;[^\x07]*\x07/g, "");
 }
 
 // Get display width with emoji correction
@@ -442,12 +476,11 @@ export function info(message: string): string {
 }
 
 // Print full header with logo
-export function printHeader(version: string): void {
-  console.log(LOGO);
-  console.log(TAGLINE);
-  console.log(SLOGAN);
-  console.log();
-  console.log(getVersionLine(version));
+export function printHeader(_version: string): void {
+  const headerLines = createProfessionalHeader();
+  for (const line of headerLines) {
+    console.log(line);
+  }
   console.log();
 }
 

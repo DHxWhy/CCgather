@@ -495,7 +495,7 @@ export async function submit(options: SubmitOptions): Promise<void> {
       : "";
 
   const daysTrackedDisplay = dateRange
-    ? `${usageData.daysTracked} days ${colors.dim(`(${dateRange})`)}`
+    ? `${usageData.daysTracked}d ${colors.dim(`(${dateRange})`)}`
     : usageData.daysTracked.toString();
 
   // Summary lines (Level will be added after we have server response)
@@ -546,7 +546,7 @@ export async function submit(options: SubmitOptions): Promise<void> {
     // ═══════════════════════════════════════
     // 0. LOCAL SCAN SUMMARY
     // ═══════════════════════════════════════
-    console.log(createBox(summaryLines, 52));
+    console.log(createBox(summaryLines, 46));
     console.log(
       `  ${colors.dim(`Scanned ${projectCount} project(s), ${usageData.dailyUsage.length} day(s) of data`)}`
     );
