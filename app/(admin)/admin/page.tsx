@@ -46,6 +46,7 @@ export default function AdminUsersPage() {
   const [filterPlan, setFilterPlan] = useState<string>("");
   const [filterCountries, setFilterCountries] = useState<string[]>([]);
   const [filterOnboarding, setFilterOnboarding] = useState<string>("");
+  const [filterSubmission, setFilterSubmission] = useState<string>("");
   const [alerts, setAlerts] = useState<AdminAlert[]>([]);
   const [stats, setStats] = useState({
     totalUsers: 0,
@@ -160,7 +161,12 @@ export default function AdminUsersPage() {
       !filterOnboarding ||
       (filterOnboarding === "completed" ? user.onboarding_completed : !user.onboarding_completed);
 
-    return matchesSearch && matchesPlan && matchesCountry && matchesOnboarding;
+    // Submission filter
+    const matchesSubmission =
+      !filterSubmission ||
+      (filterSubmission === "has" ? user.total_tokens > 0 : user.total_tokens === 0);
+
+    return matchesSearch && matchesPlan && matchesCountry && matchesOnboarding && matchesSubmission;
   });
 
   const formatNumber = (num: number) => {
@@ -457,6 +463,43 @@ export default function AdminUsersPage() {
             </button>
           </div>
         </div>
+
+        {/* 제출 이력 필터 */}
+        <div className="bg-[#161616] rounded-lg p-4 border border-white/[0.06]">
+          <div className="text-[11px] text-white/40 uppercase tracking-wide mb-3">제출 이력</div>
+          <div className="flex gap-1.5">
+            <button
+              onClick={() => setFilterSubmission("")}
+              className={`px-2 py-1 rounded text-[11px] transition-colors ${
+                filterSubmission === ""
+                  ? "bg-white/20 text-white"
+                  : "bg-white/5 text-white/50 hover:bg-white/10"
+              }`}
+            >
+              전체
+            </button>
+            <button
+              onClick={() => setFilterSubmission("has")}
+              className={`px-2 py-1 rounded text-[11px] transition-colors ${
+                filterSubmission === "has"
+                  ? "bg-cyan-500/30 text-cyan-300"
+                  : "bg-cyan-500/10 text-cyan-400 hover:bg-cyan-500/20"
+              }`}
+            >
+              제출있음 {users.filter((u) => u.total_tokens > 0).length}
+            </button>
+            <button
+              onClick={() => setFilterSubmission("none")}
+              className={`px-2 py-1 rounded text-[11px] transition-colors ${
+                filterSubmission === "none"
+                  ? "bg-rose-500/30 text-rose-300"
+                  : "bg-rose-500/10 text-rose-400 hover:bg-rose-500/20"
+              }`}
+            >
+              미제출 {users.filter((u) => u.total_tokens === 0).length}
+            </button>
+          </div>
+        </div>
       </div>
 
       {/* 검색 */}
@@ -510,7 +553,11 @@ export default function AdminUsersPage() {
               ) : filteredUsers.length === 0 ? (
                 <tr>
                   <td colSpan={8} className="px-4 py-8 text-center text-[12px] text-white/30">
-                    {searchQuery || filterPlan || filterCountries.length > 0 || filterOnboarding
+                    {searchQuery ||
+                    filterPlan ||
+                    filterCountries.length > 0 ||
+                    filterOnboarding ||
+                    filterSubmission
                       ? "검색 결과가 없습니다."
                       : "사용자가 없습니다."}
                   </td>

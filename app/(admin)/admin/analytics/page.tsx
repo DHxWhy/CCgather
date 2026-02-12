@@ -5,6 +5,7 @@ import { useCoreKPI, useRetentionDB, useAnalyticsHealth } from "@/hooks/use-admi
 import { InfoPopover, METRIC_INFO } from "@/components/admin/InfoPopover";
 
 const PERIOD_OPTIONS = [
+  { label: "오늘", value: 1 },
   { label: "7일", value: 7 },
   { label: "14일", value: 14 },
   { label: "30일", value: 30 },

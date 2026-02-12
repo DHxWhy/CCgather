@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useFunnelAnalytics } from "@/hooks/use-admin-analytics";
 
 const DATE_RANGES = [
+  { label: "오늘", value: 1 },
   { label: "7일", value: 7 },
   { label: "14일", value: 14 },
   { label: "30일", value: 30 },

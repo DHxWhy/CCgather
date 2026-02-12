@@ -6,6 +6,7 @@ import { InfoPopover, METRIC_INFO } from "@/components/admin/InfoPopover";
 import type { MetricWithTrend } from "@/lib/types/analytics";
 
 const DATE_RANGES = [
+  { label: "오늘", value: "-1d" },
   { label: "7일", value: "-7d" },
   { label: "14일", value: "-14d" },
   { label: "30일", value: "-30d" },

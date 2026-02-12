@@ -4,6 +4,7 @@ import { useState, Fragment } from "react";
 import { useTrafficSources } from "@/hooks/use-admin-analytics";
 
 const DATE_RANGES = [
+  { label: "오늘", value: "-1d" },
   { label: "7일", value: "-7d" },
   { label: "14일", value: "-14d" },
   { label: "30일", value: "-30d" },
