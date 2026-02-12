@@ -536,7 +536,8 @@ export async function submit(options: SubmitOptions): Promise<void> {
     };
 
     // Calculate level based on accumulated server tokens (if available)
-    const accumulatedTokens = result.previous?.totalTokens || usageData.totalTokens;
+    const accumulatedTokens =
+      result.accumulatedTokens || result.previous?.totalTokens || usageData.totalTokens;
     const levelProgress = getLevelProgress(accumulatedTokens);
     const currentLevel = levelProgress.current;
 
@@ -562,9 +563,9 @@ export async function submit(options: SubmitOptions): Promise<void> {
       console.log(sectionHeader("📦", "Server Records"));
       console.log();
 
-      // Server cumulative total (before this submission)
-      const prevTokens = prev.totalTokens || 0;
-      const prevCost = prev.totalCost || 0;
+      // Server cumulative total (post-submission accurate values)
+      const prevTokens = result.accumulatedTokens || prev.totalTokens || 0;
+      const prevCost = result.accumulatedCost || prev.totalCost || 0;
       console.log(
         `     ${colors.muted("Accumulated")} ⚡ ${colors.primary(formatNumber(prevTokens))} ${colors.dim("│")} 💰 ${colors.warning(formatCost(prevCost))}`
       );
