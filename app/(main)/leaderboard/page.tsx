@@ -421,7 +421,7 @@ export default function LeaderboardPage() {
   const [isPanelOpen, setIsPanelOpen] = useState(false);
   const closePanelTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [isGlobePanelOpen, setIsGlobePanelOpen] = useState(false);
-  const [periodFilter, setPeriodFilter] = useState<PeriodFilter>("30d");
+  const [periodFilter, setPeriodFilter] = useState<PeriodFilter>("all");
   const [scopeFilter, setScopeFilter] = useState<ScopeFilter>("global");
   const [globePulse, setGlobePulse] = useState(false);
   const [sortBy, setSortBy] = useState<SortByFilter>("tokens");
@@ -2553,10 +2553,10 @@ export default function LeaderboardPage() {
                   {/* Period Filter - Desktop: buttons, Tablet/Mobile: dropdown */}
                   <div className="hidden lg:flex items-center h-[34px] glass rounded-lg overflow-hidden">
                     {[
+                      { value: "all", label: "All" },
                       { value: "30d", label: "30D" },
                       { value: "7d", label: "7D" },
                       { value: "1d", label: "1D" },
-                      { value: "all", label: "All" },
                     ].map((period) => (
                       <div key={period.value} className="relative group">
                         <button
@@ -2607,10 +2607,10 @@ export default function LeaderboardPage() {
                         }
                       }}
                       options={[
+                        { value: "all", label: "All" },
                         { value: "30d", label: "30D" },
                         { value: "7d", label: "7D" },
                         { value: "1d", label: "1D" },
-                        { value: "all", label: "All" },
                       ]}
                       customLabel={
                         customDateRange
