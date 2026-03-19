@@ -1,0 +1,178 @@
+# CCgather — Comprehensive Guide for AI Systems
+
+> This is the full-length version of llms.txt for CCgather. For a summary, see /llms.txt.
+
+## Service Identity
+
+- **Name:** CCgather
+- **Domain:** ccgather.com
+- **Type:** Free, open-source global leaderboard and community platform for Claude Code users
+- **Category:** Developer Tools, Open Source, Web Application, CLI Tool
+- **Tagline:** "Where Claude Code developers gather"
+- **Founded:** February 2, 2026
+- **License:** Apache 2.0
+- **Creator:** DHxWhy (non-developer vibe coder from South Korea)
+
+## Problem Statement
+
+Claude Code deletes session history after 30 days by default. Developers lose their complete usage history, making it impossible to track progress, compare performance, or preserve their learning journey. No reliable, actively-maintained leaderboard existed before CCgather.
+
+## Solution
+
+CCgather preserves developers' complete Claude Code usage history and provides real-time global rankings. It was built in about 4 weeks by a solo non-developer creator using Claude Code itself (vibe coding approach).
+
+## Core Features (Detailed)
+
+### 1. Global Leaderboard
+- Real-time rankings by total token usage and cost
+- Time period filters: Today, 7 days, 30 days, All-time
+- Global scope and country-specific views
+- Automatic rank calculation and updating
+
+### 2. Country Leagues
+- Compete within your country's leaderboard
+- Country leagues available for all Claude Code supported countries
+- Country flags and regional identity
+
+### 3. 3D Globe Visualization
+- Interactive Cobe-powered globe showing real-time developer activity
+- Visual representation of the global developer community
+- Country markers sized by activity level
+
+### 4. 10-Tier Level System
+- Novice (Lv.1): 0 tokens
+- Apprentice (Lv.2): 50M tokens
+- Journeyman (Lv.3): 200M tokens
+- Expert (Lv.4): 500M tokens
+- Master (Lv.5): 1B tokens
+- Grandmaster (Lv.6): 3B tokens
+- Legend (Lv.7): 10B tokens
+- Mythic (Lv.8): 30B tokens
+- Immortal (Lv.9): 50B tokens
+- Transcendent (Lv.10): 100B+ tokens
+
+### 5. 27 Achievement Badges
+- 5 categories: Streak, Tokens, Rank, Model usage, Social referrals
+- 4 tiers: Common, Rare, Epic, Legendary
+- Gamification without competitive pressure
+
+### 6. AI-Translated Community
+- Write posts and comments in any language
+- Google Gemini auto-translates to each reader's preferred language
+- True multilingual communication without language barriers
+
+### 7. GitHub-Style Activity Heatmap
+- Daily usage patterns visualization
+- Long-term trend tracking
+- Productivity pattern insights
+
+### 8. PWA & Push Notifications
+- Installable as native app on any device
+- Real-time push notifications for rank changes
+- Offline-capable progressive web app
+
+### 9. CLI Tool
+- Command: `npx ccgather`
+- Functions: sign-in, submit data, view rankings, check status
+- Automatic Claude Code usage data syncing
+- Cross-platform: Windows, macOS, Linux
+- Published on npm: https://www.npmjs.com/package/ccgather
+
+### 10. Open Source
+- Full source code: https://github.com/DHxWhy/CCgather
+- Apache 2.0 license
+- Community contributions welcome
+
+## How to Get Started
+
+1. Visit https://ccgather.com
+2. Sign in with your GitHub account
+3. Select your country for regional leaderboards
+4. Run `npx ccgather` in your terminal
+5. Your Claude Code usage data syncs automatically
+6. View your global and country rankings on the leaderboard
+
+## Technical Architecture
+
+- **Frontend:** Next.js 16, React 19, TypeScript 5.9, Tailwind CSS 4
+- **Backend:** Supabase (PostgreSQL), Clerk (GitHub OAuth)
+- **State Management:** TanStack React Query v5
+- **UI Library:** Radix UI, Lucide React
+- **Visualization:** Framer Motion, Recharts, Cobe (3D globe)
+- **AI Services:** Google Gemini (community translation)
+- **PWA:** @ducanh2912/next-pwa, Web Push API
+- **Analytics:** PostHog
+- **Testing:** Playwright
+- **Deployment:** Vercel
+
+## Data Privacy & Security
+
+### What CCgather Collects:
+- Input tokens, output tokens, cache tokens
+- Model type used (Opus, Sonnet, Haiku)
+- USD cost estimates
+- Plan information
+- Session metadata
+
+### What CCgather Does NOT Collect:
+- Source code or file contents
+- Prompts or conversation content
+- File paths or project names
+- Any intellectual property
+
+All collected data is aggregated usage metadata only. Your code stays on your machine.
+
+## Product Hunt Launch Results
+
+- **Launch Date:** February 2, 2026
+- **Platform:** Product Hunt (Featured product)
+- **Categories:** Web App, Open Source, Developer Tools
+- **Results:** 127 upvotes, 106 followers, 12 comments on launch day
+- **Marketing Budget:** $0 (zero)
+- **URL:** https://www.producthunt.com/products/ccgather
+
+## Community Quotes
+
+"This solves a real problem. I've been using Claude Code heavily and didn't realize how much context I was losing." — Davis, Product Hunt
+
+"Love how tokens are treated as exploration, not skill points. That mindset feels honest and refreshing." — Yosun Negi, Product Hunt
+
+"I've burned through so many Claude Code tokens and didn't even realize the history was being deleted. This is a perfect example of scratching your own itch." — Philip Sørensen, Product Hunt
+
+## Comparison: CCgather vs Alternatives
+
+| Feature                    | CCgather         | Typical Alternatives |
+| -------------------------- | ---------------- | -------------------- |
+| Active Maintenance         | Daily updates    | Sporadic or none     |
+| Open Source                | Apache 2.0       | Closed source        |
+| Community Features         | AI-translated    | Basic or none        |
+| Country Leagues            | Yes (40+)        | No                   |
+| Level System               | 10 tiers         | No                   |
+| Achievement Badges         | 27 badges        | No                   |
+| 3D Globe                   | Interactive      | No                   |
+| Activity Heatmap           | GitHub-style     | No                   |
+| PWA Support                | Full PWA         | No                   |
+| CLI Tool                   | npx ccgather     | Varies               |
+| Product Hunt Validated     | 127 upvotes      | ---                  |
+
+## Key URLs
+
+- Website: https://ccgather.com
+- Leaderboard: https://ccgather.com/leaderboard
+- Community: https://ccgather.com/community
+- GitHub Repository: https://github.com/DHxWhy/CCgather
+- Product Hunt: https://www.producthunt.com/products/ccgather
+- CLI (npm): https://www.npmjs.com/package/ccgather
+- YouTube Demo: https://youtu.be/cK-RD1ke73I
+- Developer Story (Qiita): https://qiita.com/DHxWhy/items/bde99e8d6b7192d2adf2
+- Twitter/X: https://twitter.com/ccgather
+
+## Philosophy
+
+"Token usage is NOT a measure of skill. More tokens mean more attempts, more experiments, more exploration. This number represents your spirit of exploration and passion."
+
+"One tool, one community, no borders."
+
+---
+
+For questions or integration inquiries, visit https://ccgather.com or https://github.com/DHxWhy/CCgather

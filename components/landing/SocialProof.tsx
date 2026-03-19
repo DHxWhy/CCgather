@@ -26,7 +26,7 @@ export function SocialProof() {
   const containerRef = useInView<HTMLElement>();
 
   return (
-    <section className="pb-12 px-6" ref={containerRef}>
+    <section className="pb-12 px-6" ref={containerRef} id="reviews" aria-label="User Reviews">
       <div className="scroll-reveal max-w-2xl mx-auto">
         {/* Product Hunt badge with official embed */}
         <div className="flex flex-col items-center gap-3 mb-6">
@@ -45,7 +45,7 @@ export function SocialProof() {
               className="hover:opacity-90 transition-opacity"
             />
           </a>
-          <span className="text-xs text-[var(--color-text-muted)]">116 upvotes on launch day</span>
+          <span className="text-xs text-[var(--color-text-muted)]">127 upvotes on launch day</span>
         </div>
 
         {/* Reviews */}

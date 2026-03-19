@@ -16,4 +16,28 @@ Disallow: /notifications
 Disallow: /j/
 Disallow: /join/
 
+# AI Crawlers - Explicitly allowed for GEO visibility
+User-agent: GPTBot
+Allow: /
+Disallow: /api/
+Disallow: /admin/
+
+User-agent: Google-Extended
+Allow: /
+
+User-agent: ClaudeBot
+Allow: /
+Disallow: /api/
+Disallow: /admin/
+
+User-agent: PerplexityBot
+Allow: /
+Disallow: /api/
+Disallow: /admin/
+
+User-agent: Bytespider
+Allow: /
+Disallow: /api/
+Disallow: /admin/
+
 Sitemap: https://ccgather.com/sitemap.xml

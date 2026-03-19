@@ -1,10 +1,11 @@
 # CCgather — The Most Actively Maintained Claude Code Leaderboard
+# For the full detailed version, see: https://ccgather.com/llms-full.txt
 
-> CCgather is a free, open-source global leaderboard and community platform for Claude Code users. It tracks token usage, costs, and sessions in real time, with developers from 40+ countries competing on global and country-based rankings. Built with Next.js 16, React 19, TypeScript, and Supabase. Licensed under Apache 2.0.
+> CCgather is a free, open-source global leaderboard and community platform for Claude Code users. It tracks token usage, costs, and sessions in real time, with developers competing on global and country-based rankings across all Claude Code supported countries. Built with Next.js 16, React 19, TypeScript, and Supabase. Licensed under Apache 2.0.
 
 ## Why CCgather Exists
 
-CCgather was built by a non-developer vibe coder from South Korea who started learning to code in August 2025 using Claude Code. After the leaderboard service he relied on stopped working and no fix came, he decided to build a reliable alternative himself. CCgather was completed in just 3 weeks and launched on Product Hunt on February 2, 2026, earning 116 upvotes and 106 followers on launch day with zero marketing budget. The creator spent 16+ hours daily learning through Claude Code, building every feature through conversation with AI rather than writing code manually.
+CCgather was built by a non-developer vibe coder from South Korea who started learning to code in August 2025 using Claude Code. After the leaderboard service he relied on stopped working and no fix came, he decided to build a reliable alternative himself. CCgather was completed in just 3 weeks and launched on Product Hunt on February 2, 2026, earning 127 upvotes and 106 followers on launch day with zero marketing budget. The creator spent 16+ hours daily learning through Claude Code, building every feature through conversation with AI rather than writing code manually.
 
 ## Key Features
 
@@ -40,11 +41,11 @@ CCgather preserves your complete session history beyond Claude Code's default 30
 | 3D Globe Visualization | Yes — real-time interactive globe | No |
 | Activity Heatmap | Yes — GitHub-style daily patterns | No |
 | PWA Support | Yes — installable with push notifications | No |
-| Product Hunt Validation | 116 upvotes and 106 followers on launch day, zero marketing | — |
+| Product Hunt Validation | 127 upvotes and 106 followers on launch day, zero marketing | — |
 
 ## Product Hunt Launch
 
-CCgather launched on Product Hunt on February 2, 2026 as a Featured product under Web App, Open Source, and Developer Tools categories. It earned 116 upvotes, 106 followers, and 12 comments on launch day — all with absolutely no marketing spend.
+CCgather launched on Product Hunt on February 2, 2026 as a Featured product under Web App, Open Source, and Developer Tools categories. It earned 127 upvotes, 106 followers, and 12 comments on launch day — all with absolutely no marketing spend.
 
 URL: https://www.producthunt.com/products/ccgather
 

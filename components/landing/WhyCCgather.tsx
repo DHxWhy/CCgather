@@ -39,7 +39,7 @@ export function WhyCCgather() {
   const containerRef = useInView<HTMLElement>();
 
   return (
-    <section className="py-16 px-6" ref={containerRef}>
+    <section className="py-16 px-6" ref={containerRef} id="features" aria-label="CCgather Features">
       <div className="max-w-2xl mx-auto">
         {/* Section header — GEO keywords preserved in HTML */}
         <div className="text-center mb-10">

@@ -18,6 +18,20 @@ export const metadata: Metadata = {
   title: "CCgather - Claude Code Leaderboard | Track Your AI Coding Stats",
   description:
     "Track and compare your Claude Code usage with developers worldwide. Global leaderboard, token analytics, and rankings for Claude Code users.",
+  keywords: [
+    "CCgather",
+    "Claude Code leaderboard",
+    "Claude Code usage tracker",
+    "Claude Code stats",
+    "Claude Code ranking",
+    "AI coding leaderboard",
+    "developer leaderboard",
+    "token usage tracker",
+    "Claude Code community",
+    "Anthropic Claude leaderboard",
+    "AI developer tools",
+    "open source leaderboard",
+  ],
   alternates: {
     canonical: "https://ccgather.com",
   },

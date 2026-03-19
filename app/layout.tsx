@@ -148,6 +148,14 @@ function GlobalJsonLd() {
       name: "CCgather",
       url: "https://ccgather.com",
     },
+    potentialAction: {
+      "@type": "SearchAction",
+      target: {
+        "@type": "EntryPoint",
+        urlTemplate: "https://ccgather.com/leaderboard?q={search_term_string}",
+      },
+      "query-input": "required name=search_term_string",
+    },
   };
 
   const softwareAppLd = {
@@ -176,7 +184,7 @@ function GlobalJsonLd() {
       "3D globe visualization of worldwide developer activity",
       "AI-translated community — write in any language, read in yours",
       "Country-based competitive leagues",
-      "10-tier level system from Rookie to Immortal",
+      "10-tier level system from Novice to Transcendent",
       "27 achievement badges across 5 categories",
       "GitHub-style activity heatmap",
       "PWA with push notifications",
@@ -214,6 +222,38 @@ function GlobalJsonLd() {
         acceptedAnswer: {
           "@type": "Answer",
           text: "CCgather provides a real-time global Claude Code leaderboard with 3D globe visualization, country-based competitive leagues, a 10-tier level system, 27 achievement badges, an AI-translated multilingual community, GitHub-style activity heatmaps, PWA support with push notifications, and a CLI tool for automatic usage syncing. It is fully open-source under the Apache 2.0 license.",
+        },
+      },
+      {
+        "@type": "Question",
+        name: "Is CCgather free to use?",
+        acceptedAnswer: {
+          "@type": "Answer",
+          text: "Yes, CCgather is completely free and open-source under the Apache 2.0 license. There are no premium tiers, hidden fees, or paid features. The full source code is available on GitHub at github.com/DHxWhy/CCgather.",
+        },
+      },
+      {
+        "@type": "Question",
+        name: "Does CCgather collect my code or prompts?",
+        acceptedAnswer: {
+          "@type": "Answer",
+          text: "No. CCgather only collects aggregated usage metadata — input tokens, output tokens, cache tokens, model type, and cost estimates. Your source code, prompts, file paths, and project information never leave your machine. Only anonymous usage statistics are synced to the leaderboard.",
+        },
+      },
+      {
+        "@type": "Question",
+        name: "How does the CCgather level system work?",
+        acceptedAnswer: {
+          "@type": "Answer",
+          text: "CCgather has a 10-tier level system based on total token usage: Novice (0), Apprentice (50M), Journeyman (200M), Expert (500M), Master (1B), Grandmaster (3B), Legend (10B), Mythic (30B), Immortal (50B), and Transcendent (100B+). There are also 27 achievement badges across 5 categories with 4 rarity tiers.",
+        },
+      },
+      {
+        "@type": "Question",
+        name: "What is the CCgather CLI tool?",
+        acceptedAnswer: {
+          "@type": "Answer",
+          text: "The CCgather CLI is a command-line tool you can run with 'npx ccgather' on Windows, macOS, or Linux. It automatically syncs your Claude Code usage data to the global leaderboard. You can sign in, submit data, view rankings, and check your status directly from the terminal.",
         },
       },
     ],

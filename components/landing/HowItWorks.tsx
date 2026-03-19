@@ -28,7 +28,12 @@ export function HowItWorks() {
   const containerRef = useInView<HTMLElement>();
 
   return (
-    <section className="py-16 px-6" ref={containerRef}>
+    <section
+      className="py-16 px-6"
+      ref={containerRef}
+      id="how-it-works"
+      aria-label="How CCgather Works"
+    >
       <div className="max-w-2xl mx-auto">
         {/* Section header */}
         <div className="text-center mb-10">

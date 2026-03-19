@@ -10,39 +10,64 @@ export function Footer() {
 
   return (
     <footer
-      className={`border-t border-[var(--border-default)] py-4 bg-[var(--color-bg-primary)] ${isLeaderboard ? "hidden lg:block" : ""}`}
+      className={`border-t border-[var(--border-default)] py-6 bg-[var(--color-bg-primary)] ${isLeaderboard ? "hidden lg:block" : ""}`}
     >
-      <div className="mx-auto max-w-7xl px-4 flex flex-col md:flex-row items-center justify-between gap-4">
-        <div className="flex items-center gap-2">
-          <Image
-            src="/logos/logo.png"
-            alt="CCgather Logo"
-            width={24}
-            height={24}
-            className="rounded-sm opacity-70"
-          />
-          <span className="font-semibold text-[var(--color-text-secondary)]">CCgather</span>
-          <span className="text-[var(--color-text-muted)] text-sm">
-            &copy; {new Date().getFullYear()}
-          </span>
+      <div className="mx-auto max-w-7xl px-4">
+        <div className="flex flex-col md:flex-row items-center justify-between gap-4">
+          <div className="flex items-center gap-2">
+            <Image
+              src="/logos/logo.png"
+              alt="CCgather Logo"
+              width={24}
+              height={24}
+              className="rounded-sm opacity-70"
+            />
+            <span className="font-semibold text-[var(--color-text-secondary)]">CCgather</span>
+            <span className="text-[var(--color-text-muted)] text-sm">
+              &copy; {new Date().getFullYear()}
+            </span>
+          </div>
+
+          <nav
+            aria-label="Footer navigation"
+            className="flex items-center gap-6 text-sm text-text-secondary"
+          >
+            <Link href="/leaderboard" className="hover:text-text-primary transition-colors">
+              Leaderboard
+            </Link>
+            <Link href="/community" className="hover:text-text-primary transition-colors">
+              Community
+            </Link>
+            <Link href="/privacy" className="hover:text-text-primary transition-colors">
+              Privacy
+            </Link>
+            <Link href="/terms" className="hover:text-text-primary transition-colors">
+              Terms
+            </Link>
+            <a
+              href="https://github.com/DHxWhy/CCgather"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hover:text-text-primary transition-colors"
+            >
+              GitHub
+            </a>
+            <a
+              href="https://www.npmjs.com/package/ccgather"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hover:text-text-primary transition-colors"
+            >
+              CLI
+            </a>
+          </nav>
         </div>
 
-        <div className="flex items-center gap-6 text-sm text-text-secondary">
-          <Link href="/privacy" className="hover:text-text-primary transition-colors">
-            Privacy
-          </Link>
-          <Link href="/terms" className="hover:text-text-primary transition-colors">
-            Terms
-          </Link>
-          <a
-            href="https://github.com/DHxWhy/CCgather"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="hover:text-text-primary transition-colors"
-          >
-            GitHub
-          </a>
-        </div>
+        {/* SEO-valuable description */}
+        <p className="text-center text-[11px] text-[var(--color-text-muted)] mt-4 max-w-xl mx-auto leading-relaxed">
+          CCgather is a free, open-source Claude Code leaderboard. Track token usage, compare
+          rankings, and connect with AI developers worldwide.
+        </p>
       </div>
     </footer>
   );

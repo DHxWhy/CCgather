@@ -69,7 +69,7 @@ export function AgreementModal({
   selectedCountry,
 }: AgreementModalProps) {
   const [communityConsent, setCommunityConsent] = useState(false);
-  const [integrityInput, setIntegrityInput] = useState("");
+  const [integrityConsent, setIntegrityConsent] = useState(false);
   const [showOriginal, setShowOriginal] = useState(false);
 
   // Abuse prevention - use ref to avoid infinite loop in useCallback
@@ -88,8 +88,7 @@ export function AgreementModal({
     error: null,
   });
 
-  const integrityAgreed = integrityInput.toLowerCase() === "agree";
-  const canProceed = communityConsent && integrityAgreed;
+  const canProceed = communityConsent && integrityConsent;
 
   // Get current texts (translated or original)
   const texts =
@@ -217,7 +216,7 @@ export function AgreementModal({
 
   const handleSubmit = () => {
     if (canProceed) {
-      onAgree(communityConsent, integrityAgreed);
+      onAgree(communityConsent, integrityConsent);
     }
   };
 
@@ -407,55 +406,38 @@ export function AgreementModal({
                       </div>
                     </div>
                   </div>
-                  <div className="p-2.5 rounded-lg border border-[var(--border-default)] bg-[var(--color-bg-tertiary)]">
-                    {translationState.isLoading ? (
-                      <TextShimmer lines={2} className="mb-2" variant="compact" />
-                    ) : (
-                      <>
-                        <p className="text-xs text-[var(--color-text-primary)] mb-2">
-                          {texts.promiseNotToManipulate}
-                        </p>
-                        <p className="text-xs text-[var(--color-text-muted)] mb-2">
-                          {texts.typeAgreeToConfirm}
-                        </p>
-                      </>
-                    )}
-                    <div className="relative">
-                      {/* Visual placeholder - won't be translated */}
-                      {!integrityInput && (
-                        <span
-                          className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-[var(--color-text-muted)] font-mono pointer-events-none notranslate"
-                          translate="no"
-                          lang="en"
-                        >
-                          agree
-                        </span>
-                      )}
-                      <input
-                        type="text"
-                        value={integrityInput}
-                        onChange={(e) => setIntegrityInput(e.target.value)}
-                        className={`w-full px-3 py-2 rounded-lg border-2 bg-[var(--color-bg-card)] text-sm text-[var(--color-text-primary)] focus:outline-none transition-colors ${
-                          integrityAgreed
-                            ? "border-green-500/50"
-                            : integrityInput.length > 0
-                              ? "border-amber-500/50"
-                              : "border-[var(--border-default)] focus:border-primary"
-                        }`}
-                      />
-                      {integrityAgreed && (
+                  <label
+                    className={`flex items-center gap-2.5 p-2.5 rounded-lg border cursor-pointer transition-colors ${integrityConsent ? "border-green-500" : "border-[var(--border-default)] hover:border-primary/50"}`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={integrityConsent}
+                      onChange={(e) => setIntegrityConsent(e.target.checked)}
+                      className="sr-only peer"
+                    />
+                    <div
+                      className={`w-4 h-4 rounded border-2 transition-all flex items-center justify-center flex-shrink-0 ${integrityConsent ? "bg-green-500 border-green-500" : "border-[var(--border-default)] bg-[var(--color-bg-card)]"}`}
+                    >
+                      {integrityConsent && (
                         <svg
-                          className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-green-500"
+                          className="w-2.5 h-2.5 text-white"
                           fill="none"
                           viewBox="0 0 24 24"
                           stroke="currentColor"
-                          strokeWidth={2}
+                          strokeWidth={3}
                         >
                           <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                         </svg>
                       )}
                     </div>
-                  </div>
+                    <span className="text-xs text-[var(--color-text-primary)]">
+                      {translationState.isLoading ? (
+                        <TextShimmer lines={1} className="w-48" variant="compact" />
+                      ) : (
+                        texts.promiseNotToManipulate
+                      )}
+                    </span>
+                  </label>
                 </div>
 
                 {/* Terms & Privacy - Inline */}
@@ -507,12 +489,9 @@ export function AgreementModal({
 
                 {!canProceed && (
                   <p className="text-[10px] text-center text-[var(--color-text-muted)] mt-2">
-                    {!communityConsent && `☐ ${texts.communityIncomplete} • `}
-                    {!integrityAgreed && (
-                      <span className="notranslate" translate="no">
-                        ☐ Type &quot;agree&quot;
-                      </span>
-                    )}
+                    {!communityConsent && `☐ ${texts.communityIncomplete}`}
+                    {!communityConsent && !integrityConsent && " • "}
+                    {!integrityConsent && "☐ Data Integrity"}
                   </p>
                 )}
               </div>
