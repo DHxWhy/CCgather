@@ -320,6 +320,70 @@ function findJsonlFiles(dir: string): string[] {
 }
 
 /**
+ * Extract sessionId from the first line of a jsonl file.
+ * Falls back to content hash when sessionId field is absent.
+ * Returns null for empty/unreadable files (won't be deduplicated).
+ */
+function extractSessionId(filePath: string): string | null {
+  let fd: number | null = null;
+  try {
+    fd = fs.openSync(filePath, "r");
+    const buf = Buffer.alloc(4096);
+    const bytesRead = fs.readSync(fd, buf, 0, 4096, 0);
+
+    if (bytesRead === 0) return null;
+
+    const firstLine = buf.toString("utf-8", 0, bytesRead).split("\n")[0];
+    if (!firstLine.trim()) return null;
+
+    const event = JSON.parse(firstLine);
+    if (event.sessionId) return event.sessionId;
+
+    // No sessionId — use content hash as stable identifier
+    return crypto.createHash("sha256").update(firstLine).digest("hex");
+  } catch {
+    return null;
+  } finally {
+    if (fd !== null) fs.closeSync(fd);
+  }
+}
+
+/**
+ * Deduplicate jsonl files by sessionId.
+ * Handles cases where the same project was accessed from different OS paths
+ * (e.g., Windows WSL /mnt/c/... → Ubuntu /home/...) and session files
+ * were copied between directories (possibly with filename changes like
+ * abc.de.jsonl → abc-de.jsonl).
+ */
+function deduplicateJsonlFiles(files: string[]): string[] {
+  // Map sessionId → { filePath, mtime } keeping the most recently modified file
+  const sessionMap = new Map<string, { filePath: string; mtimeMs: number }>();
+  const noIdFiles: string[] = [];
+
+  for (const filePath of files) {
+    const sessionId = extractSessionId(filePath);
+    if (!sessionId) {
+      noIdFiles.push(filePath);
+      continue;
+    }
+
+    let mtimeMs = 0;
+    try {
+      mtimeMs = fs.statSync(filePath).mtimeMs;
+    } catch {
+      // If stat fails, treat as oldest (0)
+    }
+
+    const existing = sessionMap.get(sessionId);
+    if (!existing || mtimeMs > existing.mtimeMs) {
+      sessionMap.set(sessionId, { filePath, mtimeMs });
+    }
+  }
+
+  return [...Array.from(sessionMap.values()).map((v) => v.filePath), ...noIdFiles];
+}
+
+/**
  * Generate SHA256 hash of file content
  * Uses first N lines to create a unique fingerprint
  */
@@ -1139,8 +1203,10 @@ export function scanAllProjects(options: ScanOptions = {}): CCGatherData | null 
   let firstTimestamp: string | null = null;
   let lastTimestamp: string | null = null;
 
-  // Collect all JSONL files from all project directories
-  const allJsonlFiles: string[] = [];
+  // Collect all JSONL files from all project directories, deduplicating by sessionId.
+  // This handles cases where the same project was accessed from different OS paths
+  // (e.g., Windows WSL /mnt/c/... → Ubuntu /home/...) and session files were copied.
+  const rawJsonlFiles: string[] = [];
   for (const projectsDir of projectsDirs) {
     try {
       const entries = fs.readdirSync(projectsDir, { withFileTypes: true });
@@ -1150,12 +1216,13 @@ export function scanAllProjects(options: ScanOptions = {}): CCGatherData | null 
 
         const projectPath = path.join(projectsDir, entry.name);
         const jsonlFiles = findJsonlFiles(projectPath);
-        allJsonlFiles.push(...jsonlFiles);
+        rawJsonlFiles.push(...jsonlFiles);
       }
     } catch {
       continue;
     }
   }
+  const allJsonlFiles = deduplicateJsonlFiles(rawJsonlFiles);
 
   if (allJsonlFiles.length === 0) {
     return null;
