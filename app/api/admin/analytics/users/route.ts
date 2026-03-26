@@ -37,21 +37,21 @@ export async function GET(request: Request) {
     }
 
     // Fetch unique user counts for DAU/WAU/MAU
-    // Each metric uses a fixed window relative to dateTo (end of user-selected range)
-    // DAU: last 2 days (for trend comparison), WAU: last 14 days, MAU: last 60 days
+    // Use user-selected dateFrom for all queries
+    // calculateMetricWithTrend/calculateTotalWithTrend handle trend comparison internally
     const [dailyResult, weeklyResult, monthlyResult] = await Promise.allSettled([
       posthogApi.getTrends(["$pageview"], {
-        dateRange: { date_from: "-2d", date_to: dateTo },
+        dateRange: { date_from: dateFrom, date_to: dateTo },
         interval: "day",
         math: "dau",
       }),
       posthogApi.getTrends(["$pageview"], {
-        dateRange: { date_from: "-14d", date_to: dateTo },
+        dateRange: { date_from: dateFrom, date_to: dateTo },
         interval: "week",
         math: "weekly_active",
       }),
       posthogApi.getTrends(["$pageview"], {
-        dateRange: { date_from: "-60d", date_to: dateTo },
+        dateRange: { date_from: dateFrom, date_to: dateTo },
         interval: "month",
         math: "monthly_active",
       }),
