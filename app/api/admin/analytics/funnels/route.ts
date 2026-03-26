@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { isAdmin } from "@/lib/admin";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -237,6 +238,10 @@ async function getDailyFunnelFallback(days: number): Promise<
 
 export async function GET(request: Request) {
   try {
+    if (!(await isAdmin())) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
+    }
+
     const { searchParams } = new URL(request.url);
     const days = parseInt(searchParams.get("days") || "30");
 

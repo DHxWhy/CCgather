@@ -24,33 +24,33 @@ const ADMIN_MENU = [
   {
     section: "Overview",
     items: [
-      { id: "users", label: "사용자", href: "/admin", icon: "👥" },
-      { id: "analytics", label: "Analytics", href: "/admin/analytics", icon: "📊" },
+      { id: "users", label: "사용자", href: "/superadmin", icon: "👥" },
+      { id: "analytics", label: "Analytics", href: "/superadmin/analytics", icon: "📊" },
     ],
   },
   {
     section: "콘텐츠",
     items: [
-      { id: "community", label: "Community", href: "/admin/community", icon: "💬" },
-      { id: "feedback", label: "Feedback", href: "/admin/feedback", icon: "🐛" },
+      { id: "community", label: "Community", href: "/superadmin/community", icon: "💬" },
+      { id: "feedback", label: "Feedback", href: "/superadmin/feedback", icon: "🐛" },
     ],
   },
   {
     section: "시스템",
     items: [
-      { id: "ai-usage", label: "AI 사용량", href: "/admin/ai-usage", icon: "🤖" },
-      { id: "deleted-users", label: "탈퇴 사용자", href: "/admin/deleted-users", icon: "🚫" },
+      { id: "ai-usage", label: "AI 사용량", href: "/superadmin/ai-usage", icon: "🤖" },
+      { id: "deleted-users", label: "탈퇴 사용자", href: "/superadmin/deleted-users", icon: "🚫" },
     ],
   },
 ];
 
 // Analytics 서브메뉴
 const ANALYTICS_SUBMENU = [
-  { id: "analytics-overview", label: "Overview", href: "/admin/analytics" },
-  { id: "analytics-users", label: "웹 트래픽", href: "/admin/analytics/users" },
-  { id: "analytics-traffic", label: "유입 경로", href: "/admin/analytics/traffic" },
-  { id: "analytics-funnels", label: "퍼널 분석", href: "/admin/analytics/funnels" },
-  { id: "analytics-submit-logs", label: "Submit Logs", href: "/admin/analytics/submit-logs" },
+  { id: "analytics-overview", label: "Overview", href: "/superadmin/analytics" },
+  { id: "analytics-users", label: "웹 트래픽", href: "/superadmin/analytics/users" },
+  { id: "analytics-traffic", label: "유입 경로", href: "/superadmin/analytics/traffic" },
+  { id: "analytics-funnels", label: "퍼널 분석", href: "/superadmin/analytics/funnels" },
+  { id: "analytics-submit-logs", label: "Submit Logs", href: "/superadmin/analytics/submit-logs" },
 ];
 
 export function AdminLayoutClient({ children }: { children: React.ReactNode }) {
@@ -135,11 +135,11 @@ export function AdminLayoutClient({ children }: { children: React.ReactNode }) {
   }
 
   const isActive = (href: string) => {
-    if (href === "/admin") return pathname === "/admin";
+    if (href === "/superadmin") return pathname === "/superadmin";
     return pathname.startsWith(href);
   };
 
-  const isAnalyticsSection = pathname.startsWith("/admin/analytics");
+  const isAnalyticsSection = pathname.startsWith("/superadmin/analytics");
 
   return (
     <div className="min-h-screen bg-[#0d0d0d] flex">
