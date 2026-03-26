@@ -704,8 +704,11 @@ export async function POST(request: NextRequest) {
     const { data: rankData } = await supabase
       .from("users")
       .select("id")
+      .eq("onboarding_completed", true)
+      .is("deleted_at", null)
       .gt("total_tokens", 0)
-      .order("total_tokens", { ascending: false });
+      .order("total_tokens", { ascending: false })
+      .order("created_at", { ascending: true });
 
     let rank = 0;
     if (rankData && rankData.length > 0) {
@@ -735,8 +738,11 @@ export async function POST(request: NextRequest) {
         .from("users")
         .select("id")
         .eq("country_code", authenticatedUser.country_code)
+        .eq("onboarding_completed", true)
+        .is("deleted_at", null)
         .gt("total_tokens", 0)
-        .order("total_tokens", { ascending: false });
+        .order("total_tokens", { ascending: false })
+        .order("created_at", { ascending: true });
 
       if (countryRankData && countryRankData.length > 0) {
         // Update ALL users' country_rank in this country

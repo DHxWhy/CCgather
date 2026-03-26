@@ -395,6 +395,99 @@ export async function GET(request: NextRequest) {
     });
   }
 
+  // Handle findUser for period-based queries
+  if (findUser) {
+    // Find the user (must be onboarded and not deleted)
+    const { data: foundUser } = await supabase
+      .from("users")
+      .select("id, username, country_code")
+      .eq("onboarding_completed", true)
+      .is("deleted_at", null)
+      .ilike("username", findUser)
+      .single();
+
+    if (!foundUser || !userAggregates.has(foundUser.id)) {
+      return NextResponse.json({ found: false });
+    }
+
+    const userTokens = userAggregates.get(foundUser.id)!.tokens;
+
+    // Get valid user IDs (onboarded, not deleted) that have period usage
+    const { data: validUsers, error: validUsersError } = await supabase
+      .from("users")
+      .select("id")
+      .eq("onboarding_completed", true)
+      .is("deleted_at", null)
+      .in("id", userIds);
+
+    if (validUsersError) {
+      console.error("Valid users query error:", validUsersError);
+      return NextResponse.json({ error: "Failed to fetch user data" }, { status: 500 });
+    }
+
+    const validUserIds = new Set((validUsers || []).map((u: { id: string }) => u.id));
+
+    // Count valid users with higher period tokens (tiebreaker: id ascending)
+    let usersAhead = 0;
+    for (const [userId, agg] of userAggregates) {
+      if (userId !== foundUser.id && validUserIds.has(userId)) {
+        if (
+          agg.tokens > userTokens ||
+          (agg.tokens === userTokens && userId.localeCompare(foundUser.id) < 0)
+        ) {
+          usersAhead++;
+        }
+      }
+    }
+
+    // Apply country filter if specified
+    if (country) {
+      const { data: countryUsers, error: countryUsersError } = await supabase
+        .from("users")
+        .select("id")
+        .eq("onboarding_completed", true)
+        .is("deleted_at", null)
+        .eq("country_code", country.toUpperCase())
+        .in("id", userIds);
+
+      if (countryUsersError) {
+        console.error("Country users query error:", countryUsersError);
+        return NextResponse.json({ error: "Failed to fetch country data" }, { status: 500 });
+      }
+
+      const countryUserIds = new Set((countryUsers || []).map((u: { id: string }) => u.id));
+
+      if (!countryUserIds.has(foundUser.id)) {
+        return NextResponse.json({ found: false });
+      }
+
+      usersAhead = 0;
+      for (const [userId, agg] of userAggregates) {
+        if (userId !== foundUser.id && countryUserIds.has(userId)) {
+          if (
+            agg.tokens > userTokens ||
+            (agg.tokens === userTokens && userId.localeCompare(foundUser.id) < 0)
+          ) {
+            usersAhead++;
+          }
+        }
+      }
+    }
+
+    const rank = usersAhead + 1;
+    const userPage = Math.ceil(rank / limit);
+
+    return NextResponse.json({
+      found: true,
+      user: {
+        id: foundUser.id,
+        username: foundUser.username,
+        rank,
+        page: userPage,
+      },
+    });
+  }
+
   // Fetch user details
   let usersQuery = supabase
     .from("users")

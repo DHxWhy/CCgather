@@ -688,6 +688,19 @@ export default function LeaderboardPage() {
       const params = new URLSearchParams();
       params.set("findUser", currentUsername);
       params.set("limit", String(ITEMS_PER_PAGE));
+      params.set("period", periodFilter);
+
+      if (periodFilter === "custom" && customDateRange) {
+        params.set("startDate", customDateRange.start);
+        params.set("endDate", customDateRange.end);
+      }
+
+      try {
+        params.set("tz", Intl.DateTimeFormat().resolvedOptions().timeZone);
+      } catch {
+        params.set("tz", "UTC");
+      }
+
       if (scopeFilter === "country" && currentUserCountry) {
         params.set("country", currentUserCountry);
       }
@@ -703,7 +716,7 @@ export default function LeaderboardPage() {
     } catch {
       // Fallback: do nothing
     }
-  }, [currentUsername, scopeFilter, currentUserCountry]);
+  }, [currentUsername, scopeFilter, currentUserCountry, periodFilter, customDateRange]);
 
   // Fetch a specific page of leaderboard data
   const fetchPage = useCallback(
@@ -966,6 +979,19 @@ export default function LeaderboardPage() {
         const params = new URLSearchParams();
         params.set("findUser", highlightUsername);
         params.set("limit", String(ITEMS_PER_PAGE));
+        params.set("period", periodFilter);
+
+        if (periodFilter === "custom" && customDateRange) {
+          params.set("startDate", customDateRange.start);
+          params.set("endDate", customDateRange.end);
+        }
+
+        try {
+          params.set("tz", Intl.DateTimeFormat().resolvedOptions().timeZone);
+        } catch {
+          params.set("tz", "UTC");
+        }
+
         if (scopeFilter === "country" && currentUserCountry) {
           params.set("country", currentUserCountry);
         }
@@ -990,7 +1016,7 @@ export default function LeaderboardPage() {
 
     return undefined;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [highlightUsername, users, scopeFilter, currentUserCountry]);
+  }, [highlightUsername, users, scopeFilter, currentUserCountry, periodFilter, customDateRange]);
 
   // Find current user - prioritize from loaded list, fallback to separately fetched data
   const currentUserData = useMemo(() => {
