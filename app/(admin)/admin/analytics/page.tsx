@@ -375,18 +375,30 @@ export default function AnalyticsPage() {
                   <tr key={cohort.cohortWeek} className="border-t border-white/[0.03]">
                     <td className="px-2 py-1.5 text-white/70 font-mono">{cohort.cohortWeek}</td>
                     <td className="px-2 py-1.5 text-center text-white/50">{cohort.cohortSize}</td>
-                    {cohort.retentionByWeek.map((rate, weekIndex) => {
-                      const opacity = rate / 100;
+                    {[0, 1, 2, 3, 4].map((weekIndex) => {
+                      const rate = cohort.retentionByWeek[weekIndex];
+                      const isFuture = rate === undefined;
+                      const opacity = isFuture ? 0 : rate / 100;
                       return (
                         <td
                           key={weekIndex}
                           className="px-2 py-1.5 text-center"
                           style={{
-                            backgroundColor: `rgba(239, 68, 68, ${opacity * 0.5})`,
+                            backgroundColor: isFuture
+                              ? "transparent"
+                              : `rgba(239, 68, 68, ${opacity * 0.5})`,
                           }}
                         >
-                          <span className={rate >= 50 ? "text-white" : "text-white/70"}>
-                            {rate}%
+                          <span
+                            className={
+                              isFuture
+                                ? "text-white/30"
+                                : rate >= 50
+                                  ? "text-white"
+                                  : "text-white/70"
+                            }
+                          >
+                            {isFuture ? "\u2013" : `${rate}%`}
                           </span>
                         </td>
                       );

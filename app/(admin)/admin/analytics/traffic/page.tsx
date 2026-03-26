@@ -135,28 +135,16 @@ function TrendChart({
                 style={{ height: `${Math.max(scale * 100, 4)}%` }}
               >
                 {item.direct > 0 && (
-                  <div
-                    className="bg-blue-500"
-                    style={{ height: `${(item.direct / total) * 100}%` }}
-                  />
+                  <div className="bg-blue-500 min-h-[1px]" style={{ flexGrow: item.direct }} />
                 )}
                 {item.search > 0 && (
-                  <div
-                    className="bg-emerald-500"
-                    style={{ height: `${(item.search / total) * 100}%` }}
-                  />
+                  <div className="bg-emerald-500 min-h-[1px]" style={{ flexGrow: item.search }} />
                 )}
                 {item.social > 0 && (
-                  <div
-                    className="bg-purple-500"
-                    style={{ height: `${(item.social / total) * 100}%` }}
-                  />
+                  <div className="bg-purple-500 min-h-[1px]" style={{ flexGrow: item.social }} />
                 )}
                 {item.referral > 0 && (
-                  <div
-                    className="bg-orange-500"
-                    style={{ height: `${(item.referral / total) * 100}%` }}
-                  />
+                  <div className="bg-orange-500 min-h-[1px]" style={{ flexGrow: item.referral }} />
                 )}
               </div>
               {index % 2 === 0 && (
@@ -214,6 +202,9 @@ function TopDomainsTable({ domains }: { domains: DomainData[] }) {
       setSortDesc(true);
     }
   };
+
+  // Dynamic scaling: calculate max percent among displayed domains for relative bar widths
+  const maxPercent = Math.max(...domains.map((d: DomainData) => d.percent), 1);
 
   const sortedDomains = [...domains].sort((a, b) => {
     let cmp = 0;
@@ -327,7 +318,9 @@ function TopDomainsTable({ domains }: { domains: DomainData[] }) {
                       <div className="w-12 h-1 bg-white/5 rounded-full overflow-hidden">
                         <div
                           className={`h-full ${colors.bar}`}
-                          style={{ width: `${Math.min(domain.percent * 2, 100)}%` }}
+                          style={{
+                            width: `${Math.min((domain.percent / maxPercent) * 100, 100)}%`,
+                          }}
                         />
                       </div>
                       <span className="text-[11px] text-white/50 font-mono w-10 text-right">

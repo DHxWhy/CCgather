@@ -148,6 +148,7 @@ export interface AnalyticsUsersResponse {
   };
   byCountry: CountryMetric[];
   dateRange: DateRange;
+  error?: string;
 }
 
 export interface CountryMetric {

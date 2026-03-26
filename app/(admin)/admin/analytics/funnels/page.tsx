@@ -159,7 +159,8 @@ function DailyFunnelChart({
         {data.slice(-14).map((item) => {
           const signupHeight = (item.signups / maxValue) * 100;
           const submitHeight = (item.firstSubmits / maxValue) * 100;
-          const date = new Date(item.date);
+          // Parse date string directly to avoid UTC offset issues
+          const [, month, day] = item.date.split("-");
 
           return (
             <div
@@ -182,7 +183,7 @@ function DailyFunnelChart({
                 </div>
               </div>
               <span className="text-[9px] text-white/40">
-                {date.getMonth() + 1}/{date.getDate()}
+                {Number(month)}/{Number(day)}
               </span>
             </div>
           );
@@ -354,7 +355,7 @@ export default function FunnelsPage() {
               <FunnelBar
                 label="3. 활성화 (2회+ 제출)"
                 value={data.summary.activatedUsers}
-                total={data.summary.totalSignups}
+                total={data.summary.usersWithSubmit}
                 color="bg-emerald-500"
               />
             </div>

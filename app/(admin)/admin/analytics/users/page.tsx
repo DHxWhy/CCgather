@@ -242,7 +242,7 @@ export default function UsersAnalyticsPage() {
           {/* Country Breakdown */}
           <div className="bg-[#161616] rounded-lg p-4 border border-white/[0.06]">
             <div className="flex items-center gap-1 mb-4">
-              <span className="text-[12px] text-white/50">국가별 사용자</span>
+              <span className="text-[12px] text-white/50">국가별 가입 사용자</span>
               <InfoPopover
                 title={METRIC_INFO.country_distribution.title}
                 description={METRIC_INFO.country_distribution.description}

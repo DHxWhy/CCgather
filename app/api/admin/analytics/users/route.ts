@@ -6,7 +6,7 @@
 import { NextResponse } from "next/server";
 import { isAdmin } from "@/lib/admin";
 import { posthogApi } from "@/lib/posthog/api-client";
-import { calculateTotalWithTrend } from "@/lib/posthog/utils";
+import { calculateMetricWithTrend, calculateTotalWithTrend } from "@/lib/posthog/utils";
 import { createServiceClient } from "@/lib/supabase/server";
 import type { AnalyticsUsersResponse } from "@/lib/types/analytics";
 
@@ -36,33 +36,50 @@ export async function GET(request: Request) {
       );
     }
 
-    // Fetch unique user counts for different periods
-    // Using math: "dau" to count unique users, not pageviews
-    const [dailyTrends, weeklyTrends, monthlyTrends] = await Promise.all([
+    // Fetch unique user counts for DAU/WAU/MAU
+    // Each metric uses a fixed window relative to dateTo (end of user-selected range)
+    // DAU: last 2 days (for trend comparison), WAU: last 14 days, MAU: last 60 days
+    const [dailyResult, weeklyResult, monthlyResult] = await Promise.allSettled([
       posthogApi.getTrends(["$pageview"], {
-        dateRange: { date_from: "-2d" },
+        dateRange: { date_from: "-2d", date_to: dateTo },
         interval: "day",
         math: "dau",
       }),
       posthogApi.getTrends(["$pageview"], {
-        dateRange: { date_from: "-14d" },
+        dateRange: { date_from: "-14d", date_to: dateTo },
         interval: "week",
         math: "weekly_active",
       }),
       posthogApi.getTrends(["$pageview"], {
-        dateRange: { date_from: "-60d" },
+        dateRange: { date_from: "-60d", date_to: dateTo },
         interval: "month",
         math: "monthly_active",
       }),
     ]);
 
-    // Calculate DAU, WAU, MAU
-    const dau = calculateTotalWithTrend(dailyTrends, 0);
+    const dailyTrends = dailyResult.status === "fulfilled" ? dailyResult.value : null;
+    const weeklyTrends = weeklyResult.status === "fulfilled" ? weeklyResult.value : null;
+    const monthlyTrends = monthlyResult.status === "fulfilled" ? monthlyResult.value : null;
+
+    if (dailyResult.status === "rejected") {
+      console.warn("[Analytics Users] DAU fetch failed:", dailyResult.reason);
+    }
+    if (weeklyResult.status === "rejected") {
+      console.warn("[Analytics Users] WAU fetch failed:", weeklyResult.reason);
+    }
+    if (monthlyResult.status === "rejected") {
+      console.warn("[Analytics Users] MAU fetch failed:", monthlyResult.reason);
+    }
+
+    // Calculate DAU (single day value), WAU and MAU (aggregated totals)
+    const dau = calculateMetricWithTrend(dailyTrends, 0);
     const wau = calculateTotalWithTrend(weeklyTrends, 0);
     const mau = calculateTotalWithTrend(monthlyTrends, 0);
 
-    // Get country breakdown from our database
+    // NOTE: This queries registered users from DB, not PostHog web visitors.
+    // Shows "가입 사용자 국가 분포" (registered user country distribution).
     const supabase = createServiceClient();
+    const regionNames = new Intl.DisplayNames(["ko"], { type: "region" });
     const { data: countryData } = await supabase
       .from("users")
       .select("country_code")
@@ -82,10 +99,10 @@ export async function GET(request: Request) {
       }
     }
 
-    // Convert to sorted array
+    // Convert to sorted array with resolved country names
     const byCountry = Array.from(countryCounts.entries())
       .map(([code, count]) => ({
-        country: code,
+        country: regionNames.of(code) ?? code,
         countryCode: code,
         users: count,
         percentage: totalUsers > 0 ? Math.round((count / totalUsers) * 1000) / 10 : 0,

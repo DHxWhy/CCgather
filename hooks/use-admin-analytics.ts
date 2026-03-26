@@ -240,6 +240,7 @@ interface TopDomainItem {
   percent: number;
   type: "direct" | "search" | "social" | "referral";
   icon: string;
+  details?: Array<{ url: string; count: number; percent: number }>;
 }
 
 interface TrafficSourcesResponse {

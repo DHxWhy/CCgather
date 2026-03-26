@@ -78,6 +78,12 @@ export async function GET(request: Request) {
       signupsPreviousResult,
       // 첫 제출 완료 사용자 수 (최근 기간 가입자 중)
       firstSubmitResult,
+      // 현재 기간 신규 가입자 중 제출 이력 있는 사용자 (firstSubmitRate fallback용)
+      newUsersWithSubmitCurrentResult,
+      // 이전 기간 신규 가입자
+      previousSignupsForRateResult,
+      // 이전 기간 신규 가입자 중 제출 이력 있는 사용자
+      newUsersWithSubmitPreviousResult,
       // 국가별 분포
       countryResult,
       // 플랜별 분포
@@ -88,51 +94,58 @@ export async function GET(request: Request) {
       totalStatsResult,
     ] = await Promise.all([
       // WAU Current
+      // TODO: Replace with RPC (e.g. COUNT(DISTINCT user_id)) to avoid row limit issues
       supabase
         .from("usage_stats")
         .select("user_id")
         .gte("submitted_at", currentStartStr)
-        .lte("submitted_at", nowStr),
+        .lte("submitted_at", nowStr)
+        .limit(10000),
 
       // WAU Previous
       supabase
         .from("usage_stats")
         .select("user_id")
         .gte("submitted_at", previousStartStr)
-        .lt("submitted_at", currentStartStr),
+        .lt("submitted_at", currentStartStr)
+        .limit(10000),
 
       // MAU Current (30일)
       supabase
         .from("usage_stats")
         .select("user_id")
         .gte("submitted_at", mauStartStr)
-        .lte("submitted_at", nowStr),
+        .lte("submitted_at", nowStr)
+        .limit(10000),
 
       // MAU Previous (이전 30일)
       supabase
         .from("usage_stats")
         .select("user_id")
         .gte("submitted_at", mauPreviousStartStr)
-        .lt("submitted_at", mauStartStr),
+        .lt("submitted_at", mauStartStr)
+        .limit(10000),
 
       // Submissions Current
       supabase
         .from("usage_stats")
         .select("id", { count: "exact", head: true })
-        .gte("date", currentStart.toISOString().split("T")[0]),
+        .gte("submitted_at", currentStartStr)
+        .lte("submitted_at", nowStr),
 
       // Submissions Previous
       supabase
         .from("usage_stats")
         .select("id", { count: "exact", head: true })
-        .gte("date", previousStart.toISOString().split("T")[0])
-        .lt("date", currentStart.toISOString().split("T")[0]),
+        .gte("submitted_at", previousStartStr)
+        .lt("submitted_at", currentStartStr),
 
       // Signups Current
       supabase
         .from("users")
         .select("id", { count: "exact", head: true })
-        .gte("created_at", currentStartStr),
+        .gte("created_at", currentStartStr)
+        .lte("created_at", nowStr),
 
       // Signups Previous
       supabase
@@ -143,6 +156,31 @@ export async function GET(request: Request) {
 
       // First Submit (가입자 중 제출 이력이 있는 사용자)
       supabase.rpc("get_first_submit_stats", { days_ago: days }).maybeSingle(),
+
+      // 현재 기간 신규 가입자 중 usage_stats에 최소 1행 있는 사용자 수 (fallback용)
+      supabase
+        .from("users")
+        .select("id", { count: "exact", head: true })
+        .gte("created_at", currentStartStr)
+        .lte("created_at", nowStr)
+        .not("total_tokens", "is", null)
+        .gt("total_tokens", 0),
+
+      // 이전 기간 신규 가입자 수 (fallback용)
+      supabase
+        .from("users")
+        .select("id", { count: "exact", head: true })
+        .gte("created_at", previousStartStr)
+        .lt("created_at", currentStartStr),
+
+      // 이전 기간 신규 가입자 중 제출 이력 있는 사용자 수 (fallback용)
+      supabase
+        .from("users")
+        .select("id", { count: "exact", head: true })
+        .gte("created_at", previousStartStr)
+        .lt("created_at", currentStartStr)
+        .not("total_tokens", "is", null)
+        .gt("total_tokens", 0),
 
       // Country Distribution
       supabase
@@ -204,7 +242,7 @@ export async function GET(request: Request) {
       signupsPreviousResult.count || 0
     );
 
-    // 첫 제출 완료율 (RPC가 없으면 기본값)
+    // 첫 제출 완료율 (RPC가 없으면 신규 가입자 중 제출자 비율로 계산)
     let firstSubmitRate: MetricWithTrend;
     if (firstSubmitResult.data) {
       firstSubmitRate = calculateTrend(
@@ -212,11 +250,23 @@ export async function GET(request: Request) {
         firstSubmitResult.data.previous_rate || 0
       );
     } else {
-      // RPC가 없는 경우 간단히 계산
-      const signupsCount = signupsCurrentResult.count || 1;
-      const submittersInPeriod = wauCurrentUsers.size;
-      const rate = Math.min((submittersInPeriod / signupsCount) * 100, 100);
-      firstSubmitRate = calculateTrend(rate, rate);
+      // RPC가 없는 경우: 현재 기간 신규 가입자 중 제출 완료 비율
+      const currentNewSignups = signupsCurrentResult.count || 0;
+      const currentNewWithSubmit = newUsersWithSubmitCurrentResult.count || 0;
+      const currentRate =
+        currentNewSignups > 0
+          ? Math.round((currentNewWithSubmit / currentNewSignups) * 1000) / 10
+          : 0;
+
+      // 이전 기간 동일 계산
+      const previousNewSignups = previousSignupsForRateResult.count || 0;
+      const previousNewWithSubmit = newUsersWithSubmitPreviousResult.count || 0;
+      const previousRate =
+        previousNewSignups > 0
+          ? Math.round((previousNewWithSubmit / previousNewSignups) * 1000) / 10
+          : 0;
+
+      firstSubmitRate = calculateTrend(currentRate, previousRate);
     }
 
     // 국가별 분포 집계

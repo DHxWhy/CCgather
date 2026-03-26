@@ -37,15 +37,32 @@ interface FunnelData {
 }
 
 // Fallback: Get activated users count with raw SQL
-async function getActivatedUsersCountFallback(): Promise<number> {
+async function getActivatedUsersCountFallback(days: number): Promise<number> {
+  const dateFrom = new Date();
+  dateFrom.setDate(dateFrom.getDate() - days);
+  const dateFromStr = dateFrom.toISOString();
+
+  // Get users who signed up within the period
+  const { data: periodUsers } = await supabase
+    .from("users")
+    .select("id")
+    .is("deleted_at", null)
+    .gte("created_at", dateFromStr);
+
+  if (!periodUsers || periodUsers.length === 0) return 0;
+
+  const periodUserIds = new Set(periodUsers.map((u) => u.id));
+
   const { data } = await supabase
     .from("usage_stats")
     .select("user_id")
+    .in("user_id", Array.from(periodUserIds))
     .then(async (result) => {
       if (result.error) throw result.error;
-      // Count users with 2+ submissions
+      // Count users with 2+ submissions, filtered to period signups
       const userCounts = new Map<string, number>();
       result.data?.forEach((row) => {
+        if (!periodUserIds.has(row.user_id)) return;
         const count = userCounts.get(row.user_id) || 0;
         userCounts.set(row.user_id, count + 1);
       });
@@ -60,18 +77,23 @@ async function getActivatedUsersCountFallback(): Promise<number> {
 }
 
 // Fallback: Get time to first submit distribution
-async function getTimeDistributionFallback(): Promise<{
+async function getTimeDistributionFallback(days: number): Promise<{
   within1Hour: number;
   within24Hours: number;
   within7Days: number;
   over7Days: number;
   never: number;
 }> {
-  // Get all users with their first submission time
+  const dateFrom = new Date();
+  dateFrom.setDate(dateFrom.getDate() - days);
+  const dateFromStr = dateFrom.toISOString();
+
+  // Get users who signed up within the period
   const { data: users } = await supabase
     .from("users")
-    .select("id, created_at, last_submission_at")
-    .is("deleted_at", null);
+    .select("id, created_at")
+    .is("deleted_at", null)
+    .gte("created_at", dateFromStr);
 
   const distribution = {
     within1Hour: 0,
@@ -81,16 +103,33 @@ async function getTimeDistributionFallback(): Promise<{
     never: 0,
   };
 
-  if (!users) return distribution;
+  if (!users || users.length === 0) return distribution;
+
+  // Fetch first submission times from usage_stats (scoped to period users)
+  const userIds = users.map((u) => u.id);
+  const { data: submissions } = await supabase
+    .from("usage_stats")
+    .select("user_id, submitted_at")
+    .in("user_id", userIds)
+    .order("submitted_at", { ascending: true });
+
+  // Build map of user_id -> earliest submitted_at
+  const firstSubmitMap = new Map<string, string>();
+  for (const row of submissions ?? []) {
+    if (!firstSubmitMap.has(row.user_id)) {
+      firstSubmitMap.set(row.user_id, row.submitted_at);
+    }
+  }
 
   for (const user of users) {
-    if (!user.last_submission_at) {
+    const firstSubmitAt = firstSubmitMap.get(user.id);
+    if (!firstSubmitAt) {
       distribution.never++;
       continue;
     }
 
     const signedUp = new Date(user.created_at).getTime();
-    const firstSubmit = new Date(user.last_submission_at).getTime();
+    const firstSubmit = new Date(firstSubmitAt).getTime();
     const diffHours = (firstSubmit - signedUp) / (1000 * 60 * 60);
 
     if (diffHours <= 1) {
@@ -122,9 +161,38 @@ async function getDailyFunnelFallback(days: number): Promise<
   // Get signups by date
   const { data: users } = await supabase
     .from("users")
-    .select("created_at, last_submission_at")
+    .select("id, created_at")
     .gte("created_at", dateFrom.toISOString())
     .is("deleted_at", null);
+
+  if (!users || users.length === 0) {
+    return Array.from({ length: days }, (_, i) => {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      return {
+        date: d.toISOString().split("T")[0] ?? "",
+        signups: 0,
+        firstSubmits: 0,
+        conversionRate: 0,
+      };
+    }).reverse();
+  }
+
+  // Fetch first submission times from usage_stats (scoped to period users)
+  const userIds = users.map((u) => u.id);
+  const { data: submissions } = await supabase
+    .from("usage_stats")
+    .select("user_id, submitted_at")
+    .in("user_id", userIds)
+    .order("submitted_at", { ascending: true });
+
+  // Build map of user_id -> earliest submitted_at
+  const firstSubmitMap = new Map<string, string>();
+  for (const row of submissions ?? []) {
+    if (!firstSubmitMap.has(row.user_id)) {
+      firstSubmitMap.set(row.user_id, row.submitted_at);
+    }
+  }
 
   // Create date map
   const dailyData = new Map<string, { signups: number; firstSubmits: number }>();
@@ -137,15 +205,16 @@ async function getDailyFunnelFallback(days: number): Promise<
     dailyData.set(dateStr, { signups: 0, firstSubmits: 0 });
   }
 
-  // Count signups and first submits
+  // Count signups and first submits using actual first submission from usage_stats
   if (users) {
     for (const user of users) {
       const signupDate = user.created_at.split("T")[0] ?? "";
       const existing = dailyData.get(signupDate);
       if (existing) {
         existing.signups++;
-        if (user.last_submission_at) {
-          const submitDate = user.last_submission_at.split("T")[0] ?? "";
+        const firstSubmitAt = firstSubmitMap.get(user.id);
+        if (firstSubmitAt) {
+          const submitDate = firstSubmitAt.split("T")[0] ?? "";
           const submitExisting = dailyData.get(submitDate);
           if (submitExisting) {
             submitExisting.firstSubmits++;
@@ -171,17 +240,23 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const days = parseInt(searchParams.get("days") || "30");
 
-    // 1. 전체 사용자 수
+    const dateFrom = new Date();
+    dateFrom.setDate(dateFrom.getDate() - days);
+    const dateFromStr = dateFrom.toISOString();
+
+    // 1. 기간 내 가입 사용자 수
     const { count: totalSignups } = await supabase
       .from("users")
       .select("*", { count: "exact", head: true })
-      .is("deleted_at", null);
+      .is("deleted_at", null)
+      .gte("created_at", dateFromStr);
 
-    // 2. 제출 기록이 있는 사용자 수
+    // 2. 기간 내 가입 + 제출 기록이 있는 사용자 수
     const { count: usersWithSubmit } = await supabase
       .from("users")
       .select("*", { count: "exact", head: true })
       .is("deleted_at", null)
+      .gte("created_at", dateFromStr)
       .not("last_submission_at", "is", null);
 
     // 3. 2회 이상 제출한 사용자 (활성화) - RPC with fallback
@@ -190,8 +265,9 @@ export async function GET(request: Request) {
       const { data: activatedData, error } = await supabase.rpc("get_activated_users_count");
       if (error) throw error;
       activatedUsers = activatedData || 0;
-    } catch {
-      activatedUsers = await getActivatedUsersCountFallback();
+    } catch (err) {
+      console.warn("[Funnels API] get_activated_users_count RPC failed, using fallback:", err);
+      activatedUsers = await getActivatedUsersCountFallback(days);
     }
 
     // 4. Time to First Submit 분포 - RPC with fallback
@@ -209,9 +285,13 @@ export async function GET(request: Request) {
             over7Days: timeDistribution.over_7_days || 0,
             never: timeDistribution.never || 0,
           }
-        : await getTimeDistributionFallback();
-    } catch {
-      timeToFirstSubmit = await getTimeDistributionFallback();
+        : await getTimeDistributionFallback(days);
+    } catch (err) {
+      console.warn(
+        "[Funnels API] get_time_to_first_submit_distribution RPC failed, using fallback:",
+        err
+      );
+      timeToFirstSubmit = await getTimeDistributionFallback(days);
     }
 
     // 5. 일별 가입 → 제출 추이 - RPC with fallback
@@ -229,16 +309,19 @@ export async function GET(request: Request) {
           conversionRate: d.signups > 0 ? Math.round((d.first_submits / d.signups) * 100) : 0,
         })
       );
-    } catch {
+    } catch (err) {
+      console.warn("[Funnels API] get_daily_funnel_data RPC failed, using fallback:", err);
       dailyFunnel = await getDailyFunnelFallback(days);
     }
 
     // 6. 최근 전환 사용자 - 첫 제출 시간 기준
-    // usage_stats에서 각 사용자의 첫 제출 시간을 가져옴
+    // usage_stats에서 기간 내 첫 제출 시간을 가져옴
     const { data: firstSubmitData } = await supabase
       .from("usage_stats")
       .select("user_id, submitted_at")
-      .order("submitted_at", { ascending: true });
+      .gte("submitted_at", dateFromStr)
+      .order("submitted_at", { ascending: true })
+      .limit(5000);
 
     // 각 사용자의 첫 제출 시간 계산
     const userFirstSubmit = new Map<string, string>();

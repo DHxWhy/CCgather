@@ -12,40 +12,58 @@ import { posthogApi } from "@/lib/posthog/api-client";
 // =====================================================
 
 const SEARCH_ENGINES = [
-  "google",
-  "bing",
-  "duckduckgo",
-  "yahoo",
-  "baidu",
-  "naver",
-  "daum",
-  "yandex",
-  "ecosia",
+  "google.com",
+  "google.co.kr",
+  "google.co.jp",
+  "bing.com",
+  "duckduckgo.com",
+  "yahoo.com",
+  "yahoo.co.jp",
+  "baidu.com",
+  "naver.com",
+  "daum.net",
+  "yandex.ru",
+  "yandex.com",
+  "ecosia.org",
+  "search.naver.com",
 ];
 
 const SOCIAL_NETWORKS = [
-  "twitter",
+  "twitter.com",
   "x.com",
-  "facebook",
-  "linkedin",
-  "reddit",
-  "threads",
-  "instagram",
-  "youtube",
-  "tiktok",
-  "discord",
-  "slack",
+  "t.co",
+  "facebook.com",
+  "linkedin.com",
+  "reddit.com",
+  "threads.net",
+  "instagram.com",
+  "youtube.com",
+  "tiktok.com",
+  "discord.com",
+  "discord.gg",
+  "slack.com",
 ];
 
 type SourceType = "direct" | "search" | "social" | "referral";
+
+function normalizeDomain(raw: string): string {
+  try {
+    const cleaned = raw.startsWith("http") ? new URL(raw).hostname : raw;
+    return cleaned.replace(/^www\./, "").toLowerCase();
+  } catch {
+    return raw.replace(/^www\./, "").toLowerCase();
+  }
+}
 
 function classifySource(domain: string | null | undefined): SourceType {
   if (!domain || domain === "" || domain === "$direct") return "direct";
 
   const normalized = domain.replace(/^www\./, "").toLowerCase();
 
-  if (SEARCH_ENGINES.some((s) => normalized.includes(s))) return "search";
-  if (SOCIAL_NETWORKS.some((s) => normalized.includes(s))) return "social";
+  // Use domain-suffix matching to avoid false positives (e.g. "googledocs.com" matching "google")
+  if (SEARCH_ENGINES.some((s) => normalized === s || normalized.endsWith(`.${s}`))) return "search";
+  if (SOCIAL_NETWORKS.some((s) => normalized === s || normalized.endsWith(`.${s}`)))
+    return "social";
 
   return "referral";
 }
@@ -127,29 +145,22 @@ export async function GET(request: Request) {
     const urlsByDomain = new Map<string, Map<string, number>>();
     for (const series of referrerData.results || []) {
       const fullUrl = series.label || "";
-      const count = series.count || 0;
-      if (!fullUrl || count === 0) continue;
+      const totalCount = (series.data || []).reduce((sum: number, v: number) => sum + (v || 0), 0);
+      if (!fullUrl || totalCount === 0) continue;
 
-      // Extract domain from URL
+      // Extract domain from URL using shared normalization
       let domain = "(direct)";
-      try {
-        if (fullUrl.startsWith("http")) {
-          const urlObj = new URL(fullUrl);
-          domain = urlObj.hostname.replace(/^www\./, "");
-        } else if (fullUrl !== "$direct" && fullUrl !== "") {
-          const firstPart = fullUrl.split("/")[0];
-          domain = firstPart ? firstPart.replace(/^www\./, "") : "(direct)";
-        }
-      } catch {
-        const firstPart = fullUrl.split("/")[0];
-        domain = firstPart ? firstPart.replace(/^www\./, "") : "(direct)";
+      if (fullUrl !== "$direct" && fullUrl !== "") {
+        domain = normalizeDomain(
+          fullUrl.startsWith("http") ? fullUrl : (fullUrl.split("/")[0] ?? fullUrl)
+        );
       }
 
       if (!urlsByDomain.has(domain)) {
         urlsByDomain.set(domain, new Map());
       }
       const domainUrls = urlsByDomain.get(domain)!;
-      domainUrls.set(fullUrl, (domainUrls.get(fullUrl) || 0) + count);
+      domainUrls.set(fullUrl, (domainUrls.get(fullUrl) || 0) + totalCount);
     }
 
     // Process breakdown results
@@ -158,8 +169,10 @@ export async function GET(request: Request) {
 
     // Aggregate data from all series
     for (const series of breakdownData.results || []) {
-      const domain = series.label || "(direct)";
-      const totalCount = series.count || 0;
+      const rawLabel = series.label || "(direct)";
+      const domain =
+        rawLabel === "" || rawLabel === "$direct" ? "(direct)" : normalizeDomain(rawLabel);
+      const totalCount = (series.data || []).reduce((sum: number, v: number) => sum + (v || 0), 0);
 
       // Aggregate domain counts
       const existing = domainCounts.get(domain) || 0;
@@ -249,11 +262,11 @@ export async function GET(request: Request) {
       .sort(([, a], [, b]) => b - a)
       .slice(0, 100)
       .map(([domain, count]) => {
-        const normalizedDomain = domain === "" || domain === "$direct" ? "(direct)" : domain;
-        const domainKey = domain.replace(/^www\./, "").toLowerCase();
+        // Domain keys are already normalized via normalizeDomain() during aggregation
+        const displayDomain = domain === "" || domain === "$direct" ? "(direct)" : domain;
 
-        // Get detailed URLs for this domain
-        const domainUrlMap = urlsByDomain.get(domainKey) || urlsByDomain.get(normalizedDomain);
+        // Get detailed URLs for this domain (keys match since both use normalizeDomain)
+        const domainUrlMap = urlsByDomain.get(domain);
         const details = domainUrlMap
           ? Array.from(domainUrlMap.entries())
               .sort(([, a], [, b]) => b - a)
@@ -266,7 +279,7 @@ export async function GET(request: Request) {
           : [];
 
         return {
-          domain: normalizedDomain,
+          domain: displayDomain,
           count,
           percent: totalVisitors > 0 ? Math.round((count / totalVisitors) * 1000) / 10 : 0,
           type: classifySource(domain),
@@ -283,7 +296,7 @@ export async function GET(request: Request) {
       dateRange: { from: dateFrom, to: dateTo },
     });
   } catch (error) {
-    console.error("[Analytics Traffic Sources] Error:", error);
+    console.warn("[Analytics Traffic Sources] Error:", error);
     const errorMessage = error instanceof Error ? error.message : "Unknown error";
     return NextResponse.json(
       {

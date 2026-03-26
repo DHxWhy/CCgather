@@ -48,6 +48,7 @@ export async function GET(request: Request) {
           w1Retention: 0,
           w4Retention: 0,
           avgRetention: 0,
+          totalCohorts: 0,
         },
         generatedAt: new Date().toISOString(),
       });
@@ -94,13 +95,14 @@ export async function GET(request: Request) {
       }
       cohortMap[cohortWeek].users.push(userId);
 
-      // 이후 주차별 활동 체크
+      // 이후 주차별 활동 체크 (cohortWeek 시작일 기준으로 계산)
       const submitDates = userSubmitDates[userId];
       if (submitDates) {
+        const cohortWeekDate = new Date(cohortWeek);
         for (const dateStr of submitDates) {
           const submitDate = new Date(dateStr);
           const weeksDiff = Math.floor(
-            (submitDate.getTime() - firstDate.getTime()) / (7 * 24 * 60 * 60 * 1000)
+            (submitDate.getTime() - cohortWeekDate.getTime()) / (7 * 24 * 60 * 60 * 1000)
           );
 
           if (weeksDiff >= 0 && weeksDiff <= 4) {
@@ -150,12 +152,27 @@ export async function GET(request: Request) {
       .reduce((a, b) => a + b, 0);
     const avgW4 = w4Retentions.length > 0 ? Math.round(sumW4 / w4Retentions.length) : 0;
 
+    // Average retention across ALL weeks (W0-W4) for valid cohorts
+    const allWeekRetentions: number[] = [];
+    for (const cohort of validCohorts) {
+      for (let w = 1; w <= 4; w++) {
+        const rate = cohort.retentionByWeek[w];
+        if (rate !== undefined) {
+          allWeekRetentions.push(rate);
+        }
+      }
+    }
+    const avgRetention =
+      allWeekRetentions.length > 0
+        ? Math.round(allWeekRetentions.reduce((a, b) => a + b, 0) / allWeekRetentions.length)
+        : 0;
+
     return NextResponse.json({
       cohorts,
       summary: {
         w1Retention: avgW1,
         w4Retention: avgW4,
-        avgRetention: Math.round((avgW1 + avgW4) / 2),
+        avgRetention,
         totalCohorts: cohorts.length,
       },
       generatedAt: new Date().toISOString(),

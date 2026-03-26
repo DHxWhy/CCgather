@@ -52,7 +52,7 @@ export async function GET(request: NextRequest) {
     const startDate = searchParams.get("startDate") || "";
     const endDate = searchParams.get("endDate") || "";
 
-    const supabase = createServiceClient();
+    const supabase = await createServiceClient();
     const offset = (page - 1) * pageSize;
 
     // 기본 날짜 범위: 최근 30일
@@ -76,10 +76,10 @@ export async function GET(request: NextRequest) {
 
     if (logsError) {
       // RPC가 없으면 대체 쿼리 사용
-      console.log("[Submit Logs] RPC not found, using fallback query");
+      console.warn("[Submit Logs] RPC not found, using fallback query");
 
       // Fallback: 개별 쿼리로 처리
-      const { data: rawLogs, error: rawError } = await supabase
+      let fallbackQuery = supabase
         .from("usage_stats")
         .select(
           `
@@ -104,6 +104,16 @@ export async function GET(request: NextRequest) {
         .gte("submitted_at", effectiveStartDate)
         .lte("submitted_at", effectiveEndDate)
         .order("submitted_at", { ascending: false });
+
+      // Push source filter to DB instead of filtering in JS
+      if (source) {
+        fallbackQuery = fallbackQuery.eq("submission_source", source);
+      }
+
+      // TODO: Replace with proper RPC that handles pagination server-side
+      fallbackQuery = fallbackQuery.limit(10000);
+
+      const { data: rawLogs, error: rawError } = await fallbackQuery;
 
       if (rawError) {
         console.error("[Submit Logs] Query error:", rawError);
@@ -215,6 +225,11 @@ export async function GET(request: NextRequest) {
         }
       });
 
+      // Round accumulated costs to avoid floating point artifacts
+      for (const entry of groupedLogs.values()) {
+        entry.total_cost = Math.round(entry.total_cost * 100) / 100;
+      }
+
       // 필터링 적용
       let filteredLogs = Array.from(groupedLogs.values());
 
@@ -223,10 +238,6 @@ export async function GET(request: NextRequest) {
         filteredLogs = filteredLogs.filter((log) =>
           log.username.toLowerCase().includes(searchLower)
         );
-      }
-
-      if (source) {
-        filteredLogs = filteredLogs.filter((log) => log.submission_source === source);
       }
 
       // 정렬 및 페이지네이션
@@ -288,14 +299,33 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    // RPC 성공 시 응답
+    // RPC 성공 시: 별도 count 쿼리로 총 레코드 수 조회
+    const dateFrom = new Date(effectiveStartDate);
+    const dateTo = new Date(effectiveEndDate);
+
+    let countQuery = supabase
+      .from("usage_stats")
+      .select("*", { count: "exact", head: true })
+      .gte("submitted_at", dateFrom.toISOString())
+      .lte("submitted_at", dateTo.toISOString());
+
+    // NOTE: search filter cannot be applied to count query because
+    // the RPC searches by username (joined), not user_id (UUID).
+    // totalCount is an upper bound when search is active.
+    if (source) {
+      countQuery = countQuery.eq("submission_source", source);
+    }
+
+    const { count: rpcTotalCount } = await countQuery;
+    const totalCount = rpcTotalCount || 0;
+
     return NextResponse.json({
       logs: logs || [],
       pagination: {
         page,
         pageSize,
-        totalCount: logs?.length || 0,
-        totalPages: Math.ceil((logs?.length || 0) / pageSize),
+        totalCount,
+        totalPages: Math.ceil(totalCount / pageSize),
       },
       filters: {
         startDate: effectiveStartDate,

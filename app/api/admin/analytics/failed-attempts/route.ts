@@ -74,6 +74,14 @@ export async function GET(request: NextRequest) {
       query = query.eq("reason", reason);
     }
 
+    // search 필터 — ip_address는 DB에서, username은 joined table이라 클라이언트에서 필터링
+    if (search) {
+      const sanitized = search.replace(/[,%\.]/g, "");
+      if (sanitized) {
+        query = query.ilike("ip_address", `%${sanitized}%`);
+      }
+    }
+
     // 페이지네이션
     query = query.range(offset, offset + pageSize - 1);
 
@@ -114,7 +122,8 @@ export async function GET(request: NextRequest) {
         created_at: row.created_at,
       })) || [];
 
-    // 검색 필터 (클라이언트 측 - username, ip 검색)
+    // search filter is now applied at DB level via .or() above
+    // username filtering is handled client-side since it comes from a joined table
     if (search) {
       const searchLower = search.toLowerCase();
       logs = logs.filter(
@@ -124,14 +133,20 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const totalCount = search ? logs.length : count || 0;
+    const totalCount = count || 0;
 
     // reason 별 통계
-    const { data: reasonStats } = await supabase
+    let statsQuery = supabase
       .from("cli_submit_attempts")
       .select("reason")
       .gte("created_at", effectiveStartDate)
       .lte("created_at", effectiveEndDate);
+
+    if (reason) {
+      statsQuery = statsQuery.eq("reason", reason);
+    }
+
+    const { data: reasonStats } = await statsQuery;
 
     const reasonCounts: Record<string, number> = {};
     reasonStats?.forEach((item: { reason: string }) => {

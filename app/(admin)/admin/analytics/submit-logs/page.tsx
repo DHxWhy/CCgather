@@ -63,7 +63,8 @@ function formatCost(cost: number): string {
 }
 
 function formatDate(dateStr: string): string {
-  const date = new Date(dateStr);
+  // Append noon time to date-only strings to avoid UTC midnight parsing offset
+  const date = new Date(dateStr.length === 10 ? dateStr + "T12:00:00" : dateStr);
   return date.toLocaleDateString("ko-KR", {
     month: "numeric",
     day: "numeric",

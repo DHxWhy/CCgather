@@ -14,6 +14,7 @@ export function InfoPopover({ title, description, insights, formula }: InfoPopov
   const [isOpen, setIsOpen] = useState(false);
   const [position, setPosition] = useState({ top: 0, left: 0 });
   const buttonRef = useRef<HTMLButtonElement>(null);
+  const popoverRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (isOpen && buttonRef.current) {
@@ -41,7 +42,11 @@ export function InfoPopover({ title, description, insights, formula }: InfoPopov
     if (!isOpen) return;
 
     const handleClickOutside = (e: MouseEvent) => {
-      if (buttonRef.current && !buttonRef.current.contains(e.target as Node)) {
+      if (
+        buttonRef.current &&
+        !buttonRef.current.contains(e.target as Node) &&
+        (!popoverRef.current || !popoverRef.current.contains(e.target as Node))
+      ) {
         setIsOpen(false);
       }
     };
@@ -74,6 +79,7 @@ export function InfoPopover({ title, description, insights, formula }: InfoPopov
         typeof window !== "undefined" &&
         createPortal(
           <div
+            ref={popoverRef}
             className="fixed z-[9999] w-[280px] bg-[#1a1a1a] border border-white/10 rounded-lg shadow-xl p-4 animate-in fade-in zoom-in-95 duration-150"
             style={{ top: position.top, left: position.left }}
           >

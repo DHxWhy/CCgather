@@ -11,6 +11,7 @@ interface PostHogQueryOptions {
   dateRange?: { date_from: string; date_to?: string };
   interval?: "hour" | "day" | "week" | "month";
   breakdown?: string;
+  breakdownType?: "event" | "person" | "session" | "group" | "hogql";
   math?: "total" | "dau" | "weekly_active" | "monthly_active" | "unique_session";
 }
 
@@ -81,6 +82,7 @@ class PostHogApiClient {
     const response = await fetch(`${this.baseUrl}/query/`, {
       method: "POST",
       headers: this.headers,
+      signal: AbortSignal.timeout(10_000),
       body: JSON.stringify({
         query: {
           kind: "TrendsQuery",
@@ -94,7 +96,7 @@ class PostHogApiClient {
           breakdownFilter: options.breakdown
             ? {
                 breakdown: options.breakdown,
-                breakdown_type: "event",
+                breakdown_type: options.breakdownType ?? "event",
               }
             : undefined,
         },
@@ -103,7 +105,7 @@ class PostHogApiClient {
 
     if (!response.ok) {
       const error = await response.text();
-      console.error("[PostHog API] Trends error:", error);
+      console.warn("[PostHog API] Trends error:", error);
       throw new Error(`PostHog API error: ${response.status}`);
     }
 
@@ -121,6 +123,7 @@ class PostHogApiClient {
     const response = await fetch(`${this.baseUrl}/query/`, {
       method: "POST",
       headers: this.headers,
+      signal: AbortSignal.timeout(10_000),
       body: JSON.stringify({
         query: {
           kind: "FunnelsQuery",
@@ -139,7 +142,7 @@ class PostHogApiClient {
 
     if (!response.ok) {
       const error = await response.text();
-      console.error("[PostHog API] Funnel error:", error);
+      console.warn("[PostHog API] Funnel error:", error);
       throw new Error(`PostHog API error: ${response.status}`);
     }
 
@@ -157,6 +160,7 @@ class PostHogApiClient {
     const response = await fetch(`${this.baseUrl}/query/`, {
       method: "POST",
       headers: this.headers,
+      signal: AbortSignal.timeout(10_000),
       body: JSON.stringify({
         query: {
           kind: "RetentionQuery",
@@ -172,7 +176,7 @@ class PostHogApiClient {
 
     if (!response.ok) {
       const error = await response.text();
-      console.error("[PostHog API] Retention error:", error);
+      console.warn("[PostHog API] Retention error:", error);
       throw new Error(`PostHog API error: ${response.status}`);
     }
 
@@ -192,11 +196,12 @@ class PostHogApiClient {
 
     const response = await fetch(`${this.baseUrl}/events/?${params}`, {
       headers: this.headers,
+      signal: AbortSignal.timeout(10_000),
     });
 
     if (!response.ok) {
       const error = await response.text();
-      console.error("[PostHog API] Events error:", error);
+      console.warn("[PostHog API] Events error:", error);
       throw new Error(`PostHog API error: ${response.status}`);
     }
 
@@ -219,6 +224,7 @@ class PostHogApiClient {
     try {
       const response = await fetch(`${this.baseUrl}/`, {
         headers: this.headers,
+        signal: AbortSignal.timeout(10_000),
       });
 
       return {
