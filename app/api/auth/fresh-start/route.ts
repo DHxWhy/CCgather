@@ -2,6 +2,18 @@ import { NextResponse } from "next/server";
 import { auth, currentUser } from "@clerk/nextjs/server";
 import { createServiceClient } from "@/lib/supabase/server";
 
+// Generate 5-character alphanumeric referral code (CSPRNG)
+function generateShortCode(): string {
+  const chars = "abcdefghijklmnopqrstuvwxyz0123456789";
+  const bytes = new Uint8Array(5);
+  crypto.getRandomValues(bytes);
+  let code = "";
+  for (let i = 0; i < 5; i++) {
+    code += chars.charAt(bytes[i]! % chars.length);
+  }
+  return code;
+}
+
 // =====================================================
 // POST /api/auth/fresh-start - 새로 시작 (이전 계정 즉시 삭제 후 새 계정 생성)
 // =====================================================
@@ -60,6 +72,7 @@ export async function POST() {
         avatar_url: clerkUser.imageUrl,
         email: clerkUser.emailAddresses[0]?.emailAddress,
         onboarding_completed: false, // New user needs onboarding
+        referral_code: generateShortCode(),
       })
       .select("id, username, display_name")
       .single();
@@ -77,6 +90,7 @@ export async function POST() {
             avatar_url: clerkUser.imageUrl,
             email: clerkUser.emailAddresses[0]?.emailAddress,
             onboarding_completed: false,
+            referral_code: generateShortCode(),
           })
           .select("id, username, display_name")
           .single();

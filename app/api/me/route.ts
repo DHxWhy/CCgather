@@ -98,6 +98,7 @@ export async function GET() {
     `
     )
     .eq("clerk_id", userId)
+    .is("deleted_at", null)
     .single();
 
   if (error || !user) {
@@ -109,8 +110,11 @@ export async function GET() {
 
     const email = clerkUser.emailAddresses[0]?.emailAddress;
 
-    // First, check if there's an existing user with the same email (account linking)
-    if (email) {
+    // Account linking by email: only allow if the existing account uses the same OAuth provider.
+    // Currently GitHub-only, but this guard prevents cross-provider account takeover if
+    // additional auth methods are added in the future.
+    const currentProvider = clerkUser.externalAccounts?.[0]?.provider;
+    if (email && currentProvider === "oauth_github") {
       const { data: existingByEmail } = await supabase
         .from("users")
         .select(

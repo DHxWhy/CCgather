@@ -3,12 +3,14 @@ import { headers } from "next/headers";
 import { WebhookEvent } from "@clerk/nextjs/server";
 import { createClient } from "@supabase/supabase-js";
 
-// Generate 5-character alphanumeric referral code
+// Generate 5-character alphanumeric referral code (CSPRNG)
 function generateShortCode(): string {
   const chars = "abcdefghijklmnopqrstuvwxyz0123456789";
+  const bytes = new Uint8Array(5);
+  crypto.getRandomValues(bytes);
   let code = "";
   for (let i = 0; i < 5; i++) {
-    code += chars.charAt(Math.floor(Math.random() * chars.length));
+    code += chars.charAt(bytes[i]! % chars.length);
   }
   return code;
 }
@@ -89,7 +91,8 @@ export async function POST(req: Request) {
       // Generate short 5-character referral code
       const referralCode = generateShortCode();
 
-      const { error } = await getSupabaseAdmin().from("users").insert({
+      const supabaseAdmin = getSupabaseAdmin();
+      const { error } = await supabaseAdmin.from("users").insert({
         clerk_id: id,
         username: finalUsername,
         display_name: displayName,
@@ -99,6 +102,27 @@ export async function POST(req: Request) {
       });
 
       if (error) {
+        // Race condition: /api/me may have already created the user
+        if (error.code === "23505") {
+          // Update with GitHub OAuth data (which /api/me fallback may not have)
+          const { error: updateError } = await supabaseAdmin
+            .from("users")
+            .update({
+              username: finalUsername,
+              display_name: displayName,
+              avatar_url: avatarUrl,
+              updated_at: new Date().toISOString(),
+            })
+            .eq("clerk_id", id);
+
+          if (updateError) {
+            console.error("Failed to update existing user with GitHub data:", updateError);
+          } else {
+            console.log("Updated existing user with GitHub OAuth data:", { clerk_id: id });
+          }
+          // Return 200 to prevent Clerk from retrying
+          break;
+        }
         console.error("Failed to create user:", error);
         return new Response("Failed to create user", { status: 500 });
       }
@@ -157,11 +181,20 @@ export async function POST(req: Request) {
       const { id } = evt.data;
 
       if (id) {
-        const { error } = await getSupabaseAdmin().from("users").delete().eq("clerk_id", id);
+        // Use soft delete (7-day grace period) instead of hard delete
+        // to match the app's deletion flow and preserve user recovery option
+        const { data, error } = await getSupabaseAdmin().rpc("soft_delete_user", {
+          target_clerk_id: id,
+        });
 
         if (error) {
-          console.error("Failed to delete user:", error);
+          console.error("Failed to soft-delete user:", error);
           return new Response("Failed to delete user", { status: 500 });
+        }
+
+        // If user was already deleted or not found, still return OK
+        if (!data?.success) {
+          console.log("Soft delete skipped (already deleted or not found):", { clerk_id: id });
         }
       }
       break;
