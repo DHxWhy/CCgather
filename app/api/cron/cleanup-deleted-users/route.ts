@@ -23,15 +23,18 @@ async function handleCleanup(request: NextRequest) {
   try {
     // Verify authorization
     const authHeader = request.headers.get("authorization");
-    const cronSecret = process.env.CRON_SECRET || "dev-secret";
+    const cronSecret = process.env.CRON_SECRET;
 
-    if (authHeader !== `Bearer ${cronSecret}`) {
-      // In Vercel, cron jobs don't send auth header but have vercel-cron header
-      const vercelCron = request.headers.get("x-vercel-cron");
-      if (!vercelCron && process.env.NODE_ENV !== "development") {
-        console.error("[Cron Cleanup] Unauthorized request");
-        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-      }
+    // Vercel cron jobs send x-vercel-cron header
+    const vercelCron = request.headers.get("x-vercel-cron");
+    const isAuthorized =
+      (cronSecret && authHeader === `Bearer ${cronSecret}`) ||
+      vercelCron ||
+      process.env.NODE_ENV === "development";
+
+    if (!isAuthorized) {
+      console.error("[Cron Cleanup] Unauthorized request");
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     console.log("[Cron Cleanup] Starting cleanup of deleted users...");
