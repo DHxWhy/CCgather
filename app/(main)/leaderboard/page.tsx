@@ -306,6 +306,8 @@ export default function LeaderboardPage() {
   const { user: clerkUser } = useUser();
   const searchParams = useSearchParams();
   const pathname = usePathname();
+  // /test 같은 격리 라우트에서는 URL sync skip (옵션 B-1 격리 미리보기 보호)
+  const disableUrlSync = pathname === "/test";
   const highlightUsername = searchParams.get("u");
   const authorParam = searchParams.get("author");
 
@@ -327,12 +329,14 @@ export default function LeaderboardPage() {
   const [communityStatsPeriod, setCommunityStatsPeriod] = useState<HallOfFamePeriod>("monthly");
 
   // URL sync: Update URL when viewMode changes (zero-latency, no page reload)
+  // /test 같은 격리 라우트에서 호출 시 disableUrlSync로 URL 변경 skip 가능
   useEffect(() => {
+    if (disableUrlSync) return;
     const targetUrl = viewMode === "community" ? "/community" : "/leaderboard";
     if (pathname !== targetUrl) {
       window.history.replaceState(null, "", targetUrl);
     }
-  }, [viewMode, pathname]);
+  }, [viewMode, pathname, disableUrlSync]);
 
   // Handle author query parameter from URL (e.g., /community?author=xxx)
   useEffect(() => {
