@@ -104,18 +104,36 @@ ccgather.com `/`(랜딩 페이지)를 풀 라이브 리더보드로 전환하여
 
 위반 시: lazy load + Suspense + dynamic import 강화. 그래도 안 풀리면 사용자 보고 후 중단.
 
-## 마이그레이션 단계
+## 마이그레이션 전략 — `/test` 격리 라우트 (사용자 제안)
 
-1. 단계 0: 브랜치 준비 (bun.lock commit + `feat/option-b-landing-redesign` 생성)
-2. 단계 1: spec 작성 (이 문서)
-3. 단계 2: Google OAuth 추가 (Clerk)
-4. 단계 3: LandingHero 압축 (globe 제거, 헤드라인 USP, CTA 두 OAuth)
-5. 단계 4: `/leaderboard` 콘텐츠를 `/`로 통합
-6. 단계 5: LeaderboardTable 페이지네이션 리팩토링
-7. 단계 6: `/leaderboard` → `/` 301 redirect
-8. 단계 7: mock LeaderboardPreview 삭제
-9. 단계 8: 검증 (typecheck + lint + build, 디자인 가드레일 점검)
-10. 단계 9: push + Vercel preview URL 보고
+기존 `/`, `/leaderboard` **100% 보호**, 새 `/test` 라우트에 옵션 B-1 풀 버전 구현.
+preview에서 사용자 검증 → OK시 라우트 swap PR로 `/`에 일괄 적용.
+
+### 장점
+- Production 라우트 안전 (preview에서도 기존 `/`, `/leaderboard` 그대로)
+- `/test`에서 큰 리팩토링 자유롭게
+- 사용자가 두 페이지 직접 비교 가능
+- 롤백 = 라우트 다시 swap (단순)
+
+### 단계
+
+1. 단계 0: 브랜치 준비 + bun.lock commit ✅
+2. 단계 1: spec 작성 ✅
+3. 단계 2: Google OAuth (sign-in/up — 라우트 보호 영역 외) ✅
+4. 단계 3: LandingHero 압축 ✅ → **revert** (기존 `/` 보호)
+5. 단계 4: `UspBanner` 컴포넌트 분리 (단계 3 코드 재사용)
+6. 단계 5: `app/(landing)/test/page.tsx` 신규 생성
+   - UspBanner (위)
+   - GlobeStatsSection + FilterBar + LeaderboardTable (`/leaderboard` 콘텐츠 재사용 또는 복사)
+   - 페이지네이션 (가상 스크롤 → 페이지)
+   - HowItWorks + WhyCCgather + SocialProof + Footer (아래)
+7. 단계 6: 품질 게이트 (build + 모순 + perf) → push
+8. 단계 7 (이후 PR): preview 검증 OK시 `/test` → `/` swap
+
+### Phase 2 (이후 PR — `/test` swap)
+- `/test`를 `/`로 교체 (라우트 swap)
+- 기존 `/`의 LandingHero/LeaderboardPreview 정리
+- `/leaderboard` → `/` 301 redirect (또는 유지 결정)
 
 ## 롤백
 
