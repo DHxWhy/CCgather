@@ -28,12 +28,19 @@ export function UspBanner({ initialStats }: UspBannerProps) {
   }, [initialStats]);
 
   return (
-    <section className="relative py-6 md:py-8 px-6">
+    <section
+      className="relative py-6 md:py-8 px-6"
+      aria-labelledby="hero-heading"
+      data-section="hero"
+    >
       <div className="max-w-5xl mx-auto">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-5 md:gap-10">
           {/* Left: Headline + Subheadline */}
           <div className="text-center md:text-left flex-1">
-            <h1 className="text-2xl md:text-3xl lg:text-4xl font-bold text-[var(--color-text-primary)] leading-tight mb-2">
+            <h1
+              id="hero-heading"
+              className="text-2xl md:text-3xl lg:text-4xl font-bold text-[var(--color-text-primary)] leading-tight mb-2"
+            >
               <span className="shimmer-text" style={{ animationDuration: "2s" }}>
                 Don&apos;t let Claude forget
               </span>
