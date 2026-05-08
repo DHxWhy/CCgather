@@ -12,8 +12,8 @@ interface UspBannerProps {
 
 /**
  * UspBanner — `/test` 페이지 상단 USP 띠.
- * Globe 없이 헤드라인 + Stats + CTA + Quick Start만 압축 표시.
- * 라이브 leaderboard(GlobeStatsSection)가 바로 아래 오는 구조.
+ * 세로 폭 절반 압축 버전 (히어로보다 leaderboard fold 우선).
+ * Live badge + Quick Start Steps 제거, headline 한 줄, padding/mb 최소.
  */
 export function UspBanner({ initialStats }: UspBannerProps) {
   const [stats, setStats] = useState<GlobalStats | null>(initialStats ?? null);
@@ -28,126 +28,67 @@ export function UspBanner({ initialStats }: UspBannerProps) {
   }, [initialStats]);
 
   return (
-    <section className="relative py-6 md:py-8 px-6">
+    <section className="relative py-3 md:py-5 px-6">
       <div className="max-w-4xl mx-auto text-center">
-        {/* Live indicator badge */}
-        <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/5 border border-white/10 mb-4">
-          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-          <span className="text-xs text-[var(--color-text-muted)]">
-            {stats?.showStats
-              ? `Developers from ${stats.totalCountries}+ countries`
-              : "Be among the first pioneers"}
-          </span>
-        </div>
-
-        {/* Headline — USP: 영구 아카이브 차별화 */}
-        <h1 className="text-2xl md:text-3xl lg:text-4xl font-bold text-[var(--color-text-primary)] leading-tight mb-3">
-          <span className="shimmer-text">Don&apos;t let Claude forget</span>
-          <br />
-          your journey
+        {/* Headline — 한 줄, USP */}
+        <h1 className="text-xl md:text-2xl lg:text-3xl font-bold text-[var(--color-text-primary)] leading-tight mb-2">
+          <span className="shimmer-text">Don&apos;t let Claude forget your journey</span>
         </h1>
 
-        {/* Subheadline — global positioning */}
-        <p className="text-sm md:text-base text-[var(--color-text-secondary)] max-w-xl mx-auto mb-5 leading-relaxed">
+        {/* Subheadline */}
+        <p className="text-xs md:text-sm text-[var(--color-text-secondary)] max-w-xl mx-auto mb-3 leading-relaxed">
           The global leaderboard for Claude Code power users.
         </p>
 
-        {/* Stats or Early Adopter Message — fixed height to prevent CLS */}
+        {/* Stats inline (한 줄, fixed height for CLS) */}
         {stats?.showStats ? (
-          <div className="flex items-center justify-center gap-6 md:gap-10 mb-5 min-h-[48px] md:min-h-[56px]">
+          <div className="flex items-center justify-center gap-4 md:gap-6 mb-3 min-h-[36px]">
             <div className="text-center">
-              <div className="text-2xl md:text-3xl font-bold text-[var(--color-text-primary)]">
+              <span className="text-base md:text-lg font-bold text-[var(--color-text-primary)]">
                 {stats.totalCountries}+
-              </div>
-              <div className="text-[10px] md:text-xs text-[var(--color-text-muted)] uppercase tracking-wider">
-                Countries
-              </div>
+              </span>
+              <span className="text-[10px] text-[var(--color-text-muted)] uppercase tracking-wider ml-1">
+                countries
+              </span>
             </div>
-            <div className="w-px h-8 md:h-10 bg-white/10" />
+            <span className="w-px h-4 bg-white/10" />
             <div className="text-center">
-              <div className="text-2xl md:text-3xl font-bold text-[var(--color-claude-coral)]">
+              <span className="text-base md:text-lg font-bold text-[var(--color-claude-coral)]">
                 {formatNumber(stats.totalTokens)}
-              </div>
-              <div className="text-[10px] md:text-xs text-[var(--color-text-muted)] uppercase tracking-wider">
-                Tokens
-              </div>
+              </span>
+              <span className="text-[10px] text-[var(--color-text-muted)] uppercase tracking-wider ml-1">
+                tokens
+              </span>
             </div>
-            <div className="w-px h-8 md:h-10 bg-white/10" />
+            <span className="w-px h-4 bg-white/10" />
             <div className="text-center">
-              <div className="text-2xl md:text-3xl font-bold text-emerald-400">
+              <span className="text-base md:text-lg font-bold text-emerald-400">
                 {formatCost(stats.totalCost)}
-              </div>
-              <div className="text-[10px] md:text-xs text-[var(--color-text-muted)] uppercase tracking-wider">
-                Spent
-              </div>
+              </span>
+              <span className="text-[10px] text-[var(--color-text-muted)] uppercase tracking-wider ml-1">
+                spent
+              </span>
             </div>
           </div>
         ) : (
-          <div className="flex items-center justify-center gap-4 md:gap-8 mb-5 min-h-[48px] md:min-h-[56px]">
-            <div className="text-center">
-              <div className="text-sm font-medium text-[var(--color-text-primary)]">
-                Be the first
-              </div>
-              <div className="text-[10px] text-[var(--color-text-muted)] uppercase tracking-wider">
-                Pioneer
-              </div>
-            </div>
-            <div className="w-px h-8 bg-white/10" />
-            <div className="text-center">
-              <div className="text-sm font-medium text-[var(--color-claude-coral)]">
-                Your journey
-              </div>
-              <div className="text-[10px] text-[var(--color-text-muted)] uppercase tracking-wider">
-                Starts here
-              </div>
-            </div>
-            <div className="w-px h-8 bg-white/10" />
-            <div className="text-center">
-              <div className="text-sm font-medium text-emerald-400">Claim #1</div>
-              <div className="text-[10px] text-[var(--color-text-muted)] uppercase tracking-wider">
-                Rank
-              </div>
-            </div>
+          <div className="flex items-center justify-center gap-3 mb-3 min-h-[36px]">
+            <span className="text-xs text-[var(--color-text-muted)]">
+              Be among the first pioneers · Claim #1
+            </span>
           </div>
         )}
 
-        {/* CTA — Get Started → /sign-in (GitHub + Google 옵션 노출) */}
+        {/* CTA */}
         <div className="flex flex-col min-[400px]:flex-row items-center justify-center gap-3">
-          <GetStartedLink className="w-full min-[400px]:w-auto px-5 py-2.5 rounded-xl bg-[#b84c30] text-white text-sm font-semibold hover:opacity-90 hover:scale-[1.02] active:scale-95 transition-all shadow-lg shadow-[var(--color-claude-coral)]/20 text-center">
+          <GetStartedLink className="w-full min-[400px]:w-auto px-5 py-2 rounded-xl bg-[#b84c30] text-white text-sm font-semibold hover:opacity-90 hover:scale-[1.02] active:scale-95 transition-all shadow-lg shadow-[var(--color-claude-coral)]/20 text-center">
             Get Started
           </GetStartedLink>
           <Link
             href="#leaderboard"
-            className="w-full min-[400px]:w-auto px-5 py-2.5 rounded-xl bg-white/5 border border-white/10 text-[var(--color-text-secondary)] text-sm font-medium hover:bg-white/10 hover:text-[var(--color-text-primary)] transition-all text-center"
+            className="w-full min-[400px]:w-auto px-5 py-2 rounded-xl bg-white/5 border border-white/10 text-[var(--color-text-secondary)] text-sm font-medium hover:bg-white/10 hover:text-[var(--color-text-primary)] transition-all text-center"
           >
             Explore Rankings ↓
           </Link>
-        </div>
-
-        {/* Quick Start Steps (desktop only) */}
-        <div className="hidden md:flex justify-center mt-6">
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2">
-              <span className="w-7 h-7 rounded-full bg-amber-500/20 flex items-center justify-center text-sm">
-                🔐
-              </span>
-              <span className="text-xs text-[var(--color-text-muted)]">Sign in</span>
-            </div>
-            <div className="w-6 h-px bg-white/20" />
-            <div className="flex items-center gap-2">
-              <span className="w-7 h-7 rounded-full bg-yellow-500/20 flex items-center justify-center text-sm">
-                ⚡
-              </span>
-              <span className="text-xs text-[var(--color-text-muted)]">npx ccgather</span>
-            </div>
-            <div className="w-6 h-px bg-white/20" />
-            <div className="flex items-center gap-2">
-              <span className="w-7 h-7 rounded-full bg-emerald-500/20 flex items-center justify-center text-sm">
-                📊
-              </span>
-              <span className="text-xs text-[var(--color-text-muted)]">Auto sync</span>
-            </div>
-          </div>
         </div>
       </div>
     </section>
