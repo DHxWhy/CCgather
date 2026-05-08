@@ -47,10 +47,8 @@ export function UspBanner({ initialStats }: UspBannerProps) {
           your journey
         </h1>
 
-        {/* Subheadline — 한국어 USP + global positioning */}
+        {/* Subheadline — global positioning */}
         <p className="text-sm md:text-base lg:text-lg text-[var(--color-text-secondary)] max-w-xl mx-auto mb-8 leading-relaxed">
-          Claude는 30일 후 잊지만, 우리는 영원히 기억합니다.
-          <br />
           The global leaderboard for Claude Code power users.
         </p>
 
