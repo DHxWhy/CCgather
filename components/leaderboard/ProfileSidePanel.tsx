@@ -895,7 +895,7 @@ interface ProfileSidePanelProps {
 }
 
 // Profile view tracking for non-logged-in users
-const PROFILE_VIEW_LIMIT = 3;
+const PROFILE_VIEW_LIMIT = 10;
 const STORAGE_KEY = "ccgather_profile_views";
 
 function getProfileViewCount(): number {
