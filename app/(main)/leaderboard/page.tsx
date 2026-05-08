@@ -1898,7 +1898,15 @@ export default function LeaderboardPage() {
   );
 
   return (
-    <div className="min-h-screen overflow-x-hidden md:fixed md:top-12 md:left-0 md:right-0 md:bottom-0 md:z-10 md:bg-[var(--color-bg-primary)] md:overflow-hidden">
+    <div
+      className={
+        disableUrlSync
+          ? // /test 격리 라우트: 일반 흐름 (위 UspBanner와 자연스럽게 스크롤)
+            "min-h-screen overflow-x-hidden"
+          : // /leaderboard 본 페이지: 풀 대시보드 (viewport 고정, 자체 스크롤)
+            "min-h-screen overflow-x-hidden md:fixed md:top-12 md:left-0 md:right-0 md:bottom-0 md:z-10 md:bg-[var(--color-bg-primary)] md:overflow-hidden"
+      }
+    >
       {/* Globe Particles - within content area (max-width 1000px), below filter */}
       {/* Only show on tablet/desktop (md+), mobile has separate MobileGlobePanel */}
       {viewportWidth >= 768 && globePosition && particleInnerStyle && (
@@ -1912,7 +1920,13 @@ export default function LeaderboardPage() {
         </div>
       )}
       <div
-        className="transition-[padding] duration-300 ease-out h-[calc(100dvh-56px)] md:h-auto overflow-hidden md:overflow-visible"
+        className={`transition-[padding] duration-300 ease-out ${
+          disableUrlSync
+            ? // /test: 자유 흐름 (높이 자동, 외부 스크롤 가능)
+              ""
+            : // /leaderboard: 자체 스크롤 영역 (viewport 가두기)
+              "h-[calc(100dvh-56px)] md:h-auto overflow-hidden md:overflow-visible"
+        }`}
         style={{ paddingRight: isTabletPush && panelWidth > 0 ? `${panelWidth}px` : undefined }}
       >
         <div
