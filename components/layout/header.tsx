@@ -31,9 +31,16 @@ const FeedbackModal = lazy(() =>
 // Navigation Links
 // ============================================
 
-const navLinks = [
+interface NavLinkConfig {
+  href: string;
+  label: string;
+  // 특정 라우트에서 숨김 (예: /test에서 community 숨김)
+  hiddenOnRoutes?: readonly string[];
+}
+
+const navLinks: readonly NavLinkConfig[] = [
   { href: "/leaderboard", label: "Leaderboard" },
-  { href: "/community", label: "Community" },
+  { href: "/community", label: "Community", hiddenOnRoutes: ["/test"] },
 ];
 
 // ============================================
@@ -106,6 +113,8 @@ function MobileNavLink({ href, label, isActive, onClick }: NavLinkProps) {
 export function Header() {
   const pathname = usePathname();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  // 현재 라우트에서 숨겨야 할 nav 항목 필터링
+  const visibleNavLinks = navLinks.filter((link) => !link.hiddenOnRoutes?.includes(pathname));
   const [cliModalOpen, setCLIModalOpen] = useState(false);
   const [faqModalOpen, setFaqModalOpen] = useState(false);
   const [authModalOpen, setAuthModalOpen] = useState(false);
@@ -181,7 +190,7 @@ export function Header() {
 
           {/* Desktop Navigation */}
           <div className="hidden md:flex items-center gap-5">
-            {navLinks.map((link) => (
+            {visibleNavLinks.map((link) => (
               <NavLink
                 key={link.href}
                 href={link.href}
@@ -343,7 +352,7 @@ export function Header() {
       <MobileDrawer open={mobileMenuOpen} onClose={closeMobileMenu} title="Menu">
         <div className="flex flex-col p-4 gap-2">
           {/* Navigation Links */}
-          {navLinks.map((link) => (
+          {visibleNavLinks.map((link) => (
             <MobileNavLink
               key={link.href}
               href={link.href}
