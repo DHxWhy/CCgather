@@ -30,11 +30,34 @@ export default async function TestPage() {
 
   return (
     <>
-      {/* USP 띠 — 헤드라인 + Stats + CTA + Quick Start */}
+      {/* USP 띠 — 헤드라인 + Stats + CTA */}
       <UspBanner initialStats={stats} />
 
-      {/* Section divider */}
-      <div className="section-divider" />
+      {/* Quick Start 띠 — Leaderboard 직전 funnel (Sign in → npx ccgather → Auto sync) */}
+      <div className="px-6 py-3 border-y border-white/[0.05] bg-white/[0.02]">
+        <div className="max-w-4xl mx-auto flex items-center justify-center gap-3 md:gap-6 flex-wrap">
+          <div className="flex items-center gap-2">
+            <span className="w-7 h-7 rounded-full bg-amber-500/20 flex items-center justify-center text-sm">
+              🔐
+            </span>
+            <span className="text-xs text-[var(--color-text-muted)]">Sign in</span>
+          </div>
+          <div className="hidden sm:block w-6 h-px bg-white/20" />
+          <div className="flex items-center gap-2">
+            <span className="w-7 h-7 rounded-full bg-yellow-500/20 flex items-center justify-center text-sm">
+              ⚡
+            </span>
+            <span className="text-xs text-[var(--color-text-muted)]">npx ccgather</span>
+          </div>
+          <div className="hidden sm:block w-6 h-px bg-white/20" />
+          <div className="flex items-center gap-2">
+            <span className="w-7 h-7 rounded-full bg-emerald-500/20 flex items-center justify-center text-sm">
+              📊
+            </span>
+            <span className="text-xs text-[var(--color-text-muted)]">Auto sync</span>
+          </div>
+        </div>
+      </div>
 
       {/* Live Leaderboard — pathname === "/test"이면 LeaderboardPage가 자동으로 URL sync skip */}
       <div id="leaderboard">
