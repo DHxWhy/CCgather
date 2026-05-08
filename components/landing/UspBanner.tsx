@@ -28,7 +28,7 @@ export function UspBanner({ initialStats }: UspBannerProps) {
   }, [initialStats]);
 
   return (
-    <section className="relative py-5 md:py-6 px-6">
+    <section className="relative py-6 md:py-8 px-6">
       <div className="max-w-5xl mx-auto">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-5 md:gap-10">
           {/* Left: Headline + Subheadline */}
@@ -97,6 +97,30 @@ export function UspBanner({ initialStats }: UspBannerProps) {
                 Explore Rankings ↓
               </Link>
             </div>
+          </div>
+        </div>
+
+        {/* Quick Start — Hero 하단, 경계 없이 자연 spacing으로 통합 */}
+        <div className="mt-6 flex items-center justify-center gap-3 md:gap-6 flex-wrap">
+          <div className="flex items-center gap-2">
+            <span className="w-7 h-7 rounded-full bg-amber-500/20 flex items-center justify-center text-sm">
+              🔐
+            </span>
+            <span className="text-xs text-[var(--color-text-muted)]">Sign in</span>
+          </div>
+          <div className="hidden sm:block w-6 h-px bg-white/20" />
+          <div className="flex items-center gap-2">
+            <span className="w-7 h-7 rounded-full bg-yellow-500/20 flex items-center justify-center text-sm">
+              ⚡
+            </span>
+            <span className="text-xs text-[var(--color-text-muted)]">npx ccgather</span>
+          </div>
+          <div className="hidden sm:block w-6 h-px bg-white/20" />
+          <div className="flex items-center gap-2">
+            <span className="w-7 h-7 rounded-full bg-emerald-500/20 flex items-center justify-center text-sm">
+              📊
+            </span>
+            <span className="text-xs text-[var(--color-text-muted)]">Auto sync</span>
           </div>
         </div>
       </div>
