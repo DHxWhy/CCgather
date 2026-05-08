@@ -34,7 +34,9 @@ export function UspBanner({ initialStats }: UspBannerProps) {
           {/* Left: Headline + Subheadline */}
           <div className="text-center md:text-left flex-1">
             <h1 className="text-2xl md:text-3xl lg:text-4xl font-bold text-[var(--color-text-primary)] leading-tight mb-2">
-              <span className="shimmer-text">Don&apos;t let Claude forget</span>
+              <span className="shimmer-text" style={{ animationDuration: "2s" }}>
+                Don&apos;t let Claude forget
+              </span>
               <br />
               your journey
             </h1>
