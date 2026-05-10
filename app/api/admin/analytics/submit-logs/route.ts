@@ -299,25 +299,34 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    // RPC 성공 시: 별도 count 쿼리로 총 레코드 수 조회
-    const dateFrom = new Date(effectiveStartDate);
-    const dateTo = new Date(effectiveEndDate);
+    // Total count: prefer the companion RPC (mig 059) which applies the same
+    // grouping, source filter, AND username search filter as get_submit_logs.
+    // Fall back to a raw count query (which can't apply username search)
+    // if that RPC isn't available yet.
+    let totalCount = 0;
+    const { data: rpcCount, error: rpcCountError } = await supabase.rpc("get_submit_logs_count", {
+      p_start_date: effectiveStartDate,
+      p_end_date: effectiveEndDate,
+      p_search: search || null,
+      p_source: source || null,
+    });
 
-    let countQuery = supabase
-      .from("usage_stats")
-      .select("*", { count: "exact", head: true })
-      .gte("submitted_at", dateFrom.toISOString())
-      .lte("submitted_at", dateTo.toISOString());
+    if (!rpcCountError && rpcCount != null) {
+      totalCount = Number(rpcCount);
+    } else {
+      let countQuery = supabase
+        .from("usage_stats")
+        .select("*", { count: "exact", head: true })
+        .gte("submitted_at", effectiveStartDate)
+        .lte("submitted_at", effectiveEndDate);
 
-    // NOTE: search filter cannot be applied to count query because
-    // the RPC searches by username (joined), not user_id (UUID).
-    // totalCount is an upper bound when search is active.
-    if (source) {
-      countQuery = countQuery.eq("submission_source", source);
+      if (source) {
+        countQuery = countQuery.eq("submission_source", source);
+      }
+
+      const { count: fallbackCount } = await countQuery;
+      totalCount = fallbackCount || 0;
     }
-
-    const { count: rpcTotalCount } = await countQuery;
-    const totalCount = rpcTotalCount || 0;
 
     return NextResponse.json({
       logs: logs || [],

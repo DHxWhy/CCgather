@@ -189,7 +189,13 @@ function PlatformBadge({ platform }: { platform: string | null }) {
 // Success Log Components
 // ============================================
 
-function DailyDetailRow({ detail }: { detail: DailyDetail }) {
+function DailyDetailRow({
+  detail,
+  showDeviceTag,
+}: {
+  detail: DailyDetail;
+  showDeviceTag: boolean;
+}) {
   return (
     <tr className="bg-white/[0.01]">
       <td className="px-3 py-1.5 pl-10">
@@ -199,12 +205,16 @@ function DailyDetailRow({ detail }: { detail: DailyDetail }) {
       <td className="px-3 py-1.5">
         <div className="flex items-center">
           <span className="text-[11px] text-white/50 font-mono">{formatDate(detail.date)}</span>
-          {detail.device_id && detail.device_id !== "legacy" && (
+          {/* Show device tag ONLY when this submission group spans multiple
+              real devices. The first 4 hex chars distinguish which PC the
+              row came from. Hidden for single-device submissions to avoid
+              false-positive "+PC" noise. */}
+          {showDeviceTag && detail.device_id && detail.device_id !== "legacy" && (
             <span
-              className="ml-1 text-[9px] text-cyan-400/50"
+              className="ml-1 text-[9px] text-cyan-400/60 font-mono"
               title={`Device: ${detail.device_id}`}
             >
-              +PC
+              #{detail.device_id.slice(0, 4)}
             </span>
           )}
         </div>
@@ -234,6 +244,8 @@ function DailyDetailRow({ detail }: { detail: DailyDetail }) {
 function SuccessLogRow({ log }: { log: SubmitLogItem }) {
   const [isExpanded, setIsExpanded] = useState(false);
   const hasDetails = log.daily_details && log.daily_details.length > 1;
+  // Only show per-row device tags when this submission spans 2+ real devices.
+  const showDeviceTag = (log.device_count ?? 0) > 1;
 
   const dateRange =
     log.date_from === log.date_to
@@ -332,7 +344,11 @@ function SuccessLogRow({ log }: { log: SubmitLogItem }) {
 
       {isExpanded &&
         log.daily_details?.map((detail, idx) => (
-          <DailyDetailRow key={`${log.submitted_at}_${detail.date}_${idx}`} detail={detail} />
+          <DailyDetailRow
+            key={`${log.submitted_at}_${detail.date}_${idx}`}
+            detail={detail}
+            showDeviceTag={showDeviceTag}
+          />
         ))}
     </>
   );
