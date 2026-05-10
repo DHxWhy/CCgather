@@ -104,6 +104,10 @@ interface SubmitResponse {
   retryAfterMinutes?: number;
   previous?: PreviousSubmission;
   deviceInfo?: DeviceInfo;
+  // Server-computed cumulative totals (after this submission was applied).
+  // Used for level progress calculation against the true accumulated value.
+  accumulatedTokens?: number;
+  accumulatedCost?: number;
 }
 
 /**

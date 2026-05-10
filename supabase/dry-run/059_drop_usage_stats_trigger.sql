@@ -1,0 +1,45 @@
+-- ═══════════════════════════════════════════════════════════════════════════
+-- DEFERRED — DO NOT APPLY YET
+--
+-- This file was originally drafted as `migrations/059_drop_usage_stats_trigger.sql`
+-- but moved to `dry-run/` after a precision review surfaced a regression risk:
+--
+-- The legacy endpoints `/api/bulk-submit` and `/api/submit` invoke
+-- `supabase.rpc("update_user_stats", { p_user_id })`. That parameterized RPC
+-- has never been defined in any migration — only the parameterless trigger
+-- function `update_user_stats() RETURNS TRIGGER` exists. Today the trigger
+-- silently rescues those endpoints by recomputing user totals on every
+-- usage_stats row write. If we drop the trigger without first giving those
+-- endpoints an explicit recompute path, any caller of those routes will see
+-- `users.total_tokens / total_cost / current_level` go stale.
+--
+-- Pre-conditions for safe application:
+--   1. Confirm `/api/bulk-submit` and `/api/submit` traffic in Vercel /
+--      Supabase logs — if zero callers, this migration becomes safe.
+--   2. OR add an explicit "recompute user totals" block (mirroring
+--      `app/api/cli/submit/route.ts` STEP 2-3) to those two routes.
+--
+-- Once one of the above is satisfied, move this file back to
+-- `supabase/migrations/059_drop_usage_stats_trigger.sql` and apply it via
+-- Supabase Dashboard → SQL Editor.
+--
+-- Original rationale (kept for context):
+--   The on_usage_insert trigger re-aggregates users.total_tokens / total_cost
+--   from SUM(usage_stats) on every row insert/update. The CLI submit route
+--   (app/api/cli/submit/route.ts STEP 2-3) already performs the same SUM and
+--   explicit users UPDATE in a coordinated sequence. Keeping the trigger
+--   means N redundant SUM queries per bulk upsert and a brief window where
+--   users holds an inflated total (legacy + new) before the CLI overwrites it.
+--
+-- Safety:
+--   - DROP TRIGGER is idempotent with IF EXISTS.
+--   - The function update_user_stats() is preserved.
+--   - No data is modified by this migration; only the auto-recompute trigger
+--     is removed.
+-- ═══════════════════════════════════════════════════════════════════════════
+
+DROP TRIGGER IF EXISTS on_usage_insert ON public.usage_stats;
+
+-- Refresh PostgREST schema cache so any cached plan that referenced the
+-- trigger is invalidated.
+NOTIFY pgrst, 'reload schema';

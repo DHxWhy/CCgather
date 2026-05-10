@@ -8,6 +8,7 @@ import {
   createSubmissionSummaryNotification,
 } from "@/lib/push/send-notification";
 import { aggregateByDate } from "@/lib/utils/usage-aggregation";
+import { computeDayCost, getPricingData } from "@/lib/services/pricing";
 
 interface DailyUsage {
   date: string;
@@ -350,6 +351,12 @@ export async function POST(request: NextRequest) {
     const overallPrimaryModel = getPrimaryModel(body.dailyUsage);
     let upsertSucceeded = false;
 
+    // Server-side pricing: recompute cost_usd from token counts + primary_model.
+    // The CLI sends day.cost too, but trusting it would let an outdated CLI
+    // version (with stale fallback prices) corrupt the leaderboard. Recomputing
+    // here makes cost values independent of the user's CLI version.
+    const pricingData = await getPricingData();
+
     if (body.dailyUsage && body.dailyUsage.length > 0) {
       // Bulk insert daily usage data (upsert - replace existing records for same date)
       const usageRecords = body.dailyUsage.map((day) => {
@@ -368,6 +375,15 @@ export async function POST(request: NextRequest) {
         // Determine league_reason based on model (Opus detection)
         const isOpusModel = dayPrimaryModel?.toLowerCase().includes("opus");
 
+        // Recompute cost server-side using the latest LiteLLM pricing.
+        const computedCost = computeDayCost(pricingData, {
+          model: dayPrimaryModel,
+          inputTokens: day.inputTokens || 0,
+          outputTokens: day.outputTokens || 0,
+          cacheWriteTokens: day.cacheWriteTokens || 0,
+          cacheReadTokens: day.cacheReadTokens || 0,
+        });
+
         return {
           user_id: authenticatedUser.id,
           date: day.date,
@@ -376,7 +392,7 @@ export async function POST(request: NextRequest) {
           output_tokens: day.outputTokens || 0,
           cache_read_tokens: day.cacheReadTokens || 0,
           cache_write_tokens: day.cacheWriteTokens || 0,
-          cost_usd: day.cost,
+          cost_usd: computedCost,
           sessions: day.sessions || 0,
           primary_model: dayPrimaryModel,
           submitted_at: new Date().toISOString(),
@@ -418,6 +434,15 @@ export async function POST(request: NextRequest) {
       const today = new Date().toISOString().split("T")[0];
       const isOpusModel = overallPrimaryModel?.toLowerCase().includes("opus");
 
+      // Recompute cost server-side (same rationale as the bulk path above).
+      const computedTodayCost = computeDayCost(pricingData, {
+        model: overallPrimaryModel,
+        inputTokens: body.inputTokens || 0,
+        outputTokens: body.outputTokens || 0,
+        cacheWriteTokens: body.cacheWriteTokens || 0,
+        cacheReadTokens: body.cacheReadTokens || 0,
+      });
+
       const { error: statsError } = await supabase.from("usage_stats").upsert(
         {
           user_id: authenticatedUser.id,
@@ -427,7 +452,7 @@ export async function POST(request: NextRequest) {
           output_tokens: body.outputTokens || 0,
           cache_read_tokens: body.cacheReadTokens || 0,
           cache_write_tokens: body.cacheWriteTokens || 0,
-          cost_usd: body.totalSpent,
+          cost_usd: computedTodayCost,
           primary_model: overallPrimaryModel,
           submitted_at: new Date().toISOString(),
           device_id: deviceId,
@@ -449,7 +474,7 @@ export async function POST(request: NextRequest) {
             output_tokens: body.outputTokens || 0,
             cache_read_tokens: body.cacheReadTokens || 0,
             cache_write_tokens: body.cacheWriteTokens || 0,
-            cost_usd: body.totalSpent,
+            cost_usd: computedTodayCost,
             primary_model: overallPrimaryModel,
             submitted_at: new Date().toISOString(),
             submission_source: "cli",
