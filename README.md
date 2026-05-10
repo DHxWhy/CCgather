@@ -136,16 +136,16 @@ Visualize developer activity worldwide in real-time. See at a glance which count
 <th width="140">Name</th>
 <th width="140">Tokens</th>
 </tr>
-<tr><td align="center">1</td><td align="center">🌱</td><td>Rookie</td><td>0 - 10M</td></tr>
-<tr><td align="center">2</td><td align="center">⚡</td><td>Coder</td><td>10M - 50M</td></tr>
-<tr><td align="center">3</td><td align="center">🔨</td><td>Builder</td><td>50M - 200M</td></tr>
-<tr><td align="center">4</td><td align="center">🏗️</td><td>Architect</td><td>200M - 500M</td></tr>
-<tr><td align="center">5</td><td align="center">💎</td><td>Expert</td><td>500M - 1B</td></tr>
-<tr><td align="center">6</td><td align="center">🔥</td><td>Master</td><td>1B - 3B</td></tr>
-<tr><td align="center">7</td><td align="center">⚔️</td><td>Grandmaster</td><td>3B - 10B</td></tr>
-<tr><td align="center">8</td><td align="center">👑</td><td>Legend</td><td>10B - 30B</td></tr>
-<tr><td align="center">9</td><td align="center">🌟</td><td>Titan</td><td>30B - 100B</td></tr>
-<tr><td align="center">10</td><td align="center">🏆</td><td>Immortal</td><td>100B+</td></tr>
+<tr><td align="center">1</td><td align="center">🌱</td><td>Novice</td><td>0 - 50M</td></tr>
+<tr><td align="center">2</td><td align="center">⚡</td><td>Apprentice</td><td>50M - 200M</td></tr>
+<tr><td align="center">3</td><td align="center">🔨</td><td>Journeyman</td><td>200M - 500M</td></tr>
+<tr><td align="center">4</td><td align="center">💎</td><td>Expert</td><td>500M - 1B</td></tr>
+<tr><td align="center">5</td><td align="center">🔥</td><td>Master</td><td>1B - 3B</td></tr>
+<tr><td align="center">6</td><td align="center">👑</td><td>Grandmaster</td><td>3B - 10B</td></tr>
+<tr><td align="center">7</td><td align="center">🌟</td><td>Legend</td><td>10B - 30B</td></tr>
+<tr><td align="center">8</td><td align="center">⚔️</td><td>Mythic</td><td>30B - 50B</td></tr>
+<tr><td align="center">9</td><td align="center">💫</td><td>Immortal</td><td>50B - 100B</td></tr>
+<tr><td align="center">10</td><td align="center">🌌</td><td>Transcendent</td><td>100B+</td></tr>
 </table>
 
 ---
