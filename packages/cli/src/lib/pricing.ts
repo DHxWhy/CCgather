@@ -47,17 +47,40 @@ const FALLBACK_PRICING: Record<string, ModelPricing> = {
   default: { input: 3, output: 15, cacheWrite: 3.75, cacheRead: 0.3 },
 };
 
-// Provider prefixes that may wrap a model identifier in LiteLLM keys
-// (e.g., "anthropic.claude-opus-4-7", "openrouter/anthropic/claude-opus-4-7").
-// We strip these so matching works on the bare "claude-..." form.
+// Provider / region prefixes that may wrap a Claude model identifier in
+// LiteLLM keys (e.g., "anthropic.claude-opus-4-7",
+// "us.anthropic.claude-opus-4-7", "openrouter/anthropic/claude-opus-4-7").
+// We strip these so matching works on the bare "claude-..." form. Order
+// matters — longest prefix first so e.g. "openrouter/anthropic/" wins over
+// "openrouter/".
 const PROVIDER_PREFIXES = [
+  // Anthropic native / Bedrock cross-region inference profiles
   "anthropic.",
-  "anthropic/",
+  "us.anthropic.",
+  "eu.anthropic.",
+  "apac.anthropic.",
+  "au.anthropic.",
+  "jp.anthropic.",
+  "global.anthropic.",
+  // Vendor namespaces with anthropic sub-prefix
   "openrouter/anthropic/",
+  "vercel_ai_gateway/anthropic/",
+  "replicate/anthropic/",
+  "perplexity/anthropic/",
+  "deepinfra/anthropic/",
+  "gmi/anthropic/",
+  // Generic vendor namespaces
+  "anthropic/",
   "openrouter/openai/",
   "openrouter/",
   "azure_ai/",
   "azure/",
+  "vertex_ai/",
+  "databricks/",
+  "github_copilot/",
+  "vercel_ai_gateway/",
+  "snowflake/",
+  "heroku/",
 ] as const;
 
 // In-memory cache (populated by initPricing or from disk cache)

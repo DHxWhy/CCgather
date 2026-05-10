@@ -35,7 +35,8 @@ SET cost_usd = ROUND((
   (COALESCE(cache_read_tokens, 0)  * 1.5    / 1000000)
 )::numeric, 2)
 WHERE primary_model ILIKE '%opus-4-1%'
-   OR primary_model ~ 'opus-4($|[-_][^567])';
+   OR primary_model ILIKE '%opus-4.1%'
+   OR primary_model ~ 'opus-4($|[-_.][^567])';
 
 -- Step 2: Recompute users.total_cost from the corrected usage_stats.
 UPDATE users u
@@ -56,7 +57,8 @@ SELECT
   ROUND(SUM(cost_usd)::numeric, 2) AS total_cost_after
 FROM usage_stats
 WHERE primary_model ILIKE '%opus-4-1%'
-   OR primary_model ~ 'opus-4($|[-_][^567])';
+   OR primary_model ILIKE '%opus-4.1%'
+   OR primary_model ~ 'opus-4($|[-_.][^567])';
 
 -- COMMIT only after reviewing the SELECT output above.
 -- If anything looks off, run ROLLBACK instead.

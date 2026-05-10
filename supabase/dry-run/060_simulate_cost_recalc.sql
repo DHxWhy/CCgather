@@ -34,8 +34,8 @@ SELECT
     WHEN primary_model ILIKE '%opus-4-7%' THEN 'opus-4-7 (current, no change)'
     WHEN primary_model ILIKE '%opus-4-6%' THEN 'opus-4-6 (current, no change)'
     WHEN primary_model ILIKE '%opus-4-5%' THEN 'opus-4-5 (current, no change)'
-    WHEN primary_model ILIKE '%opus-4-1%' THEN 'opus-4-1 (LEGACY, NEEDS CORRECTION)'
-    WHEN primary_model ~ 'opus-4($|[-_][^567])' THEN 'opus-4 base (LEGACY, NEEDS CORRECTION)'
+    WHEN primary_model ILIKE '%opus-4-1%' OR primary_model ILIKE '%opus-4.1%' THEN 'opus-4-1 (LEGACY, NEEDS CORRECTION)'
+    WHEN primary_model ~ 'opus-4($|[-_.][^567])' THEN 'opus-4 base (LEGACY, NEEDS CORRECTION)'
     WHEN primary_model ILIKE '%opus-3%' THEN 'opus-3 (legacy)'
     WHEN primary_model ILIKE '%opus%' THEN 'opus other'
     ELSE 'non-opus'
@@ -69,7 +69,8 @@ WITH legacy_opus AS (
     ) AS corrected_legacy_opus_cost
   FROM usage_stats
   WHERE primary_model ILIKE '%opus-4-1%'
-     OR primary_model ~ 'opus-4($|[-_][^567])'
+     OR primary_model ILIKE '%opus-4.1%'
+     OR primary_model ~ 'opus-4($|[-_.][^567])'
   GROUP BY user_id
 ),
 user_totals AS (
@@ -115,7 +116,8 @@ WITH legacy_opus AS (
     COUNT(DISTINCT user_id)        AS user_count
   FROM usage_stats
   WHERE primary_model ILIKE '%opus-4-1%'
-     OR primary_model ~ 'opus-4($|[-_][^567])'
+     OR primary_model ILIKE '%opus-4.1%'
+     OR primary_model ~ 'opus-4($|[-_.][^567])'
 )
 SELECT
   row_count,
@@ -136,11 +138,11 @@ SELECT
   primary_model,
   COUNT(*) AS rows,
   CASE
-    WHEN primary_model ILIKE '%opus-4-1%' THEN 'CORRECT to legacy'
-    WHEN primary_model ~ 'opus-4($|[-_][^567])' THEN 'CORRECT to legacy'
-    WHEN primary_model ILIKE '%opus-4-5%'
-      OR primary_model ILIKE '%opus-4-6%'
-      OR primary_model ILIKE '%opus-4-7%' THEN 'KEEP current pricing'
+    WHEN primary_model ILIKE '%opus-4-1%' OR primary_model ILIKE '%opus-4.1%' THEN 'CORRECT to legacy'
+    WHEN primary_model ~ 'opus-4($|[-_.][^567])' THEN 'CORRECT to legacy'
+    WHEN primary_model ILIKE '%opus-4-5%' OR primary_model ILIKE '%opus-4.5%'
+      OR primary_model ILIKE '%opus-4-6%' OR primary_model ILIKE '%opus-4.6%'
+      OR primary_model ILIKE '%opus-4-7%' OR primary_model ILIKE '%opus-4.7%' THEN 'KEEP current pricing'
     ELSE 'NOT opus / unaffected'
   END AS classification
 FROM usage_stats

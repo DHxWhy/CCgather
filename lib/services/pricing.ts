@@ -46,14 +46,38 @@ const FALLBACK_PRICING = {
   default: { input: 3, output: 15, cacheWrite: 3.75, cacheRead: 0.3 },
 } as const satisfies Record<string, ModelPricing>;
 
+// Provider / region prefixes that may wrap a Claude model identifier in
+// LiteLLM keys or in `model` strings sent by SDKs/gateways. We strip these
+// so matching works on the bare "claude-..." form. Order matters — longest
+// prefix first so e.g. "openrouter/anthropic/" wins over "openrouter/".
 const PROVIDER_PREFIXES = [
+  // Anthropic native / Bedrock cross-region inference profiles
   "anthropic.",
-  "anthropic/",
+  "us.anthropic.",
+  "eu.anthropic.",
+  "apac.anthropic.",
+  "au.anthropic.",
+  "jp.anthropic.",
+  "global.anthropic.",
+  // Vendor namespaces with anthropic sub-prefix
   "openrouter/anthropic/",
+  "vercel_ai_gateway/anthropic/",
+  "replicate/anthropic/",
+  "perplexity/anthropic/",
+  "deepinfra/anthropic/",
+  "gmi/anthropic/",
+  // Generic vendor namespaces
+  "anthropic/",
   "openrouter/openai/",
   "openrouter/",
   "azure_ai/",
   "azure/",
+  "vertex_ai/",
+  "databricks/",
+  "github_copilot/",
+  "vercel_ai_gateway/",
+  "snowflake/",
+  "heroku/",
 ] as const;
 
 interface PricingCacheEntry {
