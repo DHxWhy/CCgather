@@ -1,0 +1,154 @@
+name: post-deploy-smoke
+# Production smoke test: catches the failure mode that hid for 104 days
+# (protected routes returning 404 because they never made it into the Vercel build).
+# This workflow uses NO untrusted user input (no PR/issue/commit message data) —
+# all values are static or come from the trusted BASE_URL env.
+
+on:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    name: Probe ccgather.com
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      BASE_URL: https://ccgather.com
+    steps:
+      - name: Wait for Vercel deploy (push trigger only)
+        if: github.event_name == 'push'
+        run: |
+          echo "Waiting 180s for Vercel deployment to complete…"
+          sleep 180
+
+      - name: Probe protected routes (must NOT 404)
+        run: |
+          set -u
+          fail=0
+          routes=(
+            "/onboarding"
+            "/settings"
+            "/notifications"
+            "/profile"
+            "/api/me"
+            "/api/feedback"
+            "/api/submit"
+            "/api/profile"
+            "/api/notifications"
+            "/api/badges"
+            "/api/community"
+          )
+          for path in "${routes[@]}"; do
+            url="${BASE_URL}${path}"
+            code=$(curl -sS -o /dev/null -w "%{http_code}" "$url")
+            matched=$(curl -sS -D - -o /dev/null "$url" | grep -i "^x-matched-path" | tr -d '\r' | awk '{print $2}')
+            echo "  $code  $path  matched=$matched"
+            if [ "$code" = "404" ] || [ "$code" = "500" ] || [ "$matched" = "/404" ]; then
+              echo "::error::Protected route $path returned $code (matched=$matched) — build/deploy regression"
+              fail=1
+            fi
+          done
+          exit $fail
+
+      - name: Probe public pages (must be 200)
+        run: |
+          set -u
+          fail=0
+          routes=(
+            "/"
+            "/sign-up"
+            "/sign-in"
+            "/sso-callback"
+            "/leaderboard"
+            "/cli/auth"
+            "/terms"
+            "/privacy"
+          )
+          for path in "${routes[@]}"; do
+            url="${BASE_URL}${path}"
+            code=$(curl -sS -o /dev/null -w "%{http_code}" "$url")
+            echo "  $code  $path"
+            if [ "$code" != "200" ]; then
+              echo "::error::Public route $path returned $code (expected 200)"
+              fail=1
+            fi
+          done
+          exit $fail
+
+      - name: Probe critical APIs (200 or 405 only)
+        run: |
+          set -u
+          fail=0
+          routes=(
+            "/api/leaderboard"
+            "/api/cli/auth/device"
+            "/api/webhooks/clerk"
+            "/api/stats/global"
+          )
+          for path in "${routes[@]}"; do
+            url="${BASE_URL}${path}"
+            code=$(curl -sS -o /dev/null -w "%{http_code}" "$url")
+            echo "  $code  $path"
+            if [ "$code" = "404" ] || [ "$code" = "500" ]; then
+              echo "::error::API route $path returned $code — likely build regression"
+              fail=1
+            fi
+          done
+          exit $fail
+
+      - name: Probe signup HTML (must not be Clerk hosted Portal)
+        run: |
+          html=$(curl -sS "${BASE_URL}/sign-up")
+          size=${#html}
+          echo "Sign-up HTML size: $size bytes"
+          if [ "$size" -lt 5000 ]; then
+            echo "::error::/sign-up returned suspiciously small HTML ($size bytes)"
+            exit 1
+          fi
+          if echo "$html" | grep -qi "accounts.dev"; then
+            echo "::error::/sign-up appears to be Clerk hosted Portal instead of our page"
+            exit 1
+          fi
+          echo "OK"
+
+      # Discord notification — only when any step above failed.
+      # Webhook URL is stored as a GitHub Secret (DISCORD_WEBHOOK_URL); never hardcoded.
+      - name: Notify Discord on failure
+        if: failure()
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          TRIGGER: ${{ github.event_name }}
+          SHA: ${{ github.sha }}
+        run: |
+          if [ -z "$DISCORD_WEBHOOK_URL" ]; then
+            echo "::warning::DISCORD_WEBHOOK_URL secret not configured — skipping Discord notification"
+            exit 0
+          fi
+          payload=$(cat <<JSON
+          {
+            "username": "CCgather Smoke",
+            "content": "🚨 **production smoke test FAILED** — check ${BASE_URL} routes",
+            "embeds": [{
+              "title": "post-deploy-smoke regression",
+              "url": "${RUN_URL}",
+              "color": 15158332,
+              "fields": [
+                { "name": "Trigger", "value": "${TRIGGER}", "inline": true },
+                { "name": "Commit", "value": "\`${SHA}\`", "inline": true },
+                { "name": "Action", "value": "Click the title above to see which route(s) regressed" }
+              ]
+            }]
+          }
+          JSON
+          )
+          curl -sS -X POST -H "Content-Type: application/json" -d "$payload" "$DISCORD_WEBHOOK_URL" \
+            && echo "Discord notified" \
+            || echo "::warning::Discord notification failed"
