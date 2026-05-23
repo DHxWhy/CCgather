@@ -1,8 +1,6 @@
 name: post-deploy-smoke
-# Production smoke test: catches the failure mode that hid for 104 days
-# (protected routes returning 404 because they never made it into the Vercel build).
-# This workflow uses NO untrusted user input (no PR/issue/commit message data) —
-# all values are static or come from the trusted BASE_URL env.
+# Production smoke test: 104일간 보호 라우트가 404 였던 사건 재발 방지.
+# 모든 알림은 한글로 Discord 채널에 보고됩니다.
 
 on:
   push:
@@ -27,15 +25,18 @@ jobs:
     timeout-minutes: 10
     env:
       BASE_URL: https://ccgather.com
+    outputs:
+      failures: ${{ steps.probe.outputs.failures }}
+      failed_count: ${{ steps.probe.outputs.failed_count }}
+      summary: ${{ steps.probe.outputs.summary }}
     steps:
       - name: Wait for Vercel deploy (push trigger only)
         if: github.event_name == 'push'
         run: |
-          echo "Waiting 180s for Vercel deployment to complete…"
+          echo "180초 동안 Vercel 배포 완료 대기 중…"
           sleep 180
 
-      # Manual one-shot to verify Discord webhook is wired correctly.
-      # Run via: gh workflow run post-deploy-smoke.yml --field test_discord=true
+      # 수동 테스트용 — webhook 연결 검증
       - name: Send test Discord notification
         if: inputs.test_discord == true
         env:
@@ -43,19 +44,21 @@ jobs:
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           if [ -z "$DISCORD_WEBHOOK_URL" ]; then
-            echo "::error::DISCORD_WEBHOOK_URL secret not set"
+            echo "::error::DISCORD_WEBHOOK_URL secret 미설정"
             exit 1
           fi
+          KST=$(TZ=Asia/Seoul date '+%Y-%m-%d %H:%M KST')
           payload=$(cat <<JSON
           {
-            "username": "CCgather Smoke",
-            "content": "✅ **test notification** — webhook is reachable from GitHub Actions",
+            "username": "CCgather 감시봇",
+            "content": "🧪 **테스트 알림** — Discord webhook 정상 작동 확인",
             "embeds": [{
-              "title": "Smoke test wiring verified",
+              "title": "Smoke 테스트 연동 검증 완료",
               "url": "${RUN_URL}",
               "color": 5763719,
               "fields": [
-                { "name": "Status", "value": "Webhook OK — real alerts will land here if any route regresses." }
+                { "name": "상태", "value": "Webhook 살아있음. 실제 장애 발생 시 이 채널로 알림이 옵니다." },
+                { "name": "시각 (KST)", "value": "${KST}" }
               ]
             }]
           }
@@ -63,14 +66,16 @@ jobs:
           )
           http=$(curl -sS -o /tmp/resp -w "%{http_code}" -X POST -H "Content-Type: application/json" -d "$payload" "$DISCORD_WEBHOOK_URL")
           echo "HTTP $http"
-          cat /tmp/resp
-          [ "$http" = "204" ] || [ "$http" = "200" ] || { echo "::error::Discord rejected the request"; exit 1; }
+          [ "$http" = "204" ] || [ "$http" = "200" ] || { echo "::error::Discord 가 거부함"; exit 1; }
 
-      - name: Probe protected routes (must NOT 404)
+      - name: Run all production probes
+        id: probe
         run: |
-          set -u
-          fail=0
-          routes=(
+          set +e
+          failures=()
+
+          # ─── 보호 라우트: 비인증 시 redirect(307)/401 가 정상. 404/500 면 빌드 누락 ───
+          PROTECTED=(
             "/onboarding"
             "/settings"
             "/notifications"
@@ -83,110 +88,131 @@ jobs:
             "/api/badges"
             "/api/community"
           )
-          for path in "${routes[@]}"; do
+          for path in "${PROTECTED[@]}"; do
             url="${BASE_URL}${path}"
             code=$(curl -sS -o /dev/null -w "%{http_code}" "$url")
             matched=$(curl -sS -D - -o /dev/null "$url" | grep -i "^x-matched-path" | tr -d '\r' | awk '{print $2}')
             echo "  $code  $path  matched=$matched"
             if [ "$code" = "404" ] || [ "$code" = "500" ] || [ "$matched" = "/404" ]; then
-              echo "::error::Protected route $path returned $code (matched=$matched) — build/deploy regression"
-              fail=1
+              failures+=("🔒 **보호 라우트 빌드 누락** — \`${path}\` 가 HTTP ${code} 응답 (정상은 307 redirect). 가입 후 사용자가 404 페이지를 봅니다.")
             fi
           done
-          exit $fail
 
-      - name: Probe public pages (must be 200)
-        run: |
-          set -u
-          fail=0
-          routes=(
-            "/"
-            "/sign-up"
-            "/sign-in"
-            "/sso-callback"
-            "/leaderboard"
-            "/cli/auth"
-            "/terms"
-            "/privacy"
-          )
-          for path in "${routes[@]}"; do
+          # ─── 공개 페이지: 200 강제 ───
+          PUBLIC=("/" "/sign-up" "/sign-in" "/sso-callback" "/leaderboard" "/cli/auth" "/terms" "/privacy")
+          for path in "${PUBLIC[@]}"; do
             url="${BASE_URL}${path}"
             code=$(curl -sS -o /dev/null -w "%{http_code}" "$url")
             echo "  $code  $path"
             if [ "$code" != "200" ]; then
-              echo "::error::Public route $path returned $code (expected 200)"
-              fail=1
+              failures+=("🌐 **공개 페이지 다운** — \`${path}\` 가 HTTP ${code} 응답 (정상은 200). 이 페이지로 진입한 사용자가 화면을 못 봅니다.")
             fi
           done
-          exit $fail
 
-      - name: Probe critical APIs (200 or 405 only)
-        run: |
-          set -u
-          fail=0
-          routes=(
-            "/api/leaderboard"
-            "/api/cli/auth/device"
-            "/api/webhooks/clerk"
-            "/api/stats/global"
-          )
-          for path in "${routes[@]}"; do
+          # ─── API: 200/405 OK, 404/500 fail ───
+          APIS=("/api/leaderboard" "/api/cli/auth/device" "/api/webhooks/clerk" "/api/stats/global")
+          for path in "${APIS[@]}"; do
             url="${BASE_URL}${path}"
             code=$(curl -sS -o /dev/null -w "%{http_code}" "$url")
             echo "  $code  $path"
             if [ "$code" = "404" ] || [ "$code" = "500" ]; then
-              echo "::error::API route $path returned $code — likely build regression"
-              fail=1
+              ctx=""
+              case "$path" in
+                "/api/webhooks/clerk") ctx=" — Clerk 가 신규 가입자 정보를 전달 못 함" ;;
+                "/api/leaderboard") ctx=" — 리더보드 자체가 빈 화면" ;;
+                "/api/cli/auth/device") ctx=" — CLI 신규 인증 불가" ;;
+              esac
+              failures+=("🛠 **API 다운** — \`${path}\` 가 HTTP ${code}${ctx}.")
             fi
           done
-          exit $fail
 
-      - name: Probe signup HTML (must not be Clerk hosted Portal)
-        run: |
+          # ─── /sign-up HTML: Clerk hosted Portal fallback 차단 ───
           html=$(curl -sS "${BASE_URL}/sign-up")
           size=${#html}
-          echo "Sign-up HTML size: $size bytes"
+          echo "/sign-up HTML 크기: $size bytes"
           if [ "$size" -lt 5000 ]; then
-            echo "::error::/sign-up returned suspiciously small HTML ($size bytes)"
-            exit 1
+            failures+=("📄 **/sign-up 비정상** — HTML 크기가 ${size} bytes 밖에 안 됨 (정상은 30KB+). 페이지 렌더 실패.")
           fi
           if echo "$html" | grep -qi "accounts.dev"; then
-            echo "::error::/sign-up appears to be Clerk hosted Portal instead of our page"
-            exit 1
+            failures+=("🔑 **Clerk Portal fallback 노출** — /sign-up 이 Clerk 의 외부 Portal 로 떨어짐. \`NEXT_PUBLIC_CLERK_SIGN_IN_URL\` env 또는 미들웨어 \`unauthenticatedUrl\` 설정 누락.")
           fi
-          echo "OK"
 
-      # Discord notification — only when any step above failed.
-      # Webhook URL is stored as a GitHub Secret (DISCORD_WEBHOOK_URL); never hardcoded.
+          # 결과 집계
+          count=${#failures[@]}
+          echo "failed_count=${count}" >> "$GITHUB_OUTPUT"
+
+          if [ "$count" -eq 0 ]; then
+            echo "✅ 모든 검증 통과"
+            echo "summary=ok" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # multiline output 으로 실패 내용 전달
+          {
+            echo "failures<<FAILEOF"
+            printf '%s\n' "${failures[@]}"
+            echo "FAILEOF"
+          } >> "$GITHUB_OUTPUT"
+          echo "summary=${count}개 검증 실패" >> "$GITHUB_OUTPUT"
+          echo "::error::production 스모크 ${count}개 실패"
+          exit 1
+
+      # ─── 한글 Discord 알림 — 어떤 라우트가 어떻게 깨졌는지 명시 ───
       - name: Notify Discord on failure
-        if: failure()
+        if: failure() && steps.probe.outputs.failed_count != ''
         env:
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          SHA_SHORT: ${{ github.sha }}
           TRIGGER: ${{ github.event_name }}
-          SHA: ${{ github.sha }}
+          FAIL_COUNT: ${{ steps.probe.outputs.failed_count }}
+          FAILURES: ${{ steps.probe.outputs.failures }}
+          COMMIT_URL: ${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}
         run: |
           if [ -z "$DISCORD_WEBHOOK_URL" ]; then
-            echo "::warning::DISCORD_WEBHOOK_URL secret not configured — skipping Discord notification"
+            echo "::warning::DISCORD_WEBHOOK_URL secret 미설정 — 알림 스킵"
             exit 0
           fi
+
+          KST=$(TZ=Asia/Seoul date '+%Y-%m-%d %H:%M KST')
+          SHA7=${SHA_SHORT:0:7}
+
+          # 트리거 한글 매핑
+          case "$TRIGGER" in
+            push)              trigger_kr="🚢 git push 직후 (방금 배포된 코드가 깨뜨림)" ;;
+            schedule)          trigger_kr="⏰ 정기 점검 (15분 주기 자동 감시)" ;;
+            workflow_dispatch) trigger_kr="🖱 수동 실행" ;;
+            *)                 trigger_kr="$TRIGGER" ;;
+          esac
+
+          # 실패 항목을 Discord 임베드 description 으로
+          # JSON 안전 escape (jq 사용)
+          fail_json=$(printf '%s' "$FAILURES" | jq -Rs .)
+          trigger_json=$(printf '%s' "$trigger_kr" | jq -Rs .)
+
           payload=$(cat <<JSON
           {
-            "username": "CCgather Smoke",
-            "content": "🚨 **production smoke test FAILED** — check ${BASE_URL} routes",
+            "username": "CCgather 감시봇",
+            "content": "🚨 @here **production 장애 감지** — 신규 가입 흐름이 깨졌을 가능성. 즉시 확인 필요.",
             "embeds": [{
-              "title": "post-deploy-smoke regression",
+              "title": "❌ ${FAIL_COUNT}개 검증 실패 — 클릭해서 상세 로그",
               "url": "${RUN_URL}",
               "color": 15158332,
+              "description": ${fail_json},
               "fields": [
-                { "name": "Trigger", "value": "${TRIGGER}", "inline": true },
-                { "name": "Commit", "value": "\`${SHA}\`", "inline": true },
-                { "name": "Action", "value": "Click the title above to see which route(s) regressed" }
-              ]
+                { "name": "발생 시각", "value": "${KST}", "inline": true },
+                { "name": "트리거", "value": ${trigger_json}, "inline": true },
+                { "name": "마지막 커밋", "value": "[\`${SHA7}\`](${COMMIT_URL})", "inline": true },
+                { "name": "📋 권장 조치 순서", "value": "1️⃣ 위 제목 클릭 → Actions 로그에서 어떤 라우트인지 확인\\n2️⃣ Vercel Dashboard → Deployments → 최근 deploy build log 확인\\n3️⃣ 필요시 직전 정상 deploy 로 rollback (Vercel 의 'Promote to Production')\\n4️⃣ 원인 commit 찾아서 hotfix push" }
+              ],
+              "footer": { "text": "CCgather production · ${BASE_URL}" },
+              "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
             }]
           }
           JSON
           )
-          curl -sS -X POST -H "Content-Type: application/json" -d "$payload" "$DISCORD_WEBHOOK_URL" \
-            && echo "Discord notified" \
-            || echo "::warning::Discord notification failed"
+
+          http=$(curl -sS -o /tmp/resp -w "%{http_code}" -X POST -H "Content-Type: application/json" -d "$payload" "$DISCORD_WEBHOOK_URL")
+          echo "Discord 알림 응답 HTTP $http"
+          cat /tmp/resp
+          [ "$http" = "204" ] || [ "$http" = "200" ] || echo "::warning::Discord 알림 실패"
