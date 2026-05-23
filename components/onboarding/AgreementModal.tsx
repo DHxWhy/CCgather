@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Users, ShieldCheck, Globe, Languages } from "lucide-react";
+import { X, Users, Sparkles, Languages } from "lucide-react";
 import Link from "next/link";
 import { TextShimmer } from "@/components/ui/TextShimmer";
 import type { AgreementTexts } from "@/app/api/translate/agreement/route";
@@ -14,7 +14,12 @@ import type { AgreementTexts } from "@/app/api/translate/agreement/route";
 interface AgreementModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onAgree: (profileConsent: boolean, integrityConsent: boolean) => void;
+  /**
+   * essentialConsent — required. Covers profile_visibility + community_updates.
+   * marketingConsent — optional. Maps to marketing_consent (default false).
+   * (integrity_agreed is now rolled into Terms; the caller marks it true on join.)
+   */
+  onAgree: (essentialConsent: boolean, marketingConsent: boolean) => void;
   isSubmitting?: boolean;
   /** Selected country code for translation */
   selectedCountry?: string | null;
@@ -40,21 +45,20 @@ const MIN_LOADING_TIME = 1000;
 
 const ORIGINAL_TEXTS: AgreementTexts = {
   joinTitle: "Join CCgather",
-  communityParticipation: "Community Participation",
-  byJoiningYouAgree: "By joining, you agree to:",
-  displayGitHubProfile: "Display your GitHub profile on the public leaderboard",
-  receiveAnnouncements: "Receive important service announcements",
-  receiveUpdates: "Receive major feature updates & account notifications",
-  agreeToParticipate: "I agree to participate in the community",
-  dataIntegrity: "Data Integrity",
-  manipulatingWarningTitle: "Manipulating usage data may result in:",
-  manipulatingWarningContent: "Claude Code malfunction \u2022 Account suspension",
-  promiseNotToManipulate: "I promise not to manipulate my usage data",
-  typeAgreeToConfirm: 'Type "agree" to confirm',
+  essentialTitle: "What you're joining",
+  essentialBullet1: "Your GitHub profile will appear on the public leaderboard",
+  essentialBullet2: "You'll get essential service updates (security, account, outages)",
+  essentialConsentLabel: "I agree to participate and receive essential updates",
+  marketingTitle: "Stay in the loop",
+  marketingOptionalBadge: "Optional",
+  marketingDescription: "Occasional product news, new features, and community highlights.",
+  marketingConsentLabel: "Send me product updates and tips",
+  integrityNotice:
+    "By joining, you agree not to manipulate your usage data. See our Terms for details.",
   termsAndPrivacy: "By joining, you agree to our Terms and Privacy Policy",
   joiningButton: "Joining...",
   joinCommunityButton: "Join the Community",
-  communityIncomplete: "Community",
+  essentialIncomplete: "Please agree to the essential terms above to continue",
 };
 
 // =====================================================
@@ -68,8 +72,8 @@ export function AgreementModal({
   isSubmitting,
   selectedCountry,
 }: AgreementModalProps) {
-  const [communityConsent, setCommunityConsent] = useState(false);
-  const [integrityConsent, setIntegrityConsent] = useState(false);
+  const [essentialConsent, setEssentialConsent] = useState(false);
+  const [marketingConsent, setMarketingConsent] = useState(false);
   const [showOriginal, setShowOriginal] = useState(false);
 
   // Abuse prevention - use ref to avoid infinite loop in useCallback
@@ -88,7 +92,9 @@ export function AgreementModal({
     error: null,
   });
 
-  const canProceed = communityConsent && integrityConsent;
+  // Only the essential checkbox gates the Join button. Marketing is opt-in
+  // and does NOT block progress (legally required separation per GDPR/KR/CCPA).
+  const canProceed = essentialConsent;
 
   // Get current texts (translated or original)
   const texts =
@@ -96,11 +102,9 @@ export function AgreementModal({
 
   // Fetch translation when country changes
   const fetchTranslation = useCallback(async (countryCode: string) => {
-    // Increment count using ref (won't recreate callback)
     requestCountRef.current += 1;
     const currentCount = requestCountRef.current;
 
-    // Update abuse state for UI
     const remaining = BLOCK_THRESHOLD - currentCount;
     const nowBlocked = currentCount >= BLOCK_THRESHOLD;
 
@@ -109,7 +113,6 @@ export function AgreementModal({
       remainingChanges: remaining,
     });
 
-    // If blocked, show English only
     if (nowBlocked) {
       setTranslationState({
         isLoading: false,
@@ -121,14 +124,12 @@ export function AgreementModal({
       return;
     }
 
-    // Show loading state
     setTranslationState((prev) => ({
       ...prev,
       isLoading: true,
       error: null,
     }));
 
-    // Track loading start time for minimum shimmer visibility
     const loadingStartTime = Date.now();
 
     try {
@@ -144,7 +145,6 @@ export function AgreementModal({
 
       const data = await response.json();
 
-      // Debug log for translation response
       if (data.isOriginal && data.targetLanguage !== "en") {
         console.warn("[AgreementModal] Translation returned original for non-English:", {
           countryCode,
@@ -154,7 +154,6 @@ export function AgreementModal({
         });
       }
 
-      // Ensure minimum loading time for shimmer visibility
       const elapsed = Date.now() - loadingStartTime;
       if (elapsed < MIN_LOADING_TIME) {
         await new Promise((resolve) => setTimeout(resolve, MIN_LOADING_TIME - elapsed));
@@ -170,7 +169,6 @@ export function AgreementModal({
     } catch (error) {
       console.error("[AgreementModal] Translation error:", error);
 
-      // Still wait minimum time on error for consistent UX
       const elapsed = Date.now() - loadingStartTime;
       if (elapsed < MIN_LOADING_TIME) {
         await new Promise((resolve) => setTimeout(resolve, MIN_LOADING_TIME - elapsed));
@@ -184,21 +182,17 @@ export function AgreementModal({
         error: error instanceof Error ? error.message : "Translation failed",
       });
     }
-  }, []); // No dependencies - uses ref for count
+  }, []);
 
-  // Effect: Fetch translation on country change
   useEffect(() => {
     if (isOpen && selectedCountry) {
-      // Immediately show loading (prevents stale translation flash)
       setTranslationState((prev) => ({
         ...prev,
         isLoading: true,
         error: null,
       }));
-      // Then fetch translation
       fetchTranslation(selectedCountry);
     } else if (!selectedCountry) {
-      // Reset to original if no country selected
       setTranslationState({
         isLoading: false,
         isOriginal: true,
@@ -209,14 +203,13 @@ export function AgreementModal({
     }
   }, [isOpen, selectedCountry, fetchTranslation]);
 
-  // Reset showOriginal when translations change
   useEffect(() => {
     setShowOriginal(false);
   }, [translationState.translations]);
 
   const handleSubmit = () => {
     if (canProceed) {
-      onAgree(communityConsent, integrityConsent);
+      onAgree(essentialConsent, marketingConsent);
     }
   };
 
@@ -224,7 +217,6 @@ export function AgreementModal({
     setShowOriginal((prev) => !prev);
   };
 
-  // Check if translation toggle should be shown
   const showLanguageToggle = !translationState.isOriginal && translationState.translations !== null;
 
   return (
@@ -249,7 +241,7 @@ export function AgreementModal({
             className="fixed inset-0 z-50 flex items-center justify-center p-4"
           >
             <div className="w-full max-w-md bg-[var(--color-bg-secondary)] border border-[var(--border-default)] rounded-2xl shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
-              {/* Header - Compact */}
+              {/* Header */}
               <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--border-default)] flex-shrink-0">
                 <div className="flex items-center gap-2">
                   <Users className="w-5 h-5 text-[var(--color-text-secondary)]" />
@@ -262,7 +254,6 @@ export function AgreementModal({
                   </h2>
                 </div>
                 <div className="flex items-center gap-1">
-                  {/* Language Toggle Button */}
                   {showLanguageToggle && (
                     <button
                       onClick={handleToggleLanguage}
@@ -308,54 +299,46 @@ export function AgreementModal({
                 </div>
               )}
 
-              {/* Translation error notice (for debugging) */}
               {translationState.error && !translationState.isLoading && (
                 <div className="px-4 py-2 text-[10px] text-center bg-red-500/10 text-red-300 border-b border-red-500/20">
                   ⚠️ Translation unavailable: {translationState.error}
                 </div>
               )}
 
-              {/* Content - Dense */}
-              <div className="p-4 space-y-3 overflow-y-auto flex-1">
-                {/* 1. Community Participation (Profile + Communications) */}
-                <div className="space-y-2">
-                  <p className="flex items-center gap-1.5 text-xs text-[var(--color-text-muted)] uppercase tracking-wider font-medium">
-                    <Globe className="w-3.5 h-3.5 text-[var(--color-text-secondary)]" />
+              {/* Content */}
+              <div className="p-4 space-y-4 overflow-y-auto flex-1">
+                {/* Essential consent (REQUIRED) */}
+                <section className="space-y-2">
+                  <div className="text-xs text-[var(--color-text-muted)] uppercase tracking-wider font-medium">
                     {translationState.isLoading ? (
                       <TextShimmer lines={1} className="w-32" variant="compact" />
                     ) : (
-                      texts.communityParticipation
+                      texts.essentialTitle
                     )}
-                  </p>
-                  <div className="text-xs text-[var(--color-text-muted)] bg-[var(--color-bg-tertiary)] rounded-lg p-2.5">
+                  </div>
+                  <div className="text-xs text-[var(--color-text-secondary)] bg-[var(--color-bg-tertiary)] rounded-lg p-3 space-y-1.5">
                     {translationState.isLoading ? (
-                      <TextShimmer lines={4} variant="compact" />
+                      <TextShimmer lines={2} variant="compact" />
                     ) : (
                       <>
-                        <p className="text-[var(--color-text-secondary)] mb-1.5">
-                          {texts.byJoiningYouAgree}
-                        </p>
-                        <div className="space-y-0.5">
-                          <span className="block">• {texts.displayGitHubProfile}</span>
-                          <span className="block">• {texts.receiveAnnouncements}</span>
-                          <span className="block">• {texts.receiveUpdates}</span>
-                        </div>
+                        <div>• {texts.essentialBullet1}</div>
+                        <div>• {texts.essentialBullet2}</div>
                       </>
                     )}
                   </div>
                   <label
-                    className={`flex items-center gap-2.5 p-2.5 rounded-lg border cursor-pointer transition-colors ${communityConsent ? "border-green-500" : "border-[var(--border-default)] hover:border-primary/50"}`}
+                    className={`flex items-center gap-2.5 p-2.5 rounded-lg border cursor-pointer transition-colors ${essentialConsent ? "border-green-500" : "border-[var(--border-default)] hover:border-primary/50"}`}
                   >
                     <input
                       type="checkbox"
-                      checked={communityConsent}
-                      onChange={(e) => setCommunityConsent(e.target.checked)}
+                      checked={essentialConsent}
+                      onChange={(e) => setEssentialConsent(e.target.checked)}
                       className="sr-only peer"
                     />
                     <div
-                      className={`w-4 h-4 rounded border-2 transition-all flex items-center justify-center flex-shrink-0 ${communityConsent ? "bg-green-500 border-green-500" : "border-[var(--border-default)] bg-[var(--color-bg-card)]"}`}
+                      className={`w-4 h-4 rounded border-2 transition-all flex items-center justify-center flex-shrink-0 ${essentialConsent ? "bg-green-500 border-green-500" : "border-[var(--border-default)] bg-[var(--color-bg-card)]"}`}
                     >
-                      {communityConsent && (
+                      {essentialConsent && (
                         <svg
                           className="w-2.5 h-2.5 text-white"
                           fill="none"
@@ -371,54 +354,47 @@ export function AgreementModal({
                       {translationState.isLoading ? (
                         <TextShimmer lines={1} className="w-48" variant="compact" />
                       ) : (
-                        texts.agreeToParticipate
+                        texts.essentialConsentLabel
                       )}
                     </span>
                   </label>
-                </div>
+                </section>
 
-                {/* 3. Data Integrity */}
-                <div className="space-y-2">
-                  <p className="flex items-center gap-1.5 text-xs text-[var(--color-text-muted)] uppercase tracking-wider font-medium">
-                    <ShieldCheck className="w-3.5 h-3.5 text-[var(--color-text-secondary)]" />
-                    {translationState.isLoading ? (
-                      <TextShimmer lines={1} className="w-24" variant="compact" />
-                    ) : (
-                      texts.dataIntegrity
-                    )}
-                  </p>
-                  <div className="text-xs bg-red-500/15 border border-red-500/40 rounded-lg p-3">
-                    <div className="flex items-start gap-2.5">
-                      <span className="text-lg leading-none">🚨</span>
-                      <div>
-                        {translationState.isLoading ? (
-                          <TextShimmer lines={2} variant="compact" />
-                        ) : (
-                          <>
-                            <p className="text-red-400 font-medium">
-                              {texts.manipulatingWarningTitle}
-                            </p>
-                            <p className="text-red-400/80 mt-1">
-                              • {texts.manipulatingWarningContent}
-                            </p>
-                          </>
-                        )}
-                      </div>
+                {/* Marketing opt-in (OPTIONAL — does not block submission) */}
+                <section className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <Sparkles className="w-3.5 h-3.5 text-[var(--color-text-secondary)]" />
+                    <div className="text-xs text-[var(--color-text-muted)] uppercase tracking-wider font-medium">
+                      {translationState.isLoading ? (
+                        <TextShimmer lines={1} className="w-32" variant="compact" />
+                      ) : (
+                        texts.marketingTitle
+                      )}
                     </div>
+                    <span className="px-1.5 py-0.5 text-[9px] uppercase tracking-wide rounded bg-white/[0.06] text-[var(--color-text-muted)] border border-[var(--border-default)]">
+                      {translationState.isLoading ? "…" : texts.marketingOptionalBadge}
+                    </span>
+                  </div>
+                  <div className="text-xs text-[var(--color-text-muted)] px-1">
+                    {translationState.isLoading ? (
+                      <TextShimmer lines={1} variant="compact" />
+                    ) : (
+                      texts.marketingDescription
+                    )}
                   </div>
                   <label
-                    className={`flex items-center gap-2.5 p-2.5 rounded-lg border cursor-pointer transition-colors ${integrityConsent ? "border-green-500" : "border-[var(--border-default)] hover:border-primary/50"}`}
+                    className={`flex items-center gap-2.5 p-2.5 rounded-lg border cursor-pointer transition-colors ${marketingConsent ? "border-primary/60" : "border-[var(--border-default)] hover:border-primary/40"}`}
                   >
                     <input
                       type="checkbox"
-                      checked={integrityConsent}
-                      onChange={(e) => setIntegrityConsent(e.target.checked)}
+                      checked={marketingConsent}
+                      onChange={(e) => setMarketingConsent(e.target.checked)}
                       className="sr-only peer"
                     />
                     <div
-                      className={`w-4 h-4 rounded border-2 transition-all flex items-center justify-center flex-shrink-0 ${integrityConsent ? "bg-green-500 border-green-500" : "border-[var(--border-default)] bg-[var(--color-bg-card)]"}`}
+                      className={`w-4 h-4 rounded border-2 transition-all flex items-center justify-center flex-shrink-0 ${marketingConsent ? "bg-primary border-primary" : "border-[var(--border-default)] bg-[var(--color-bg-card)]"}`}
                     >
-                      {integrityConsent && (
+                      {marketingConsent && (
                         <svg
                           className="w-2.5 h-2.5 text-white"
                           fill="none"
@@ -434,14 +410,29 @@ export function AgreementModal({
                       {translationState.isLoading ? (
                         <TextShimmer lines={1} className="w-48" variant="compact" />
                       ) : (
-                        texts.promiseNotToManipulate
+                        texts.marketingConsentLabel
                       )}
                     </span>
                   </label>
+                </section>
+
+                {/* Integrity notice — neutral one-liner, no scary box */}
+                <div className="text-[11px] leading-relaxed text-[var(--color-text-muted)] px-1">
+                  {translationState.isLoading ? (
+                    <TextShimmer lines={1} variant="compact" />
+                  ) : (
+                    <>
+                      {texts.integrityNotice.replace(/See our Terms.*$/, "")}
+                      <Link href="/terms" target="_blank" className="underline hover:text-primary">
+                        Terms
+                      </Link>
+                      .
+                    </>
+                  )}
                 </div>
 
-                {/* Terms & Privacy - Inline */}
-                <p className="text-[10px] text-[var(--color-text-muted)] text-center pt-2 border-t border-[var(--border-default)]">
+                {/* Terms & Privacy footer */}
+                <div className="text-[10px] text-[var(--color-text-muted)] text-center pt-2 border-t border-[var(--border-default)]">
                   {translationState.isLoading ? (
                     <TextShimmer lines={1} className="mx-auto w-48" variant="compact" />
                   ) : (
@@ -460,10 +451,10 @@ export function AgreementModal({
                       </Link>
                     </>
                   )}
-                </p>
+                </div>
               </div>
 
-              {/* Footer - Compact */}
+              {/* Footer */}
               <div className="p-4 border-t border-[var(--border-default)] bg-[var(--color-bg-tertiary)] flex-shrink-0">
                 <button
                   onClick={handleSubmit}
@@ -488,11 +479,9 @@ export function AgreementModal({
                 </button>
 
                 {!canProceed && (
-                  <p className="text-[10px] text-center text-[var(--color-text-muted)] mt-2">
-                    {!communityConsent && `☐ ${texts.communityIncomplete}`}
-                    {!communityConsent && !integrityConsent && " • "}
-                    {!integrityConsent && "☐ Data Integrity"}
-                  </p>
+                  <div className="text-[10px] text-center text-[var(--color-text-muted)] mt-2">
+                    {translationState.isLoading ? "…" : texts.essentialIncomplete}
+                  </div>
                 )}
               </div>
             </div>

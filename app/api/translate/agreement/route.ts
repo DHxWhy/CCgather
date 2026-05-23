@@ -8,9 +8,12 @@ import { countryToLanguage, isEnglishCountry, SUPPORTED_LANGUAGES } from "@/lib/
 
 const GEMINI_MODEL = "gemini-2.0-flash-lite";
 
-// In-memory cache for agreement translations
-// Key: language code, Value: translated texts
+// In-memory cache for agreement translations.
+// Key: `${SCHEMA_VERSION}:${language}` — bump SCHEMA_VERSION when the text keys
+// change so stale cached translations from a previous schema are ignored.
+const SCHEMA_VERSION = "v2";
 const translationCache = new Map<string, AgreementTexts>();
+const cacheKey = (lang: string) => `${SCHEMA_VERSION}:${lang}`;
 
 // =====================================================
 // Types
@@ -19,25 +22,24 @@ const translationCache = new Map<string, AgreementTexts>();
 export interface AgreementTexts {
   // Header
   joinTitle: string;
-  // Community Participation Section
-  communityParticipation: string;
-  byJoiningYouAgree: string;
-  displayGitHubProfile: string;
-  receiveAnnouncements: string;
-  receiveUpdates: string;
-  agreeToParticipate: string;
-  // Data Integrity Section
-  dataIntegrity: string;
-  manipulatingWarningTitle: string;
-  manipulatingWarningContent: string;
-  promiseNotToManipulate: string;
-  typeAgreeToConfirm: string;
+  // Essential consent section (required — service core)
+  essentialTitle: string;
+  essentialBullet1: string;
+  essentialBullet2: string;
+  essentialConsentLabel: string;
+  // Optional marketing section
+  marketingTitle: string;
+  marketingOptionalBadge: string;
+  marketingDescription: string;
+  marketingConsentLabel: string;
+  // Data Integrity — compressed to a one-line notice (rolled into Terms)
+  integrityNotice: string;
   // Footer
   termsAndPrivacy: string;
   joiningButton: string;
   joinCommunityButton: string;
-  // Incomplete hints
-  communityIncomplete: string;
+  // Incomplete hint
+  essentialIncomplete: string;
 }
 
 interface TranslateRequest {
@@ -50,21 +52,20 @@ interface TranslateRequest {
 
 const ORIGINAL_TEXTS: AgreementTexts = {
   joinTitle: "Join CCgather",
-  communityParticipation: "Community Participation",
-  byJoiningYouAgree: "By joining, you agree to:",
-  displayGitHubProfile: "Display your GitHub profile on the public leaderboard",
-  receiveAnnouncements: "Receive important service announcements",
-  receiveUpdates: "Receive major feature updates & account notifications",
-  agreeToParticipate: "I agree to participate in the community",
-  dataIntegrity: "Data Integrity",
-  manipulatingWarningTitle: "Manipulating usage data may result in:",
-  manipulatingWarningContent: "Claude Code malfunction \u2022 Account suspension",
-  promiseNotToManipulate: "I promise not to manipulate my usage data",
-  typeAgreeToConfirm: 'Type "agree" to confirm',
+  essentialTitle: "What you're joining",
+  essentialBullet1: "Your GitHub profile will appear on the public leaderboard",
+  essentialBullet2: "You'll get essential service updates (security, account, outages)",
+  essentialConsentLabel: "I agree to participate and receive essential updates",
+  marketingTitle: "Stay in the loop",
+  marketingOptionalBadge: "Optional",
+  marketingDescription: "Occasional product news, new features, and community highlights.",
+  marketingConsentLabel: "Send me product updates and tips",
+  integrityNotice:
+    "By joining, you agree not to manipulate your usage data. See our Terms for details.",
   termsAndPrivacy: "By joining, you agree to our Terms and Privacy Policy",
   joiningButton: "Joining...",
   joinCommunityButton: "Join the Community",
-  communityIncomplete: "Community",
+  essentialIncomplete: "Please agree to the essential terms above to continue",
 };
 
 // =====================================================
@@ -102,8 +103,8 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // Check in-memory cache
-    const cached = translationCache.get(targetLanguage);
+    // Check in-memory cache (schema-versioned)
+    const cached = translationCache.get(cacheKey(targetLanguage));
     if (cached) {
       return NextResponse.json({
         translations: cached,
@@ -159,8 +160,8 @@ ${textsToTranslate}`;
     // Parse translations
     const translations = parseTranslations(translatedText, ORIGINAL_TEXTS);
 
-    // Cache the result
-    translationCache.set(targetLanguage, translations);
+    // Cache the result (schema-versioned)
+    translationCache.set(cacheKey(targetLanguage), translations);
 
     return NextResponse.json({
       translations,

@@ -50,6 +50,16 @@ function isInAppBrowser(): boolean {
   return inAppPatterns.some((pattern) => pattern.test(ua));
 }
 
+type Platform = "ios" | "android" | "other";
+
+function detectPlatform(): Platform {
+  if (typeof window === "undefined") return "other";
+  const ua = navigator.userAgent || navigator.vendor;
+  if (/iPhone|iPad|iPod/i.test(ua)) return "ios";
+  if (/Android/i.test(ua)) return "android";
+  return "other";
+}
+
 export default function SignUpPage() {
   // Use signIn instead of signUp for GitHub OAuth:
   // OAuth auto-creates accounts for new users, and signIn flow
@@ -59,13 +69,53 @@ export default function SignUpPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showInAppWarning, setShowInAppWarning] = useState(false);
+  const [platform, setPlatform] = useState<Platform>("other");
+  const [copyStatus, setCopyStatus] = useState<"idle" | "copied">("idle");
 
   // Check for in-app browser on mount
   useEffect(() => {
     if (isInAppBrowser()) {
       setShowInAppWarning(true);
+      setPlatform(detectPlatform());
     }
   }, []);
+
+  // GitHub OAuth typically fails or silently drops the session inside in-app browsers
+  // (cookies/popups blocked). Block the button entirely to avoid sending users into
+  // a dead-end flow they can't recover from.
+  const isOAuthBlocked = showInAppWarning;
+
+  const handleOpenInExternal = async () => {
+    const currentUrl = window.location.href;
+
+    // iOS: x-safari-https:// forces Safari to take over the URL
+    if (platform === "ios") {
+      const safariUrl = currentUrl.replace(/^https?:\/\//, "x-safari-https://");
+      window.location.href = safariUrl;
+      return;
+    }
+
+    // Android: intent:// hands the URL to Chrome (browser_fallback_url keeps users
+    // unstuck if Chrome isn't installed)
+    if (platform === "android") {
+      const url = new URL(currentUrl);
+      const intentUrl =
+        `intent://${url.host}${url.pathname}${url.search}` +
+        `#Intent;scheme=https;package=com.android.chrome;` +
+        `S.browser_fallback_url=${encodeURIComponent(currentUrl)};end;`;
+      window.location.href = intentUrl;
+      return;
+    }
+
+    // Desktop / unknown: clipboard fallback so user can paste into a real browser
+    try {
+      await navigator.clipboard.writeText(currentUrl);
+      setCopyStatus("copied");
+      setTimeout(() => setCopyStatus("idle"), 2000);
+    } catch {
+      setError("Couldn't copy automatically. Please copy this page's URL manually.");
+    }
+  };
 
   const handleGitHubSignUp = async () => {
     setError(null);
@@ -82,9 +132,16 @@ export default function SignUpPage() {
 
     setIsLoading(true);
     try {
-      // Reset any stale/partial sign-in state to prevent session issues
+      // If a previous sign-in attempt left stale client state, resync with the
+      // server before starting OAuth. reload() is intent-clear and non-destructive;
+      // authenticateWithRedirect creates its own fresh attempt server-side anyway,
+      // so we treat reload failures as non-fatal.
       if (signIn.status !== null) {
-        await signIn.create({});
+        try {
+          await signIn.reload();
+        } catch (reloadErr) {
+          console.warn("[/sign-up] signIn.reload() failed (continuing):", reloadErr);
+        }
       }
 
       await signIn.authenticateWithRedirect({
@@ -94,9 +151,15 @@ export default function SignUpPage() {
       });
     } catch (err) {
       console.error("GitHub sign up error:", err);
-      setError("GitHub connection failed. Please try again.");
+      // Surface a recovery action instead of just an error — stale Clerk state
+      // sometimes only clears with a hard reload.
+      setError("GitHub connection failed. Please refresh the page and try again.");
       setIsLoading(false);
     }
+  };
+
+  const handleRefresh = () => {
+    window.location.reload();
   };
 
   return (
@@ -158,14 +221,40 @@ export default function SignUpPage() {
               </p>
             </div>
 
-            {/* In-App Browser Tip */}
+            {/* In-App Browser Block — OAuth typically fails here, so block the button */}
             {showInAppWarning && (
-              <div className="mb-4 p-3 rounded-xl bg-white/5 border border-white/10">
-                <p className="text-[var(--color-text-secondary)] text-xs">
-                  💡 Having trouble? Try opening in{" "}
-                  <span className="font-semibold text-white">Safari</span> or{" "}
-                  <span className="font-semibold text-white">Chrome</span>
-                </p>
+              <div
+                role="alert"
+                className="mb-4 p-4 rounded-xl bg-amber-500/10 border border-amber-500/30"
+              >
+                <div className="flex items-start gap-2 mb-3">
+                  <span className="text-lg leading-none">⚠️</span>
+                  <div>
+                    <p className="text-amber-200 text-sm font-semibold mb-1">
+                      GitHub sign-in won&apos;t work here
+                    </p>
+                    <p className="text-[var(--color-text-secondary)] text-xs leading-relaxed">
+                      This in-app browser blocks OAuth login. Open this page in{" "}
+                      <span className="font-semibold text-white">
+                        {platform === "ios"
+                          ? "Safari"
+                          : platform === "android"
+                            ? "Chrome"
+                            : "Safari or Chrome"}
+                      </span>{" "}
+                      to continue.
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={handleOpenInExternal}
+                  className="w-full flex items-center justify-center gap-2 px-3 py-2.5 bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 rounded-lg text-amber-100 text-sm font-medium transition-colors"
+                >
+                  {platform === "ios" && "Open in Safari"}
+                  {platform === "android" && "Open in Chrome"}
+                  {platform === "other" &&
+                    (copyStatus === "copied" ? "Link copied — paste in browser" : "Copy link")}
+                </button>
               </div>
             )}
 
@@ -175,7 +264,14 @@ export default function SignUpPage() {
                 role="alert"
                 className="mb-4 p-3 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-sm text-center"
               >
-                {error}
+                <p className="mb-2">{error}</p>
+                <button
+                  type="button"
+                  onClick={handleRefresh}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-red-500/15 hover:bg-red-500/25 border border-red-500/30 rounded-md text-red-300 text-xs font-medium transition-colors"
+                >
+                  Refresh page
+                </button>
               </div>
             )}
 
@@ -201,10 +297,14 @@ export default function SignUpPage() {
                 </Link>
               </div>
             ) : (
-              /* Custom GitHub Sign Up Button */
+              /* Custom GitHub Sign Up Button — disabled inside in-app browsers */
               <button
                 onClick={handleGitHubSignUp}
-                disabled={isLoading || !isLoaded}
+                disabled={isLoading || !isLoaded || isOAuthBlocked}
+                aria-disabled={isOAuthBlocked}
+                title={
+                  isOAuthBlocked ? "Open in Safari or Chrome to sign in with GitHub" : undefined
+                }
                 className="w-full flex items-center justify-center gap-3 px-4 py-3.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {isLoading || !isLoaded ? (
@@ -219,7 +319,13 @@ export default function SignUpPage() {
                   </svg>
                 )}
                 <span className="text-white font-medium">
-                  {isLoading ? "Connecting..." : !isLoaded ? "Loading..." : "Continue with GitHub"}
+                  {isOAuthBlocked
+                    ? "GitHub sign-in unavailable here"
+                    : isLoading
+                      ? "Connecting..."
+                      : !isLoaded
+                        ? "Loading..."
+                        : "Continue with GitHub"}
                 </span>
               </button>
             )}

@@ -22,6 +22,14 @@ function getSupabaseAdmin() {
   );
 }
 
+// Postgres constraint-violation SQLSTATEs (class 23) are permanent — retrying
+// the same payload won't fix them. Return 200 in those cases so Clerk stops
+// retrying for 24h and we surface the issue via logs instead of error backoff.
+function isPermanentPgError(code?: string | null): boolean {
+  if (!code) return false;
+  return code.startsWith("23");
+}
+
 export async function POST(req: Request) {
   const WEBHOOK_SECRET = process.env.CLERK_WEBHOOK_SECRET;
 
@@ -73,6 +81,7 @@ export async function POST(req: Request) {
             first_name?: string;
             last_name?: string;
             avatar_url?: string;
+            provider_user_id?: string;
           }
         | undefined;
 
@@ -88,45 +97,87 @@ export async function POST(req: Request) {
       // Use GitHub avatar if available
       const avatarUrl = githubAccount?.avatar_url || image_url;
 
+      // Immutable GitHub numeric ID — survives username/email changes, used for
+      // safe email-based account linking in /api/me to prevent hijacks.
+      const githubId = githubAccount?.provider_user_id || null;
+
       // Generate short 5-character referral code
       const referralCode = generateShortCode();
 
       const supabaseAdmin = getSupabaseAdmin();
-      const { error } = await supabaseAdmin.from("users").insert({
-        clerk_id: id,
-        username: finalUsername,
-        display_name: displayName,
-        avatar_url: avatarUrl,
-        email: email,
-        referral_code: referralCode,
-      });
 
-      if (error) {
-        // Race condition: /api/me may have already created the user
-        if (error.code === "23505") {
-          // Update with GitHub OAuth data (which /api/me fallback may not have)
-          const { error: updateError } = await supabaseAdmin
-            .from("users")
-            .update({
-              username: finalUsername,
-              display_name: displayName,
-              avatar_url: avatarUrl,
-              updated_at: new Date().toISOString(),
-            })
-            .eq("clerk_id", id);
+      // UPSERT on clerk_id — absorbs the most common race (Clerk retry, /api/me
+      // fallback already created the row). Other UNIQUE violations
+      // (username/referral_code/github_id) still surface as 23505.
+      const { error } = await supabaseAdmin.from("users").upsert(
+        {
+          clerk_id: id,
+          github_id: githubId,
+          username: finalUsername,
+          display_name: displayName,
+          avatar_url: avatarUrl,
+          email: email,
+          referral_code: referralCode,
+        },
+        { onConflict: "clerk_id" }
+      );
 
-          if (updateError) {
-            console.error("Failed to update existing user with GitHub data:", updateError);
-          } else {
-            console.log("Updated existing user with GitHub OAuth data:", { clerk_id: id });
-          }
-          // Return 200 to prevent Clerk from retrying
+      if (!error) break;
+
+      // Constraint violation on a non-clerk_id column (username/referral_code/etc).
+      // Retry once with a fresh referral_code + a uniquified username — covers the
+      // two realistic collision sources at signup volume.
+      if (error.code === "23505") {
+        const retryUsername = `${finalUsername}_${id.slice(-8)}`;
+        const retryReferralCode = generateShortCode();
+        const { error: retryError } = await supabaseAdmin.from("users").upsert(
+          {
+            clerk_id: id,
+            github_id: githubId,
+            username: retryUsername,
+            display_name: displayName,
+            avatar_url: avatarUrl,
+            email: email,
+            referral_code: retryReferralCode,
+          },
+          { onConflict: "clerk_id" }
+        );
+
+        if (!retryError) {
+          console.log("[webhook] user.created succeeded on retry:", {
+            clerk_id: id,
+            retryUsername,
+          });
           break;
         }
-        console.error("Failed to create user:", error);
-        return new Response("Failed to create user", { status: 500 });
+
+        // Retry also failed — log and stop Clerk's 24h backoff (200 OK)
+        console.error("[webhook] user.created retry failed:", {
+          code: retryError.code,
+          message: retryError.message,
+          clerk_id: id,
+        });
+        return new Response("OK (logged retry failure)", { status: 200 });
       }
-      break;
+
+      // Non-23505 error: classify by whether retry is meaningful
+      if (isPermanentPgError(error.code)) {
+        // Schema/data issue — Clerk retrying won't help. Log + 200.
+        console.error("[webhook] user.created permanent error (no retry):", {
+          code: error.code,
+          message: error.message,
+          clerk_id: id,
+        });
+        return new Response("OK (permanent error logged)", { status: 200 });
+      }
+
+      // Transient (connection, timeout, etc.) — let Clerk retry with backoff
+      console.error("[webhook] user.created transient error (will retry):", {
+        code: error.code,
+        message: error.message,
+        clerk_id: id,
+      });
+      return new Response("Transient failure", { status: 503 });
     }
 
     case "user.updated": {
@@ -144,6 +195,7 @@ export async function POST(req: Request) {
             first_name?: string;
             last_name?: string;
             avatar_url?: string;
+            provider_user_id?: string;
           }
         | undefined;
 
@@ -159,9 +211,13 @@ export async function POST(req: Request) {
       // Use GitHub avatar if available
       const avatarUrl = githubAccount?.avatar_url || image_url;
 
+      // Backfill / refresh immutable GitHub numeric ID (no-op if Clerk omits it)
+      const githubId = githubAccount?.provider_user_id || undefined;
+
       const { error } = await getSupabaseAdmin()
         .from("users")
         .update({
+          ...(githubId !== undefined ? { github_id: githubId } : {}),
           username: finalUsername || undefined,
           display_name: displayName,
           avatar_url: avatarUrl,
@@ -171,8 +227,20 @@ export async function POST(req: Request) {
         .eq("clerk_id", id);
 
       if (error) {
-        console.error("Failed to update user:", error);
-        return new Response("Failed to update user", { status: 500 });
+        if (isPermanentPgError(error.code)) {
+          console.error("[webhook] user.updated permanent error (no retry):", {
+            code: error.code,
+            message: error.message,
+            clerk_id: id,
+          });
+          return new Response("OK (permanent error logged)", { status: 200 });
+        }
+        console.error("[webhook] user.updated transient error (will retry):", {
+          code: error.code,
+          message: error.message,
+          clerk_id: id,
+        });
+        return new Response("Transient failure", { status: 503 });
       }
       break;
     }
@@ -188,8 +256,20 @@ export async function POST(req: Request) {
         });
 
         if (error) {
-          console.error("Failed to soft-delete user:", error);
-          return new Response("Failed to delete user", { status: 500 });
+          if (isPermanentPgError(error.code)) {
+            console.error("[webhook] user.deleted permanent error (no retry):", {
+              code: error.code,
+              message: error.message,
+              clerk_id: id,
+            });
+            return new Response("OK (permanent error logged)", { status: 200 });
+          }
+          console.error("[webhook] user.deleted transient error (will retry):", {
+            code: error.code,
+            message: error.message,
+            clerk_id: id,
+          });
+          return new Response("Transient failure", { status: 503 });
         }
 
         // If user was already deleted or not found, still return OK

@@ -4,12 +4,7 @@ import { useState, useEffect } from "react";
 import { X as CloseIcon } from "lucide-react";
 import { useSignIn, useUser } from "@clerk/nextjs";
 
-type PromptType =
-  | "social_link"
-  | "profile_limit"
-  | "community_like"
-  | "community_comment"
-  | "community_post";
+type PromptType = "social_link" | "community_like" | "community_comment" | "community_post";
 
 interface LoginPromptModalProps {
   isOpen: boolean;
@@ -32,13 +27,6 @@ const PROMPT_CONTENT: Record<
     title: "Want to check their social profile?",
     description: "Sign in to view social links and create your own developer profile!",
     showGuestOption: true,
-  },
-  profile_limit: {
-    icon: "👀",
-    title: "Want to explore more developers?",
-    description:
-      "Sign up for free to view unlimited profiles! Connect your CLI to join the leaderboard.",
-    showGuestOption: false,
   },
   community_like: {
     icon: "❤️",

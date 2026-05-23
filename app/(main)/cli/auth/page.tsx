@@ -3,6 +3,10 @@
 import { useEffect, useState, useCallback } from "react";
 import { useUser, useSignIn } from "@clerk/nextjs";
 import { useSearchParams, useRouter } from "next/navigation";
+import { useMe } from "@/hooks/use-me";
+
+// Persist CLI device code across OAuth/onboarding redirects (Guard may strip URL params)
+const CLI_PENDING_CODE_KEY = "ccgather_cli_pending_code";
 
 export default function CLIAuthPage() {
   const { isLoaded, isSignedIn } = useUser();
@@ -19,6 +23,12 @@ export default function CLIAuthPage() {
   const userCode = searchParams.get("code");
   // Legacy callback flow (for backwards compatibility)
   const callback = searchParams.get("callback");
+
+  // Onboarding gate — new users must finish onboarding before CLI authorize
+  // (skipped for legacy callback flow, which is for already-onboarded users)
+  const { data: meData, isFetched: isMeFetched } = useMe({
+    enabled: isLoaded && !!isSignedIn && !!userCode,
+  });
 
   const authorizeDirectly = useCallback(async () => {
     if (userCode) {
@@ -40,9 +50,26 @@ export default function CLIAuthPage() {
       return;
     }
 
-    // Proceed directly to authorization (no onboarding check needed for CLI)
+    // Device-code flow: ensure onboarding is complete before authorizing CLI.
+    // Otherwise, new users authorize → leaderboard → forced to /onboarding without cli_code.
+    if (userCode) {
+      if (!isMeFetched) return; // wait for /api/me to resolve
+      const onboardingDone = meData?.onboarding_completed === true && !!meData?.country_code;
+      if (!onboardingDone) {
+        // Stash the code so /onboarding can pick it up after completion
+        try {
+          window.localStorage.setItem(CLI_PENDING_CODE_KEY, userCode);
+        } catch {
+          // localStorage may be unavailable (private mode) — URL param is the fallback
+        }
+        router.replace(`/onboarding?cli_code=${encodeURIComponent(userCode)}`);
+        return;
+      }
+    }
+
+    // Existing user (or legacy callback flow) — proceed straight to authorization
     authorizeDirectly();
-  }, [isLoaded, isSignedIn, authorizeDirectly]);
+  }, [isLoaded, isSignedIn, userCode, isMeFetched, meData, router, authorizeDirectly]);
 
   // Redirect to leaderboard after success (unless callback flow)
   useEffect(() => {
@@ -154,6 +181,15 @@ export default function CLIAuthPage() {
       : callback
         ? `/cli/auth?callback=${encodeURIComponent(callback)}`
         : "/cli/auth";
+
+    // Persist device code before OAuth — Clerk/middleware may strip URL params on redirect
+    if (userCode) {
+      try {
+        window.localStorage.setItem(CLI_PENDING_CODE_KEY, userCode);
+      } catch {
+        // ignore — URL param is primary
+      }
+    }
 
     setIsSigningIn(true);
     try {

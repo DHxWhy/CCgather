@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { ALL_COUNTRIES, TOP_COUNTRIES } from "@/lib/constants/countries";
@@ -11,10 +11,12 @@ import { CLIModal } from "@/components/cli/CLIModal";
 import { AgreementModal } from "@/components/onboarding/AgreementModal";
 import { ChevronRight, Sparkles } from "lucide-react";
 import { FlagIcon } from "@/components/ui/FlagIcon";
+import { useToast } from "@/components/ui/ToastProvider";
 
 export default function OnboardingPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { showToast } = useToast();
   const [selectedCountry, setSelectedCountry] = useState<string>("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showConfetti, setShowConfetti] = useState(false);
@@ -25,8 +27,21 @@ export default function OnboardingPage() {
     "idle"
   );
 
-  // CLI code from URL (when coming from CLI auth flow)
-  const cliCode = searchParams.get("cli_code");
+  // CLI code from URL, with localStorage fallback (set by /cli/auth before OAuth roundtrip).
+  // URL param takes precedence; falls back to stashed code so the flow survives
+  // OAuth/middleware redirects that drop query string.
+  const cliCodeFromUrl = searchParams.get("cli_code");
+  const [cliCode, setCliCode] = useState<string | null>(cliCodeFromUrl);
+
+  useEffect(() => {
+    if (cliCodeFromUrl) return;
+    try {
+      const stashed = window.localStorage.getItem("ccgather_cli_pending_code");
+      if (stashed) setCliCode(stashed);
+    } catch {
+      // localStorage unavailable — no fallback possible
+    }
+  }, [cliCodeFromUrl]);
 
   const selectedCountryData = useMemo(() => {
     return ALL_COUNTRIES.find((c) => c.code === selectedCountry);
@@ -47,7 +62,11 @@ export default function OnboardingPage() {
   };
 
   // Handle agreement and submit
-  const handleAgree = async (profileConsent: boolean, integrityConsent: boolean) => {
+  //  - essentialConsent: required (covers profile_visibility + community_updates).
+  //  - marketingConsent: optional opt-in (kept separate per GDPR/KR/CCPA).
+  //  - integrity_agreed: always true at this point; the integrity clause is
+  //    surfaced in the modal copy + Terms, no separate checkbox required.
+  const handleAgree = async (essentialConsent: boolean, marketingConsent: boolean) => {
     if (!selectedCountry) return;
 
     setIsSubmitting(true);
@@ -59,9 +78,10 @@ export default function OnboardingPage() {
           country_code: selectedCountry,
           timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
           onboarding_completed: true,
-          profile_visibility_consent: profileConsent,
-          community_updates_consent: profileConsent,
-          integrity_agreed: integrityConsent,
+          profile_visibility_consent: essentialConsent,
+          community_updates_consent: essentialConsent,
+          marketing_consent: marketingConsent,
+          integrity_agreed: true,
         }),
       });
 
@@ -71,7 +91,11 @@ export default function OnboardingPage() {
         // Verify the save was successful
         if (!data.user?.onboarding_completed) {
           console.error("Onboarding save verification failed:", data);
-          alert("Failed to save onboarding status. Please try again.");
+          showToast({
+            type: "error",
+            title: "Couldn't save onboarding",
+            message: "Please try again in a moment.",
+          });
           return;
         }
 
@@ -92,7 +116,7 @@ export default function OnboardingPage() {
         }
 
         // Mark onboarding just completed (prevents race condition redirect)
-        sessionStorage.setItem("onboarding_just_completed", "true");
+        sessionStorage.setItem("onboarding_just_completed", Date.now().toString());
 
         // Close agreement modal
         setShowAgreementModal(false);
@@ -110,11 +134,19 @@ export default function OnboardingPage() {
           return {};
         });
         console.error("Failed to update profile:", response.status, data);
-        alert(`Failed to join (${response.status}): ${data.error || "Unknown error"}`);
+        showToast({
+          type: "error",
+          title: `Failed to join (${response.status})`,
+          message: data.error || "Unknown error — please try again.",
+        });
       }
     } catch (error) {
       console.error("Failed to update profile:", error);
-      alert(`Network error: ${error instanceof Error ? error.message : "Connection failed"}`);
+      showToast({
+        type: "error",
+        title: "Network error",
+        message: error instanceof Error ? error.message : "Connection failed",
+      });
     } finally {
       setIsSubmitting(false);
     }
@@ -122,6 +154,13 @@ export default function OnboardingPage() {
 
   const authorizeCLI = async (code: string) => {
     setCliAuthStatus("authorizing");
+    // Clear stash regardless of outcome — code is single-use and re-running this
+    // page after a failure would otherwise loop on a stale code.
+    try {
+      window.localStorage.removeItem("ccgather_cli_pending_code");
+    } catch {
+      // ignore
+    }
     try {
       const response = await fetch("/api/cli/auth/device/authorize", {
         method: "POST",
@@ -129,10 +168,12 @@ export default function OnboardingPage() {
         body: JSON.stringify({ user_code: code }),
       });
 
-      if (response.ok) {
+      // 410 = code already consumed (e.g. /cli/auth authorized it earlier in the session)
+      // Treat as success so user isn't blocked by a stale CLI guide modal.
+      if (response.ok || response.status === 410) {
         setCliAuthStatus("success");
         // Set flag to skip OnboardingGuard check
-        sessionStorage.setItem("onboarding_just_completed", "true");
+        sessionStorage.setItem("onboarding_just_completed", Date.now().toString());
         // Show success briefly then redirect
         setTimeout(() => {
           router.replace("/leaderboard");
@@ -162,7 +203,7 @@ export default function OnboardingPage() {
   const handleCLIModalClose = () => {
     setShowCLIModal(false);
     // Set flag to skip OnboardingGuard check (prevents race condition)
-    sessionStorage.setItem("onboarding_just_completed", "true");
+    sessionStorage.setItem("onboarding_just_completed", Date.now().toString());
     router.replace("/leaderboard");
   };
 

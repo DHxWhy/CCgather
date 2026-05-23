@@ -32,9 +32,14 @@ export default clerkMiddleware(async (auth, req) => {
     return NextResponse.redirect(new URL("/leaderboard", req.url));
   }
 
-  // 비공개 라우트는 로그인 필수
+  // 비공개 라우트는 로그인 필수.
+  // unauthenticatedUrl 을 명시해서 Clerk hosted Account Portal (accounts.dev)
+  // 대신 우리 앱의 /sign-in 으로 보냅니다. NEXT_PUBLIC_CLERK_SIGN_IN_URL env 가
+  // 누락된 환경에서도 GitHub-only UX 가 보장됩니다.
   if (!isPublicRoute(req)) {
-    await auth.protect();
+    await auth.protect({
+      unauthenticatedUrl: new URL("/sign-in", req.url).toString(),
+    });
   }
 
   // Public routes and non-redirect paths: continue without modification

@@ -1,8 +1,62 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth, currentUser } from "@clerk/nextjs/server";
+import { cookies } from "next/headers";
 import { createServiceClient } from "@/lib/supabase/server";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { z } from "zod";
 import { randomBytes } from "crypto";
+
+// Pending-referral attribution: set by /api/referral/[code] (cookie) and
+// claimed on the first authenticated /api/me GET so attribution lands before
+// onboarding instead of after. localStorage path (/api/referral/claim) is the
+// fallback for when the cookie is unavailable (cross-device, cleared cookies).
+const PENDING_REF_COOKIE = "ccg_pending_ref";
+
+async function tryClaimPendingReferral(
+  supabase: SupabaseClient,
+  userRowId: string,
+  currentReferredBy: string | null | undefined,
+  pendingCode: string | null
+): Promise<void> {
+  if (!pendingCode || currentReferredBy) return;
+
+  const { data: inviter } = await supabase
+    .from("users")
+    .select("id")
+    .eq("referral_code", pendingCode.toLowerCase())
+    .is("deleted_at", null)
+    .single();
+
+  if (!inviter || inviter.id === userRowId) return;
+
+  // Atomic — same guard pattern as POST /api/referral/claim.
+  // Silent on conflict: the cookie is single-use; we don't surface failures here.
+  const { error } = await supabase
+    .from("users")
+    .update({ referred_by: inviter.id })
+    .eq("id", userRowId)
+    .is("referred_by", null);
+
+  if (error) {
+    console.error("[/api/me] Pending referral claim failed:", error);
+  }
+}
+
+function clearPendingRefCookie(response: NextResponse, hadCookie: boolean): NextResponse {
+  // Single-use: clear regardless of claim outcome to avoid re-attempting next request.
+  if (hadCookie) {
+    response.cookies.set({
+      name: PENDING_REF_COOKIE,
+      value: "",
+      httpOnly: true,
+      sameSite: "lax",
+      secure: process.env.NODE_ENV === "production",
+      path: "/",
+      maxAge: 0,
+    });
+  }
+  return response;
+}
 
 // Generate 5-character alphanumeric referral code (CSPRNG)
 function generateShortCode(): string {
@@ -71,6 +125,11 @@ export async function GET() {
 
   const supabase = createServiceClient();
 
+  // Read pending-referral cookie up-front; consumed once across all response branches.
+  const cookieStore = await cookies();
+  const pendingRefCode = cookieStore.get(PENDING_REF_COOKIE)?.value ?? null;
+  const hadPendingRefCookie = pendingRefCode !== null;
+
   const { data: user, error } = await supabase
     .from("users")
     .select(
@@ -91,8 +150,10 @@ export async function GET() {
       is_admin,
       social_links,
       referral_code,
+      referred_by,
       hide_profile_on_invite,
       ccplan,
+      github_id,
       created_at,
       last_submission_at
     `
@@ -100,6 +161,12 @@ export async function GET() {
     .eq("clerk_id", userId)
     .is("deleted_at", null)
     .single();
+
+  // Claim pending referral as soon as the user row is known — runs before any
+  // response branch so subsequent reads see the updated referred_by.
+  if (!error && user && hadPendingRefCookie) {
+    await tryClaimPendingReferral(supabase, user.id, user.referred_by, pendingRefCode);
+  }
 
   if (error || !user) {
     // User not found by clerk_id - check if existing user with same email
@@ -110,16 +177,25 @@ export async function GET() {
 
     const email = clerkUser.emailAddresses[0]?.emailAddress;
 
-    // Account linking by email: only allow if the existing account uses the same OAuth provider.
-    // Currently GitHub-only, but this guard prevents cross-provider account takeover if
-    // additional auth methods are added in the future.
+    // Account linking by email: only safe when we can prove the same identity owns it.
+    // GitHub email is mutable/recyclable, so email alone is insufficient — we also require
+    // the immutable GitHub numeric ID (provider_user_id) to match. For legacy rows that
+    // pre-date github_id storage, we backfill from Clerk OAuth on first match.
+    const githubAccount = clerkUser.externalAccounts?.find(
+      (acc) => acc.provider === "oauth_github"
+    );
     const currentProvider = clerkUser.externalAccounts?.[0]?.provider;
+    // Clerk Backend SDK exposes the provider's user ID as `externalId`
+    // (webhook JSON payload uses snake_case `provider_user_id` — different field name, same value)
+    const githubId = githubAccount?.externalId || null;
+
     if (email && currentProvider === "oauth_github") {
       const { data: existingByEmail } = await supabase
         .from("users")
         .select(
           `
           id,
+          github_id,
           username,
           display_name,
           avatar_url,
@@ -134,6 +210,7 @@ export async function GET() {
           onboarding_completed,
           is_admin,
           social_links,
+          referred_by,
           created_at,
           last_submission_at
         `
@@ -143,38 +220,79 @@ export async function GET() {
         .single();
 
       if (existingByEmail) {
-        // Found existing account with same email - link clerk_id to this account
-        console.log("[/api/me] Linking existing account by email:", {
-          email,
-          old_user_id: existingByEmail.id,
-          new_clerk_id: userId,
-        });
+        // Verify the GitHub numeric ID matches (or backfill if absent).
+        // If the existing row has a github_id that differs from the current Clerk
+        // user's GitHub ID, this is a different person who happens to share the
+        // recycled email — DO NOT link, fall through to creating a new account.
+        const existingGithubId = existingByEmail.github_id;
+        const isSameIdentity =
+          !existingGithubId || // legacy row → backfill on link
+          !githubId || // Clerk didn't expose ID → conservative: still link (provider-guarded)
+          existingGithubId === githubId;
 
-        const { error: linkError } = await supabase
-          .from("users")
-          .update({ clerk_id: userId, updated_at: new Date().toISOString() })
-          .eq("id", existingByEmail.id);
-
-        if (linkError) {
-          console.error("[/api/me] Failed to link account:", linkError);
+        if (!isSameIdentity) {
+          console.warn("[/api/me] Refusing to link by email — github_id mismatch:", {
+            email,
+            existing_github_id: existingGithubId,
+            incoming_github_id: githubId,
+          });
         } else {
-          // Get referral count for this user
-          const { count: existingReferralCount } = await supabase
-            .from("users")
-            .select("*", { count: "exact", head: true })
-            .eq("referred_by", existingByEmail.id);
+          // Found existing account with same email + matching identity — link clerk_id
+          console.log("[/api/me] Linking existing account by email:", {
+            email,
+            old_user_id: existingByEmail.id,
+            new_clerk_id: userId,
+            backfilled_github_id: !existingGithubId && !!githubId,
+          });
 
-          // Return the existing user (now linked to new clerk_id)
-          return NextResponse.json(
-            { user: { ...existingByEmail, referral_count: existingReferralCount || 0 } },
-            {
-              headers: {
-                "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
-                Pragma: "no-cache",
-                Expires: "0",
-              },
+          const linkUpdate: Record<string, unknown> = {
+            clerk_id: userId,
+            updated_at: new Date().toISOString(),
+          };
+          // Backfill github_id only when missing — never overwrite a divergent value
+          if (!existingGithubId && githubId) {
+            linkUpdate.github_id = githubId;
+          }
+
+          const { error: linkError } = await supabase
+            .from("users")
+            .update(linkUpdate)
+            .eq("id", existingByEmail.id);
+
+          if (linkError) {
+            console.error("[/api/me] Failed to link account:", linkError);
+          } else {
+            // Apply pending referral to the now-linked account
+            if (hadPendingRefCookie) {
+              await tryClaimPendingReferral(
+                supabase,
+                existingByEmail.id,
+                existingByEmail.referred_by,
+                pendingRefCode
+              );
             }
-          );
+
+            // Get referral count for this user
+            const { count: existingReferralCount } = await supabase
+              .from("users")
+              .select("*", { count: "exact", head: true })
+              .eq("referred_by", existingByEmail.id);
+
+            // Return the existing user (now linked to new clerk_id)
+            return clearPendingRefCookie(
+              NextResponse.json(
+                { user: { ...existingByEmail, referral_count: existingReferralCount || 0 } },
+                {
+                  headers: {
+                    "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
+                    Pragma: "no-cache",
+                    Expires: "0",
+                  },
+                }
+              ),
+              hadPendingRefCookie
+            );
+          }
         }
       }
     }
@@ -192,6 +310,7 @@ export async function GET() {
       .from("users")
       .insert({
         clerk_id: userId,
+        github_id: githubId,
         username: baseUsername,
         display_name: displayName,
         avatar_url: clerkUser.imageUrl,
@@ -249,70 +368,122 @@ export async function GET() {
           .single();
 
         if (existingByClerkId) {
-          return NextResponse.json(
-            { user: existingByClerkId },
-            {
-              headers: {
-                "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
-                Pragma: "no-cache",
-                Expires: "0",
-              },
-            }
+          if (hadPendingRefCookie) {
+            // existingByClerkId SELECT doesn't include referred_by; pass undefined
+            // so tryClaim does an extra lookup-free atomic update (the WHERE
+            // referred_by IS NULL guard inside is the real protection).
+            await tryClaimPendingReferral(
+              supabase,
+              existingByClerkId.id,
+              undefined,
+              pendingRefCode
+            );
+          }
+          return clearPendingRefCookie(
+            NextResponse.json(
+              { user: existingByClerkId },
+              {
+                headers: {
+                  "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
+                  Pragma: "no-cache",
+                  Expires: "0",
+                },
+              }
+            ),
+            hadPendingRefCookie
           );
         }
 
-        // If not found by clerk_id, username conflict with another user
-        // Try with a unique username suffix
-        const uniqueUsername = `${clerkUser.username || "user"}_${userId.slice(0, 8)}`;
-        const retryReferralCode = generateShortCode();
-        const { data: retryUser, error: retryError } = await supabase
-          .from("users")
-          .insert({
-            clerk_id: userId,
-            username: uniqueUsername,
-            display_name: displayName,
-            avatar_url: clerkUser.imageUrl,
-            email: clerkUser.emailAddresses[0]?.emailAddress,
-            onboarding_completed: false,
-            referral_code: retryReferralCode,
-          })
-          .select(
+        // Username and/or referral_code conflict with another row.
+        // Both have UNIQUE constraints; both can collide independently. Retry
+        // up to 5 times with fresh random suffixes — covers birthday-paradox
+        // collisions on a 36^5 referral_code space at higher signup volumes.
+        const baseUsername = clerkUser.username || "user";
+        const MAX_INSERT_RETRIES = 5;
+        let retryUser: { id: string; [k: string]: unknown } | null = null;
+        let lastRetryError: { code?: string; message?: string } | null = null;
+
+        for (let attempt = 1; attempt <= MAX_INSERT_RETRIES; attempt++) {
+          // Each attempt: unique username suffix (attempt index disambiguates
+          // if first suffix itself collides) + freshly generated referral_code
+          const uniqueUsername =
+            attempt === 1
+              ? `${baseUsername}_${userId.slice(0, 8)}`
+              : `${baseUsername}_${userId.slice(0, 8)}_${attempt}`;
+          const retryReferralCode = generateShortCode();
+
+          const { data, error: retryError } = await supabase
+            .from("users")
+            .insert({
+              clerk_id: userId,
+              github_id: githubId,
+              username: uniqueUsername,
+              display_name: displayName,
+              avatar_url: clerkUser.imageUrl,
+              email: clerkUser.emailAddresses[0]?.emailAddress,
+              onboarding_completed: false,
+              referral_code: retryReferralCode,
+            })
+            .select(
+              `
+              id,
+              username,
+              display_name,
+              avatar_url,
+              country_code,
+              timezone,
+              current_level,
+              global_rank,
+              country_rank,
+              total_tokens,
+              total_cost,
+              onboarding_completed,
+              is_admin,
+              social_links,
+              created_at
             `
-            id,
-            username,
-            display_name,
-            avatar_url,
-            country_code,
-            timezone,
-            current_level,
-            global_rank,
-            country_rank,
-            total_tokens,
-            total_cost,
-            onboarding_completed,
-            is_admin,
-            social_links,
-            created_at
-          `
-          )
-          .single();
+            )
+            .single();
 
-        if (!retryError && retryUser) {
-          console.log("Created user with unique username:", {
-            clerk_id: userId,
-            username: uniqueUsername,
-          });
-          return NextResponse.json(
-            { user: retryUser },
-            {
-              headers: {
-                "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
-                Pragma: "no-cache",
-                Expires: "0",
-              },
-            }
+          if (!retryError && data) {
+            retryUser = data;
+            console.log("[/api/me] Created user with unique fields:", {
+              clerk_id: userId,
+              username: uniqueUsername,
+              attempt,
+            });
+            break;
+          }
+
+          lastRetryError = retryError;
+          // Non-UNIQUE failures aren't fixable by retrying with new codes
+          if (retryError?.code !== "23505") break;
+        }
+
+        if (retryUser) {
+          if (hadPendingRefCookie) {
+            await tryClaimPendingReferral(supabase, retryUser.id, null, pendingRefCode);
+          }
+          return clearPendingRefCookie(
+            NextResponse.json(
+              { user: retryUser },
+              {
+                headers: {
+                  "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
+                  Pragma: "no-cache",
+                  Expires: "0",
+                },
+              }
+            ),
+            hadPendingRefCookie
           );
         }
+
+        console.error("[/api/me] Auto-create exhausted retries:", {
+          clerk_id: userId,
+          lastErrorCode: lastRetryError?.code,
+          lastErrorMessage: lastRetryError?.message,
+        });
       }
       console.error("Failed to auto-create user:", insertError);
       return NextResponse.json({ error: "User not found" }, { status: 404 });
@@ -320,16 +491,24 @@ export async function GET() {
 
     console.log("Auto-created user from /api/me GET:", { clerk_id: userId, user_id: newUser?.id });
 
+    // Brand-new account → referred_by is null; attempt claim before responding
+    if (hadPendingRefCookie && newUser?.id) {
+      await tryClaimPendingReferral(supabase, newUser.id, null, pendingRefCode);
+    }
+
     // New user has 0 referrals
-    return NextResponse.json(
-      { user: { ...newUser, referral_count: 0 } },
-      {
-        headers: {
-          "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
-          Pragma: "no-cache",
-          Expires: "0",
-        },
-      }
+    return clearPendingRefCookie(
+      NextResponse.json(
+        { user: { ...newUser, referral_count: 0 } },
+        {
+          headers: {
+            "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
+            Pragma: "no-cache",
+            Expires: "0",
+          },
+        }
+      ),
+      hadPendingRefCookie
     );
   }
 
@@ -340,66 +519,22 @@ export async function GET() {
       account.provider.toLowerCase().includes("github")
     );
 
-    // Get GitHub username from Clerk's OAuth data
-    const githubUsername = githubAccount?.username || clerkUser.username;
+    // Backfill the immutable GitHub numeric ID for legacy rows.
+    // Profile fields (username/display_name/avatar_url) are NOT auto-synced here —
+    // the explicit POST /api/me/sync-github route exists for that, and silently
+    // overwriting user edits on every page load was the bug we're closing.
+    const clerkGithubId = githubAccount?.externalId || null;
+    if (clerkGithubId && !user.github_id) {
+      const { error: backfillError } = await supabase
+        .from("users")
+        .update({ github_id: clerkGithubId, updated_at: new Date().toISOString() })
+        .eq("clerk_id", userId)
+        .is("github_id", null); // race-safe: don't clobber if another request already wrote
 
-    if (githubUsername) {
-      try {
-        // Fetch latest profile directly from GitHub API
-        const githubRes = await fetch(`https://api.github.com/users/${githubUsername}`, {
-          headers: {
-            Accept: "application/vnd.github.v3+json",
-            "User-Agent": "CCgather",
-          },
-          next: { revalidate: 3600 }, // Cache for 1 hour
-        });
-
-        if (githubRes.ok) {
-          const githubProfile = await githubRes.json();
-
-          // Get latest values from GitHub API
-          const latestUsername = githubProfile.login; // GitHub login (username)
-          const latestDisplayName = githubProfile.name || latestUsername; // GitHub display name
-          const latestAvatarUrl = githubProfile.avatar_url;
-
-          // Check if any profile info has changed
-          const needsUpdate =
-            (latestUsername && user.username !== latestUsername) ||
-            (latestDisplayName && user.display_name !== latestDisplayName) ||
-            (latestAvatarUrl && user.avatar_url !== latestAvatarUrl);
-
-          if (needsUpdate) {
-            const updateData: Record<string, unknown> = {
-              updated_at: new Date().toISOString(),
-            };
-
-            if (latestUsername && user.username !== latestUsername) {
-              updateData.username = latestUsername;
-            }
-            if (latestDisplayName && user.display_name !== latestDisplayName) {
-              updateData.display_name = latestDisplayName;
-            }
-            if (latestAvatarUrl && user.avatar_url !== latestAvatarUrl) {
-              updateData.avatar_url = latestAvatarUrl;
-            }
-
-            const { error: syncError } = await supabase
-              .from("users")
-              .update(updateData)
-              .eq("clerk_id", userId);
-
-            if (syncError) {
-              console.error("[/api/me] Failed to sync profile from GitHub:", syncError);
-            } else {
-              console.log("[/api/me] Synced profile from GitHub API:", updateData);
-              // Update local user object with new values
-              Object.assign(user, updateData);
-            }
-          }
-        }
-      } catch (githubError) {
-        console.error("[/api/me] GitHub API fetch failed:", githubError);
-        // Continue without syncing - don't block the request
+      if (backfillError) {
+        console.error("[/api/me] Failed to backfill github_id:", backfillError);
+      } else {
+        user.github_id = clerkGithubId;
       }
     }
   }
@@ -438,21 +573,24 @@ export async function GET() {
         .eq("referred_by", user.id);
 
       // Return updated user data
-      return NextResponse.json(
-        {
-          user: {
-            ...user,
-            social_links: updatedSocialLinks,
-            referral_count: socialLinksReferralCount || 0,
+      return clearPendingRefCookie(
+        NextResponse.json(
+          {
+            user: {
+              ...user,
+              social_links: updatedSocialLinks,
+              referral_count: socialLinksReferralCount || 0,
+            },
           },
-        },
-        {
-          headers: {
-            "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
-            Pragma: "no-cache",
-            Expires: "0",
-          },
-        }
+          {
+            headers: {
+              "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
+              Pragma: "no-cache",
+              Expires: "0",
+            },
+          }
+        ),
+        hadPendingRefCookie
       );
     }
   }
@@ -489,15 +627,18 @@ export async function GET() {
     .eq("referred_by", finalUser.id);
 
   // Add cache control headers to prevent stale data
-  return NextResponse.json(
-    { user: { ...finalUser, referral_count: referralCount || 0 } },
-    {
-      headers: {
-        "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
-        Pragma: "no-cache",
-        Expires: "0",
-      },
-    }
+  return clearPendingRefCookie(
+    NextResponse.json(
+      { user: { ...finalUser, referral_count: referralCount || 0 } },
+      {
+        headers: {
+          "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
+          Pragma: "no-cache",
+          Expires: "0",
+        },
+      }
+    ),
+    hadPendingRefCookie
   );
 }
 

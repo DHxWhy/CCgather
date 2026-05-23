@@ -19,27 +19,29 @@ export async function POST(request: NextRequest) {
 
     const supabase = createServiceClient();
 
-    // Get current user
+    // Get current user (active only)
     const { data: currentUser, error: userError } = await supabase
       .from("users")
       .select("id, referred_by")
       .eq("clerk_id", clerkId)
+      .is("deleted_at", null)
       .single();
 
     if (userError || !currentUser) {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
-    // Check if already referred
+    // Early-exit check (non-authoritative — atomic guard below is the real protection)
     if (currentUser.referred_by) {
       return NextResponse.json({ error: "Already referred" }, { status: 400 });
     }
 
-    // Find the inviter by referral code
+    // Find the inviter by referral code (exclude soft-deleted accounts)
     const { data: inviter, error: inviterError } = await supabase
       .from("users")
       .select("id")
       .eq("referral_code", referral_code.toLowerCase())
+      .is("deleted_at", null)
       .single();
 
     if (inviterError || !inviter) {
@@ -51,15 +53,24 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Cannot refer yourself" }, { status: 400 });
     }
 
-    // Update current user with referred_by
-    const { error: updateError } = await supabase
+    // Atomic claim: only succeeds when referred_by IS NULL.
+    // Prevents TOCTOU race where two concurrent claims both pass the early check.
+    const { data: claimed, error: updateError } = await supabase
       .from("users")
       .update({ referred_by: inviter.id })
-      .eq("id", currentUser.id);
+      .eq("id", currentUser.id)
+      .is("referred_by", null)
+      .select("id")
+      .maybeSingle();
 
     if (updateError) {
       console.error("Failed to update referral:", updateError);
       return NextResponse.json({ error: "Failed to claim referral" }, { status: 500 });
+    }
+
+    if (!claimed) {
+      // Lost the race — another concurrent request already claimed
+      return NextResponse.json({ error: "Already referred" }, { status: 400 });
     }
 
     return NextResponse.json({ success: true });

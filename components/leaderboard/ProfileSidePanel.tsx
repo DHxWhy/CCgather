@@ -894,39 +894,6 @@ interface ProfileSidePanelProps {
   displayCountryRank?: number;
 }
 
-// Profile view tracking for non-logged-in users
-const PROFILE_VIEW_LIMIT = 3;
-const STORAGE_KEY = "ccgather_profile_views";
-
-function getProfileViewCount(): number {
-  if (typeof window === "undefined") return 0;
-  try {
-    const data = localStorage.getItem(STORAGE_KEY);
-    if (!data) return 0;
-    const parsed = JSON.parse(data);
-    // Reset if it's been more than 24 hours
-    if (Date.now() - parsed.timestamp > 24 * 60 * 60 * 1000) {
-      localStorage.removeItem(STORAGE_KEY);
-      return 0;
-    }
-    return parsed.count || 0;
-  } catch {
-    return 0;
-  }
-}
-
-function incrementProfileViewCount(): number {
-  if (typeof window === "undefined") return 0;
-  try {
-    const current = getProfileViewCount();
-    const newCount = current + 1;
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({ count: newCount, timestamp: Date.now() }));
-    return newCount;
-  } catch {
-    return 0;
-  }
-}
-
 export function ProfileSidePanel({
   userId,
   isOpen,
@@ -955,9 +922,7 @@ export function ProfileSidePanel({
 
   // Login prompt modal state
   const [showLoginModal, setShowLoginModal] = useState(false);
-  const [loginModalType, setLoginModalType] = useState<"social_link" | "profile_limit">(
-    "social_link"
-  );
+  const [loginModalType, setLoginModalType] = useState<"social_link">("social_link");
   const [pendingSocialUrl, setPendingSocialUrl] = useState<string | null>(null);
 
   // React Query: Fetch all user data with caching
@@ -1028,22 +993,6 @@ export function ProfileSidePanel({
     },
     [onClose, externalPostsClick, router]
   );
-
-  // Check profile view limit for non-logged-in users
-  useEffect(() => {
-    if (!isOpen || !userId || isSignedIn) return;
-
-    // Check if this is a new profile view
-    const viewCount = getProfileViewCount();
-    if (viewCount >= PROFILE_VIEW_LIMIT) {
-      // Show login prompt after limit reached
-      setLoginModalType("profile_limit");
-      setShowLoginModal(true);
-    } else {
-      // Increment view count
-      incrementProfileViewCount();
-    }
-  }, [isOpen, userId, isSignedIn]);
 
   // Only mobile uses overlay mode, tablet uses push mode
   const isOverlayPanel = isMobile;
@@ -1566,13 +1515,9 @@ export function ProfileSidePanel({
         onClose={() => {
           setShowLoginModal(false);
           setPendingSocialUrl(null);
-          // If it was profile limit modal, close the panel too
-          if (loginModalType === "profile_limit") {
-            onClose();
-          }
         }}
         type={loginModalType}
-        onContinueAsGuest={loginModalType === "social_link" ? handleContinueAsGuest : undefined}
+        onContinueAsGuest={handleContinueAsGuest}
       />
     </>
   );

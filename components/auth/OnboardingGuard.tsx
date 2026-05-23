@@ -1,11 +1,36 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { useUser } from "@clerk/nextjs";
 import { AccountRecoveryModal } from "./AccountRecoveryModal";
 import { BrandSpinner } from "@/components/shared/BrandSpinner";
 import { useMe } from "@/hooks/use-me";
+
+// Race-guard flag set by /onboarding right after successful completion.
+// Stored as Date.now() string; valid for up to 5s after onboarding finishes.
+const ONBOARDING_FLAG_KEY = "onboarding_just_completed";
+const ONBOARDING_FLAG_TTL_MS = 5_000;
+
+/** Read the just-completed flag without consuming it. Auto-cleans expired values. */
+function readOnboardingJustCompleted(): boolean {
+  try {
+    const raw = sessionStorage.getItem(ONBOARDING_FLAG_KEY);
+    if (!raw) return false;
+    const ts = Number.parseInt(raw, 10);
+    if (Number.isNaN(ts)) {
+      sessionStorage.removeItem(ONBOARDING_FLAG_KEY);
+      return false;
+    }
+    if (Date.now() - ts > ONBOARDING_FLAG_TTL_MS) {
+      sessionStorage.removeItem(ONBOARDING_FLAG_KEY);
+      return false;
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 interface PendingDeletionInfo {
   pending_deletion: true;
@@ -32,6 +57,9 @@ export function OnboardingGuard({ children }: OnboardingGuardProps) {
   const [hasMounted, setHasMounted] = useState(false);
   const [isRedirecting, setIsRedirecting] = useState(false);
   const [pendingDeletionInfo, setPendingDeletionInfo] = useState<PendingDeletionInfo | null>(null);
+  // mount-once guard — survives Strict-Mode double-invoke, prevents the second
+  // mount from missing the flag and bouncing the user back to /onboarding.
+  const consumedFlagRef = useRef(false);
 
   // React Query: Cached /api/me call
   const {
@@ -103,9 +131,11 @@ export function OnboardingGuard({ children }: OnboardingGuardProps) {
         return;
       }
 
-      // Skip check if just completed onboarding (prevents race condition)
-      if (sessionStorage.getItem("onboarding_just_completed")) {
-        sessionStorage.removeItem("onboarding_just_completed");
+      // Skip check if just completed onboarding (prevents race condition).
+      // Either: (1) flag still valid in sessionStorage, or
+      //         (2) this instance already consumed it once (Strict Mode remount).
+      if (consumedFlagRef.current || readOnboardingJustCompleted()) {
+        consumedFlagRef.current = true;
         setIsChecking(false);
         return;
       }
