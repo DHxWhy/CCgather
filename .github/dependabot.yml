@@ -1,0 +1,39 @@
+version: 2
+updates:
+  # npm 의존성 — 보안 취약점 자동 PR
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+    # 메이저 버전 업그레이드는 수동 검토 — minor/patch 만 자동
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+    groups:
+      # 관련 패키지 묶어서 한 PR — 노이즈 감소
+      next:
+        patterns: ["next", "@next/*", "eslint-config-next"]
+      react:
+        patterns: ["react", "react-dom", "@types/react*"]
+      clerk:
+        patterns: ["@clerk/*"]
+      supabase:
+        patterns: ["@supabase/*", "supabase"]
+      types:
+        patterns: ["@types/*"]
+      dev-tools:
+        patterns: ["typescript", "eslint", "prettier", "@typescript-eslint/*"]
+
+  # GitHub Actions — workflow 자체의 의존성
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "monthly"
+    open-pull-requests-limit: 3
+    labels:
+      - "dependencies"
+      - "github-actions"
