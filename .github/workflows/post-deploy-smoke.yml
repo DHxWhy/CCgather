@@ -10,6 +10,12 @@ on:
   schedule:
     - cron: "*/15 * * * *"
   workflow_dispatch:
+    inputs:
+      test_discord:
+        description: "Send a test Discord notification (set true to verify webhook)"
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -27,6 +33,38 @@ jobs:
         run: |
           echo "Waiting 180s for Vercel deployment to complete…"
           sleep 180
+
+      # Manual one-shot to verify Discord webhook is wired correctly.
+      # Run via: gh workflow run post-deploy-smoke.yml --field test_discord=true
+      - name: Send test Discord notification
+        if: inputs.test_discord == true
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          if [ -z "$DISCORD_WEBHOOK_URL" ]; then
+            echo "::error::DISCORD_WEBHOOK_URL secret not set"
+            exit 1
+          fi
+          payload=$(cat <<JSON
+          {
+            "username": "CCgather Smoke",
+            "content": "✅ **test notification** — webhook is reachable from GitHub Actions",
+            "embeds": [{
+              "title": "Smoke test wiring verified",
+              "url": "${RUN_URL}",
+              "color": 5763719,
+              "fields": [
+                { "name": "Status", "value": "Webhook OK — real alerts will land here if any route regresses." }
+              ]
+            }]
+          }
+          JSON
+          )
+          http=$(curl -sS -o /tmp/resp -w "%{http_code}" -X POST -H "Content-Type: application/json" -d "$payload" "$DISCORD_WEBHOOK_URL")
+          echo "HTTP $http"
+          cat /tmp/resp
+          [ "$http" = "204" ] || [ "$http" = "200" ] || { echo "::error::Discord rejected the request"; exit 1; }
 
       - name: Probe protected routes (must NOT 404)
         run: |
