@@ -61,15 +61,37 @@ export const meKeys = {
 // ===========================================
 
 async function fetchMe(): Promise<MeData | null> {
-  const response = await fetch("/api/me", {
-    cache: "no-store",
-  });
+  // redirect:"manual" — middleware 가 비인증 사용자를 /sign-in 으로 redirect 하는
+  // 케이스 방어. 기본 follow 모드면 HTML 응답을 받아 await response.json() 에서
+  // SyntaxError 발생 → React Query 가 catch → meData=undefined → Header 가 비로그인
+  // 표시. Diana 진단의 secondary throw 원인.
+  let response: Response;
+  try {
+    response = await fetch("/api/me", { cache: "no-store", redirect: "manual" });
+  } catch {
+    // network 오류 — 비로그인 fallback (boundary 안 띄움)
+    return null;
+  }
+
+  // opaqueredirect = manual redirect 가 막은 응답 (status:0). 비인증으로 간주.
+  if (response.type === "opaqueredirect" || response.status === 0 || response.status === 401) {
+    return null;
+  }
+
+  // Mercury 발견: currentUser() transient null → /api/me 가 500 반환 가능.
+  // 일시 오류는 boundary 안 띄우고 비로그인 fallback (다음 polling 시 회복).
+  if (response.status >= 500) {
+    return null;
+  }
 
   if (!response.ok) {
-    if (response.status === 401) {
-      return null; // Not authenticated
-    }
-    throw new Error("Failed to fetch user data");
+    throw new Error(`Failed to fetch user data: ${response.status}`);
+  }
+
+  // 응답이 JSON 아닐 때 (HTML 등) parser throw 방지
+  const contentType = response.headers.get("content-type") ?? "";
+  if (!contentType.includes("application/json")) {
+    return null;
   }
 
   const data: MeResponse = await response.json();

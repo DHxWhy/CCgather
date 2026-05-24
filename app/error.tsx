@@ -17,30 +17,35 @@ export default function Error({ error, reset }: ErrorProps) {
     console.error("Application Error:", error);
   }, [error]);
 
-  // First attempt: React error boundary reset (lightweight).
-  // Second attempt: Clear stale SW caches + hard reload (full recovery).
+  // 첫 Try Again 부터 옛 PWA SW + 전체 cache 청소 (Diana 진단:
+  // ChunkLoadError 가 영구화되는 패턴이라 reset() 단독으로는 절대 회복 불가).
+  // 옛 worker-*.js (skipWaiting=false 시절) 이 살아있으면서 옛 chunk URL 캐시
+  // 서빙 → 새 build 의 hash 와 mismatch → boundary 무한 루프.
   const handleRetry = useCallback(async () => {
     retryCount.current += 1;
 
-    if (retryCount.current <= 1) {
-      // Lightweight retry — re-render without full page reload
-      reset();
-      return;
-    }
-
-    // Full recovery — clear stale caches and hard reload
+    // 모든 시도에서 SW + cache 전체 청소. precache 도 새 build 에서 다시 만들어짐.
     try {
-      if ("caches" in window) {
-        const cacheNames = await caches.keys();
-        // Only clear workbox runtime caches — precache is version-managed by SW itself
-        const staleCaches = cacheNames.filter(
-          (name) =>
-            name === "static-resources" || name === "external-resources" || name === "start-url"
-        );
-        await Promise.all(staleCaches.map((name) => caches.delete(name)));
+      if ("serviceWorker" in navigator) {
+        const regs = await navigator.serviceWorker.getRegistrations();
+        await Promise.all(regs.map((r) => r.unregister()));
       }
     } catch {
-      // Ignore cache cleanup errors
+      // SW API 없는 환경 — 무시
+    }
+    try {
+      if ("caches" in window) {
+        const keys = await caches.keys();
+        await Promise.all(keys.map((k) => caches.delete(k)));
+      }
+    } catch {
+      // Cache API 차단 — 무시
+    }
+
+    // 첫 시도는 reset() 으로 가벼운 재시도, 두 번째부터 hard reload.
+    if (retryCount.current <= 1) {
+      reset();
+      return;
     }
     window.location.reload();
   }, [reset]);

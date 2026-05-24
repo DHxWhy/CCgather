@@ -37,12 +37,28 @@ export function PwaMigration() {
       return; // localStorage 차단 환경 — 아무것도 안 함
     }
 
-    // Critical path 보호 — OAuth 도중 reload 하면 code 손실
+    // Critical path 보호 — OAuth 도중 reload 하면 code 손실.
+    // /leaderboard 도 OAuth 직후 첫 진입 페이지라 grace 필요 (Mars P2)
     const CRITICAL = ["/sso-callback", "/sign-in", "/sign-up", "/cli/auth"];
     const path = window.location.pathname;
     if (CRITICAL.some((p) => path.startsWith(p))) {
       // 이 페이지가 아닌 다음 페이지에서 다시 시도하도록 마크 안 함
       return;
+    }
+
+    // OAuth 직후 60초 grace — sso-callback 가 sessionStorage 에 마크 박으면
+    // /leaderboard 도착해도 reload 안 함 (Clerk session hydration 완료까지).
+    try {
+      const oauthMark = sessionStorage.getItem("ccg_oauth_just_finished");
+      if (oauthMark) {
+        const ts = Number.parseInt(oauthMark, 10);
+        if (!Number.isNaN(ts) && Date.now() - ts < 60_000) {
+          return;
+        }
+        sessionStorage.removeItem("ccg_oauth_just_finished");
+      }
+    } catch {
+      // sessionStorage 차단 — grace 없이 진행
     }
 
     // SW API 없는 환경 (Safari ITP 등) — 캐시만 청소하고 끝

@@ -202,6 +202,17 @@ export default function SSOCallbackPage() {
   // IMPORTANT: Do not add effects that redirect based on isSignedIn here.
   // AuthenticateWithRedirectCallback must complete its full flow
   // (session cookie setup + full-page redirect) without being unmounted.
+
+  // PwaMigration 의 60초 grace 트리거. OAuth 직후 첫 /leaderboard 진입에서
+  // SW unregister + reload 가 일어나면 hydration 중 Clerk session 깜빡임.
+  if (typeof window !== "undefined") {
+    try {
+      sessionStorage.setItem("ccg_oauth_just_finished", Date.now().toString());
+    } catch {
+      // sessionStorage 차단 — grace 없이 진행
+    }
+  }
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-[var(--color-bg-primary)]">
       <div className="text-center">

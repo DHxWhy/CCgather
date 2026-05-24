@@ -299,6 +299,42 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <link rel="preconnect" href="https://img.clerk.com" />
         <link rel="dns-prefetch" href="https://zrkrrvfoaoeodaovzqfs.supabase.co" />
         <GlobalJsonLd />
+        {/* PWA stale SW kill-switch — head inline 으로 hydration 전에 실행.
+            옛 worker (skipWaiting=false 시절, 2026-02~05 등록) 가 ChunkLoadError 를
+            영구화하는 사건 (commit fc453d4 catalyst) 의 회수용. PwaMigration 컴포넌트는
+            hydration 후 실행되므로 boundary 가 먼저 터지면 도달 못 함. 이 스크립트는
+            HTML 안에 박혀있어 옛 SW 가 무엇을 캐시하든 항상 실행됨. */}
+        <Script id="ccg-sw-kill" strategy="beforeInteractive">
+          {`(function(){try{
+            if(typeof window==='undefined')return;
+            if(!('serviceWorker' in navigator))return;
+            var KEY='ccg_sw_killed_v1_2026_05_24';
+            try{if(sessionStorage.getItem(KEY)==='1')return;}catch(_){}
+            navigator.serviceWorker.getRegistrations().then(function(regs){
+              if(!regs||!regs.length)return;
+              // 옛 worker 패턴 또는 SW 가 controller 인 상태에서 새 build 와 mismatch 인 경우만 청소.
+              // build_id 가 매번 바뀌므로, 옛 사용자 한 번만 청소되고 새 사용자는 영향 X.
+              var needsKill=false;
+              for(var i=0;i<regs.length;i++){
+                var url=(regs[i].active&&regs[i].active.scriptURL)||(regs[i].installing&&regs[i].installing.scriptURL)||'';
+                if(url.indexOf('worker-55bad177bd8f8b0a')>=0){needsKill=true;break;}
+              }
+              if(!needsKill){try{sessionStorage.setItem(KEY,'1');}catch(_){}return;}
+              Promise.all(regs.map(function(r){return r.unregister();}))
+                .then(function(){
+                  if('caches' in window){
+                    return caches.keys().then(function(ks){return Promise.all(ks.map(function(k){return caches.delete(k);}));});
+                  }
+                })
+                .then(function(){try{sessionStorage.setItem(KEY,'1');}catch(_){}
+                  // OAuth 진행 중에는 reload 보류 — URL 의 code 파라미터 손실 방지
+                  var p=window.location.pathname;
+                  if(p.indexOf('/sso-callback')===0||p.indexOf('/sign-in')===0||p.indexOf('/sign-up')===0||p.indexOf('/cli/auth')===0)return;
+                  window.location.reload();
+                }).catch(function(){});
+            }).catch(function(){});
+          }catch(_){}})();`}
+        </Script>
         {/* Twitter/X Ads Conversion Tracking Pixel */}
         <Script id="twitter-pixel" strategy="lazyOnload">
           {`

@@ -406,9 +406,16 @@ export async function GET() {
               pendingRefCode
             );
           }
+          // Mercury P2: 이 분기에 referral_count 누락 → UI 카드 깨질 수 있음
+          const { count: existingClerkReferralCount } = await supabase
+            .from("users")
+            .select("*", { count: "exact", head: true })
+            .eq("referred_by", existingByClerkId.id);
           return clearPendingRefCookie(
             NextResponse.json(
-              { user: existingByClerkId },
+              {
+                user: { ...existingByClerkId, referral_count: existingClerkReferralCount || 0 },
+              },
               {
                 headers: {
                   "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
@@ -518,7 +525,11 @@ export async function GET() {
         });
       }
       console.error("Failed to auto-create user:", insertError);
-      return NextResponse.json({ error: "User not found" }, { status: 404 });
+      // Mercury P2: 404 응답에 cookie clear 누락 — pending referral cookie 가 잔존
+      return clearPendingRefCookie(
+        NextResponse.json({ error: "User not found" }, { status: 404 }),
+        hadPendingRefCookie
+      );
     }
 
     console.log("Auto-created user from /api/me GET:", { clerk_id: userId, user_id: newUser?.id });

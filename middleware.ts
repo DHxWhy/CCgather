@@ -21,6 +21,11 @@ const isPublicRoute = createRouteMatcher([
   "/api/users/(.*)",
   "/api/countries(.*)",
   "/api/cli/(.*)",
+  // Auth-required APIs 가 middleware 의 redirect 가 아닌 401 JSON 응답을 직접
+  // 처리할 수 있도록 public 으로 분류. 핸들러 자체가 auth() 체크 후 401 반환.
+  // 이게 없으면 비인증 fetch 가 HTML redirect 받아 클라이언트 JSON parse fail.
+  "/api/me(.*)",
+  "/api/auth/recovery-check",
 ]);
 
 export default clerkMiddleware(async (auth, req) => {
