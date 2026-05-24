@@ -16,9 +16,12 @@ const withPWA = withPWAInit({
   publicExcludes: ["!manifest.webmanifest"],
   // Workbox 옵션
   workboxOptions: {
-    // skipWaiting: false - 사용자가 업데이트 버튼 클릭 시 수동으로 활성화
-    // 자동 skipWaiting 제거하여 UpdateNotification 컴포넌트가 제어
-    skipWaiting: false,
+    // skipWaiting: true — 새 SW 가 install 되는 즉시 옛 SW 종료.
+    // 배경: skipWaiting=false 였을 때 옛 SW 가 옛 가입 흐름 코드를 캐시하고 있어
+    //       재방문자는 새 frictionless 가입 흐름을 받지 못했음.
+    // 위험 완화: UpdateNotification 의 controllerchange 핸들러가 critical path
+    //          (OAuth 콜백/가입 진행 중)에서는 reload 보류하도록 가드함.
+    skipWaiting: true,
     clientsClaim: true,
     // 인증 관련 경로는 SW navigation fallback에서 완전 제외
     // OAuth 콜백 체인이 SW 간섭 없이 브라우저가 직접 처리

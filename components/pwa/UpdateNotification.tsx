@@ -61,13 +61,29 @@ function usePWAUpdate() {
     // Check existing registration
     navigator.serviceWorker.ready.then(handleUpdate);
 
-    // Also listen for controller change (another tab triggered update)
-    // Use window-level flag to prevent multiple reloads across component remounts
+    // Also listen for controller change (another tab triggered update, OR
+    // workbox skipWaiting:true 가 새 SW 를 즉시 active 시킨 경우).
+    // Use window-level flag to prevent multiple reloads across component remounts.
+    const CRITICAL_PATHS = ["/sso-callback", "/sign-in", "/sign-up", "/cli/auth", "/onboarding"];
+    const isOnCriticalPath = () => {
+      const p = window.location.pathname;
+      return CRITICAL_PATHS.some((cp) => p.startsWith(cp));
+    };
+
     const handleControllerChange = () => {
-      if ((window as Window & { __swRefreshing?: boolean }).__swRefreshing) return;
-      (window as Window & { __swRefreshing?: boolean }).__swRefreshing = true;
+      const w = window as Window & { __swRefreshing?: boolean };
+      if (w.__swRefreshing) return;
+
+      // Critical path 보호: OAuth code 가 URL 에 있는데 reload 하면 code 손실 → OAuth 실패.
+      // 가입/로그인 진행 중에도 reload 시 사용자가 처음부터 다시 해야 함.
+      // 사용자가 다른 페이지로 자연 navigate 하면 새 SW 가 그 시점부터 자동 적용됨.
+      if (isOnCriticalPath()) {
+        console.log("[SW] new controller active on critical path — deferring reload");
+        return;
+      }
+
+      w.__swRefreshing = true;
       // Delay reload to let React finish current render cycle and SW activation complete.
-      // Immediate reload during React rendering can cause "Maximum update depth exceeded" (Error #185).
       setTimeout(() => {
         window.location.reload();
       }, 100);
@@ -93,12 +109,16 @@ function usePWAUpdate() {
     if (!isStandalone) {
       // Browser should reload via controllerchange event,
       // but add fallback in case the event doesn't fire.
-      // Use 2s timeout — enough for SW activation but not so long users navigate away.
       setTimeout(() => {
-        if (!(window as Window & { __swRefreshing?: boolean }).__swRefreshing) {
-          (window as Window & { __swRefreshing?: boolean }).__swRefreshing = true;
-          setTimeout(() => window.location.reload(), 100);
-        }
+        const w = window as Window & { __swRefreshing?: boolean };
+        if (w.__swRefreshing) return;
+        // Critical path 보호: 사용자가 OAuth/가입 도중에 Update Now 를 눌렀어도
+        // 그 흐름이 깨지지 않도록 reload 보류. 다음 navigate 시 새 SW 가 자연 적용됨.
+        const p = window.location.pathname;
+        const critical = ["/sso-callback", "/sign-in", "/sign-up", "/cli/auth", "/onboarding"];
+        if (critical.some((cp) => p.startsWith(cp))) return;
+        w.__swRefreshing = true;
+        setTimeout(() => window.location.reload(), 100);
       }, 2000);
     }
   }, [waitingWorker, isStandalone]);
