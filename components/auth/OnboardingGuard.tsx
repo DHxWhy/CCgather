@@ -163,19 +163,23 @@ export function OnboardingGuard({ children }: OnboardingGuardProps) {
           }
         }
 
-        // Check onboarding status using cached meData
+        // Check onboarding status using cached meData.
+        // 새 정책: country/onboarding 은 가입 시 자동 처리됨 (IP geo + implicit consent).
+        // 따라서 Guard 는 "DB row 존재 여부" 만 확인. country 가 null 이라도 진입 허용
+        // — 리더보드/settings 에서 banner 로 입력 유도.
         if (!meData && isMeFetched) {
-          // User not found in DB
+          // User not found in DB — 자동 생성 fallback 이 실패한 매우 드문 경우
           setIsRedirecting(true);
           router.replace("/onboarding");
           return;
         }
 
         if (meData) {
-          const hasCountry = !!meData.country_code;
-          const onboardingDone = meData.onboarding_completed === true;
+          // legacy 사용자 한정: country_code 도 onboarding 도 비어있으면
+          // (이전 가입자가 onboarding 못 끝낸 9명 케이스) /onboarding 으로 안내
+          const isLegacyUnonboarded = !meData.country_code && meData.onboarding_completed === false;
 
-          if (!hasCountry || !onboardingDone) {
+          if (isLegacyUnonboarded) {
             setIsRedirecting(true);
             router.replace("/onboarding");
             return;

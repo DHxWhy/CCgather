@@ -1,10 +1,27 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth, currentUser } from "@clerk/nextjs/server";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { createServiceClient } from "@/lib/supabase/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { z } from "zod";
 import { randomBytes } from "crypto";
+
+// IP geo 로 country 자동 추정. 가입 시 1회만 사용.
+// Vercel Edge 가 매 요청에 x-vercel-ip-country 헤더를 자동 부여 (ISO-3166 2자리).
+// 추정 실패 시 null 반환 → 사용자가 settings/banner 에서 직접 설정.
+async function detectCountryFromHeaders(): Promise<string | null> {
+  try {
+    const h = await headers();
+    const raw = h.get("x-vercel-ip-country");
+    if (!raw) return null;
+    const code = raw.trim().toUpperCase();
+    // 정상 ISO-3166 alpha-2 만 허용 (XX 같은 unknown 코드 거름)
+    if (!/^[A-Z]{2}$/.test(code) || code === "XX") return null;
+    return code;
+  } catch {
+    return null;
+  }
+}
 
 // Pending-referral attribution: set by /api/referral/[code] (cookie) and
 // claimed on the first authenticated /api/me GET so attribution lands before
@@ -297,7 +314,9 @@ export async function GET() {
       }
     }
 
-    // No existing account found - create new user
+    // No existing account found - create new user.
+    // IP geo 로 country 자동 추정 + onboarding 완료로 표시 (frictionless signup).
+    // 추정 실패 시 country=null 로 두고, 리더보드에서 banner 로 입력 유도.
     const displayName =
       [clerkUser.firstName, clerkUser.lastName].filter(Boolean).join(" ") ||
       clerkUser.username ||
@@ -305,6 +324,7 @@ export async function GET() {
 
     const baseUsername = clerkUser.username || `user_${userId.slice(0, 8)}`;
     const referralCode = generateShortCode();
+    const autoCountry = await detectCountryFromHeaders();
 
     const { data: newUser, error: insertError } = await supabase
       .from("users")
@@ -315,7 +335,14 @@ export async function GET() {
         display_name: displayName,
         avatar_url: clerkUser.imageUrl,
         email: email,
-        onboarding_completed: false, // New user needs onboarding
+        country_code: autoCountry,
+        // Terms/Privacy implicit consent at OAuth click (GitHub 패턴).
+        // Marketing 은 opt-in 분리 (settings).
+        onboarding_completed: true,
+        profile_visibility_consent: true,
+        community_updates_consent: true,
+        integrity_agreed: true,
+        marketing_consent: false,
         referral_code: referralCode,
       })
       .select(
@@ -421,7 +448,12 @@ export async function GET() {
               display_name: displayName,
               avatar_url: clerkUser.imageUrl,
               email: clerkUser.emailAddresses[0]?.emailAddress,
-              onboarding_completed: false,
+              country_code: autoCountry,
+              onboarding_completed: true,
+              profile_visibility_consent: true,
+              community_updates_consent: true,
+              integrity_agreed: true,
+              marketing_consent: false,
               referral_code: retryReferralCode,
             })
             .select(
@@ -662,12 +694,13 @@ export async function PATCH(request: NextRequest) {
 
     const supabase = createServiceClient();
 
-    // First, check if user exists
+    // 기존 country_code 를 미리 읽어서 변경 여부 판정 (PATCH 끝에서 rank 재계산용)
     const { data: existingUser } = await supabase
       .from("users")
-      .select("id")
+      .select("id, country_code")
       .eq("clerk_id", userId)
       .maybeSingle();
+    const previousCountry = existingUser?.country_code ?? null;
 
     let user;
 
@@ -790,6 +823,17 @@ export async function PATCH(request: NextRequest) {
         }
       } else {
         user = updatedUser;
+      }
+    }
+
+    // country_code 가 바뀌었으면 두 그룹 (옛+새) 의 country_rank 즉시 재계산.
+    // 사용자가 자기 국가 변경하자마자 banner 의 rank 가 정확히 반영되도록.
+    const newCountry = (parsed.data.country_code ?? null) as string | null;
+    if (parsed.data.country_code !== undefined && newCountry !== previousCountry) {
+      const { error: rankErr } = await supabase.rpc("calculate_country_ranks");
+      if (rankErr) {
+        console.error("[/api/me] calculate_country_ranks failed:", rankErr);
+        // 사용자 요청 자체는 성공이므로 PATCH 실패 처리 X. cron 다음 주기에 자연 보정.
       }
     }
 
