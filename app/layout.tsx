@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Inter, JetBrains_Mono, Space_Grotesk } from "next/font/google";
 import Script from "next/script";
 import { ClerkProviderWrapper } from "@/components/providers/ClerkProviderWrapper";
+import { PwaMigration } from "@/components/pwa/PwaMigration";
 import "./globals.css";
 
 const inter = Inter({
@@ -310,6 +311,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         </Script>
       </head>
       <body className="min-h-screen bg-bg-primary font-sans antialiased">
+        {/* 옛 PWA SW/캐시 자동 청소 — 일회성, 옛 사용자 회수 */}
+        <PwaMigration />
         <ClerkProviderWrapper>{children}</ClerkProviderWrapper>
       </body>
     </html>

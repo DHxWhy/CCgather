@@ -23,6 +23,9 @@ const withPWA = withPWAInit({
     //          (OAuth 콜백/가입 진행 중)에서는 reload 보류하도록 가드함.
     skipWaiting: true,
     clientsClaim: true,
+    // 옛 Workbox precache 자동 정리. 새 build 의 SW 가 install 되면
+    // 옛 precache (옛 _next/static chunks 등) 를 즉시 삭제.
+    cleanupOutdatedCaches: true,
     // 인증 관련 경로는 SW navigation fallback에서 완전 제외
     // OAuth 콜백 체인이 SW 간섭 없이 브라우저가 직접 처리
     navigateFallbackDenylist: [/^\/sso-callback/, /^\/sign-in/, /^\/sign-up/, /^\/api\//],
