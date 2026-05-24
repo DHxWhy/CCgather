@@ -244,6 +244,9 @@ export default function CLIAuthPage() {
               </span>
             </button>
 
+            {/* Clerk CAPTCHA mount point — Dashboard captcha_enabled=true 대응 */}
+            <div id="clerk-captcha" />
+
             <p className="text-center text-xs text-[var(--color-text-muted)] mt-4">
               By signing in, you agree to our{" "}
               <a href="/terms" className="text-[#DA7756] hover:underline">

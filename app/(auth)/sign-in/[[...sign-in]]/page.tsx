@@ -221,6 +221,10 @@ export default function SignInPage() {
               </button>
             )}
 
+            {/* Clerk CAPTCHA mount point — sign-up 페이지와 동일 이유.
+                Dashboard 의 captcha_enabled=true 인 상태에서 widget 없으면 OAuth fail. */}
+            <div id="clerk-captcha" />
+
             {/* Sign Up Link */}
             <p className="mt-6 text-center text-sm text-[var(--color-text-muted)]">
               Don&apos;t have an account?{" "}

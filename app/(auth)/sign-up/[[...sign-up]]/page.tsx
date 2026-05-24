@@ -330,6 +330,12 @@ export default function SignUpPage() {
               </button>
             )}
 
+            {/* Clerk CAPTCHA mount point — Dashboard 의 sign_up.captcha_enabled=true
+                상태에서 OAuth 가입도 CAPTCHA 검증 필요. 이 div 가 없으면 Clerk SDK 가
+                widget render 못해 silent fail → Clerk user 생성 안 됨 → DB 50명 그대로.
+                invisible/smart widget 은 사용자 클릭 없이 자동 검증. */}
+            <div id="clerk-captcha" />
+
             {/* Sign In Link */}
             <p className="mt-6 text-center text-sm text-[var(--color-text-muted)]">
               Already have an account?{" "}
