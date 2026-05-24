@@ -123,3 +123,6 @@ playwright-report-production/
 .vercel
 .env*.local
 /public/worker-*.js
+
+# 개인 작업 메모 (gitignored)
+다음할일.md
