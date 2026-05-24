@@ -8,7 +8,6 @@ import { CountryCard } from "@/components/onboarding/CountryCard";
 import { CountrySearchPalette } from "@/components/onboarding/CountrySearchPalette";
 import { Confetti, SparkleEffect } from "@/components/onboarding/Confetti";
 import { CLIModal } from "@/components/cli/CLIModal";
-import { AgreementModal } from "@/components/onboarding/AgreementModal";
 import { ChevronRight, Sparkles } from "lucide-react";
 import { FlagIcon } from "@/components/ui/FlagIcon";
 import { useToast } from "@/components/ui/ToastProvider";
@@ -22,7 +21,6 @@ export default function OnboardingPage() {
   const [showConfetti, setShowConfetti] = useState(false);
   const [step, setStep] = useState<"select" | "confirm">("select");
   const [showCLIModal, setShowCLIModal] = useState(false);
-  const [showAgreementModal, setShowAgreementModal] = useState(false);
   const [cliAuthStatus, setCliAuthStatus] = useState<"idle" | "authorizing" | "success" | "error">(
     "idle"
   );
@@ -56,16 +54,17 @@ export default function OnboardingPage() {
     setTimeout(() => setShowConfetti(false), 3000);
   }, []);
 
-  // Show agreement modal when user clicks Join Leaderboard
+  // Frictionless 정책: 약관 동의는 /sign-up 페이지 footer 의 "By signing up..."
+  // 텍스트 + GitHub OAuth 클릭으로 implicit. 별도 AgreementModal 제거.
+  // essentialConsent=true, marketingConsent=false 로 자동 처리.
   const handleJoinClick = () => {
-    setShowAgreementModal(true);
+    handleAgree(true, false);
   };
 
-  // Handle agreement and submit
-  //  - essentialConsent: required (covers profile_visibility + community_updates).
-  //  - marketingConsent: optional opt-in (kept separate per GDPR/KR/CCPA).
-  //  - integrity_agreed: always true at this point; the integrity clause is
-  //    surfaced in the modal copy + Terms, no separate checkbox required.
+  // Handle agreement submission to /api/me PATCH
+  //  - essentialConsent: true 자동 (profile_visibility + community_updates).
+  //  - marketingConsent: false 자동 opt-out (사용자가 settings 에서 opt-in 가능).
+  //  - integrity_agreed: always true (Terms 에 포함된 조항).
   const handleAgree = async (essentialConsent: boolean, marketingConsent: boolean) => {
     if (!selectedCountry) return;
 
@@ -117,9 +116,6 @@ export default function OnboardingPage() {
 
         // Mark onboarding just completed (prevents race condition redirect)
         sessionStorage.setItem("onboarding_just_completed", Date.now().toString());
-
-        // Close agreement modal
-        setShowAgreementModal(false);
 
         // If coming from CLI auth flow, authorize the CLI first
         if (cliCode) {
@@ -236,15 +232,6 @@ export default function OnboardingPage() {
 
   return (
     <div className="min-h-screen bg-bg-primary relative overflow-hidden">
-      {/* Agreement Modal */}
-      <AgreementModal
-        isOpen={showAgreementModal}
-        onClose={() => setShowAgreementModal(false)}
-        onAgree={handleAgree}
-        isSubmitting={isSubmitting}
-        selectedCountry={selectedCountry || null}
-      />
-
       {/* CLI Guide Modal */}
       <CLIModal isOpen={showCLIModal} onClose={handleCLIModalClose} />
 
@@ -417,14 +404,29 @@ export default function OnboardingPage() {
                 >
                   <button
                     onClick={handleJoinClick}
-                    className="w-full flex items-center justify-center gap-2 px-6 py-3.5 rounded-xl bg-gradient-to-r from-primary to-[#B85C3D] text-white font-semibold hover:shadow-lg hover:shadow-primary/25 transition-all"
+                    disabled={isSubmitting}
+                    className="w-full flex items-center justify-center gap-2 px-6 py-3.5 rounded-xl bg-gradient-to-r from-primary to-[#B85C3D] text-white font-semibold hover:shadow-lg hover:shadow-primary/25 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    <span>Join Leaderboard</span>
-                    <ChevronRight className="w-5 h-5" />
+                    {isSubmitting ? (
+                      <>
+                        <motion.div
+                          className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full"
+                          animate={{ rotate: 360 }}
+                          transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                        />
+                        <span>Joining...</span>
+                      </>
+                    ) : (
+                      <>
+                        <span>Join Leaderboard</span>
+                        <ChevronRight className="w-5 h-5" />
+                      </>
+                    )}
                   </button>
                   <button
                     onClick={handleBack}
-                    className="w-full px-6 py-3 rounded-xl text-text-muted text-sm border border-[var(--border-default)] hover:text-text-secondary hover:border-[var(--border-strong)] transition-colors"
+                    disabled={isSubmitting}
+                    className="w-full px-6 py-3 rounded-xl text-text-muted text-sm border border-[var(--border-default)] hover:text-text-secondary hover:border-[var(--border-strong)] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     Choose Different Country
                   </button>
