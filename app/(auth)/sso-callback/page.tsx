@@ -3,6 +3,7 @@
 import { useEffect, useState, useRef } from "react";
 import { AuthenticateWithRedirectCallback, useClerk, useAuth } from "@clerk/nextjs";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 
 type ErrorType = "timeout" | "auth" | "session";
 
@@ -25,13 +26,15 @@ function hasValidCallbackParams(): boolean {
 export default function SSOCallbackPage() {
   const router = useRouter();
   const { signOut } = useClerk();
-  const { isLoaded } = useAuth();
+  const { isLoaded, isSignedIn } = useAuth();
   const [hasError, setHasError] = useState(false);
   const [isTimedOut, setIsTimedOut] = useState(false);
   const [errorType, setErrorType] = useState<ErrorType>("auth");
   // Check immediately (not in effect) to avoid race with AuthenticateWithRedirectCallback
   const [isValidCallback] = useState(() => hasValidCallbackParams());
   const redirectedRef = useRef(false);
+  // Cookie/session 진단용 — callback 처리 후 session 활성화 검증
+  const [sessionDiagnostic, setSessionDiagnostic] = useState<string | null>(null);
 
   // Stale navigation: no OAuth params → redirect to leaderboard (once)
   useEffect(() => {
@@ -63,6 +66,33 @@ export default function SSOCallbackPage() {
     return () => clearTimeout(timeout);
   }, [isValidCallback]);
 
+  // Session 활성화 검증: OAuth callback 처리 후 8초 안에 isSignedIn=true 가 안 되면
+  // = Clerk cookie 가 사용자 PC 에서 설정 실패 (third-party cookie 차단, extension,
+  // 옛 stale cookie 충돌 등). silent /leaderboard 로 보내면 무한 루프 발생하므로
+  // 명확한 진단 화면 표시.
+  useEffect(() => {
+    if (!isValidCallback || !isLoaded) return;
+    if (isSignedIn) return; // 정상 — Clerk SDK 가 redirect 처리
+
+    const timeout = setTimeout(() => {
+      if (!redirectedRef.current && !isSignedIn) {
+        const cookieList = document.cookie || "(empty)";
+        const hasSessionCookie = /__session|__client/.test(cookieList);
+        const diagnostic = [
+          `URL: ${window.location.href}`,
+          `Cookies set: ${hasSessionCookie ? "YES" : "NO (blocked by browser/extension)"}`,
+          `Cookie names: ${cookieList.replace(/=[^;]+/g, "=***").slice(0, 200)}`,
+          `User-Agent: ${navigator.userAgent.slice(0, 100)}`,
+        ].join("\n");
+        console.error("[SSO] Session cookie not set after 8s:", diagnostic);
+        setSessionDiagnostic(diagnostic);
+        setHasError(true);
+        setErrorType("session");
+      }
+    }, 8000);
+    return () => clearTimeout(timeout);
+  }, [isValidCallback, isLoaded, isSignedIn]);
+
   // Handle URL error params
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -86,14 +116,13 @@ export default function SSOCallbackPage() {
 
     if (isSessionError) {
       setErrorType("session");
-      signOut({ redirectUrl: "/sign-in" }).catch(() => {
-        window.location.href = "/sign-in";
-      });
+      // 자동 signOut 제거 — Cookie 차단 환경에서 또 fail 후 무한 루프 발생.
+      // 사용자가 직접 액션 선택하도록 에러 화면 노출.
       return;
     }
 
     setErrorType("auth");
-  }, [signOut]);
+  }, []);
 
   const handleSignIn = async () => {
     // Clear stale session/sign-in state completely before retry
@@ -126,15 +155,62 @@ export default function SSOCallbackPage() {
     );
   }
 
-  // Session error: auto-clearing
-  if (errorType === "session") {
+  // Session 실패 (cookie 차단): 명확한 복구 옵션 제공
+  if (errorType === "session" && hasError) {
+    const handleHardReset = async () => {
+      // 모든 storage 청소 + 새 시도. Clerk IndexedDB 는 보존 (앱 reload 시 재구성)
+      try {
+        if (typeof window !== "undefined") {
+          localStorage.clear();
+          sessionStorage.clear();
+        }
+        await signOut().catch(() => {});
+      } catch {
+        // ignore
+      }
+      window.location.href = "/sign-up";
+    };
+
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[var(--color-bg-primary)]">
-        <div className="max-w-md w-full mx-4 text-center">
-          <div className="bg-[var(--color-bg-secondary)] border border-white/10 rounded-xl p-8">
-            <div className="w-8 h-8 border-2 border-[#DA7756]/30 border-t-[#DA7756] rounded-full animate-spin mx-auto mb-4" />
-            <h1 className="text-xl font-bold text-white mb-2">Session Refresh Required</h1>
-            <p className="text-zinc-400 text-sm">Clearing session and redirecting to sign in...</p>
+      <div className="min-h-screen flex items-center justify-center bg-[var(--color-bg-primary)] px-4">
+        <div className="max-w-lg w-full text-center">
+          <div className="bg-[var(--color-bg-secondary)] border border-[#DA7756]/30 rounded-xl p-8">
+            <div className="text-5xl mb-4">&#x26A0;&#xFE0F;</div>
+            <h1 className="text-xl font-bold text-[#DA7756] mb-2">Sign-in cookie blocked</h1>
+            <p className="text-zinc-300 text-sm mb-4">
+              GitHub authentication succeeded, but your browser blocked the session cookie. This
+              usually happens with:
+            </p>
+            <ul className="text-zinc-400 text-xs text-left list-disc pl-6 mb-6 space-y-1">
+              <li>Privacy extensions (uBlock, Privacy Badger, Ghostery)</li>
+              <li>Chrome &quot;Block third-party cookies&quot; setting</li>
+              <li>Brave Shields / Firefox Strict tracking protection</li>
+              <li>Stale cookies from a previous broken session</li>
+            </ul>
+            <div className="space-y-3">
+              <button
+                onClick={handleHardReset}
+                className="w-full px-6 py-2.5 bg-[#DA7756] hover:bg-[#B85C3D] text-white font-medium rounded-lg transition-colors"
+              >
+                Reset & Try Again
+              </button>
+              <Link
+                href="/"
+                className="block w-full px-6 py-2.5 bg-white/5 hover:bg-white/10 text-zinc-300 font-medium rounded-lg transition-colors text-center"
+              >
+                Go to Home
+              </Link>
+            </div>
+            {sessionDiagnostic && (
+              <details className="mt-6 text-left">
+                <summary className="text-xs text-zinc-500 cursor-pointer hover:text-zinc-400">
+                  Diagnostic info (for support)
+                </summary>
+                <pre className="mt-2 p-3 bg-black/40 rounded text-[10px] text-zinc-400 overflow-x-auto whitespace-pre-wrap">
+                  {sessionDiagnostic}
+                </pre>
+              </details>
+            )}
           </div>
         </div>
       </div>
