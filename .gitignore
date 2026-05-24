@@ -50,8 +50,8 @@ dist/
 build/
 .turbo/
 
-# PWA (Service Worker - 빌드 시 자동 생성)
-/public/sw.js
+# PWA 제거 (2026-05-24) — public/sw.js 는 self-destruct SW 로 수동 작성 + 추적됨
+# workbox-*.js / sw.js.map 은 next-pwa 빌드 산출물이라 더 이상 생성 안 됨
 /public/workbox-*.js
 /public/sw.js.map
 /public/workbox-*.js.map

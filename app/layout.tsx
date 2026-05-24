@@ -2,7 +2,6 @@ import type { Metadata, Viewport } from "next";
 import { Inter, JetBrains_Mono, Space_Grotesk } from "next/font/google";
 import Script from "next/script";
 import { ClerkProviderWrapper } from "@/components/providers/ClerkProviderWrapper";
-import { PwaMigration } from "@/components/pwa/PwaMigration";
 import "./globals.css";
 
 const inter = Inter({
@@ -299,46 +298,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <link rel="preconnect" href="https://img.clerk.com" />
         <link rel="dns-prefetch" href="https://zrkrrvfoaoeodaovzqfs.supabase.co" />
         <GlobalJsonLd />
-        {/* PWA stale SW kill-switch — head inline, hydration 전 실행.
-            전략: SW 가 등록되어 있고 + localStorage 의 build_id 가 현재 build 와
-            다르면 무조건 청소. 매 deploy 마다 일회성 자동 회수.
-            - 신규 사용자: SW 없음 → skip
-            - 새 사용자가 첫 install: build_id 첫 저장 → skip
-            - 옛 사용자: build_id mismatch → 청소 + reload 1회
-            - critical path (OAuth/sign-*): reload 보류 (가입 흐름 보호) */}
-        <Script id="ccg-sw-kill" strategy="beforeInteractive">
-          {`(function(){try{
-            if(typeof window==='undefined')return;
-            if(!('serviceWorker' in navigator))return;
-            var BUILD_ID='${process.env.VERCEL_GIT_COMMIT_SHA || process.env.NEXT_PUBLIC_BUILD_ID || Date.now().toString()}';
-            var LS_KEY='ccg_build_id';
-            var stored=null;
-            try{stored=localStorage.getItem(LS_KEY);}catch(_){}
-            // 신규 사용자: 저장된 build_id 가 없으면 그냥 마크만 박고 종료
-            if(!stored){
-              try{localStorage.setItem(LS_KEY,BUILD_ID);}catch(_){}
-              return;
-            }
-            // 같은 build: 이미 청소 끝난 상태
-            if(stored===BUILD_ID)return;
-            // build_id 다름 → 옛 코드/캐시 보유 → 강제 청소
-            navigator.serviceWorker.getRegistrations().then(function(regs){
-              return Promise.all(regs.map(function(r){return r.unregister();}));
-            }).then(function(){
-              if('caches' in window){
-                return caches.keys().then(function(ks){return Promise.all(ks.map(function(k){return caches.delete(k);})); });
-              }
-            }).then(function(){
-              try{localStorage.setItem(LS_KEY,BUILD_ID);}catch(_){}
-              var p=window.location.pathname;
-              if(p.indexOf('/sso-callback')===0||p.indexOf('/sign-in')===0||p.indexOf('/sign-up')===0||p.indexOf('/cli/auth')===0)return;
-              window.location.reload();
-            }).catch(function(e){
-              // 청소 실패해도 마크는 박아서 무한 reload 안 함
-              try{localStorage.setItem(LS_KEY,BUILD_ID);}catch(_){}
-            });
-          }catch(_){}})();`}
-        </Script>
         {/* Twitter/X Ads Conversion Tracking Pixel */}
         <Script id="twitter-pixel" strategy="lazyOnload">
           {`
@@ -351,8 +310,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         </Script>
       </head>
       <body className="min-h-screen bg-bg-primary font-sans antialiased">
-        {/* 옛 PWA SW/캐시 자동 청소 — 일회성, 옛 사용자 회수 */}
-        <PwaMigration />
         <ClerkProviderWrapper>{children}</ClerkProviderWrapper>
       </body>
     </html>
