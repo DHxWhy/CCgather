@@ -242,9 +242,11 @@ export function Header() {
           <div className="hidden md:flex items-center gap-3">
             {/* Sign In 버튼: Clerk 로드 완료 + 로그아웃 상태 또는 로드 실패 시 */}
             {showSignInButton && (
-              <Button variant="primary" size="sm" onClick={() => setAuthModalOpen(true)}>
-                Sign In
-              </Button>
+              <Link href="/sign-up">
+                <Button variant="primary" size="sm">
+                  Sign In
+                </Button>
+              </Link>
             )}
 
             {/* 로그인 상태 + 온보딩 완료: Notification Bell */}
@@ -433,17 +435,11 @@ export function Header() {
           {/* Auth Section */}
           <div className="px-4 pt-4 space-y-2">
             {showSignInButton ? (
-              <Button
-                variant="primary"
-                size="lg"
-                fullWidth
-                onClick={() => {
-                  closeMobileMenu();
-                  setAuthModalOpen(true);
-                }}
-              >
-                Sign In
-              </Button>
+              <Link href="/sign-up" onClick={closeMobileMenu}>
+                <Button variant="primary" size="lg" fullWidth>
+                  Sign In
+                </Button>
+              </Link>
             ) : isOnboardingDone ? (
               <Link
                 href="/settings"
