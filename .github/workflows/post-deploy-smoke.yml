@@ -74,6 +74,40 @@ jobs:
           set +e
           failures=()
 
+          # ─── 헬퍼: 일시적 글리치 (network timeout, 502/503/504) 1회 재시도 ───
+          # 의도: GitHub Actions ↔ Vercel 의 cold start / 일시 망 글리치로 인한
+          # false positive 차단. 진짜 빌드 fail (404/500) 은 즉시 결과 (재시도 X).
+          # 최대 timeout 15s 로 134s hang 방지.
+          fetch_code() {
+            local url="$1"
+            local code
+            code=$(curl -sS -o /dev/null --max-time 15 -w "%{http_code}" "$url" 2>/dev/null || echo "000")
+            # 네트워크 글리치/일시 서버 에러만 재시도
+            if [ "$code" = "000" ] || [ "$code" = "502" ] || [ "$code" = "503" ] || [ "$code" = "504" ]; then
+              echo "    [retry] $url 1차 응답 $code → 30s 대기 후 재시도" >&2
+              sleep 30
+              code=$(curl -sS -o /dev/null --max-time 15 -w "%{http_code}" "$url" 2>/dev/null || echo "000")
+            fi
+            echo "$code"
+          }
+
+          fetch_matched() {
+            local url="$1"
+            curl -sS -D - -o /dev/null --max-time 15 "$url" 2>/dev/null | grep -i "^x-matched-path" | tr -d '\r' | awk '{print $2}'
+          }
+
+          fetch_html() {
+            local url="$1"
+            local html
+            html=$(curl -sS --max-time 20 "$url" 2>/dev/null || echo "")
+            if [ ${#html} -lt 1000 ]; then
+              echo "    [retry] $url HTML 작음 (${#html} bytes) → 30s 대기 후 재시도" >&2
+              sleep 30
+              html=$(curl -sS --max-time 20 "$url" 2>/dev/null || echo "")
+            fi
+            echo "$html"
+          }
+
           # ─── 보호 라우트: 비인증 시 redirect(307)/401 가 정상. 404/500 면 빌드 누락 ───
           PROTECTED=(
             "/onboarding"
@@ -90,8 +124,11 @@ jobs:
           )
           for path in "${PROTECTED[@]}"; do
             url="${BASE_URL}${path}"
-            code=$(curl -sS -o /dev/null -w "%{http_code}" "$url")
-            matched=$(curl -sS -D - -o /dev/null "$url" | grep -i "^x-matched-path" | tr -d '\r' | awk '{print $2}')
+            code=$(fetch_code "$url")
+            matched=""
+            if [ "$code" != "000" ]; then
+              matched=$(fetch_matched "$url")
+            fi
             echo "  $code  $path  matched=$matched"
             if [ "$code" = "404" ] || [ "$code" = "500" ] || [ "$matched" = "/404" ]; then
               failures+=("🔒 **보호 라우트 빌드 누락** — \`${path}\` 가 HTTP ${code} 응답 (정상은 307 redirect). 가입 후 사용자가 404 페이지를 봅니다.")
@@ -102,7 +139,7 @@ jobs:
           PUBLIC=("/" "/sign-up" "/sign-in" "/sso-callback" "/leaderboard" "/cli/auth" "/terms" "/privacy")
           for path in "${PUBLIC[@]}"; do
             url="${BASE_URL}${path}"
-            code=$(curl -sS -o /dev/null -w "%{http_code}" "$url")
+            code=$(fetch_code "$url")
             echo "  $code  $path"
             if [ "$code" != "200" ]; then
               failures+=("🌐 **공개 페이지 다운** — \`${path}\` 가 HTTP ${code} 응답 (정상은 200). 이 페이지로 진입한 사용자가 화면을 못 봅니다.")
@@ -113,7 +150,7 @@ jobs:
           APIS=("/api/leaderboard" "/api/cli/auth/device" "/api/webhooks/clerk" "/api/stats/global")
           for path in "${APIS[@]}"; do
             url="${BASE_URL}${path}"
-            code=$(curl -sS -o /dev/null -w "%{http_code}" "$url")
+            code=$(fetch_code "$url")
             echo "  $code  $path"
             if [ "$code" = "404" ] || [ "$code" = "500" ]; then
               ctx=""
@@ -127,7 +164,7 @@ jobs:
           done
 
           # ─── /sign-up HTML: Clerk hosted Portal fallback 차단 ───
-          html=$(curl -sS "${BASE_URL}/sign-up")
+          html=$(fetch_html "${BASE_URL}/sign-up")
           size=${#html}
           echo "/sign-up HTML 크기: $size bytes"
           if [ "$size" -lt 5000 ]; then
