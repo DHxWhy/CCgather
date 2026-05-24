@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { useSignIn, useAuth } from "@clerk/nextjs";
+import { useSignUp, useAuth } from "@clerk/nextjs";
 import { AuthLeftPanel } from "@/components/auth/AuthLeftPanel";
 import dynamic from "next/dynamic";
 import { useState, useEffect } from "react";
@@ -61,10 +61,10 @@ function detectPlatform(): Platform {
 }
 
 export default function SignUpPage() {
-  // Use signIn instead of signUp for GitHub OAuth:
-  // OAuth auto-creates accounts for new users, and signIn flow
-  // is proven to persist sessions correctly (avoids "transferable" state issue)
-  const { signIn, isLoaded } = useSignIn();
+  // Clerk 표준 OAuth 가입 패턴: useSignUp + authenticateWithRedirect.
+  // 옛 Opus 4.6 commit (c1a3183, 2026-02-09) 가 useSignIn 으로 변경했고
+  // 그 직후 3.5개월 동안 신규 가입 0명 funnel 끊김. 표준으로 복귀.
+  const { signUp, isLoaded } = useSignUp();
   const { isSignedIn } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -125,34 +125,23 @@ export default function SignUpPage() {
       return;
     }
 
-    if (!signIn) {
+    if (!signUp) {
       setError("Connection failed. Please refresh the page.");
       return;
     }
 
     setIsLoading(true);
     try {
-      // If a previous sign-in attempt left stale client state, resync with the
-      // server before starting OAuth. reload() is intent-clear and non-destructive;
-      // authenticateWithRedirect creates its own fresh attempt server-side anyway,
-      // so we treat reload failures as non-fatal.
-      if (signIn.status !== null) {
-        try {
-          await signIn.reload();
-        } catch (reloadErr) {
-          console.warn("[/sign-up] signIn.reload() failed (continuing):", reloadErr);
-        }
-      }
-
-      await signIn.authenticateWithRedirect({
+      // useSignUp 의 OAuth 흐름은 Clerk 가 자동으로 새 user 생성 + 기존 user
+      // 발견 시 sso-callback 의 AuthenticateWithRedirectCallback 가 transferable
+      // 상태 자동 처리. 명시적 reset 불필요.
+      await signUp.authenticateWithRedirect({
         strategy: "oauth_github",
         redirectUrl: "/sso-callback",
         redirectUrlComplete: "/leaderboard",
       });
     } catch (err) {
       console.error("GitHub sign up error:", err);
-      // Surface a recovery action instead of just an error — stale Clerk state
-      // sometimes only clears with a hard reload.
       setError("GitHub connection failed. Please refresh the page and try again.");
       setIsLoading(false);
     }
