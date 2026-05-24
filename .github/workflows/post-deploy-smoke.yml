@@ -81,13 +81,19 @@ jobs:
           fetch_code() {
             local url="$1"
             local code
-            code=$(curl -sS -o /dev/null --max-time 15 -w "%{http_code}" "$url" 2>/dev/null || echo "000")
-            # 네트워크 글리치/일시 서버 에러만 재시도
-            if [ "$code" = "000" ] || [ "$code" = "502" ] || [ "$code" = "503" ] || [ "$code" = "504" ]; then
-              echo "    [retry] $url 1차 응답 $code → 30s 대기 후 재시도" >&2
-              sleep 30
-              code=$(curl -sS -o /dev/null --max-time 15 -w "%{http_code}" "$url" 2>/dev/null || echo "000")
-            fi
+            code=$(curl -sS -o /dev/null --max-time 15 -w "%{http_code}" "$url" 2>/dev/null)
+            code="${code:-000}"
+            # 네트워크 글리치/일시 서버 에러만 재시도 (총 2회 추가, 30s + 60s 백오프)
+            local attempt=1
+            while [ "$code" = "000" ] || [ "$code" = "502" ] || [ "$code" = "503" ] || [ "$code" = "504" ]; do
+              if [ $attempt -gt 2 ]; then break; fi
+              local backoff=$((attempt * 30))
+              echo "    [retry $attempt] $url 응답 $code → ${backoff}s 대기 후 재시도" >&2
+              sleep $backoff
+              code=$(curl -sS -o /dev/null --max-time 15 -w "%{http_code}" "$url" 2>/dev/null)
+              code="${code:-000}"
+              attempt=$((attempt + 1))
+            done
             echo "$code"
           }
 
