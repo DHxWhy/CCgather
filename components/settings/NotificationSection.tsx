@@ -454,7 +454,7 @@ export default function NotificationSection() {
                   </p>
                   <p className="text-[10px] text-[var(--color-text-muted)]">
                     {!isSupported
-                      ? "Coming soon"
+                      ? "Not supported"
                       : permission === "denied"
                         ? "Blocked in settings"
                         : isSubscribed

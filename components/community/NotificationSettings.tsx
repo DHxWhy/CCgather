@@ -249,7 +249,7 @@ export default function NotificationSettings({ className }: NotificationSettings
               </p>
               <p className="text-xs text-[var(--color-text-muted)]">
                 {!isSupported
-                  ? "Coming soon"
+                  ? "Not supported in this browser"
                   : permission === "denied"
                     ? "Permission denied in browser settings"
                     : isSubscribed

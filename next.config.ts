@@ -1,9 +1,83 @@
 import type { NextConfig } from "next";
+import withPWAInit from "@ducanh2912/next-pwa";
 
-// PWA 제거 (2026-05-24).
-// 배경: 옛 SW 가 옛 chunk 영구 캐시 → ChunkLoadError 루프 + 가입 funnel 차단.
-// push_subscriptions 활성 사용자 1명 = PWA 가치 ≪ 사이트 안정성.
-// public/sw.js 는 self-destruct SW 로 수동 작성 → 옛 PWA 사용자 자동 회수.
+const withPWA = withPWAInit({
+  dest: "public",
+  disable: process.env.NODE_ENV === "development",
+  register: true,
+  reloadOnOnline: true,
+  cacheOnFrontEndNav: false,
+  // cacheStartUrl: false — start URL을 precache에 추가하지 않음
+  cacheStartUrl: false,
+  // dynamicStartUrl: false — SW가 "/" 핸들러를 생성하면 미들웨어 리다이렉트(302)를
+  // opaque redirect → 200 OK 변환 후 캐시하여 인증 플로우 및 로그인 리디렉트 방해
+  dynamicStartUrl: false,
+  // Clerk 인증 및 API 경로 캐싱 제외
+  publicExcludes: ["!manifest.webmanifest"],
+  // Workbox 옵션
+  workboxOptions: {
+    // skipWaiting: true — 새 SW 가 install 되는 즉시 옛 SW 종료.
+    // 배경: skipWaiting=false 였을 때 옛 SW 가 옛 가입 흐름 코드를 캐시하고 있어
+    //       재방문자는 새 frictionless 가입 흐름을 받지 못했음.
+    // 위험 완화: UpdateNotification 의 controllerchange 핸들러가 critical path
+    //          (OAuth 콜백/가입 진행 중)에서는 reload 보류하도록 가드함.
+    skipWaiting: true,
+    clientsClaim: true,
+    // 옛 Workbox precache 자동 정리. 새 build 의 SW 가 install 되면
+    // 옛 precache (옛 _next/static chunks 등) 를 즉시 삭제.
+    cleanupOutdatedCaches: true,
+    // 인증 관련 경로는 SW navigation fallback에서 완전 제외
+    // OAuth 콜백 체인이 SW 간섭 없이 브라우저가 직접 처리
+    navigateFallbackDenylist: [/^\/sso-callback/, /^\/sign-in/, /^\/sign-up/, /^\/api\//],
+    // 런타임 캐싱 전략
+    // API(/api/*) 및 Clerk 라우트는 runtimeCaching에서 의도적으로 제외:
+    // NetworkOnly 전략이라도 SW가 요청을 가로채면 SW 활성화/전환 중
+    // Workbox no-response 에러 발생 가능 → React Error #185로 페이지 크래시
+    // runtimeCaching에 미등록 시 SW fetch 핸들러가 가로채지 않고
+    // 브라우저가 직접 네트워크 요청을 처리하여 에러를 완전히 방지
+    runtimeCaching: [
+      // 이미지 캐싱 (빠른 로딩)
+      {
+        urlPattern: /\.(?:jpg|jpeg|gif|png|svg|ico|webp)$/i,
+        handler: "CacheFirst",
+        options: {
+          cacheName: "static-images",
+          expiration: {
+            maxEntries: 64,
+            maxAgeSeconds: 30 * 24 * 60 * 60, // 30일
+          },
+        },
+      },
+      // 폰트 캐싱
+      {
+        urlPattern: /\.(?:woff|woff2|ttf|otf|eot)$/i,
+        handler: "CacheFirst",
+        options: {
+          cacheName: "static-fonts",
+          expiration: {
+            maxEntries: 16,
+            maxAgeSeconds: 365 * 24 * 60 * 60, // 1년
+          },
+        },
+      },
+      // JS/CSS 캐싱 — _next/static은 precache가 이미 처리하므로 제외
+      // 외부 스크립트/스타일만 NetworkFirst로 캐싱 (StaleWhileRevalidate는
+      // SW 업데이트 중 stale 자원을 제공하여 React Error #185 유발 가능)
+      {
+        urlPattern: ({ url }: { url: URL }) =>
+          /\.(?:js|css)$/i.test(url.pathname) && !url.pathname.startsWith("/_next/"),
+        handler: "NetworkFirst",
+        options: {
+          cacheName: "external-resources",
+          expiration: {
+            maxEntries: 32,
+            maxAgeSeconds: 24 * 60 * 60, // 1일
+          },
+        },
+      },
+    ],
+  },
+});
 
 const nextConfig: NextConfig = {
   // Turbopack 설정 (Next.js 16 기본 번들러)
@@ -76,4 +150,4 @@ const nextConfig: NextConfig = {
   // Next.js rewrites는 POST 요청에서 405 에러 발생하여 Vercel rewrites로 대체
 };
 
-export default nextConfig;
+export default withPWA(nextConfig);
