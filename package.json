@@ -67,7 +67,7 @@
     "react": "^19.2.3",
     "react-day-picker": "^9.13.0",
     "react-dom": "^19.2.3",
-    "react-virtuoso": "^4.18.1",
+    "react-virtuoso": "^4.18.7",
     "recharts": "^3.6.0",
     "sharp": "^0.34.5",
     "svix": "^1.84.1",
