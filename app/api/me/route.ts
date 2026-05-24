@@ -569,6 +569,25 @@ export async function GET() {
         user.github_id = clerkGithubId;
       }
     }
+
+    // country_code 자동 백필: webhook 으로 가입한 사용자는 country=null 로 들어옴
+    // (webhook 서버의 IP 는 사용자 IP 가 아님). 첫 /api/me GET 시 사용자 IP geo 로
+    // 자동 채워서 frictionless 가입 흐름의 일관성 확보.
+    if (!user.country_code) {
+      const detectedCountry = await detectCountryFromHeaders();
+      if (detectedCountry) {
+        const { error: countryErr } = await supabase
+          .from("users")
+          .update({ country_code: detectedCountry, updated_at: new Date().toISOString() })
+          .eq("clerk_id", userId)
+          .is("country_code", null);
+        if (!countryErr) {
+          user.country_code = detectedCountry;
+          // 백필 직후 country_rank 재계산 (이번 사용자가 국가별 랭킹에 합류)
+          await supabase.rpc("calculate_country_ranks").catch(() => {});
+        }
+      }
+    }
   }
 
   // Auto-populate GitHub from Clerk OAuth if not set

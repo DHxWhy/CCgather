@@ -175,8 +175,13 @@ export function OnboardingGuard({ children }: OnboardingGuardProps) {
         }
 
         if (meData) {
-          // legacy 사용자 한정: country_code 도 onboarding 도 비어있으면
-          // (이전 가입자가 onboarding 못 끝낸 9명 케이스) /onboarding 으로 안내
+          // Frictionless 가입 정책:
+          //   - webhook 또는 /api/me 자동 생성이 onboarding_completed=true 로 세팅함
+          //   - country_code 는 /api/me GET 의 IP geo 백필이 채움
+          //   → 모두 비어있는 사용자만 legacy (2026-02 이전 가입자 ~9명) 로 간주
+          //
+          // country 만 비어있는 경우는 통과 — 사용자가 settings/banner 에서 채울 수 있음
+          // (사이트 진입 자체를 막지 않음)
           const isLegacyUnonboarded = !meData.country_code && meData.onboarding_completed === false;
 
           if (isLegacyUnonboarded) {

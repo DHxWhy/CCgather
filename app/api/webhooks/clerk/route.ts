@@ -109,6 +109,10 @@ export async function POST(req: Request) {
       // UPSERT on clerk_id — absorbs the most common race (Clerk retry, /api/me
       // fallback already created the row). Other UNIQUE violations
       // (username/referral_code/github_id) still surface as 23505.
+      //
+      // Frictionless 가입 정책 적용: onboarding_completed/consents 를 webhook 단계에서
+      // 미리 true 로 세팅. country_code 는 webhook 호출자 IP 가 Clerk 서버라 추정 불가,
+      // 따라서 /api/me 가 첫 사용자 요청 시 ip-country 헤더로 자동 채움.
       const { error } = await supabaseAdmin.from("users").upsert(
         {
           clerk_id: id,
@@ -117,6 +121,11 @@ export async function POST(req: Request) {
           display_name: displayName,
           avatar_url: avatarUrl,
           email: email,
+          onboarding_completed: true,
+          profile_visibility_consent: true,
+          community_updates_consent: true,
+          integrity_agreed: true,
+          marketing_consent: false,
           referral_code: referralCode,
         },
         { onConflict: "clerk_id" }
@@ -138,6 +147,11 @@ export async function POST(req: Request) {
             display_name: displayName,
             avatar_url: avatarUrl,
             email: email,
+            onboarding_completed: true,
+            profile_visibility_consent: true,
+            community_updates_consent: true,
+            integrity_agreed: true,
+            marketing_consent: false,
             referral_code: retryReferralCode,
           },
           { onConflict: "clerk_id" }
