@@ -199,6 +199,52 @@ export default function GlobalError({ error, reset }: GlobalErrorProps) {
               </svg>
               Go Home
             </button>
+            {/* Hard reset escape hatch — SW + cache + storage 청소 후 root 이동.
+                global-error 는 root layout 도 깨진 상태라 inline script 가 도달
+                못한 케이스. 사용자가 직접 한 번 클릭하면 회복. */}
+            <button
+              onClick={async () => {
+                try {
+                  if ("serviceWorker" in navigator) {
+                    const regs = await navigator.serviceWorker.getRegistrations();
+                    await Promise.all(regs.map((r) => r.unregister()));
+                  }
+                } catch {
+                  /* ignore */
+                }
+                try {
+                  if ("caches" in window) {
+                    const keys = await caches.keys();
+                    await Promise.all(keys.map((k) => caches.delete(k)));
+                  }
+                } catch {
+                  /* ignore */
+                }
+                try {
+                  localStorage.clear();
+                  sessionStorage.clear();
+                } catch {
+                  /* ignore */
+                }
+                window.location.replace("/");
+              }}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                padding: "0.5rem 1rem",
+                marginTop: "0.5rem",
+                backgroundColor: "transparent",
+                color: "var(--color-text-secondary)",
+                fontWeight: 500,
+                borderRadius: "0.5rem",
+                border: "1px solid rgba(255, 255, 255, 0.15)",
+                cursor: "pointer",
+                fontSize: "0.875rem",
+              }}
+            >
+              Reset & Recover
+            </button>
           </div>
         </div>
       </body>
