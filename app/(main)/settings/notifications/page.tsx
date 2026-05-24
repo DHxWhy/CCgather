@@ -421,7 +421,7 @@ export default function NotificationsSettingsPage() {
                 </p>
                 <p className="text-[11px] text-[var(--color-text-muted)]">
                   {!isSupported
-                    ? "Not supported in this browser"
+                    ? "Coming soon"
                     : permission === "denied"
                       ? "Blocked - check browser settings"
                       : isSubscribed
@@ -443,6 +443,12 @@ export default function NotificationsSettingsPage() {
             <p className="text-[10px] text-amber-600 mt-2 flex items-center gap-1">
               <Smartphone size={10} />
               Unblock in browser settings to enable
+            </p>
+          )}
+          {!isSupported && (
+            <p className="text-[10px] text-[var(--color-text-muted)] mt-2 flex items-center gap-1">
+              <Smartphone size={10} />
+              브라우저 푸시 알림은 곧 다시 지원될 예정입니다.
             </p>
           )}
         </div>

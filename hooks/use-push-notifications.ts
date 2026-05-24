@@ -67,10 +67,10 @@ export function usePushNotifications(): UsePushNotificationsReturn {
   useEffect(() => {
     const checkSupport = async () => {
       // Check if service worker and push manager are supported
-      const isSupported =
+      const browserSupported =
         "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
 
-      if (!isSupported) {
+      if (!browserSupported) {
         setState({
           isSupported: false,
           isSubscribed: false,
@@ -85,12 +85,13 @@ export function usePushNotifications(): UsePushNotificationsReturn {
 
       // Check if already subscribed
       try {
-        // First check if there's an active service worker registration
+        // First check if there's an active service worker registration.
+        // PWA 가 제거된 (2026-05-24) 환경에서는 self-destruct SW 가 unregister 후
+        // 등록이 없음 → isSupported=false 로 처리해 UI 가 토글을 비활성/숨김.
         const registrations = await navigator.serviceWorker.getRegistrations();
         if (registrations.length === 0) {
-          // No service worker registered, but browser supports it
           setState({
-            isSupported: true,
+            isSupported: false,
             isSubscribed: false,
             permission,
             isLoading: false,
@@ -165,15 +166,15 @@ export function usePushNotifications(): UsePushNotificationsReturn {
     setState((prev) => ({ ...prev, isLoading: true, error: null }));
 
     try {
-      // Check if service worker is registered first
+      // Check if service worker is registered first.
+      // PWA 제거 환경에서는 SW 없음 → 사용자에게 "지금은 이용 불가" 안내.
       const registrations = await navigator.serviceWorker.getRegistrations();
       if (registrations.length === 0) {
-        // Development mode or no service worker - show helpful message
         setState((prev) => ({
           ...prev,
           isLoading: false,
           isSupported: false,
-          error: "Service worker not available (development mode)",
+          error: null, // 우아한 비활성 (에러 토스트 X)
         }));
         return false;
       }
