@@ -86,6 +86,44 @@ async function buildBadgeContext(
     isEarlyCountryUser = earlyUsers?.some((u: { id: string }) => u.id === userId) || false;
   }
 
+  // model_usage 계산 (ⓑ 소급 근사, 2026-05-29):
+  // usage_stats 는 per-model 토큰 분해를 저장하지 않고 primary_model(그날 최다
+  // 토큰 모델) 1개만 저장한다. 따라서 "그날 전체 토큰 = primary_model 100%" 로
+  // 근사해 모델 family 별 비중(%)을 집계한다. 70% 임계 배지엔 충분히 합리적.
+  // 정밀 per-model 분해는 Phase D(model_breakdown 컬럼)에서 별도 정밀화 예정.
+  let modelUsage: { opus: number; sonnet: number; haiku: number } | undefined;
+  const { data: modelRows } = await supabase
+    .from("usage_stats")
+    .select("primary_model, total_tokens")
+    .eq("user_id", userId)
+    .not("primary_model", "is", null);
+
+  if (modelRows && modelRows.length > 0) {
+    let opus = 0;
+    let sonnet = 0;
+    let haiku = 0;
+    let total = 0;
+    for (const row of modelRows as {
+      primary_model: string | null;
+      total_tokens: number | null;
+    }[]) {
+      const model = (row.primary_model || "").toLowerCase();
+      const tokens = row.total_tokens || 0;
+      total += tokens;
+      // 우선순위 매칭: opus > sonnet > haiku (한 모델명에 하나만 해당)
+      if (model.includes("opus")) opus += tokens;
+      else if (model.includes("sonnet")) sonnet += tokens;
+      else if (model.includes("haiku")) haiku += tokens;
+    }
+    if (total > 0) {
+      modelUsage = {
+        opus: (opus / total) * 100,
+        sonnet: (sonnet / total) * 100,
+        haiku: (haiku / total) * 100,
+      };
+    }
+  }
+
   return {
     total_tokens: stats.total_tokens,
     total_cost: stats.total_cost,
@@ -95,7 +133,7 @@ async function buildBadgeContext(
     referral_count: stats.referral_count,
     streak,
     is_early_country_user: isEarlyCountryUser,
-    // TODO: Add model_usage when model breakdown data is available
+    model_usage: modelUsage,
     // TODO: Add rank_gain_weekly when rank history tracking is implemented
   };
 }
