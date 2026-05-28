@@ -35,7 +35,9 @@ async function notifyDiscordNewUser({
   displayName: string;
   githubId: string | null;
 }): Promise<void> {
-  const webhookUrl = process.env.DISCORD_WEBHOOK_NEW_USER;
+  // Vercel env var 가 literal `\n` 또는 trailing whitespace 포함하는 경우 sanitize.
+  // (Dashboard UI 입력 시 copy-paste 로 newline 가 escape 되어 들어오는 케이스 방어)
+  const webhookUrl = process.env.DISCORD_WEBHOOK_NEW_USER?.replace(/\\n$/, "").trim();
   if (!webhookUrl) return;
 
   try {
