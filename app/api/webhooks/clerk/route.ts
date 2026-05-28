@@ -22,6 +22,75 @@ function getSupabaseAdmin() {
   );
 }
 
+// Discord 신규 가입 알림 (fire-and-forget).
+// webhook URL 은 DISCORD_WEBHOOK_NEW_USER env var. 미설정 시 silent skip.
+// 실패해도 가입 흐름 막지 않음 — try/catch 로 swallow.
+// PII 노출 방지: email 절대 포함 X, username + display_name + GitHub URL 만.
+async function notifyDiscordNewUser({
+  username,
+  displayName,
+  githubId,
+}: {
+  username: string;
+  displayName: string;
+  githubId: string | null;
+}): Promise<void> {
+  const webhookUrl = process.env.DISCORD_WEBHOOK_NEW_USER;
+  if (!webhookUrl) return;
+
+  try {
+    const githubUrl = githubId ? `https://github.com/${username}` : null;
+    const avatarUrl = githubId ? `https://avatars.githubusercontent.com/u/${githubId}?v=4` : null;
+    const kst = new Date().toLocaleString("ko-KR", {
+      timeZone: "Asia/Seoul",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+
+    const payload = {
+      username: "CCgather 가입봇",
+      content: "🎉 **신규 회원 가입**",
+      embeds: [
+        {
+          title: displayName,
+          url: githubUrl,
+          color: 0xda7756, // coral
+          ...(avatarUrl && { thumbnail: { url: avatarUrl } }),
+          fields: [
+            { name: "Username", value: `\`${username}\``, inline: true },
+            {
+              name: "GitHub",
+              value: githubUrl ? `[프로필](${githubUrl})` : "—",
+              inline: true,
+            },
+            { name: "가입 시각 (KST)", value: kst, inline: true },
+          ],
+          footer: { text: "CCgather · ccgather.com" },
+          timestamp: new Date().toISOString(),
+        },
+      ],
+    };
+
+    const response = await fetch(webhookUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+
+    if (!response.ok) {
+      console.warn("[webhook] Discord notify non-2xx:", {
+        status: response.status,
+        username,
+      });
+    }
+  } catch (err) {
+    console.warn("[webhook] Discord notify failed:", err);
+  }
+}
+
 // Postgres constraint-violation SQLSTATEs (class 23) are permanent — retrying
 // the same payload won't fix them. Return 200 in those cases so Clerk stops
 // retrying for 24h and we surface the issue via logs instead of error backoff.
@@ -131,6 +200,7 @@ export async function POST(req: Request) {
         .from("users")
         .insert({ ...userPayload, referral_code: referralCode });
       let error = insertErr;
+      let isNewUser = !insertErr;
       // clerk_id 충돌 (= /api/me 가 먼저 만든 행) 일 때만 UPDATE — referral_code 제외
       if (error?.code === "23505") {
         const { error: updateErr } = await supabaseAdmin
@@ -138,13 +208,24 @@ export async function POST(req: Request) {
           .update({ ...userPayload, updated_at: new Date().toISOString() })
           .eq("clerk_id", id);
         if (!updateErr) {
-          // 기존 행 갱신 성공 — break 흐름으로 진입
+          // 기존 행 갱신 성공 — break 흐름으로 진입 (재가입/탈퇴 복구 등 → 알림 X)
           error = null;
+          isNewUser = false;
         }
         // updateErr 가 있어도 일단 23505 retry 분기 진입 → username/referral_code race 처리
       }
 
-      if (!error) break;
+      if (!error) {
+        // 진짜 신규 가입만 Discord 알림 (재가입/UPDATE 는 제외)
+        if (isNewUser) {
+          void notifyDiscordNewUser({
+            username: finalUsername,
+            displayName,
+            githubId,
+          });
+        }
+        break;
+      }
 
       // Constraint violation on a non-clerk_id column (username/referral_code/etc).
       // Retry once with a fresh referral_code + a uniquified username — covers the
@@ -174,6 +255,11 @@ export async function POST(req: Request) {
           console.log("[webhook] user.created succeeded on retry:", {
             clerk_id: id,
             retryUsername,
+          });
+          void notifyDiscordNewUser({
+            username: retryUsername,
+            displayName,
+            githubId,
           });
           break;
         }
