@@ -196,7 +196,11 @@ async function ensurePricingData(): Promise<Record<string, ModelPricing> | null>
 
 function fallbackForModel(model: string): ModelPricing {
   const m = model.toLowerCase();
-  if (/opus-?4[-.]?(5|6|7)/.test(m)) return FALLBACK_PRICING["opus-4-5"];
+  // Opus 4.5+ 현행 저tier ($5/$25). Anthropic 공식가 확인 (2026-05-29):
+  // Opus 4.5/4.6/4.7/4.8(NextOpus) 모두 $5/$25, Opus 4/4.1 만 레거시 $15/$75.
+  // 4-5~4-19 minor 를 신tier 로 매칭 (4-8 포함). 단 이 fallback 은 LiteLLM 미등재
+  // 시 stopgap 일 뿐 — 정식 가격은 LiteLLM(primary)이 권위. 미래 Opus 5+ 출시 시 재검토.
+  if (/opus-?4[-.]?([5-9]|1\d)/.test(m)) return FALLBACK_PRICING["opus-4-5"];
   if (m.includes("opus")) return FALLBACK_PRICING["opus-4"];
   if (/haiku-?4/.test(m)) return FALLBACK_PRICING["haiku-4-5"];
   if (m.includes("haiku")) return FALLBACK_PRICING["haiku-3-5"];
