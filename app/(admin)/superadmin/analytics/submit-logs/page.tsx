@@ -1257,6 +1257,18 @@ export default function SubmitLogsPage() {
   const [failedReason, setFailedReason] = useState("");
   const [failedDateRangeDays, setFailedDateRangeDays] = useState<PeriodDays>(30);
 
+  // Seed the search box from the URL `?search=` param so the Discord 이슈감지
+  // alert's "제출 로그 열기" link lands pre-filtered on the flagged user.
+  // Uses window.location instead of useSearchParams to avoid forcing a Suspense
+  // boundary around this large client page; the effect runs only on the client.
+  useEffect(() => {
+    const s = new URLSearchParams(window.location.search).get("search");
+    if (s) {
+      setSuccessSearchInput(s);
+      setActiveTab("success");
+    }
+  }, []);
+
   // Reset page when filters change (M8 — 검색 즉시 페이지 1)
   useEffect(() => {
     setSuccessPage(1);

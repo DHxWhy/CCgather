@@ -1,4 +1,5 @@
-import { NextRequest, NextResponse } from "next/server";
+import { createHash } from "node:crypto";
+import { NextRequest, NextResponse, after } from "next/server";
 import { revalidatePath } from "next/cache";
 import { createServiceClient } from "@/lib/supabase/server";
 import { checkAndAwardBadges } from "@/lib/services/badgeService";
@@ -9,6 +10,13 @@ import {
 } from "@/lib/push/send-notification";
 import { aggregateByDate } from "@/lib/utils/usage-aggregation";
 import { computeDayCost, getPricingData } from "@/lib/services/pricing";
+import { parseValidationMode } from "@/lib/config/validation-thresholds";
+import {
+  runAllValidations,
+  validateSingleDay,
+  computeReviewStatus,
+} from "@/lib/services/submit-validators";
+import { notifyValidationIssue } from "@/lib/services/validation-notify";
 
 interface DailyUsage {
   date: string;
@@ -88,6 +96,7 @@ const KNOWN_CCPLANS = ["free", "pro", "max", "team", "enterprise"];
 interface AuthenticatedUser {
   id: string;
   username: string;
+  github_id?: string | null;
   total_tokens: number | null;
   total_cost: number | null;
   total_sessions: number | null;
@@ -144,7 +153,7 @@ export async function POST(request: NextRequest) {
     const { data: user, error: tokenError } = await supabase
       .from("users")
       .select(
-        "id, username, total_tokens, total_cost, total_sessions, country_code, last_submission_at, global_rank, country_rank, current_level"
+        "id, username, github_id, total_tokens, total_cost, total_sessions, country_code, last_submission_at, global_rank, country_rank, current_level"
       )
       .eq("api_key", token)
       .maybeSingle();
@@ -315,6 +324,127 @@ export async function POST(request: NextRequest) {
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
+    // Submit validation mode (read once; reused by STEP 0.6 alerting and the
+    // STEP 1 per-day DB write). parseValidationMode is pure and never throws.
+    //   off    → skip validation entirely
+    //   log    → structured log only
+    //   notify → log + persist flags (STEP 1) + Discord alert on HARD (below)
+    // No mode ever blocks the submission.
+    // ═══════════════════════════════════════════════════════════════════════════
+    const validationMode = parseValidationMode(process.env.SUBMIT_VALIDATION_MODE);
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // STEP 0.6: Submit validation — observe-only, NEVER blocks (fail-open)
+    // Logs structured JSON and, in notify mode, sends a Discord alert when a
+    // HARD finding appears. Per-day flags are persisted later in STEP 1.
+    //
+    // Critical invariant: this block must NEVER throw or reject. Wrapped in
+    // try/catch; any error is swallowed so validator bugs can't 500 a legit user.
+    // ═══════════════════════════════════════════════════════════════════════════
+    if (validationMode !== "off") {
+      try {
+        const validationStart = Date.now();
+        const logDisabled = process.env.SUBMIT_VALIDATION_LOG_DISABLED === "1";
+        const validationResult = runAllValidations(body, validationMode);
+        const validationDurationMs = Date.now() - validationStart;
+
+        if (!logDisabled) {
+          const userHash = createHash("sha256")
+            .update(authenticatedUser.id)
+            .digest("hex")
+            .slice(0, 12);
+
+          if (validationResult.flags.length > 0) {
+            // Detailed log when flags exist — main analytics signal.
+            console.log(
+              JSON.stringify({
+                evt: "submit_validation",
+                mode: validationMode,
+                user_hash: userHash,
+                username: authenticatedUser.username,
+                flag_codes: validationResult.codes,
+                hard_count: validationResult.hardViolations.length,
+                soft_count: validationResult.softViolations.length,
+                info_count: validationResult.flags.filter((f) => f.severity === "INFO").length,
+                payload_meta: {
+                  daily_len: Array.isArray(body.dailyUsage) ? body.dailyUsage.length : 0,
+                  total_tokens: body.totalTokens,
+                  total_spent: body.totalSpent,
+                },
+                details: validationResult.flags.map((f) => ({
+                  code: f.code,
+                  severity: f.severity,
+                  detail: f.detail,
+                })),
+                duration_ms: validationDurationMs,
+                ts: new Date().toISOString(),
+                decision: "pass_logged", // observe-only: never blocks
+              })
+            );
+          } else if (Math.random() < 0.01) {
+            // 1% sample of clean submissions — denominator for flag-rate KPIs.
+            console.log(
+              JSON.stringify({
+                evt: "submit_validation_pass",
+                mode: validationMode,
+                user_hash: userHash,
+                username: authenticatedUser.username,
+                payload_meta: {
+                  daily_len: Array.isArray(body.dailyUsage) ? body.dailyUsage.length : 0,
+                },
+                duration_ms: validationDurationMs,
+                ts: new Date().toISOString(),
+              })
+            );
+          }
+        }
+
+        // Discord alert (notify mode + HARD finding only). notifyValidationIssue
+        // dedups per user (24h) — it records an admin_alerts row and pushes to
+        // the "이슈감지" channel if configured.
+        //
+        // Run it AFTER the response via next/server `after()` so the DB round-trips
+        // + Discord fetch (≤3s) never add to the user's submit latency, and the
+        // in-flight work isn't truncated when the serverless function freezes.
+        // notifyValidationIssue never throws (its own try/catch), so it's safe
+        // outside this block's try/catch. Result is logged for observability.
+        if (validationMode === "notify" && validationResult.hasHardViolation) {
+          const hardFlags = validationResult.hardViolations.map((f) => ({
+            code: f.code,
+            detail: f.detail,
+          }));
+          after(async () => {
+            const outcome = await notifyValidationIssue({
+              supabase,
+              userId: authenticatedUser.id,
+              username: authenticatedUser.username,
+              githubId: authenticatedUser.github_id,
+              hardFlags,
+              totalTokens: body.totalTokens,
+              totalSpent: body.totalSpent,
+            });
+            console.log(
+              JSON.stringify({
+                evt: "submit_validation_notify",
+                username: authenticatedUser.username,
+                outcome,
+                flag_codes: hardFlags.map((f) => f.code),
+                ts: new Date().toISOString(),
+              })
+            );
+          });
+        }
+      } catch (validationError) {
+        // Fail-open: validator/alert throws must not break legit submissions.
+        // Narrow the logged value to message only — a raw error/stack could
+        // otherwise carry user payload fragments (PII leak risk).
+        const msg =
+          validationError instanceof Error ? validationError.message : String(validationError);
+        console.error("[SubmitValidation] Validator/notify crashed (failing open):", msg);
+      }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
     // STEP 0.7: Reinstall detection — QUERY ONLY (cleanup deferred to STEP 1.7)
     // Detect if same session hashes appear with a different device_id, indicating
     // a CLI reinstall. Actual cleanup runs AFTER successful upsert to prevent
@@ -384,6 +514,23 @@ export async function POST(request: NextRequest) {
           cacheReadTokens: day.cacheReadTokens || 0,
         });
 
+        // Per-day validation flags (notify/log modes only). Uses the
+        // server-recomputed cost so the V2 cost cap evaluates the trusted value,
+        // not the CLI-reported one. Observe-only — never affects what's stored
+        // beyond the two advisory columns. `off` mode leaves defaults ([], clean).
+        const dayFlags =
+          validationMode === "off"
+            ? []
+            : validateSingleDay({
+                date: day.date,
+                tokens: day.tokens,
+                cost: computedCost,
+                inputTokens: day.inputTokens || 0,
+                outputTokens: day.outputTokens || 0,
+                cacheReadTokens: day.cacheReadTokens || 0,
+                cacheWriteTokens: day.cacheWriteTokens || 0,
+              });
+
         return {
           user_id: authenticatedUser.id,
           date: day.date,
@@ -399,6 +546,8 @@ export async function POST(request: NextRequest) {
           device_id: deviceId,
           submission_source: "cli",
           league_reason: isOpusModel ? "opus" : null,
+          validation_flags: dayFlags.map((f) => f.code),
+          submission_review_status: computeReviewStatus(dayFlags),
         };
       });
 
