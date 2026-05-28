@@ -126,3 +126,6 @@ playwright-report-production/
 
 # 개인 작업 메모 (gitignored)
 다음할일.md
+
+# Pantheon 디자인 작업 artifact (commit X)
+.pantheon/

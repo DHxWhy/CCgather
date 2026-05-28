@@ -1,80 +1,277 @@
 "use client";
 
-import { useState, Fragment } from "react";
+import { useState, Fragment, useMemo } from "react";
+import {
+  AlertTriangle,
+  ArrowDownAZ,
+  BarChart3,
+  CheckCircle2,
+  ChevronRight,
+  Compass,
+  ExternalLink,
+  Globe2,
+  Hash,
+  Lightbulb,
+  Link2,
+  Network,
+  Percent,
+  Search as SearchIcon,
+  Share2,
+  TrendingUp,
+} from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { useTrafficSources } from "@/hooks/use-admin-analytics";
 
-const DATE_RANGES = [
+// =====================================================
+// macOS Big Sur+ Easing — funnels / submit-logs / ai-usage 와 동일
+// =====================================================
+const MAC_EASE = "cubic-bezier(0.25, 0.46, 0.45, 0.94)";
+
+// =====================================================
+// Period — funnels 와 동일 NSSegmentedControl 패턴
+// API 값 "-1d/-7d/-14d/-30d/-90d" 100% 유지
+// =====================================================
+const PERIOD_OPTIONS = [
   { label: "오늘", value: "-1d" },
   { label: "7일", value: "-7d" },
   { label: "14일", value: "-14d" },
   { label: "30일", value: "-30d" },
   { label: "90일", value: "-90d" },
-];
+] as const;
 
+type PeriodValue = (typeof PERIOD_OPTIONS)[number]["value"];
+
+// =====================================================
+// Source Types & Labels — API 응답 100% 유지
+// =====================================================
 type SourceType = "direct" | "search" | "social" | "referral";
 
-const SOURCE_LABELS: Record<SourceType, { label: string; description: string }> = {
-  direct: {
-    label: "직접 방문",
-    description: "URL 직접 입력 또는 북마크를 통한 방문",
-  },
-  search: {
-    label: "검색 유입",
-    description: "Google, Bing, Naver 등 검색 엔진을 통한 방문",
-  },
-  social: {
-    label: "소셜 미디어",
-    description: "Twitter, Reddit, LinkedIn 등 SNS를 통한 방문",
-  },
-  referral: {
-    label: "외부 링크",
-    description: "블로그, 뉴스, 다른 웹사이트의 백링크를 통한 방문",
-  },
+const SOURCE_LABELS: Record<SourceType, { label: string; caption: string }> = {
+  direct: { label: "직접 방문", caption: "Direct" },
+  search: { label: "검색 유입", caption: "Search" },
+  social: { label: "소셜 미디어", caption: "Social" },
+  referral: { label: "외부 링크", caption: "Referral" },
 };
 
-const SOURCE_COLORS: Record<SourceType, { bg: string; text: string; bar: string }> = {
-  direct: { bg: "bg-blue-500/10", text: "text-blue-400", bar: "bg-blue-500" },
-  search: { bg: "bg-emerald-500/10", text: "text-emerald-400", bar: "bg-emerald-500" },
-  social: { bg: "bg-purple-500/10", text: "text-purple-400", bar: "bg-purple-500" },
-  referral: { bg: "bg-orange-500/10", text: "text-orange-400", bar: "bg-orange-500" },
+const SOURCE_ICONS: Record<SourceType, LucideIcon> = {
+  direct: Compass,
+  search: SearchIcon,
+  social: Share2,
+  referral: Link2,
 };
 
+// =====================================================
+// Coral 단일 + intensity 위계 (funnels FunnelBar 패턴)
+// 시멘틱 dot 으로 4유형 구분 (semantic, 시각 노이즈 X)
+// =====================================================
+const SOURCE_INTENSITY: Record<SourceType, number> = {
+  direct: 1.0, // 가장 진함 (자체 브랜드 도달)
+  search: 0.78, // SEO 강도
+  social: 0.55, // 바이럴 강도
+  referral: 0.35, // 외부 유입
+};
+
+const SOURCE_DOT: Record<SourceType, string> = {
+  direct: "bg-[var(--color-claude-coral)]",
+  search: "bg-emerald-300",
+  social: "bg-sky-300",
+  referral: "bg-amber-300",
+};
+
+// =====================================================
+// GlassCard — frosted glass container (funnels 와 동일)
+// =====================================================
+function GlassCard({
+  children,
+  title,
+  caption,
+  icon: Icon,
+  trailing,
+  padded = true,
+  className = "",
+}: {
+  children: React.ReactNode;
+  title?: string;
+  caption?: string;
+  icon?: LucideIcon;
+  trailing?: React.ReactNode;
+  padded?: boolean;
+  className?: string;
+}) {
+  return (
+    <div
+      className={`rounded-[9px] ring-1 ring-white/[0.08] ${padded ? "p-4" : ""} ${className}`}
+      style={{
+        background: "rgba(255,255,255,0.04)",
+        backdropFilter: "blur(20px) saturate(180%)",
+        WebkitBackdropFilter: "blur(20px) saturate(180%)",
+        boxShadow: "inset 0 1px 0 rgba(255,255,255,0.05), 0 1px 2px rgba(0,0,0,0.18)",
+      }}
+    >
+      {(title || trailing) && (
+        <div
+          className={`flex items-center justify-between gap-2 ${padded ? "mb-3" : "px-4 pt-3 pb-2.5"}`}
+        >
+          <div className="flex items-center gap-1.5 min-w-0">
+            {Icon && (
+              <Icon
+                className="h-3 w-3 text-white/40 shrink-0"
+                strokeWidth={1.75}
+                aria-hidden="true"
+              />
+            )}
+            {title && (
+              <h3 className="text-[11px] font-semibold uppercase tracking-[0.08em] text-white/45">
+                {title}
+              </h3>
+            )}
+            {caption && (
+              <span className="text-[10.5px] text-white/30 tracking-[-0.005em]">{caption}</span>
+            )}
+          </div>
+          {trailing}
+        </div>
+      )}
+      {children}
+    </div>
+  );
+}
+
+// =====================================================
+// PeriodSegmented — funnels 와 100% 동일 NSSegmentedControl
+// =====================================================
+function PeriodSegmented({
+  value,
+  onChange,
+}: {
+  value: PeriodValue;
+  onChange: (v: PeriodValue) => void;
+}) {
+  return (
+    <div
+      role="radiogroup"
+      aria-label="기간 선택"
+      className="inline-flex items-center rounded-[7px] p-0.5 ring-1 ring-white/[0.08]"
+      style={{
+        background: "rgba(255,255,255,0.04)",
+        backdropFilter: "blur(20px) saturate(180%)",
+        WebkitBackdropFilter: "blur(20px) saturate(180%)",
+      }}
+    >
+      {PERIOD_OPTIONS.map((p) => {
+        const active = value === p.value;
+        return (
+          <button
+            key={p.value}
+            type="button"
+            role="radio"
+            aria-checked={active}
+            onClick={() => onChange(p.value)}
+            className={`relative inline-flex h-7 items-center px-2.5 text-[11.5px] font-medium tracking-[-0.005em] rounded-[5px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/25 active:scale-[0.98] ${
+              active
+                ? "bg-white/[0.1] text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]"
+                : "text-white/55 hover:text-white/85"
+            }`}
+            style={{
+              transition: `all 180ms ${MAC_EASE}`,
+            }}
+          >
+            {p.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+// =====================================================
+// SourceCard — funnels MetricCard 와 시각 일관
+// coral 단일 + 시멘틱 dot 으로 유형 구분
+// =====================================================
 function SourceCard({
   type,
   count,
   percent,
-  icon,
 }: {
   type: SourceType;
   count: number;
   percent: number;
-  icon: string;
 }) {
-  const colors = SOURCE_COLORS[type];
   const labels = SOURCE_LABELS[type];
+  const Icon = SOURCE_ICONS[type];
+  const intensity = SOURCE_INTENSITY[type];
+  const dot = SOURCE_DOT[type];
+
+  // coral 단일 액센트 — intensity 로 단계 표현 (funnels FunnelBar 와 동일)
+  const fillBg = `linear-gradient(90deg, rgba(218,119,86,${0.95 * intensity}) 0%, rgba(218,119,86,${0.7 * intensity}) 100%)`;
 
   return (
-    <div className={`${colors.bg} rounded-lg px-3 py-2 border border-white/[0.06]`}>
-      <div className="flex items-center justify-between gap-2">
-        <div className="flex items-center gap-1.5 min-w-0">
-          <span className="text-sm shrink-0">{icon}</span>
-          <span className={`text-[11px] font-medium ${colors.text} truncate`}>{labels.label}</span>
+    <div
+      className="relative overflow-hidden rounded-[9px] p-4 ring-1 ring-white/[0.08]"
+      style={{
+        background: "rgba(255,255,255,0.04)",
+        backdropFilter: "blur(20px) saturate(180%)",
+        WebkitBackdropFilter: "blur(20px) saturate(180%)",
+        boxShadow: "inset 0 1px 0 rgba(255,255,255,0.05), 0 1px 2px rgba(0,0,0,0.18)",
+      }}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-1.5">
+            <span aria-hidden="true" className={`h-1.5 w-1.5 rounded-full ${dot}`} />
+            <span className="text-[11px] font-medium uppercase tracking-[0.08em] text-white/45">
+              {labels.label}
+            </span>
+          </div>
+          <div className="mt-0.5 text-[10px] text-white/35 tracking-[-0.005em]">
+            {labels.caption}
+          </div>
+          <div
+            className="mt-2.5 text-[28px] font-semibold leading-none tabular-nums tracking-[-0.02em] text-white"
+            style={{ fontFeatureSettings: '"ss01", "tnum", "cv11"' }}
+          >
+            {count.toLocaleString("en-US")}
+          </div>
+          <div className="mt-2.5 flex items-center gap-2 min-h-[1rem]">
+            <span
+              className="inline-flex items-center gap-1 text-[10.5px] text-white/55 tabular-nums tracking-[-0.005em]"
+              style={{ fontFeatureSettings: '"tnum"' }}
+            >
+              <Percent className="h-2.5 w-2.5 text-white/35" strokeWidth={2} aria-hidden="true" />
+              <span>{percent}%</span>
+            </span>
+          </div>
         </div>
-        <div className="flex items-center gap-2 shrink-0">
-          <span className="text-base font-bold text-white">{count.toLocaleString()}</span>
-          <span className="text-[10px] text-white/40 font-mono">{percent}%</span>
+        <div
+          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-[7px] ring-1 bg-white/[0.06] text-white/75 ring-white/[0.08]"
+          aria-hidden="true"
+        >
+          <Icon className="h-3.5 w-3.5" strokeWidth={1.75} />
         </div>
       </div>
-      <div className="mt-1.5 h-1 bg-white/5 rounded-full overflow-hidden">
+      {/* coral intensity bar — 단일 액센트, 시각 노이즈 없음 */}
+      <div
+        className="mt-3 h-1.5 rounded-[3px] overflow-hidden ring-1 ring-white/[0.04]"
+        style={{ background: "rgba(255,255,255,0.04)" }}
+      >
         <div
-          className={`h-full ${colors.bar} transition-all duration-500`}
-          style={{ width: `${Math.min(percent, 100)}%` }}
+          className="h-full rounded-[3px]"
+          style={{
+            width: `${Math.max(2, Math.min(percent, 100))}%`,
+            background: fillBg,
+            transition: `width 420ms ${MAC_EASE}`,
+            boxShadow: "inset 0 1px 0 rgba(255,255,255,0.08)",
+          }}
         />
       </div>
     </div>
   );
 }
 
+// =====================================================
+// TrendChart — macOS Activity Monitor stacked bars
+// coral intensity 4단계 (direct → search → social → referral)
+// =====================================================
 function TrendChart({
   data,
 }: {
@@ -86,39 +283,58 @@ function TrendChart({
     referral: number;
   }>;
 }) {
-  if (!data?.length) {
+  const slice = useMemo(() => data ?? [], [data]);
+
+  const maxTotal = useMemo(() => {
+    if (!slice.length) return 1;
+    const totals = slice.map((d) => d.direct + d.search + d.social + d.referral);
+    return Math.max(...totals, 1);
+  }, [slice]);
+
+  if (!slice.length) {
     return (
-      <div className="text-center py-8 text-[12px] text-white/30">트렌드 데이터가 없습니다</div>
+      <div className="flex items-center justify-center py-8 text-[11.5px] text-white/35 tracking-[-0.005em]">
+        트렌드 데이터 없음
+      </div>
     );
   }
 
-  // 일별 총합 계산 및 최대값
-  const dailyTotals = data.map((d) => d.direct + d.search + d.social + d.referral);
-  const maxTotal = Math.max(...dailyTotals, 1);
+  const segmentTypes: SourceType[] = ["direct", "search", "social", "referral"];
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center gap-4 text-[10px]">
-        <div className="flex items-center gap-1.5">
-          <div className="w-2 h-2 rounded-full bg-blue-500" />
-          <span className="text-white/50">직접</span>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <div className="w-2 h-2 rounded-full bg-emerald-500" />
-          <span className="text-white/50">검색</span>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <div className="w-2 h-2 rounded-full bg-purple-500" />
-          <span className="text-white/50">소셜</span>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <div className="w-2 h-2 rounded-full bg-orange-500" />
-          <span className="text-white/50">외부링크</span>
-        </div>
+      {/* Legend — coral intensity 단계 표시 */}
+      <div className="flex items-center gap-3 text-[10.5px] tracking-[-0.005em] flex-wrap">
+        {segmentTypes.map((t) => {
+          const intensity = SOURCE_INTENSITY[t];
+          return (
+            <div key={t} className="flex items-center gap-1.5">
+              <span
+                aria-hidden="true"
+                className="h-2 w-2 rounded-sm ring-1 ring-white/10"
+                style={{
+                  background: `rgba(218,119,86,${0.95 * intensity})`,
+                }}
+              />
+              <span className="text-white/55">{SOURCE_LABELS[t].label}</span>
+            </div>
+          );
+        })}
+        <span
+          className="ml-auto text-[10px] text-white/30 tabular-nums tracking-[-0.005em]"
+          style={{ fontFeatureSettings: '"tnum"' }}
+        >
+          최대 <span className="text-white/55 font-medium">{maxTotal.toLocaleString("en-US")}</span>
+        </span>
       </div>
 
-      <div className="flex items-end gap-1 h-32">
-        {data.map((item, index) => {
+      {/* Chart */}
+      <div
+        className="flex items-end gap-1 h-[120px] px-0.5"
+        role="img"
+        aria-label={`일별 유입 추이 — ${slice.length}일`}
+      >
+        {slice.map((item, index) => {
           const total = item.direct + item.search + item.social + item.referral;
           const scale = total / maxTotal;
           const date = new Date(item.date);
@@ -127,28 +343,47 @@ function TrendChart({
           return (
             <div
               key={item.date}
-              className="flex-1 flex flex-col items-center gap-1"
-              title={`${item.date}: ${total}명`}
+              tabIndex={0}
+              role="group"
+              aria-label={`${item.date} 총 ${total}명`}
+              title={`${item.date} · 총 ${total.toLocaleString("en-US")}명`}
+              className="group flex-1 flex flex-col items-center gap-1.5 rounded-[5px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/25 cursor-default"
+              style={{ transition: `background-color 160ms ${MAC_EASE}` }}
             >
               <div
-                className="w-full rounded-t flex flex-col-reverse overflow-hidden transition-all duration-300"
-                style={{ height: `${Math.max(scale * 100, 4)}%` }}
+                className="w-full rounded-t-[3px] flex flex-col-reverse overflow-hidden ring-1 ring-white/[0.04]"
+                style={{
+                  height: `${Math.max(scale * 100, total > 0 ? 6 : 2)}%`,
+                  transition: `height 380ms ${MAC_EASE}`,
+                  background: "rgba(255,255,255,0.02)",
+                }}
               >
-                {item.direct > 0 && (
-                  <div className="bg-blue-500 min-h-[1px]" style={{ flexGrow: item.direct }} />
-                )}
-                {item.search > 0 && (
-                  <div className="bg-emerald-500 min-h-[1px]" style={{ flexGrow: item.search }} />
-                )}
-                {item.social > 0 && (
-                  <div className="bg-purple-500 min-h-[1px]" style={{ flexGrow: item.social }} />
-                )}
-                {item.referral > 0 && (
-                  <div className="bg-orange-500 min-h-[1px]" style={{ flexGrow: item.referral }} />
-                )}
+                {segmentTypes.map((t) => {
+                  const value = item[t];
+                  if (value <= 0) return null;
+                  const intensity = SOURCE_INTENSITY[t];
+                  return (
+                    <div
+                      key={t}
+                      style={{
+                        flexGrow: value,
+                        minHeight: 1,
+                        background: `rgba(218,119,86,${0.95 * intensity})`,
+                      }}
+                    />
+                  );
+                })}
               </div>
               {index % 2 === 0 && (
-                <span className={`text-[9px] ${isWeekend ? "text-white/20" : "text-white/40"}`}>
+                <span
+                  className={`text-[9.5px] tabular-nums tracking-[-0.005em] ${
+                    isWeekend ? "text-white/25" : "text-white/40"
+                  } group-hover:text-white/65`}
+                  style={{
+                    fontFeatureSettings: '"tnum"',
+                    transition: `color 160ms ${MAC_EASE}`,
+                  }}
+                >
                   {date.getMonth() + 1}/{date.getDate()}
                 </span>
               )}
@@ -160,6 +395,9 @@ function TrendChart({
   );
 }
 
+// =====================================================
+// Types — API 응답 100% 유지
+// =====================================================
 interface DomainDetail {
   url: string;
   count: number;
@@ -171,12 +409,73 @@ interface DomainData {
   count: number;
   percent: number;
   type: SourceType;
-  icon: string;
+  icon: string; // legacy emoji, 미사용 (Lucide 로 교체)
   details?: DomainDetail[];
 }
 
 type SortType = "count" | "percent" | "domain";
 
+// =====================================================
+// Sort Header Cell — aria-sort + keyboard accessible
+// =====================================================
+function SortHeader({
+  label,
+  type,
+  active,
+  desc,
+  align = "left",
+  onSort,
+}: {
+  label: string;
+  type: SortType;
+  active: boolean;
+  desc: boolean;
+  align?: "left" | "right";
+  onSort: (t: SortType) => void;
+}) {
+  const ariaSort: "ascending" | "descending" | "none" = active
+    ? desc
+      ? "descending"
+      : "ascending"
+    : "none";
+
+  return (
+    <th
+      scope="col"
+      aria-sort={ariaSort}
+      className={`px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-white/45 border-b border-white/[0.08] ${
+        align === "right" ? "text-right" : "text-left"
+      }`}
+    >
+      <button
+        type="button"
+        onClick={() => onSort(type)}
+        className={`group inline-flex items-center gap-1 rounded-[4px] px-1 py-0.5 -mx-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/25 ${
+          active ? "text-white/85" : "text-white/45 hover:text-white/70"
+        } ${align === "right" ? "ml-auto" : ""}`}
+        style={{ transition: `color 160ms ${MAC_EASE}` }}
+        aria-label={`${label} 기준 정렬 (${active ? (desc ? "내림차순" : "오름차순") : "비활성"})`}
+      >
+        <span>{label}</span>
+        <ArrowDownAZ
+          className={`h-2.5 w-2.5 shrink-0 ${active ? "opacity-100" : "opacity-40 group-hover:opacity-70"}`}
+          strokeWidth={2}
+          style={{
+            transform: active && !desc ? "rotate(180deg)" : "rotate(0deg)",
+            transition: `transform 200ms ${MAC_EASE}, opacity 160ms ${MAC_EASE}`,
+          }}
+          aria-hidden="true"
+        />
+      </button>
+    </th>
+  );
+}
+
+// =====================================================
+// TopDomainsTable — macOS Finder list view
+// sticky thead (L2) + sortable (aria-sort) + keyboard rows (H5) + font-mono (L3)
+// 기능 100% 유지 (sort/expand)
+// =====================================================
 function TopDomainsTable({ domains }: { domains: DomainData[] }) {
   const [expandedDomains, setExpandedDomains] = useState<Set<string>>(new Set());
   const [sortBy, setSortBy] = useState<SortType>("count");
@@ -203,150 +502,231 @@ function TopDomainsTable({ domains }: { domains: DomainData[] }) {
     }
   };
 
-  // Dynamic scaling: calculate max percent among displayed domains for relative bar widths
-  const maxPercent = Math.max(...domains.map((d: DomainData) => d.percent), 1);
+  // Dynamic scaling — relative bar widths
+  const maxPercent = useMemo(() => Math.max(...domains.map((d) => d.percent), 1), [domains]);
 
-  const sortedDomains = [...domains].sort((a, b) => {
-    let cmp = 0;
-    switch (sortBy) {
-      case "count":
-        cmp = a.count - b.count;
-        break;
-      case "percent":
-        cmp = a.percent - b.percent;
-        break;
-      case "domain":
-        cmp = a.domain.localeCompare(b.domain);
-        break;
-    }
-    return sortDesc ? -cmp : cmp;
-  });
+  const sortedDomains = useMemo(() => {
+    return [...domains].sort((a, b) => {
+      let cmp = 0;
+      switch (sortBy) {
+        case "count":
+          cmp = a.count - b.count;
+          break;
+        case "percent":
+          cmp = a.percent - b.percent;
+          break;
+        case "domain":
+          cmp = a.domain.localeCompare(b.domain);
+          break;
+      }
+      return sortDesc ? -cmp : cmp;
+    });
+  }, [domains, sortBy, sortDesc]);
 
   if (!domains?.length) {
     return (
-      <div className="text-center py-8 text-[12px] text-white/30">도메인 데이터가 없습니다</div>
+      <div className="flex items-center justify-center py-8 text-[11.5px] text-white/35 tracking-[-0.005em]">
+        도메인 데이터 없음
+      </div>
     );
   }
 
-  const SortIcon = ({ active, desc }: { active: boolean; desc: boolean }) => (
-    <span className={`ml-1 text-[8px] ${active ? "text-white/60" : "text-white/20"}`}>
-      {active ? (desc ? "▼" : "▲") : "▼"}
-    </span>
-  );
-
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full">
-        <thead>
-          <tr className="border-b border-white/[0.06]">
+    <div className="overflow-auto" style={{ maxHeight: 600 }}>
+      <table className="w-full border-separate border-spacing-0">
+        <thead
+          className="sticky top-0 z-10"
+          style={{
+            background: "rgba(28,28,30,0.92)",
+            backdropFilter: "blur(20px) saturate(180%)",
+            WebkitBackdropFilter: "blur(20px) saturate(180%)",
+          }}
+        >
+          <tr>
+            <SortHeader
+              label="도메인"
+              type="domain"
+              active={sortBy === "domain"}
+              desc={sortDesc}
+              onSort={handleSort}
+            />
             <th
-              className="px-3 py-2 text-left text-[10px] font-medium text-white/40 uppercase cursor-pointer hover:text-white/60 transition-colors"
-              onClick={() => handleSort("domain")}
+              scope="col"
+              className="px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-white/45 border-b border-white/[0.08] text-left"
             >
-              도메인
-              <SortIcon active={sortBy === "domain"} desc={sortDesc} />
-            </th>
-            <th className="px-3 py-2 text-left text-[10px] font-medium text-white/40 uppercase">
               유형
             </th>
-            <th
-              className="px-3 py-2 text-right text-[10px] font-medium text-white/40 uppercase cursor-pointer hover:text-white/60 transition-colors"
-              onClick={() => handleSort("count")}
-            >
-              방문자
-              <SortIcon active={sortBy === "count"} desc={sortDesc} />
-            </th>
-            <th
-              className="px-3 py-2 text-right text-[10px] font-medium text-white/40 uppercase cursor-pointer hover:text-white/60 transition-colors"
-              onClick={() => handleSort("percent")}
-            >
-              비율
-              <SortIcon active={sortBy === "percent"} desc={sortDesc} />
-            </th>
+            <SortHeader
+              label="방문자"
+              type="count"
+              active={sortBy === "count"}
+              desc={sortDesc}
+              align="right"
+              onSort={handleSort}
+            />
+            <SortHeader
+              label="비율"
+              type="percent"
+              active={sortBy === "percent"}
+              desc={sortDesc}
+              align="right"
+              onSort={handleSort}
+            />
           </tr>
         </thead>
         <tbody>
           {sortedDomains.map((domain, index) => {
-            const colors = SOURCE_COLORS[domain.type];
             const labels = SOURCE_LABELS[domain.type];
+            const dot = SOURCE_DOT[domain.type];
+            const intensity = SOURCE_INTENSITY[domain.type];
             const isExpanded = expandedDomains.has(domain.domain);
             const hasDetails = domain.details && domain.details.length > 0;
+            const isTop = index === 0;
+
+            // H5 fix — Enter/Space 키보드 접근
+            const onKey = (e: React.KeyboardEvent) => {
+              if (!hasDetails) return;
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                toggleExpand(domain.domain);
+              }
+            };
+
+            const fillBg = `linear-gradient(90deg, rgba(218,119,86,${0.95 * intensity}) 0%, rgba(218,119,86,${0.7 * intensity}) 100%)`;
 
             return (
               <Fragment key={domain.domain}>
                 <tr
-                  className={`border-b border-white/[0.03] hover:bg-white/[0.02] transition-colors ${
-                    index === 0 ? "bg-white/[0.02]" : ""
-                  } ${hasDetails ? "cursor-pointer" : ""}`}
+                  role={hasDetails ? "button" : undefined}
+                  tabIndex={hasDetails ? 0 : undefined}
+                  aria-expanded={hasDetails ? isExpanded : undefined}
+                  aria-label={
+                    hasDetails
+                      ? `${domain.domain} ${SOURCE_LABELS[domain.type].label} ${domain.count.toLocaleString("en-US")}명 ${domain.percent}% ${isExpanded ? "접기" : "펼치기"}`
+                      : undefined
+                  }
+                  className={`group ${hasDetails ? "cursor-pointer" : ""} focus-visible:outline-none focus-visible:bg-white/[0.04] ${isTop ? "bg-white/[0.025]" : ""}`}
+                  style={{ transition: `background-color 160ms ${MAC_EASE}` }}
                   onClick={() => hasDetails && toggleExpand(domain.domain)}
+                  onKeyDown={onKey}
                 >
-                  <td className="px-3 py-2">
-                    <div className="flex items-center gap-2">
-                      {hasDetails && (
-                        <span
-                          className={`text-[10px] text-white/40 transition-transform ${isExpanded ? "rotate-90" : ""}`}
-                        >
-                          ▶
-                        </span>
+                  <td className="px-3 py-2 border-b border-white/[0.04] group-hover:bg-white/[0.02]">
+                    <div className="flex items-center gap-2 min-w-0">
+                      {hasDetails ? (
+                        <ChevronRight
+                          className="h-3 w-3 shrink-0 text-white/40"
+                          strokeWidth={2}
+                          style={{
+                            transform: isExpanded ? "rotate(90deg)" : "rotate(0deg)",
+                            transition: `transform 200ms ${MAC_EASE}`,
+                          }}
+                          aria-hidden="true"
+                        />
+                      ) : (
+                        <span className="inline-block h-3 w-3 shrink-0" aria-hidden="true" />
                       )}
-                      <span className="text-sm">{domain.icon}</span>
-                      <span className="text-[12px] text-white font-medium truncate max-w-[180px]">
+                      <span
+                        aria-hidden="true"
+                        className={`h-1.5 w-1.5 rounded-full shrink-0 ${dot}`}
+                      />
+                      <span
+                        className="text-[12.5px] font-medium text-white/90 tracking-[-0.005em] truncate max-w-[200px] font-mono"
+                        title={domain.domain}
+                        style={{ fontFeatureSettings: '"ss01"' }}
+                      >
                         {domain.domain}
                       </span>
-                      {index === 0 && (
-                        <span className="text-[9px] bg-[var(--color-claude-coral)]/20 text-[var(--color-claude-coral)] px-1.5 py-0.5 rounded">
+                      {isTop && (
+                        <span
+                          className="inline-flex items-center rounded-[4px] px-1.5 py-0 text-[9px] font-semibold uppercase tracking-[0.08em] text-[var(--color-claude-coral)] bg-[var(--color-claude-coral)]/12 ring-1 ring-[var(--color-claude-coral)]/22"
+                          aria-label="최상위 도메인"
+                        >
                           TOP
                         </span>
                       )}
                       {hasDetails && (
-                        <span className="text-[9px] text-white/30">({domain.details!.length})</span>
+                        <span
+                          className="text-[10px] text-white/35 tabular-nums tracking-[-0.005em] shrink-0"
+                          style={{ fontFeatureSettings: '"tnum"' }}
+                        >
+                          {domain.details!.length}
+                        </span>
                       )}
                     </div>
                   </td>
-                  <td className="px-3 py-2">
-                    <span
-                      className={`text-[10px] px-2 py-0.5 rounded-full ${colors.bg} ${colors.text}`}
-                    >
-                      {labels.label}
+                  <td className="px-3 py-2 border-b border-white/[0.04] group-hover:bg-white/[0.02]">
+                    <span className="inline-flex items-center gap-1 rounded-[5px] px-1.5 py-0.5 text-[10px] font-medium text-white/70 ring-1 ring-white/[0.08] bg-white/[0.04] tracking-[-0.005em]">
+                      <span aria-hidden="true" className={`h-1 w-1 rounded-full ${dot}`} />
+                      <span>{labels.label}</span>
                     </span>
                   </td>
-                  <td className="px-3 py-2 text-right text-[12px] text-white font-mono">
-                    {domain.count.toLocaleString()}
+                  <td
+                    className="px-3 py-2 text-right text-[12.5px] text-white/90 font-mono tabular-nums tracking-[-0.005em] border-b border-white/[0.04] group-hover:bg-white/[0.02]"
+                    style={{ fontFeatureSettings: '"tnum", "ss01"' }}
+                  >
+                    {domain.count.toLocaleString("en-US")}
                   </td>
-                  <td className="px-3 py-2 text-right">
+                  <td className="px-3 py-2 text-right border-b border-white/[0.04] group-hover:bg-white/[0.02]">
                     <div className="flex items-center justify-end gap-2">
-                      <div className="w-12 h-1 bg-white/5 rounded-full overflow-hidden">
+                      <div
+                        className="w-14 h-1.5 rounded-[3px] overflow-hidden ring-1 ring-white/[0.04]"
+                        style={{ background: "rgba(255,255,255,0.04)" }}
+                      >
                         <div
-                          className={`h-full ${colors.bar}`}
+                          className="h-full rounded-[3px]"
                           style={{
                             width: `${Math.min((domain.percent / maxPercent) * 100, 100)}%`,
+                            background: fillBg,
+                            transition: `width 420ms ${MAC_EASE}`,
+                            boxShadow: "inset 0 1px 0 rgba(255,255,255,0.08)",
                           }}
                         />
                       </div>
-                      <span className="text-[11px] text-white/50 font-mono w-10 text-right">
+                      <span
+                        className="text-[11.5px] text-white/65 font-mono tabular-nums w-10 text-right tracking-[-0.005em]"
+                        style={{ fontFeatureSettings: '"tnum"' }}
+                      >
                         {domain.percent}%
                       </span>
                     </div>
                   </td>
                 </tr>
-                {/* Expanded details */}
+                {/* Expanded details — macOS Finder column nested */}
                 {isExpanded && hasDetails && (
                   <tr>
-                    <td colSpan={4} className="px-0 py-0">
-                      <div className="bg-white/[0.02] border-b border-white/[0.03]">
+                    <td colSpan={4} className="p-0 border-b border-white/[0.04]">
+                      <div style={{ background: "rgba(255,255,255,0.018)" }}>
                         {domain.details!.map((detail) => (
                           <div
                             key={detail.url}
-                            className="flex items-center justify-between px-6 py-1.5 border-b border-white/[0.02] last:border-b-0 hover:bg-white/[0.02]"
+                            className="flex items-center justify-between gap-3 px-3 py-1.5 border-b border-white/[0.025] last:border-b-0 pl-[34px]"
+                            style={{ transition: `background-color 160ms ${MAC_EASE}` }}
                           >
-                            <span className="text-[11px] text-white/60 truncate max-w-[350px] font-mono">
-                              {detail.url}
-                            </span>
-                            <div className="flex items-center gap-3 shrink-0">
-                              <span className="text-[11px] text-white/50 font-mono">
-                                {detail.count.toLocaleString()}
+                            <div className="flex items-center gap-1.5 min-w-0">
+                              <ExternalLink
+                                className="h-2.5 w-2.5 text-white/30 shrink-0"
+                                strokeWidth={2}
+                                aria-hidden="true"
+                              />
+                              <span
+                                className="text-[11px] text-white/55 truncate max-w-[420px] font-mono tracking-[-0.005em]"
+                                title={detail.url}
+                                style={{ fontFeatureSettings: '"ss01"' }}
+                              >
+                                {detail.url}
                               </span>
-                              <span className="text-[10px] text-white/30 font-mono w-10 text-right">
+                            </div>
+                            <div className="flex items-center gap-2.5 shrink-0">
+                              <span
+                                className="text-[11px] text-white/55 font-mono tabular-nums tracking-[-0.005em]"
+                                style={{ fontFeatureSettings: '"tnum"' }}
+                              >
+                                {detail.count.toLocaleString("en-US")}
+                              </span>
+                              <span
+                                className="text-[10px] text-white/35 font-mono tabular-nums w-10 text-right tracking-[-0.005em]"
+                                style={{ fontFeatureSettings: '"tnum"' }}
+                              >
                                 {detail.percent}%
                               </span>
                             </div>
@@ -365,6 +745,68 @@ function TopDomainsTable({ domains }: { domains: DomainData[] }) {
   );
 }
 
+// =====================================================
+// Insight Item — macOS Notification Center (funnels 와 일관)
+// =====================================================
+function InsightItem({
+  variant,
+  icon: Icon,
+  title,
+  description,
+}: {
+  variant: "warn" | "alert" | "good";
+  icon: LucideIcon;
+  title: React.ReactNode;
+  description: string;
+}) {
+  const variantConfig = {
+    warn: {
+      dot: "bg-amber-300",
+      ring: "ring-white/[0.08]",
+      bg: "rgba(255,255,255,0.025)",
+      iconColor: "text-amber-300",
+    },
+    alert: {
+      dot: "bg-[var(--color-claude-coral)]",
+      ring: "ring-[var(--color-claude-coral)]/20",
+      bg: "rgba(218,119,86,0.05)",
+      iconColor: "text-[var(--color-claude-coral)]",
+    },
+    good: {
+      dot: "bg-emerald-300",
+      ring: "ring-white/[0.08]",
+      bg: "rgba(255,255,255,0.025)",
+      iconColor: "text-emerald-300",
+    },
+  }[variant];
+
+  return (
+    <div
+      className={`flex items-start gap-2.5 rounded-[7px] px-3 py-2.5 ring-1 ${variantConfig.ring}`}
+      style={{ background: variantConfig.bg }}
+    >
+      <div
+        className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-white/[0.04] ring-1 ring-white/[0.06]"
+        aria-hidden="true"
+      >
+        <Icon className={`h-3 w-3 ${variantConfig.iconColor}`} strokeWidth={1.75} />
+      </div>
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-1.5 mb-0.5">
+          <span aria-hidden="true" className={`h-1 w-1 rounded-full ${variantConfig.dot}`} />
+          <p className="text-[12px] text-white/85 tracking-[-0.005em] leading-snug">{title}</p>
+        </div>
+        <p className="text-[11px] text-white/45 tracking-[-0.005em] leading-relaxed">
+          {description}
+        </p>
+      </div>
+    </div>
+  );
+}
+
+// =====================================================
+// TrafficInsights — funnels Insights 와 시각 일관
+// =====================================================
 function TrafficInsights({
   summary,
   topDomains,
@@ -377,7 +819,7 @@ function TrafficInsights({
   };
   topDomains: Array<{ domain: string; count: number; type: SourceType }>;
 }) {
-  // 가장 높은 유입 소스 찾기
+  // 가장 높은 유입 소스
   const sources = [
     { type: "direct" as SourceType, ...summary.direct },
     { type: "search" as SourceType, ...summary.search },
@@ -386,7 +828,7 @@ function TrafficInsights({
   ];
   const topSource = sources.reduce((a, b) => (a.percent > b.percent ? a : b));
 
-  // 검색 유입 비율 평가
+  // 검색 유입 평가
   const searchPercent = summary.search.percent;
   const isSearchGood = searchPercent >= 30;
 
@@ -394,170 +836,316 @@ function TrafficInsights({
   const topReferral = topDomains.find((d) => d.type === "referral");
 
   return (
-    <div className="bg-[#0d0d0d] rounded-lg p-4 space-y-3">
-      <div className="text-[11px] text-white/40 uppercase tracking-wide">💡 인사이트</div>
-
-      <div className="flex items-start gap-2">
-        <span className="text-blue-400 mt-0.5">📊</span>
-        <div>
-          <p className="text-[12px] text-white/70">
-            <span className="text-white font-medium">{SOURCE_LABELS[topSource.type].label}</span>이
-            주요 유입 경로입니다.
-          </p>
-          <p className="text-[11px] text-white/40 mt-0.5">
-            전체 트래픽의 {topSource.percent}%를 차지합니다.
-          </p>
-        </div>
+    <GlassCard title="인사이트" caption="Insights" icon={Lightbulb}>
+      <div className="space-y-2">
+        <InsightItem
+          variant="alert"
+          icon={TrendingUp}
+          title={
+            <>
+              <span className="text-white font-medium tracking-[-0.005em]">
+                {SOURCE_LABELS[topSource.type].label}
+              </span>
+              이 주요 유입 경로 (
+              <span
+                className="text-white font-medium tabular-nums"
+                style={{ fontFeatureSettings: '"tnum"' }}
+              >
+                {topSource.percent}%
+              </span>
+              )
+            </>
+          }
+          description={`전체 트래픽의 ${topSource.percent}%를 차지하는 핵심 채널입니다.`}
+        />
+        {isSearchGood ? (
+          <InsightItem
+            variant="good"
+            icon={CheckCircle2}
+            title={
+              <>
+                검색 유입{" "}
+                <span
+                  className="text-white font-medium tabular-nums"
+                  style={{ fontFeatureSettings: '"tnum"' }}
+                >
+                  {searchPercent}%
+                </span>
+                로 SEO 양호
+              </>
+            }
+            description="현재 검색 엔진 최적화가 효과적으로 작동 중입니다."
+          />
+        ) : (
+          <InsightItem
+            variant="warn"
+            icon={SearchIcon}
+            title={
+              <>
+                검색 유입{" "}
+                <span
+                  className="text-white font-medium tabular-nums"
+                  style={{ fontFeatureSettings: '"tnum"' }}
+                >
+                  {searchPercent}%
+                </span>
+                로 낮음
+              </>
+            }
+            description="SEO 개선으로 검색 유입을 늘릴 수 있습니다."
+          />
+        )}
+        {topReferral && (
+          <InsightItem
+            variant="alert"
+            icon={Link2}
+            title={
+              <>
+                <span
+                  className="text-white font-medium font-mono tracking-[-0.005em]"
+                  style={{ fontFeatureSettings: '"ss01"' }}
+                >
+                  {topReferral.domain}
+                </span>{" "}
+                외부 유입 1위
+              </>
+            }
+            description="해당 채널에서의 활동을 강화해보세요."
+          />
+        )}
       </div>
-
-      <div className="flex items-start gap-2">
-        <span className={isSearchGood ? "text-emerald-400" : "text-yellow-400"}>
-          {isSearchGood ? "✅" : "🔍"}
-        </span>
-        <div>
-          <p className="text-[12px] text-white/70">검색 유입이 {searchPercent}%입니다.</p>
-          <p className="text-[11px] text-white/40 mt-0.5">
-            {isSearchGood
-              ? "SEO가 잘 작동하고 있습니다."
-              : "SEO 개선으로 검색 유입을 늘릴 수 있습니다."}
-          </p>
-        </div>
-      </div>
-
-      {topReferral && (
-        <div className="flex items-start gap-2">
-          <span className="text-orange-400 mt-0.5">🔗</span>
-          <div>
-            <p className="text-[12px] text-white/70">
-              <span className="text-white font-medium">{topReferral.domain}</span>에서 가장 많은
-              외부 유입이 발생합니다.
-            </p>
-            <p className="text-[11px] text-white/40 mt-0.5">해당 채널에서의 활동을 강화해보세요.</p>
-          </div>
-        </div>
-      )}
-    </div>
+    </GlassCard>
   );
 }
 
+// =====================================================
+// Main
+// =====================================================
 export default function TrafficSourcesPage() {
-  const [dateRange, setDateRange] = useState("-7d");
-  const { data, isLoading, error } = useTrafficSources({ dateFrom: dateRange });
+  const [dateRange, setDateRange] = useState<PeriodValue>("-7d");
+  const { data, isLoading, error, dataUpdatedAt } = useTrafficSources({ dateFrom: dateRange });
+
+  const lastFetchedAt = dataUpdatedAt ? new Date(dataUpdatedAt) : null;
 
   return (
-    <div className="space-y-5 max-w-6xl">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-lg font-semibold text-white">유입 경로</h1>
-          <p className="text-[12px] text-white/50 mt-0.5">
-            방문자가 어디서 왔는지 분석합니다 (PostHog 기반)
+    <div
+      className="space-y-5 max-w-6xl"
+      style={{
+        fontFamily:
+          '-apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", system-ui, sans-serif',
+        fontFeatureSettings: '"ss01", "cv11", "cv03"',
+      }}
+    >
+      {/* ─────────── Header — funnels 와 100% 동일 패턴 ─────────── */}
+      <div className="flex items-end justify-between gap-4">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2 mb-1.5">
+            <Network className="h-3.5 w-3.5 text-white/40" strokeWidth={1.75} aria-hidden="true" />
+            <span className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-white/40">
+              Analytics · Traffic
+            </span>
+          </div>
+          <h1
+            className="text-[20px] font-semibold leading-none tracking-[-0.01em] text-white/95"
+            style={{ fontFeatureSettings: '"ss01"' }}
+          >
+            유입 경로
+          </h1>
+          <p className="mt-1.5 text-[12px] text-white/45 tracking-[-0.005em]">
+            방문자가 어디서 왔는지 분석 (PostHog 기반)
+            {lastFetchedAt && (
+              <>
+                <span aria-hidden="true" className="mx-1.5 text-white/20">
+                  ·
+                </span>
+                <span
+                  className="tabular-nums"
+                  title={lastFetchedAt.toLocaleString("ko-KR")}
+                  style={{ fontFeatureSettings: '"tnum"' }}
+                >
+                  업데이트{" "}
+                  {lastFetchedAt.toLocaleTimeString("ko-KR", {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  })}
+                </span>
+              </>
+            )}
           </p>
         </div>
-        <select
-          value={dateRange}
-          onChange={(e) => setDateRange(e.target.value)}
-          className="bg-[#161616] text-white/80 border border-white/[0.06] rounded px-2.5 py-1.5 text-[12px] focus:outline-none focus:border-white/20"
-        >
-          {DATE_RANGES.map((r) => (
-            <option key={r.value} value={r.value}>
-              최근 {r.label}
-            </option>
-          ))}
-        </select>
+        <div className="shrink-0">
+          <PeriodSegmented value={dateRange} onChange={setDateRange} />
+        </div>
       </div>
 
-      {/* Loading */}
+      {/* ─────────── Loading ─────────── */}
       {isLoading && (
-        <div className="flex items-center justify-center py-12">
-          <div className="w-6 h-6 border-2 border-[var(--color-claude-coral)] border-t-transparent rounded-full animate-spin" />
+        <div
+          className="flex items-center justify-center py-12 rounded-[9px] ring-1 ring-white/[0.06]"
+          style={{ background: "rgba(255,255,255,0.02)" }}
+        >
+          <div className="inline-flex items-center gap-2 text-[12px] text-white/55 tracking-[-0.005em]">
+            <span
+              className="inline-block h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/15 border-t-[var(--color-claude-coral)]"
+              aria-hidden="true"
+            />
+            로딩 중...
+          </div>
         </div>
       )}
 
-      {/* Error */}
+      {/* ─────────── Error ─────────── */}
       {error && (
-        <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-4">
-          <div className="text-[13px] text-red-400 font-medium mb-1">⚠️ 데이터 로드 실패</div>
-          <p className="text-[12px] text-white/50">
-            {error instanceof Error ? error.message : "PostHog 연결을 확인해주세요."}
-          </p>
-          <p className="text-[11px] text-white/30 mt-2">
-            확인: POSTHOG_PERSONAL_API_KEY, POSTHOG_PROJECT_ID 환경 변수 설정
-          </p>
+        <div
+          className="rounded-[9px] px-4 py-3.5 ring-1 ring-[var(--color-claude-coral)]/25"
+          style={{
+            background: "rgba(218,119,86,0.06)",
+            backdropFilter: "blur(20px) saturate(180%)",
+            WebkitBackdropFilter: "blur(20px) saturate(180%)",
+          }}
+          role="alert"
+        >
+          <div className="flex items-start gap-2.5">
+            <AlertTriangle
+              className="mt-0.5 h-4 w-4 shrink-0 text-[var(--color-claude-coral)]"
+              strokeWidth={1.75}
+              aria-hidden="true"
+            />
+            <div className="min-w-0">
+              <div className="text-[12.5px] font-medium text-white/90 tracking-[-0.005em] mb-0.5">
+                데이터 로드 실패
+              </div>
+              <p className="text-[11.5px] text-white/55 tracking-[-0.005em] leading-relaxed">
+                {error instanceof Error ? error.message : "PostHog 연결을 확인해주세요."}
+              </p>
+              <p className="text-[10.5px] text-white/40 mt-1.5 tracking-[-0.005em] font-mono">
+                POSTHOG_PERSONAL_API_KEY, POSTHOG_PROJECT_ID 환경 변수 확인
+              </p>
+            </div>
+          </div>
         </div>
       )}
 
-      {/* PostHog 미설정 경고 */}
+      {/* ─────────── PostHog 미설정 경고 ─────────── */}
       {data?.error && (
-        <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-lg p-4">
-          <div className="text-[13px] text-yellow-400 font-medium mb-1">⚠️ PostHog 미설정</div>
-          <p className="text-[12px] text-white/50">{data.error}</p>
+        <div
+          className="rounded-[9px] px-4 py-3.5 ring-1 ring-amber-300/25"
+          style={{
+            background: "rgba(252,211,77,0.04)",
+            backdropFilter: "blur(20px) saturate(180%)",
+            WebkitBackdropFilter: "blur(20px) saturate(180%)",
+          }}
+          role="alert"
+        >
+          <div className="flex items-start gap-2.5">
+            <AlertTriangle
+              className="mt-0.5 h-4 w-4 shrink-0 text-amber-300"
+              strokeWidth={1.75}
+              aria-hidden="true"
+            />
+            <div className="min-w-0">
+              <div className="text-[12.5px] font-medium text-white/90 tracking-[-0.005em] mb-0.5">
+                PostHog 미설정
+              </div>
+              <p className="text-[11.5px] text-white/55 tracking-[-0.005em] leading-relaxed">
+                {data.error}
+              </p>
+            </div>
+          </div>
         </div>
       )}
 
-      {/* Content */}
+      {/* ─────────── Content ─────────── */}
       {!isLoading && data && !data.error && (
         <>
-          {/* Summary Cards */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-            <SourceCard
-              type="direct"
-              count={data.summary.direct.count}
-              percent={data.summary.direct.percent}
-              icon={data.summary.direct.icon}
-            />
-            <SourceCard
-              type="search"
-              count={data.summary.search.count}
-              percent={data.summary.search.percent}
-              icon={data.summary.search.icon}
-            />
-            <SourceCard
-              type="social"
-              count={data.summary.social.count}
-              percent={data.summary.social.percent}
-              icon={data.summary.social.icon}
-            />
-            <SourceCard
-              type="referral"
-              count={data.summary.referral.count}
-              percent={data.summary.referral.percent}
-              icon={data.summary.referral.icon}
-            />
-          </div>
-
-          {/* Trend + Insights Row */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-            {/* Trend Chart */}
-            <div className="lg:col-span-2 bg-[#161616] rounded-lg p-5 border border-white/[0.06]">
-              <div className="flex items-center justify-between mb-4">
-                <span className="text-[12px] text-white/50">일별 유입 트렌드</span>
-                <span className="text-[11px] text-white/30">
-                  총 {data.totalVisitors.toLocaleString()}명
-                </span>
-              </div>
-              <TrendChart data={data.trend} />
+          {/* Summary KPI — funnels MetricCard 패턴 일관 */}
+          <section aria-labelledby="traffic-summary-heading">
+            <div className="flex items-center gap-1.5 mb-2.5 px-1">
+              <h2
+                id="traffic-summary-heading"
+                className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-white/40"
+              >
+                요약 지표
+              </h2>
+              <span className="text-[10.5px] text-white/30 tracking-[-0.005em]">
+                Traffic Sources
+              </span>
             </div>
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+              <SourceCard
+                type="direct"
+                count={data.summary.direct.count}
+                percent={data.summary.direct.percent}
+              />
+              <SourceCard
+                type="search"
+                count={data.summary.search.count}
+                percent={data.summary.search.percent}
+              />
+              <SourceCard
+                type="social"
+                count={data.summary.social.count}
+                percent={data.summary.social.percent}
+              />
+              <SourceCard
+                type="referral"
+                count={data.summary.referral.count}
+                percent={data.summary.referral.percent}
+              />
+            </div>
+          </section>
 
-            {/* Insights */}
+          {/* Trend + Insights — 2:1 grid (funnels 와 일관) */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
+            <div className="lg:col-span-2">
+              <GlassCard
+                title="일별 유입 트렌드"
+                caption="Daily Trend"
+                icon={BarChart3}
+                trailing={
+                  <span
+                    className="text-[10px] text-white/30 tabular-nums tracking-[-0.005em]"
+                    style={{ fontFeatureSettings: '"tnum"' }}
+                  >
+                    총{" "}
+                    <span className="text-white/55 font-medium">
+                      {data.totalVisitors.toLocaleString("en-US")}
+                    </span>
+                    명
+                  </span>
+                }
+              >
+                <TrendChart data={data.trend} />
+              </GlassCard>
+            </div>
             <TrafficInsights summary={data.summary} topDomains={data.topDomains} />
           </div>
 
-          {/* Top Domains Table - Expanded */}
-          <div className="bg-[#161616] rounded-lg p-5 border border-white/[0.06]">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-2">
-                <span className="text-[13px] text-white/60 font-medium">상위 유입 도메인</span>
-                <span className="text-[10px] text-white/30 px-1.5 py-0.5 bg-white/5 rounded">
-                  {data.topDomains.length}개
+          {/* Top Domains Table — macOS Finder list view */}
+          <GlassCard
+            title="상위 유입 도메인"
+            caption="Top Referrers"
+            icon={Globe2}
+            padded={false}
+            trailing={
+              <div className="flex items-center gap-1.5">
+                <span
+                  className="inline-flex items-center rounded-[5px] px-1.5 py-0.5 text-[10px] font-medium text-white/60 ring-1 ring-white/[0.08] bg-white/[0.04] tabular-nums tracking-[-0.005em]"
+                  style={{ fontFeatureSettings: '"tnum"' }}
+                >
+                  <Hash
+                    className="h-2.5 w-2.5 mr-0.5 text-white/35"
+                    strokeWidth={2}
+                    aria-hidden="true"
+                  />
+                  {data.topDomains.length}
                 </span>
+                <span className="text-[10px] text-white/30 tracking-[-0.005em]">최대 100</span>
               </div>
-              <span className="text-[10px] text-white/30">최대 100개</span>
-            </div>
-            <div className="max-h-[600px] overflow-y-auto">
-              <TopDomainsTable domains={data.topDomains} />
-            </div>
-          </div>
+            }
+          >
+            <TopDomainsTable domains={data.topDomains} />
+          </GlassCard>
         </>
       )}
     </div>
