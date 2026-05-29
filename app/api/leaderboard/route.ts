@@ -180,6 +180,7 @@ export async function GET(request: NextRequest) {
       .select("id, username, global_rank, country_rank, country_code")
       .eq("onboarding_completed", true)
       .is("deleted_at", null)
+      .eq("shadow_banned", false)
       .gt("total_tokens", 0)
       .ilike("username", findUser)
       .single();
@@ -218,6 +219,7 @@ export async function GET(request: NextRequest) {
       .select("id", { count: "exact", head: true })
       .eq("onboarding_completed", true)
       .is("deleted_at", null)
+      .eq("shadow_banned", false)
       .gt("total_tokens", 0);
 
     // Find user's rank by counting users with more tokens
@@ -239,6 +241,7 @@ export async function GET(request: NextRequest) {
       .select("id", { count: "exact", head: true })
       .eq("onboarding_completed", true)
       .is("deleted_at", null)
+      .eq("shadow_banned", false)
       .gt("total_tokens", currentUserData.total_tokens);
 
     if (country) {
@@ -285,6 +288,7 @@ export async function GET(request: NextRequest) {
       )
       .eq("onboarding_completed", true)
       .is("deleted_at", null)
+      .eq("shadow_banned", false)
       .gt("total_tokens", 0);
 
     if (country) {
@@ -403,6 +407,7 @@ export async function GET(request: NextRequest) {
       .select("id, username, country_code")
       .eq("onboarding_completed", true)
       .is("deleted_at", null)
+      .eq("shadow_banned", false)
       .ilike("username", findUser)
       .single();
 
@@ -418,6 +423,7 @@ export async function GET(request: NextRequest) {
       .select("id")
       .eq("onboarding_completed", true)
       .is("deleted_at", null)
+      .eq("shadow_banned", false)
       .in("id", userIds);
 
     if (validUsersError) {
@@ -447,6 +453,7 @@ export async function GET(request: NextRequest) {
         .select("id")
         .eq("onboarding_completed", true)
         .is("deleted_at", null)
+        .eq("shadow_banned", false)
         .eq("country_code", country.toUpperCase())
         .in("id", userIds);
 
@@ -511,7 +518,8 @@ export async function GET(request: NextRequest) {
     )
     .in("id", userIds)
     .eq("onboarding_completed", true)
-    .is("deleted_at", null);
+    .is("deleted_at", null)
+    .eq("shadow_banned", false);
 
   if (country) {
     usersQuery = usersQuery.eq("country_code", country.toUpperCase());

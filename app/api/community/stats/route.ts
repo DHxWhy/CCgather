@@ -53,6 +53,7 @@ export async function GET() {
         .select("country_code")
         .eq("onboarding_completed", true)
         .is("deleted_at", null)
+        .eq("shadow_banned", false)
         .gt("total_tokens", 0)
         .not("country_code", "is", null),
       supabase.from("posts").select("id", { count: "exact", head: true }).is("deleted_at", null),
