@@ -48,6 +48,7 @@ export default function SettingsProfilePage() {
   const [isDataLoaded, setIsDataLoaded] = useState(false);
   const [referralCode, setReferralCode] = useState<string | null>(null);
   const [referralCount, setReferralCount] = useState<number>(0);
+  const [invitees, setInvitees] = useState<{ username: string; avatarUrl: string | null }[]>([]);
   const [hideProfileOnInvite, setHideProfileOnInvite] = useState<boolean>(false);
   const socialLinksRef = useRef<SocialLinks>({});
 
@@ -68,6 +69,13 @@ export default function SettingsProfilePage() {
           setReferralCode(data.user?.referral_code || null);
           setReferralCount(data.user?.referral_count || 0);
           setHideProfileOnInvite(data.user?.hide_profile_on_invite || false);
+        }
+
+        // Invited friends — avatar stack in the Invite section
+        const invRes = await fetch("/api/referral/invitees");
+        if (invRes.ok) {
+          const invData = await invRes.json();
+          setInvitees(invData.invitees || []);
         }
       } catch (error) {
         console.error("Failed to fetch user data:", error);
@@ -395,6 +403,7 @@ export default function SettingsProfilePage() {
         <InviteFriendsSection
           referralCode={referralCode}
           referralCount={referralCount}
+          invitees={invitees}
           hideProfileOnInvite={hideProfileOnInvite}
           onToggleHideProfile={handleToggleHideProfile}
         />

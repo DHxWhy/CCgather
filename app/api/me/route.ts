@@ -293,7 +293,8 @@ export async function GET() {
             const { count: existingReferralCount } = await supabase
               .from("users")
               .select("*", { count: "exact", head: true })
-              .eq("referred_by", existingByEmail.id);
+              .eq("referred_by", existingByEmail.id)
+              .is("deleted_at", null);
 
             // Return the existing user (now linked to new clerk_id)
             return clearPendingRefCookie(
@@ -406,11 +407,13 @@ export async function GET() {
               pendingRefCode
             );
           }
-          // Mercury P2: 이 분기에 referral_count 누락 → UI 카드 깨질 수 있음
+          // referral_count for the settings invite card (active referrals only,
+          // matching the social-badge count in badgeService)
           const { count: existingClerkReferralCount } = await supabase
             .from("users")
             .select("*", { count: "exact", head: true })
-            .eq("referred_by", existingByClerkId.id);
+            .eq("referred_by", existingByClerkId.id)
+            .is("deleted_at", null);
           return clearPendingRefCookie(
             NextResponse.json(
               {
@@ -632,7 +635,8 @@ export async function GET() {
       const { count: socialLinksReferralCount } = await supabase
         .from("users")
         .select("*", { count: "exact", head: true })
-        .eq("referred_by", user.id);
+        .eq("referred_by", user.id)
+        .is("deleted_at", null);
 
       // Return updated user data
       return clearPendingRefCookie(
@@ -686,7 +690,8 @@ export async function GET() {
   const { count: referralCount } = await supabase
     .from("users")
     .select("*", { count: "exact", head: true })
-    .eq("referred_by", finalUser.id);
+    .eq("referred_by", finalUser.id)
+    .is("deleted_at", null);
 
   // Add cache control headers to prevent stale data
   return clearPendingRefCookie(

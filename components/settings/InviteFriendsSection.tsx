@@ -3,10 +3,17 @@
 import { useState, useEffect } from "react";
 import { Copy, Check, Users, Gift, EyeOff } from "lucide-react";
 import { BADGES } from "@/lib/constants/badges";
+import { AvatarGroup } from "@/components/ui/avatar-group";
+
+export interface Invitee {
+  username: string;
+  avatarUrl: string | null;
+}
 
 interface InviteFriendsSectionProps {
   referralCode: string | null;
   referralCount: number;
+  invitees?: Invitee[];
   hideProfileOnInvite?: boolean;
   onToggleHideProfile?: (value: boolean) => void;
 }
@@ -30,6 +37,7 @@ const BADGE_THRESHOLDS = [5, 10, 20, 30, 50];
 export default function InviteFriendsSection({
   referralCode,
   referralCount,
+  invitees = [],
   hideProfileOnInvite = false,
   onToggleHideProfile,
 }: InviteFriendsSectionProps) {
@@ -143,6 +151,21 @@ export default function InviteFriendsSection({
             friend{referralCount !== 1 ? "s" : ""} joined via your link
           </span>
         </div>
+
+        {/* Invited Friends — avatar stack (hover for @username) */}
+        {invitees.length > 0 && (
+          <div className="mb-4 px-1">
+            <AvatarGroup
+              avatars={invitees.map((u) => ({
+                src: u.avatarUrl ?? "",
+                label: `@${u.username}`,
+                fallback: u.username.charAt(0).toUpperCase(),
+              }))}
+              maxVisible={8}
+              size="sm"
+            />
+          </div>
+        )}
 
         {/* Badge Progress */}
         <div className="p-3 bg-[var(--color-bg-primary)] rounded-lg border border-[var(--border-default)]">

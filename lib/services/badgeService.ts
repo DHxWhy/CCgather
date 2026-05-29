@@ -70,6 +70,21 @@ async function buildBadgeContext(
 ): Promise<BadgeContext> {
   const supabase = createServiceClient();
 
+  // Referral count: prefer caller-provided, else compute here. Computing inside
+  // buildBadgeContext guarantees social badges work from ANY entry point — the
+  // CLI submit path (the only badge-award caller) does not pass referral_count,
+  // so without this, social badges would never trigger. Excludes soft-deleted
+  // referees to match the badge wording "friends who joined".
+  let referralCount = stats.referral_count;
+  if (referralCount === undefined) {
+    const { count } = await supabase
+      .from("users")
+      .select("*", { count: "exact", head: true })
+      .eq("referred_by", userId)
+      .is("deleted_at", null);
+    referralCount = count ?? 0;
+  }
+
   // Calculate streak
   const streak = usageHistory ? calculateStreak(usageHistory) : 0;
 
@@ -130,7 +145,7 @@ async function buildBadgeContext(
     global_rank: stats.global_rank,
     country_rank: stats.country_rank,
     country_code: stats.country_code,
-    referral_count: stats.referral_count,
+    referral_count: referralCount,
     streak,
     is_early_country_user: isEarlyCountryUser,
     model_usage: modelUsage,
