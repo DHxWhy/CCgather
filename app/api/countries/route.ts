@@ -34,7 +34,8 @@ export async function GET(request: NextRequest) {
     .from("users")
     .select("country_code")
     .not("country_code", "is", null)
-    .eq("onboarding_completed", true);
+    .eq("onboarding_completed", true)
+    .eq("shadow_banned", false);
 
   if (error) {
     console.error("Failed to fetch countries:", error);

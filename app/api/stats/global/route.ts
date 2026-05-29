@@ -17,6 +17,7 @@ export async function GET() {
     .from("users")
     .select("*", { count: "exact", head: true })
     .eq("onboarding_completed", true)
+    .eq("shadow_banned", false)
     .gt("total_tokens", 0);
 
   // Get unique countries
@@ -24,6 +25,7 @@ export async function GET() {
     .from("users")
     .select("country_code")
     .eq("onboarding_completed", true)
+    .eq("shadow_banned", false)
     .gt("total_tokens", 0)
     .not("country_code", "is", null);
 
@@ -35,6 +37,7 @@ export async function GET() {
     .from("users")
     .select("total_tokens, total_cost")
     .eq("onboarding_completed", true)
+    .eq("shadow_banned", false)
     .gt("total_tokens", 0);
 
   const totalTokens = aggregateData?.reduce((sum, u) => sum + (u.total_tokens || 0), 0) || 0;
