@@ -37,8 +37,11 @@ if git diff --cached --name-only | grep -q "package-lock.json"; then
     exit 1
 fi
 
-if git diff --cached --name-only | grep -q "pnpm-lock.yaml"; then
-    echo -e "${RED}❌ ERROR: pnpm-lock.yaml detected — this project uses bun only${NC}"
+# CLI (packages/cli) is a standalone npm-published package built with pnpm;
+# its pnpm-lock.yaml is intentional and git-tracked. The bun-only policy applies
+# to the root app workspace. Reject pnpm-lock.yaml ONLY outside packages/cli.
+if git diff --cached --name-only | grep "pnpm-lock.yaml" | grep -qv "^packages/cli/pnpm-lock.yaml$"; then
+    echo -e "${RED}❌ ERROR: pnpm-lock.yaml outside packages/cli — root uses bun only${NC}"
     exit 1
 fi
 
