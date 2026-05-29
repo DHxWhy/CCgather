@@ -114,20 +114,31 @@ export async function GET(request: Request) {
     // ─── 모델 사용 분포 (primary_model 토큰 집계, 근사) ───
     // usage_stats 는 per-model 분해를 저장 안 하고 primary_model(그날 최다 모델)
     // 1개만 저장 → "그날 전체 토큰 = primary_model" 근사로 family 별 토큰 비중 집계.
-    // 정밀 분해는 향후 model_breakdown 컬럼 + GROUP BY RPC 로 (Pluto 권장).
-    // ⚠️ 명시적 limit: PostgREST 기본 1000 truncation 방지 (현재 ~1154 rows).
-    let byModel: { model: string; tokens: number; percentage: number }[] = [];
-    const { data: modelRows, error: modelErr } = await supabase
-      .from("usage_stats")
-      .select("primary_model, total_tokens")
-      .not("primary_model", "is", null)
-      .limit(100000);
+    //
+    // ⚠️ Supabase 프로젝트가 db-max-rows=1000 hard cap → .limit()/.range() 으로도
+    // 단일 요청은 1000 행까지만. 전체(현재 1154행) 정확 집계 위해 1000씩 페이지네이션.
+    // 정밀/확장 버전: model_breakdown 컬럼 + GROUP BY RPC (4행 반환, 무제한). Pluto 권장.
+    const families = { Opus: 0, Sonnet: 0, Haiku: 0, Other: 0 };
+    let totalTok = 0;
+    const PAGE = 1000;
+    const MAX_PAGES = 200; // 200K행 안전 상한 (초과 시 부분 집계 경고)
+    let modelQueryFailed = false;
+    let page = 0;
+    for (; page < MAX_PAGES; page++) {
+      const from = page * PAGE;
+      const { data: modelRows, error: modelErr } = await supabase
+        .from("usage_stats")
+        .select("primary_model, total_tokens")
+        .not("primary_model", "is", null)
+        .range(from, from + PAGE - 1);
 
-    if (modelErr) {
-      console.warn("[Analytics Users] model distribution query failed:", modelErr.message);
-    } else if (modelRows && modelRows.length > 0) {
-      const families = { Opus: 0, Sonnet: 0, Haiku: 0, Other: 0 };
-      let totalTok = 0;
+      if (modelErr) {
+        console.warn("[Analytics Users] model distribution query failed:", modelErr.message);
+        modelQueryFailed = true;
+        break;
+      }
+      if (!modelRows || modelRows.length === 0) break;
+
       for (const row of modelRows as {
         primary_model: string | null;
         total_tokens: number | null;
@@ -140,15 +151,23 @@ export async function GET(request: Request) {
         else if (m.includes("haiku")) families.Haiku += t;
         else families.Other += t;
       }
-      byModel = Object.entries(families)
-        .filter(([, tok]) => tok > 0)
-        .map(([model, tokens]) => ({
-          model,
-          tokens,
-          percentage: totalTok > 0 ? Math.round((tokens / totalTok) * 1000) / 10 : 0,
-        }))
-        .sort((a, b) => b.tokens - a.tokens);
+
+      if (modelRows.length < PAGE) break; // 마지막 페이지
     }
+    if (page >= MAX_PAGES) {
+      console.warn("[Analytics Users] model rows hit MAX_PAGES cap — distribution may be partial");
+    }
+
+    const byModel: { model: string; tokens: number; percentage: number }[] = modelQueryFailed
+      ? []
+      : Object.entries(families)
+          .filter(([, tok]) => tok > 0)
+          .map(([model, tokens]) => ({
+            model,
+            tokens,
+            percentage: totalTok > 0 ? Math.round((tokens / totalTok) * 1000) / 10 : 0,
+          }))
+          .sort((a, b) => b.tokens - a.tokens);
 
     const response: AnalyticsUsersResponse = {
       metrics: {
