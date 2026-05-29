@@ -115,60 +115,82 @@ export async function GET(request: Request) {
     // usage_stats 는 per-model 분해를 저장 안 하고 primary_model(그날 최다 모델)
     // 1개만 저장 → "그날 전체 토큰 = primary_model" 근사로 family 별 토큰 비중 집계.
     //
-    // ⚠️ Supabase 프로젝트가 db-max-rows=1000 hard cap → .limit()/.range() 으로도
-    // 단일 요청은 1000 행까지만. 전체(현재 1154행) 정확 집계 위해 1000씩 페이지네이션.
-    // 정밀/확장 버전: model_breakdown 컬럼 + GROUP BY RPC (4행 반환, 무제한). Pluto 권장.
-    const families = { Opus: 0, Sonnet: 0, Haiku: 0, Other: 0 };
-    let totalTok = 0;
-    const PAGE = 1000;
-    const MAX_PAGES = 200; // 200K행 안전 상한 (초과 시 부분 집계 경고)
-    let modelQueryFailed = false;
-    let page = 0;
-    for (; page < MAX_PAGES; page++) {
-      const from = page * PAGE;
-      const { data: modelRows, error: modelErr } = await supabase
-        .from("usage_stats")
-        .select("primary_model, total_tokens")
-        .not("primary_model", "is", null)
-        .order("id", { ascending: true }) // OFFSET 페이지네이션 결정화 — 동시 upsert 중 행 중복/누락 방지 (Diana 권장)
-        .range(from, from + PAGE - 1);
+    // 1차: get_model_distribution RPC (DB 내부 GROUP BY, ≤4행 반환, db-max-rows 무관) — mig 062
+    // 폴백: RPC 미적용(Dashboard 실행 전)/실패 시 1000씩 페이지네이션 (db-max-rows=1000 우회)
+    let byModel: { model: string; tokens: number; percentage: number }[] = [];
+    const { data: modelDistRpc, error: modelDistErr } =
+      await supabase.rpc("get_model_distribution");
 
-      if (modelErr) {
-        console.warn("[Analytics Users] model distribution query failed:", modelErr.message);
-        modelQueryFailed = true;
-        break;
+    if (!modelDistErr && Array.isArray(modelDistRpc)) {
+      byModel = (
+        modelDistRpc as { family: string; total_tokens: number | string; pct: number | string }[]
+      ).map((r) => ({
+        model: r.family,
+        tokens: Number(r.total_tokens),
+        percentage: Number(r.pct),
+      }));
+    } else {
+      // 폴백: 페이지네이션 (RPC 미적용 시). db-max-rows=1000 → 1000씩 전체 수집.
+      if (modelDistErr) {
+        console.warn(
+          "[Analytics Users] model RPC unavailable, using pagination fallback:",
+          modelDistErr.message
+        );
       }
-      if (!modelRows || modelRows.length === 0) break;
+      const families = { Opus: 0, Sonnet: 0, Haiku: 0, Other: 0 };
+      let totalTok = 0;
+      const PAGE = 1000;
+      const MAX_PAGES = 200; // 200K행 안전 상한 (초과 시 부분 집계 경고)
+      let modelQueryFailed = false;
+      let page = 0;
+      for (; page < MAX_PAGES; page++) {
+        const from = page * PAGE;
+        const { data: modelRows, error: modelErr } = await supabase
+          .from("usage_stats")
+          .select("primary_model, total_tokens")
+          .not("primary_model", "is", null)
+          .order("id", { ascending: true }) // OFFSET 결정화 — 동시 upsert 중 중복/누락 방지 (Diana)
+          .range(from, from + PAGE - 1);
 
-      for (const row of modelRows as {
-        primary_model: string | null;
-        total_tokens: number | null;
-      }[]) {
-        const m = (row.primary_model || "").toLowerCase();
-        const t = row.total_tokens || 0;
-        totalTok += t;
-        if (m.includes("opus")) families.Opus += t;
-        else if (m.includes("sonnet")) families.Sonnet += t;
-        else if (m.includes("haiku")) families.Haiku += t;
-        else families.Other += t;
+        if (modelErr) {
+          console.warn("[Analytics Users] model pagination query failed:", modelErr.message);
+          modelQueryFailed = true;
+          break;
+        }
+        if (!modelRows || modelRows.length === 0) break;
+
+        for (const row of modelRows as {
+          primary_model: string | null;
+          total_tokens: number | null;
+        }[]) {
+          const m = (row.primary_model || "").toLowerCase();
+          const t = row.total_tokens || 0;
+          totalTok += t;
+          if (m.includes("opus")) families.Opus += t;
+          else if (m.includes("sonnet")) families.Sonnet += t;
+          else if (m.includes("haiku")) families.Haiku += t;
+          else families.Other += t;
+        }
+
+        if (modelRows.length < PAGE) break; // 마지막 페이지
+      }
+      if (page >= MAX_PAGES) {
+        console.warn(
+          "[Analytics Users] model rows hit MAX_PAGES cap — distribution may be partial"
+        );
       }
 
-      if (modelRows.length < PAGE) break; // 마지막 페이지
+      byModel = modelQueryFailed
+        ? []
+        : Object.entries(families)
+            .filter(([, tok]) => tok > 0)
+            .map(([model, tokens]) => ({
+              model,
+              tokens,
+              percentage: totalTok > 0 ? Math.round((tokens / totalTok) * 1000) / 10 : 0,
+            }))
+            .sort((a, b) => b.tokens - a.tokens);
     }
-    if (page >= MAX_PAGES) {
-      console.warn("[Analytics Users] model rows hit MAX_PAGES cap — distribution may be partial");
-    }
-
-    const byModel: { model: string; tokens: number; percentage: number }[] = modelQueryFailed
-      ? []
-      : Object.entries(families)
-          .filter(([, tok]) => tok > 0)
-          .map(([model, tokens]) => ({
-            model,
-            tokens,
-            percentage: totalTok > 0 ? Math.round((tokens / totalTok) * 1000) / 10 : 0,
-          }))
-          .sort((a, b) => b.tokens - a.tokens);
 
     const response: AnalyticsUsersResponse = {
       metrics: {

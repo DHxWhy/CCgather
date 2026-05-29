@@ -219,19 +219,48 @@ export async function GET(request: Request) {
       mauPreviousResult.data?.map((r: { user_id: string }) => r.user_id) || []
     );
 
+    // ★ db-max-rows=1000 hard cap 우회 (Pluto 패널, mig 062):
+    // 위 4개 .limit(10000) 쿼리는 실제 1000행에서 잘려 distinct 과소집계됨.
+    // get_wau_mau_distinct_counts RPC 가 COUNT(DISTINCT) 를 DB 내부 집계 → 정확.
+    // RPC 미적용(아직 Dashboard 실행 전)/실패 시 위 Set.size 로 graceful fallback.
+    let wauCur = wauCurrentUsers.size;
+    let wauPrev = wauPreviousUsers.size;
+    let mauCur = mauCurrentUsers.size;
+    let mauPrev = mauPreviousUsers.size;
+    const { data: distinctRpc, error: distinctErr } = await supabase.rpc(
+      "get_wau_mau_distinct_counts",
+      { p_days: days }
+    );
+    if (
+      !distinctErr &&
+      Array.isArray(distinctRpc) &&
+      distinctRpc[0] &&
+      typeof distinctRpc[0].mau_current === "number"
+    ) {
+      const r = distinctRpc[0] as {
+        wau_current: number;
+        wau_previous: number;
+        mau_current: number;
+        mau_previous: number;
+      };
+      wauCur = r.wau_current;
+      wauPrev = r.wau_previous;
+      mauCur = r.mau_current;
+      mauPrev = r.mau_previous;
+    } else if (distinctErr) {
+      console.warn(
+        "[Analytics Core] WAU/MAU RPC unavailable, using capped fallback:",
+        distinctErr.message
+      );
+    }
+
     // 지표 계산
-    const wauSubmitters = calculateTrend(wauCurrentUsers.size, wauPreviousUsers.size);
-    const mauSubmitters = calculateTrend(mauCurrentUsers.size, mauPreviousUsers.size);
+    const wauSubmitters = calculateTrend(wauCur, wauPrev);
+    const mauSubmitters = calculateTrend(mauCur, mauPrev);
 
     // WAU/MAU 비율 (Stickiness)
-    const currentStickiness =
-      mauCurrentUsers.size > 0
-        ? Math.round((wauCurrentUsers.size / mauCurrentUsers.size) * 1000) / 10
-        : 0;
-    const previousStickiness =
-      mauPreviousUsers.size > 0
-        ? Math.round((wauPreviousUsers.size / mauPreviousUsers.size) * 1000) / 10
-        : 0;
+    const currentStickiness = mauCur > 0 ? Math.round((wauCur / mauCur) * 1000) / 10 : 0;
+    const previousStickiness = mauPrev > 0 ? Math.round((wauPrev / mauPrev) * 1000) / 10 : 0;
     const stickiness = calculateTrend(currentStickiness, previousStickiness);
     const totalSubmissions = calculateTrend(
       submissionsCurrentResult.count || 0,
