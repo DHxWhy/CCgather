@@ -518,18 +518,28 @@ export async function POST(request: NextRequest) {
         // server-recomputed cost so the V2 cost cap evaluates the trusted value,
         // not the CLI-reported one. Observe-only — never affects what's stored
         // beyond the two advisory columns. `off` mode leaves defaults ([], clean).
-        const dayFlags =
-          validationMode === "off"
-            ? []
-            : validateSingleDay({
-                date: day.date,
-                tokens: day.tokens,
-                cost: computedCost,
-                inputTokens: day.inputTokens || 0,
-                outputTokens: day.outputTokens || 0,
-                cacheReadTokens: day.cacheReadTokens || 0,
-                cacheWriteTokens: day.cacheWriteTokens || 0,
-              });
+        // Guard (M1): validators are observe-only, so a throw here must NOT
+        // 500 a legitimate submission. STEP 0.5 already fails open the same way;
+        // this mirrors it for the per-day re-run. On error → clean (no flags).
+        let dayFlags: ReturnType<typeof validateSingleDay> = [];
+        if (validationMode !== "off") {
+          try {
+            dayFlags = validateSingleDay({
+              date: day.date,
+              tokens: day.tokens,
+              cost: computedCost,
+              inputTokens: day.inputTokens || 0,
+              outputTokens: day.outputTokens || 0,
+              cacheReadTokens: day.cacheReadTokens || 0,
+              cacheWriteTokens: day.cacheWriteTokens || 0,
+            });
+          } catch (validationError) {
+            // Narrow to message only — raw error could carry payload fragments (PII).
+            const msg =
+              validationError instanceof Error ? validationError.message : String(validationError);
+            console.error("[SubmitValidation] Per-day validator crashed (failing open):", msg);
+          }
+        }
 
         return {
           user_id: authenticatedUser.id,
