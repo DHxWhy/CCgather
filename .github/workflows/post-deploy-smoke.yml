@@ -17,6 +17,7 @@ on:
 
 permissions:
   contents: read
+  actions: read # 연속 실패 판정: 직전 run 결론 조회 (gh run list)
 
 jobs:
   smoke:
@@ -77,11 +78,11 @@ jobs:
           # ─── 헬퍼: 일시적 글리치 (network timeout, 502/503/504) 1회 재시도 ───
           # 의도: GitHub Actions ↔ Vercel 의 cold start / 일시 망 글리치로 인한
           # false positive 차단. 진짜 빌드 fail (404/500) 은 즉시 결과 (재시도 X).
-          # 최대 timeout 15s 로 134s hang 방지.
+          # 최대 timeout 30s 로 콜드스타트 여유 확보 (15s→30s, off-peak 콜드스타트 대응) + hang 방지.
           fetch_code() {
             local url="$1"
             local code
-            code=$(curl -sS -o /dev/null --max-time 15 -w "%{http_code}" "$url" 2>/dev/null)
+            code=$(curl -sS -o /dev/null --max-time 30 -w "%{http_code}" "$url" 2>/dev/null)
             code="${code:-000}"
             # 네트워크 글리치/일시 서버 에러만 재시도 (총 2회 추가, 30s + 60s 백오프)
             local attempt=1
@@ -90,7 +91,7 @@ jobs:
               local backoff=$((attempt * 30))
               echo "    [retry $attempt] $url 응답 $code → ${backoff}s 대기 후 재시도" >&2
               sleep $backoff
-              code=$(curl -sS -o /dev/null --max-time 15 -w "%{http_code}" "$url" 2>/dev/null)
+              code=$(curl -sS -o /dev/null --max-time 30 -w "%{http_code}" "$url" 2>/dev/null)
               code="${code:-000}"
               attempt=$((attempt + 1))
             done
@@ -99,17 +100,17 @@ jobs:
 
           fetch_matched() {
             local url="$1"
-            curl -sS -D - -o /dev/null --max-time 15 "$url" 2>/dev/null | grep -i "^x-matched-path" | tr -d '\r' | awk '{print $2}'
+            curl -sS -D - -o /dev/null --max-time 30 "$url" 2>/dev/null | grep -i "^x-matched-path" | tr -d '\r' | awk '{print $2}'
           }
 
           fetch_html() {
             local url="$1"
             local html
-            html=$(curl -sS --max-time 20 "$url" 2>/dev/null || echo "")
+            html=$(curl -sS --max-time 30 "$url" 2>/dev/null || echo "")
             if [ ${#html} -lt 1000 ]; then
               echo "    [retry] $url HTML 작음 (${#html} bytes) → 30s 대기 후 재시도" >&2
               sleep 30
-              html=$(curl -sS --max-time 20 "$url" 2>/dev/null || echo "")
+              html=$(curl -sS --max-time 30 "$url" 2>/dev/null || echo "")
             fi
             echo "$html"
           }
@@ -200,6 +201,35 @@ jobs:
           echo "::error::production 스모크 ${count}개 실패"
           exit 1
 
+      # ─── 연속 실패 판정 (알림 과민 완화) ───
+      # schedule + 직전 완료 run 도 failure → 연속 → @here (loud=true).
+      # schedule 1차 감지(직전 정상)는 일시 글리치(콜드스타트 등) 가능 → @here 보류 (loud=false).
+      # push/수동은 즉시 @here. fail-safe: 직전이 'success' 로 확인될 때만 조용히, 불명이면 loud.
+      - name: Determine alert severity
+        id: severity
+        if: failure() && steps.probe.outputs.failed_count != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TRIGGER: ${{ github.event_name }}
+        run: |
+          set +e
+          if [ "$TRIGGER" != "schedule" ]; then
+            echo "loud=true" >> "$GITHUB_OUTPUT"
+            echo "트리거=${TRIGGER} → 즉시 @here"
+            exit 0
+          fi
+          prev=$(gh run list --workflow=post-deploy-smoke.yml --status completed \
+                   --limit 1 --json conclusion -q '.[0].conclusion' 2>/dev/null)
+          echo "직전 완료 run 결론: ${prev:-불명}"
+          if [ "$prev" = "success" ]; then
+            echo "loud=false" >> "$GITHUB_OUTPUT"
+            echo "schedule 1차 감지 (직전 정상) → @here 보류, 노랑 경고만"
+          else
+            echo "loud=true" >> "$GITHUB_OUTPUT"
+            echo "schedule 연속 실패 또는 직전 불명 → @here (fail-safe)"
+          fi
+          exit 0
+
       # ─── 한글 Discord 알림 — 어떤 라우트가 어떻게 깨졌는지 명시 ───
       - name: Notify Discord on failure
         if: failure() && steps.probe.outputs.failed_count != ''
@@ -211,6 +241,7 @@ jobs:
           FAIL_COUNT: ${{ steps.probe.outputs.failed_count }}
           FAILURES: ${{ steps.probe.outputs.failures }}
           COMMIT_URL: ${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}
+          LOUD: ${{ steps.severity.outputs.loud }}
         run: |
           if [ -z "$DISCORD_WEBHOOK_URL" ]; then
             echo "::warning::DISCORD_WEBHOOK_URL secret 미설정 — 알림 스킵"
@@ -233,14 +264,27 @@ jobs:
           fail_json=$(printf '%s' "$FAILURES" | jq -Rs .)
           trigger_json=$(printf '%s' "$trigger_kr" | jq -Rs .)
 
+          # 알림 강도 — 연속 실패 판정 결과 (loud=false 면 @here 없이 노랑 경고)
+          if [ "$LOUD" = "false" ]; then
+            content="⚠️ **production 1차 이상 감지** — 일시 글리치(콜드스타트 등) 가능성으로 멘션 보류. 다음 주기 재확인 중, 연속 실패 시 긴급 호출 발사."
+            color=16776960
+            title="⚠️ ${FAIL_COUNT}개 검증 실패 (1차 감지 · 미확정)"
+          else
+            content="🚨 @here **production 장애 감지** — 신규 가입 흐름이 깨졌을 가능성. 즉시 확인 필요."
+            color=15158332
+            title="❌ ${FAIL_COUNT}개 검증 실패 — 클릭해서 상세 로그"
+          fi
+          content_json=$(printf '%s' "$content" | jq -Rs .)
+          title_json=$(printf '%s' "$title" | jq -Rs .)
+
           payload=$(cat <<JSON
           {
             "username": "CCgather 감시봇",
-            "content": "🚨 @here **production 장애 감지** — 신규 가입 흐름이 깨졌을 가능성. 즉시 확인 필요.",
+            "content": ${content_json},
             "embeds": [{
-              "title": "❌ ${FAIL_COUNT}개 검증 실패 — 클릭해서 상세 로그",
+              "title": ${title_json},
               "url": "${RUN_URL}",
-              "color": 15158332,
+              "color": ${color},
               "description": ${fail_json},
               "fields": [
                 { "name": "발생 시각", "value": "${KST}", "inline": true },
