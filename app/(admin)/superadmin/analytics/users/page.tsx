@@ -4,6 +4,7 @@ import { useState, useMemo } from "react";
 import {
   AlertTriangle,
   Calendar,
+  Cpu,
   Flag,
   Gauge,
   Globe2,
@@ -508,6 +509,86 @@ function CountryList({ countries }: { countries: CountryRow[] }) {
 }
 
 // =====================================================
+// ModelList — 모델 사용 분포 (primary_model 토큰 집계, 근사)
+// 3~4 family 뿐이라 compact 막대 리스트 (테이블 불필요)
+// =====================================================
+interface ModelRow {
+  model: string;
+  tokens: number;
+  percentage: number;
+}
+
+function formatTokens(n: number): string {
+  if (n >= 1e9) return `${(n / 1e9).toFixed(1)}B`;
+  if (n >= 1e6) return `${(n / 1e6).toFixed(1)}M`;
+  if (n >= 1e3) return `${(n / 1e3).toFixed(1)}K`;
+  return String(n);
+}
+
+function ModelList({ models }: { models: ModelRow[] }) {
+  const maxPercent = useMemo(() => Math.max(...models.map((m) => m.percentage), 1), [models]);
+
+  if (!models?.length) {
+    return (
+      <div className="flex items-center justify-center py-8 text-[11.5px] text-white/35 tracking-[-0.005em]">
+        모델 데이터 없음
+      </div>
+    );
+  }
+
+  return (
+    <div className="px-3 py-3 space-y-2.5">
+      {models.map((m, index) => {
+        const rank = index + 1;
+        const intensity = rank === 1 ? 1.0 : rank === 2 ? 0.7 : rank === 3 ? 0.45 : 0.3;
+        const fillPercent = Math.min((m.percentage / maxPercent) * 100, 100);
+        return (
+          <div
+            key={m.model}
+            aria-label={`${rank}위 ${m.model} ${formatTokens(m.tokens)} 토큰 ${m.percentage}%`}
+          >
+            <div className="flex items-baseline justify-between gap-2 mb-1">
+              <span className="text-[12.5px] font-medium text-white/90 tracking-[-0.005em]">
+                {m.model}
+                {rank === 1 && (
+                  <span
+                    className="ml-1.5 inline-flex items-center rounded-[4px] px-1.5 py-0 text-[9px] font-semibold uppercase tracking-[0.08em] text-[var(--color-claude-coral)] bg-[var(--color-claude-coral)]/12 ring-1 ring-[var(--color-claude-coral)]/22"
+                    aria-label="최다 사용 모델"
+                  >
+                    TOP
+                  </span>
+                )}
+              </span>
+              <span
+                className="text-[11px] text-white/55 font-mono tabular-nums tracking-[-0.005em] shrink-0"
+                style={{ fontFeatureSettings: '"tnum"' }}
+                title={`${m.tokens.toLocaleString("en-US")} tokens`}
+              >
+                {formatTokens(m.tokens)} · {m.percentage}%
+              </span>
+            </div>
+            <div
+              className="w-full h-1.5 rounded-[3px] overflow-hidden ring-1 ring-white/[0.04]"
+              style={{ background: "rgba(255,255,255,0.04)" }}
+            >
+              <div
+                className="h-full rounded-[3px]"
+                style={{
+                  width: `${Math.max(2, fillPercent)}%`,
+                  background: `linear-gradient(90deg, rgba(218,119,86,${0.95 * intensity}) 0%, rgba(218,119,86,${0.7 * intensity}) 100%)`,
+                  transition: `width 420ms ${MAC_EASE}`,
+                  boxShadow: "inset 0 1px 0 rgba(255,255,255,0.08)",
+                }}
+              />
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// =====================================================
 // InsightItem — macOS Notification Center (traffic / funnels 와 일관)
 // =====================================================
 function InsightItem({
@@ -887,6 +968,29 @@ export default function UsersAnalyticsPage() {
               byCountry={usersData.byCountry}
             />
           </div>
+
+          {/* 모델 사용 분포 (primary_model 토큰 집계, 근사) */}
+          <GlassCard
+            title="모델 사용 분포"
+            caption="By Model · 토큰 기준 (근사)"
+            icon={Cpu}
+            padded={false}
+            trailing={
+              <span
+                className="inline-flex items-center rounded-[5px] px-1.5 py-0.5 text-[10px] font-medium text-white/60 ring-1 ring-white/[0.08] bg-white/[0.04]"
+                title="primary_model 기준 근사 — 정밀 분해는 향후 제공"
+              >
+                <Info
+                  className="h-2.5 w-2.5 mr-0.5 text-white/35"
+                  strokeWidth={2}
+                  aria-hidden="true"
+                />
+                근사
+              </span>
+            }
+          >
+            <ModelList models={usersData.byModel ?? []} />
+          </GlassCard>
         </>
       )}
 

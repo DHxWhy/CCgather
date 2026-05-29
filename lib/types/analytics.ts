@@ -147,6 +147,7 @@ export interface AnalyticsUsersResponse {
     mau: MetricWithTrend;
   };
   byCountry: CountryMetric[];
+  byModel: ModelMetric[];
   dateRange: DateRange;
   error?: string;
 }
@@ -156,6 +157,13 @@ export interface CountryMetric {
   countryCode: string;
   users: number;
   percentage: number;
+}
+
+// 모델 사용 분포 (primary_model 토큰 집계, 근사). family 단위.
+export interface ModelMetric {
+  model: string; // "Opus" | "Sonnet" | "Haiku" | "Other"
+  tokens: number;
+  percentage: number; // % of total tokens
 }
 
 // Retention Response
