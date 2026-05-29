@@ -221,6 +221,16 @@ function matchModel(model: string, pricingData: Record<string, ModelPricing> | n
     const withoutVersion = normalized.replace(/-v\d+:\d+$/, "").replace(/-\d{8}$/, "");
     if (pricingData[withoutVersion]) return pricingData[withoutVersion];
 
+    // ★ Opus tier 가드 (Diana 발견, 2026-05-29): 아래 fuzzy startsWith 루프가
+    // 합성키 "claude-opus-4"(레거시 $15/$75)로 신규 minor("claude-opus-4-8" 등)를
+    // 오매칭 → 3배 과다청구. exact/date/version 이 모두 미스한 opus 는 fuzzy 를
+    // 건너뛰고 family-tier fallback(정확한 regex 분류)으로 직행한다.
+    // opus-4-5/6/7 은 LiteLLM exact 키가 있어 위에서 이미 반환되므로 이 가드에
+    // 걸리지 않음(LiteLLM 권위 유지). LiteLLM 미등재 신규 opus(4-8+)만 여기서 처리.
+    if (/opus/i.test(normalized)) {
+      return fallbackForModel(model);
+    }
+
     const modelLower = normalized.toLowerCase();
     let bestMatch: { key: string; pricing: ModelPricing } | null = null;
     for (const [key, pricing] of Object.entries(pricingData)) {
