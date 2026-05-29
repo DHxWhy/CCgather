@@ -478,6 +478,19 @@ export async function POST(request: NextRequest) {
     // ═══════════════════════════════════════════════════════════════════════════
     // STEP 1: Insert/Update daily usage records FIRST (before legacy cleanup)
     // ═══════════════════════════════════════════════════════════════════════════
+    // Harden untrusted input once, up front. `body` is request.json() cast to
+    // SubmitPayload with NO runtime validation, so a non-object dailyUsage entry
+    // (e.g. [null]) would throw on property access in every step below —
+    // getPrimaryModel (day.models), the record builder (day.models/day.date),
+    // STEP 1.5/1.7 date maps, and the badge history map — most of them outside
+    // the M1 per-day guard. STEP 0.5 already flagged malformed entries; drop them
+    // here so no downstream step can 500. The official CLI never emits these.
+    if (Array.isArray(body.dailyUsage)) {
+      body.dailyUsage = (body.dailyUsage as (DailyUsage | null | undefined)[]).filter(
+        (day): day is DailyUsage => day != null && typeof day === "object"
+      );
+    }
+
     const overallPrimaryModel = getPrimaryModel(body.dailyUsage);
     let upsertSucceeded = false;
 
