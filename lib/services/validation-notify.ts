@@ -80,10 +80,14 @@ export async function notifyValidationIssue(
       console.warn("[validation-notify] admin_alerts insert failed:", insertErr.message);
     }
 
-    // ── Discord push (optional — only when webhook is configured) ──────────────
-    // Vercel env vars can carry a literal `\n` or trailing whitespace from
-    // copy-paste; sanitize the same way the new-user webhook does.
-    const webhookUrl = process.env.DISCORD_WEBHOOK_ISSUE?.replace(/\\n$/, "").trim();
+    // ── Discord push (optional — only when a webhook is configured) ────────────
+    // Default: reuse the existing new-user webhook channel so signup + issue
+    // alerts share one channel (distinguished by bot name/color). A dedicated
+    // DISCORD_WEBHOOK_ISSUE can be added later to split them — no code change.
+    // Sanitize copy-paste `\n`/whitespace the same way the new-user webhook does.
+    const webhookUrl = (process.env.DISCORD_WEBHOOK_ISSUE ?? process.env.DISCORD_WEBHOOK_NEW_USER)
+      ?.replace(/\\n$/, "")
+      .trim();
     if (!webhookUrl) return "recorded_no_webhook";
 
     const githubUrl = githubId ? `https://github.com/${username}` : null;
