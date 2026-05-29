@@ -130,6 +130,7 @@ export async function GET(request: Request) {
         .from("usage_stats")
         .select("primary_model, total_tokens")
         .not("primary_model", "is", null)
+        .order("id", { ascending: true }) // OFFSET 페이지네이션 결정화 — 동시 upsert 중 행 중복/누락 방지 (Diana 권장)
         .range(from, from + PAGE - 1);
 
       if (modelErr) {
