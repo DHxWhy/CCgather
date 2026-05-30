@@ -146,17 +146,18 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: "Translation service unavailable" }, { status: 503 });
       }
 
-      const genAI = new GoogleGenerativeAI(apiKey);
-      const model = genAI.getGenerativeModel({ model: GEMINI_MODEL });
+      try {
+        const genAI = new GoogleGenerativeAI(apiKey);
+        const model = genAI.getGenerativeModel({ model: GEMINI_MODEL });
 
-      const toLang = SUPPORTED_LANGUAGES[targetLanguage];
+        const toLang = SUPPORTED_LANGUAGES[targetLanguage];
 
-      // Build batch prompt with numbered items
-      const textList = itemsToTranslate
-        .map((item, idx) => `[${idx + 1}] ${item.text}`)
-        .join("\n\n");
+        // Build batch prompt with numbered items
+        const textList = itemsToTranslate
+          .map((item, idx) => `[${idx + 1}] ${item.text}`)
+          .join("\n\n");
 
-      const prompt = `Translate each numbered text below to ${toLang}.
+        const prompt = `Translate each numbered text below to ${toLang}.
 Keep the tone and style. Do not add explanations.
 Output ONLY the translations in the same numbered format.
 Each translation should be on its own line starting with [number].
@@ -164,78 +165,94 @@ Each translation should be on its own line starting with [number].
 Texts to translate:
 ${textList}`;
 
-      const result = await model.generateContent({
-        contents: [{ role: "user", parts: [{ text: prompt }] }],
-        generationConfig: {
-          temperature: 0.3,
-          maxOutputTokens: 8000,
-        },
-      });
-
-      const response = result.response;
-      const translatedText = response.text().trim();
-      const usageMetadata = response.usageMetadata;
-
-      // Parse numbered responses
-      const translations = parseNumberedTranslations(translatedText, itemsToTranslate.length);
-
-      // Calculate cost
-      const inputTokens = usageMetadata?.promptTokenCount || 0;
-      const outputTokens = usageMetadata?.candidatesTokenCount || 0;
-      const totalTokens = inputTokens + outputTokens;
-      const costUsd =
-        (inputTokens / 1_000_000) * TOKEN_COSTS.input +
-        (outputTokens / 1_000_000) * TOKEN_COSTS.output;
-
-      // =====================================================
-      // Step 3: Save translations to cache (only successful ones)
-      // =====================================================
-
-      const translationRecords = itemsToTranslate
-        .map((item, idx) => ({
-          content_id: item.id,
-          content_type: item.type,
-          target_language: targetLanguage,
-          translated_text: translations[idx],
-          original_text: item.text,
-        }))
-        .filter((rec) => rec.translated_text && rec.translated_text !== rec.original_text);
-
-      // Upsert translations - only successful ones
-      if (translationRecords.length > 0) {
-        await supabase.from("translations").upsert(
-          translationRecords.map(({ original_text, ...rest }) => rest),
-          { onConflict: "content_id,content_type,target_language" }
-        );
-      }
-
-      // Add to results - use original if translation failed
-      itemsToTranslate.forEach((item, idx) => {
-        const translated = translations[idx];
-        const isSuccess = translated && translated !== item.text;
-        results.push({
-          id: item.id,
-          type: item.type,
-          translated_text: isSuccess ? translated : item.text,
-          from_cache: false,
+        const result = await model.generateContent({
+          contents: [{ role: "user", parts: [{ text: prompt }] }],
+          generationConfig: {
+            temperature: 0.3,
+            maxOutputTokens: 8000,
+          },
         });
-      });
 
-      // Log AI usage
-      await supabase.from("ai_usage_log").insert({
-        model: GEMINI_MODEL,
-        operation: "batch_translation",
-        request_type: "translation",
-        input_tokens: inputTokens,
-        output_tokens: outputTokens,
-        total_tokens: totalTokens,
-        cost_usd: costUsd,
-        metadata: {
-          target_language: targetLanguage,
-          items_count: itemsToTranslate.length,
-          cached_count: items.length - itemsToTranslate.length,
-        },
-      });
+        const response = result.response;
+        const translatedText = response.text().trim();
+        const usageMetadata = response.usageMetadata;
+
+        // Parse numbered responses
+        const translations = parseNumberedTranslations(translatedText, itemsToTranslate.length);
+
+        // Calculate cost
+        const inputTokens = usageMetadata?.promptTokenCount || 0;
+        const outputTokens = usageMetadata?.candidatesTokenCount || 0;
+        const totalTokens = inputTokens + outputTokens;
+        const costUsd =
+          (inputTokens / 1_000_000) * TOKEN_COSTS.input +
+          (outputTokens / 1_000_000) * TOKEN_COSTS.output;
+
+        // =====================================================
+        // Step 3: Save translations to cache (only successful ones)
+        // =====================================================
+
+        const translationRecords = itemsToTranslate
+          .map((item, idx) => ({
+            content_id: item.id,
+            content_type: item.type,
+            target_language: targetLanguage,
+            translated_text: translations[idx],
+            original_text: item.text,
+          }))
+          .filter((rec) => rec.translated_text && rec.translated_text !== rec.original_text);
+
+        // Upsert translations - only successful ones
+        if (translationRecords.length > 0) {
+          await supabase.from("translations").upsert(
+            translationRecords.map(({ original_text, ...rest }) => rest),
+            { onConflict: "content_id,content_type,target_language" }
+          );
+        }
+
+        // Add to results - use original if translation failed
+        itemsToTranslate.forEach((item, idx) => {
+          const translated = translations[idx];
+          const isSuccess = translated && translated !== item.text;
+          results.push({
+            id: item.id,
+            type: item.type,
+            translated_text: isSuccess ? translated : item.text,
+            from_cache: false,
+          });
+        });
+
+        // Log AI usage
+        await supabase.from("ai_usage_log").insert({
+          model: GEMINI_MODEL,
+          operation: "batch_translation",
+          request_type: "translation",
+          input_tokens: inputTokens,
+          output_tokens: outputTokens,
+          total_tokens: totalTokens,
+          cost_usd: costUsd,
+          metadata: {
+            target_language: targetLanguage,
+            items_count: itemsToTranslate.length,
+            cached_count: items.length - itemsToTranslate.length,
+          },
+        });
+      } catch (geminiError) {
+        // Graceful degradation: Gemini 실패(429 quota 등) 시 500 대신 원문 반환.
+        // 피드는 안 깨지고, 실패분은 캐시 안 하므로 quota 복구 후 다음 요청에 번역됨.
+        console.error(
+          "[Batch Translation] Gemini failed — returning originals untranslated:",
+          geminiError instanceof Error ? geminiError.message : geminiError
+        );
+        for (const item of itemsToTranslate) {
+          results.push({
+            id: item.id,
+            type: item.type,
+            translated_text: item.text,
+            from_cache: false,
+          });
+        }
+      }
     }
 
     // Sort results to match input order
