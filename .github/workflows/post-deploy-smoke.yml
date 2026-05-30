@@ -23,7 +23,7 @@ jobs:
   smoke:
     name: Probe ccgather.com
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 14 # probe(10) + push 대기(3) + deadman 여유 — 전체 다운 시 deadman 가동 보장
     env:
       BASE_URL: https://ccgather.com
     outputs:
@@ -71,6 +71,7 @@ jobs:
 
       - name: Run all production probes
         id: probe
+        timeout-minutes: 10 # 전체 다운 시 여기서 끊고 dead-man's switch 로 넘김 (job 14 보다 작게)
         run: |
           set +e
           failures=()
@@ -303,3 +304,38 @@ jobs:
           echo "Discord 알림 응답 HTTP $http"
           cat /tmp/resp
           [ "$http" = "204" ] || [ "$http" = "200" ] || echo "::warning::Discord 알림 실패"
+
+      # ─── dead-man's switch: probe 자체가 비정상 종료(타임아웃/크래시)면 그게 곧 비상 ───
+      # 정상 실패는 failed_count 가 채워져 위 Notify step 이 처리. 여기는 failed_count 가
+      # 비었을 때(= probe 가 timeout-minutes 초과 등으로 끝까지 못 감) = 전체 다운 의심 → 무조건 @here.
+      # (probe 의 step-level timeout 이 job timeout 보다 작아 job 취소가 아닌 step 실패로 처리됨)
+      - name: Alert on abnormal probe termination
+        if: always() && steps.probe.outcome == 'failure' && steps.probe.outputs.failed_count == ''
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          if [ -z "$DISCORD_WEBHOOK_URL" ]; then
+            echo "::warning::DISCORD_WEBHOOK_URL 미설정 — 알림 스킵"
+            exit 0
+          fi
+          KST=$(TZ=Asia/Seoul date '+%Y-%m-%d %H:%M KST')
+          payload=$(cat <<JSON
+          {
+            "username": "CCgather 감시봇",
+            "content": "🚨 @here **스모크 비정상 종료** — probe 가 끝까지 실행 못 함(타임아웃/크래시). 사이트 전체 다운 의심, 즉시 확인.",
+            "embeds": [{
+              "title": "❗ production 스모크 자체 실패 (결과 미산출)",
+              "url": "${RUN_URL}",
+              "color": 15158332,
+              "fields": [
+                { "name": "발생 시각", "value": "${KST}", "inline": true },
+                { "name": "의미", "value": "probe step 이 timeout-minutes 초과 등으로 종료 → 다수 라우트 무응답 가능성. Vercel/플랫폼 상태부터 확인." }
+              ],
+              "footer": { "text": "CCgather production · ${BASE_URL}" },
+              "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            }]
+          }
+          JSON
+          )
+          curl -sS -o /dev/null -w "deadman Discord HTTP %{http_code}\n" -X POST -H "Content-Type: application/json" -d "$payload" "$DISCORD_WEBHOOK_URL" || true
