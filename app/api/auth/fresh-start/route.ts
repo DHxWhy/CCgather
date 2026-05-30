@@ -31,7 +31,7 @@ export async function POST() {
     const { data: pendingInfo, error: checkError } = await supabase.rpc(
       "get_pending_deletion_info",
       {
-        target_clerk_id: userId,
+        p_clerk_id: userId,
       }
     );
 

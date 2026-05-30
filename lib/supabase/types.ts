@@ -770,7 +770,7 @@ export type Database = {
       cleanup_deleted_users: { Args: Record<string, never>; Returns: Json };
       cleanup_expired_device_codes: { Args: Record<string, never>; Returns: undefined };
       generate_referral_code: { Args: { p_username: string }; Returns: string };
-      get_pending_deletion_info: { Args: { target_clerk_id: string }; Returns: Json };
+      get_pending_deletion_info: { Args: { p_clerk_id: string }; Returns: Json };
       is_admin_user: { Args: Record<string, never>; Returns: boolean };
       is_user_active: { Args: { user_id: string }; Returns: boolean };
       recalculate_ccplan_ranks: { Args: Record<string, never>; Returns: undefined };
