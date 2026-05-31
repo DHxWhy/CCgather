@@ -33,8 +33,8 @@ interface ReplyResponse {
 // Translation Constants
 // =====================================================
 
-const GEMINI_MODEL = "gemini-2.0-flash-lite";
-const TOKEN_COSTS = { input: 0.075, output: 0.3 };
+const GEMINI_MODEL = "gemini-2.5-flash-lite";
+const TOKEN_COSTS = { input: 0.1, output: 0.4 };
 const SUPPORTED_LANGUAGES: Record<string, string> = {
   en: "English",
   ko: "Korean",
