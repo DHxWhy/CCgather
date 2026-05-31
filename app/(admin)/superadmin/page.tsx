@@ -16,6 +16,7 @@ import {
   Users as UsersIcon,
   Activity,
   Coins,
+  EyeOff,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { FlagIcon } from "@/components/ui/FlagIcon";
@@ -38,6 +39,7 @@ interface User {
   ccplan: string | null;
   ccplan_updated_at: string | null;
   device_count: number;
+  shadow_banned: boolean;
 }
 
 interface PlanStats {
@@ -429,6 +431,29 @@ export default function AdminUsersPage() {
       console.error("Failed to fetch users:", error);
     } finally {
       setLoading(false);
+    }
+  }
+
+  // Shadow ban 토글 — 낙관적 업데이트 + 실패 시 롤백
+  async function toggleShadowBan(userId: string, username: string, next: boolean) {
+    const msg = next
+      ? `@${username} 을(를) 쉐도우 밴 처리할까요?\n\n리더보드·통계에서 숨겨지지만 본인 화면엔 정상으로 보입니다. (데이터는 보존)`
+      : `@${username} 의 쉐도우 밴을 해제할까요?\n\n리더보드에 다시 노출됩니다.`;
+    if (!window.confirm(msg)) return;
+
+    setUsers((prev) => prev.map((u) => (u.id === userId ? { ...u, shadow_banned: next } : u)));
+
+    try {
+      const res = await fetch("/api/admin/users", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId, shadowBanned: next }),
+      });
+      if (!res.ok) throw new Error(`status ${res.status}`);
+    } catch (error) {
+      setUsers((prev) => prev.map((u) => (u.id === userId ? { ...u, shadow_banned: !next } : u)));
+      console.error("Shadow ban toggle failed:", error);
+      window.alert("쉐도우 밴 처리에 실패했습니다. 다시 시도해주세요.");
     }
   }
 
@@ -1185,6 +1210,15 @@ export default function AdminUsersPage() {
                                   {user.device_count}PC
                                 </span>
                               )}
+                              {user.shadow_banned && (
+                                <span
+                                  className="inline-flex shrink-0 items-center gap-0.5 rounded-[4px] px-1 py-0.5 text-[9px] font-semibold ring-1 ring-rose-500/30 bg-rose-500/15 text-rose-300"
+                                  aria-label="쉐도우 밴 처리됨"
+                                >
+                                  <EyeOff className="h-2.5 w-2.5" strokeWidth={2} />
+                                  SHADOW
+                                </span>
+                              )}
                             </div>
                             <div className="text-[11px] text-white/40 truncate">
                               @{user.username}
@@ -1231,8 +1265,30 @@ export default function AdminUsersPage() {
                           day: "2-digit",
                         })}
                       </td>
-                      <td className="px-4 py-2.5 text-center">
-                        <StatusChip active={user.onboarding_completed} />
+                      <td className="px-4 py-2.5">
+                        <div className="flex items-center justify-center gap-1.5">
+                          <StatusChip active={user.onboarding_completed} />
+                          <button
+                            type="button"
+                            onClick={() =>
+                              toggleShadowBan(user.id, user.username, !user.shadow_banned)
+                            }
+                            aria-label={
+                              user.shadow_banned
+                                ? `@${user.username} 쉐도우 밴 해제`
+                                : `@${user.username} 쉐도우 밴 처리`
+                            }
+                            className={`inline-flex h-6 shrink-0 items-center gap-1 rounded-[5px] px-1.5 text-[10px] font-medium ring-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/25 active:scale-[0.98] ${
+                              user.shadow_banned
+                                ? "ring-rose-400/30 bg-rose-400/10 text-rose-300 hover:bg-rose-400/20"
+                                : "ring-white/[0.08] bg-white/[0.04] text-white/50 opacity-0 group-hover:opacity-100 hover:bg-rose-400/10 hover:text-rose-300 hover:ring-rose-400/25"
+                            }`}
+                            style={{ transition: `all 180ms ${MAC_EASE}` }}
+                          >
+                            <EyeOff className="h-3 w-3" strokeWidth={1.75} />
+                            {user.shadow_banned ? "해제" : "밴"}
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   );

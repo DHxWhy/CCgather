@@ -31,6 +31,7 @@ export async function GET() {
         total_cost,
         global_rank,
         created_at,
+        shadow_banned,
         onboarding_completed,
         last_submission_at,
         ccplan,
@@ -113,6 +114,62 @@ export async function GET() {
     });
   } catch (error) {
     console.error("[Admin Users] Unexpected error:", error);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
+// PATCH — shadow ban 토글 (admin 전용)
+// 리더보드·통계에서 숨김/복원. 본인 데이터·화면은 보존(shadow).
+// ─────────────────────────────────────────────────────────────
+export async function PATCH(request: Request) {
+  try {
+    if (!(await checkAdminAccess())) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const body = (await request.json()) as { userId?: unknown; shadowBanned?: unknown };
+    const { userId, shadowBanned } = body;
+
+    if (typeof userId !== "string" || typeof shadowBanned !== "boolean") {
+      return NextResponse.json(
+        { error: "Invalid payload: userId(string) and shadowBanned(boolean) required" },
+        { status: 400 }
+      );
+    }
+
+    const supabase = createServiceClient();
+
+    const { error: updateError } = await supabase
+      .from("users")
+      .update({ shadow_banned: shadowBanned })
+      .eq("id", userId);
+
+    if (updateError) {
+      console.error("[Admin Users] shadow_banned update error:", updateError);
+      return NextResponse.json({ error: "Failed to update shadow_banned" }, { status: 500 });
+    }
+
+    // 순위·국가 통계 즉시 재계산 (함수가 shadow_banned=false만 집계).
+    // 리더보드 행 숨김은 쿼리 필터로 이미 즉시 반영되므로, 재계산 실패해도
+    // 노출 차단은 유효 — graceful 하게 로깅만 하고 성공 응답.
+    try {
+      const results = await Promise.all([
+        supabase.rpc("calculate_global_ranks"),
+        supabase.rpc("calculate_country_ranks"),
+        supabase.rpc("update_country_stats"),
+      ]);
+      const recalcErr = results.find((r) => r.error)?.error;
+      if (recalcErr) {
+        console.error("[Admin Users] rank/stats recalc partial error:", recalcErr);
+      }
+    } catch (recalcError) {
+      console.error("[Admin Users] rank/stats recalc failed (shadow_banned applied):", recalcError);
+    }
+
+    return NextResponse.json({ success: true, userId, shadow_banned: shadowBanned });
+  } catch (error) {
+    console.error("[Admin Users] PATCH unexpected error:", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }
