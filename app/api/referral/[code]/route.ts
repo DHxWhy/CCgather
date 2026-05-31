@@ -30,11 +30,15 @@ export async function GET(_request: Request, { params }: { params: Promise<{ cod
   const normalizedCode = code.toLowerCase();
   const supabase = createServiceClient();
 
-  // Find user by referral code (exclude soft-deleted accounts)
+  // Find user by referral code (exclude soft-deleted accounts only).
+  // Shadow-banned inviters are STILL resolved — the invitee can sign up normally
+  // (no innocent collateral) — but the inviter's profile/rank is hidden below
+  // (same minimal-info path as hide_profile_on_invite), so fabricated stats never
+  // surface and the ban stays invisible to the inviter.
   const { data: user, error } = await supabase
     .from("users")
     .select(
-      "id, username, display_name, avatar_url, total_tokens, global_rank, hide_profile_on_invite"
+      "id, username, display_name, avatar_url, total_tokens, global_rank, hide_profile_on_invite, shadow_banned"
     )
     .eq("referral_code", normalizedCode)
     .is("deleted_at", null)
@@ -44,8 +48,10 @@ export async function GET(_request: Request, { params }: { params: Promise<{ cod
     return NextResponse.json({ error: "Invite not found" }, { status: 404 });
   }
 
-  // If user chose to hide profile, return minimal info
-  if (user.hide_profile_on_invite) {
+  // If user chose to hide profile — OR is shadow-banned — return minimal info.
+  // Shadow-banned: invitee still gets the pending-ref cookie (sign-up works), but
+  // the inviter's tokens/rank/avatar are nulled so abusive stats never show.
+  if (user.hide_profile_on_invite || user.shadow_banned) {
     return attachPendingRefCookie(
       NextResponse.json({
         inviter: {
