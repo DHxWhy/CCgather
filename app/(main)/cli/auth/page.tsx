@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { useUser, useSignIn } from "@clerk/nextjs";
+import { useUser, useSignUp } from "@clerk/nextjs";
 import { useSearchParams, useRouter } from "next/navigation";
 import { useMe } from "@/hooks/use-me";
 
@@ -10,7 +10,9 @@ const CLI_PENDING_CODE_KEY = "ccgather_cli_pending_code";
 
 export default function CLIAuthPage() {
   const { isLoaded, isSignedIn } = useUser();
-  const { signIn, isLoaded: isSignInLoaded } = useSignIn();
+  // CLI-first 신규 개발자가 첫 GitHub 인증을 여기서 함 → useSignUp(가입) 필수.
+  // useSignIn 은 새 Clerk user 생성 실패(웹 /sign-up 과 동일 근본 버그).
+  const { signUp, isLoaded: isSignUpLoaded } = useSignUp();
   const searchParams = useSearchParams();
   const router = useRouter();
   const [status, setStatus] = useState<
@@ -173,7 +175,7 @@ export default function CLIAuthPage() {
 
   // Handle GitHub sign in with explicit SSO callback URL
   const handleGitHubSignIn = async () => {
-    if (!isSignInLoaded || !signIn) return;
+    if (!isSignUpLoaded || !signUp) return;
 
     // Build the redirect URL with CLI auth params preserved
     const redirectUrl = userCode
@@ -193,7 +195,7 @@ export default function CLIAuthPage() {
 
     setIsSigningIn(true);
     try {
-      await signIn.authenticateWithRedirect({
+      await signUp.authenticateWithRedirect({
         strategy: "oauth_github",
         redirectUrl: "/sso-callback", // Use consistent SSO callback
         redirectUrlComplete: redirectUrl,
@@ -225,10 +227,10 @@ export default function CLIAuthPage() {
           <div className="bg-[var(--color-bg-secondary)] border border-white/10 rounded-xl p-6">
             <button
               onClick={handleGitHubSignIn}
-              disabled={!isSignInLoaded || isSigningIn}
+              disabled={!isSignUpLoaded || isSigningIn}
               className="w-full flex items-center justify-center gap-3 px-6 py-4 rounded-xl bg-gradient-to-r from-[#DA7756] to-[#B85C3D] text-white font-semibold text-base hover:opacity-90 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {isSigningIn || !isSignInLoaded ? (
+              {isSigningIn || !isSignUpLoaded ? (
                 <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
               ) : (
                 <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
@@ -238,7 +240,7 @@ export default function CLIAuthPage() {
               <span>
                 {isSigningIn
                   ? "Connecting..."
-                  : !isSignInLoaded
+                  : !isSignUpLoaded
                     ? "Loading..."
                     : "Continue with GitHub"}
               </span>

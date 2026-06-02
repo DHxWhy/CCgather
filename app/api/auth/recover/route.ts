@@ -15,9 +15,11 @@ export async function POST() {
   const supabase = createServiceClient();
 
   try {
-    // Call the recover_user function
+    // Call the recover_user function.
+    // 라이브 시그니처는 recover_user(p_clerk_id text) — 옛 코드의 target_clerk_id 는
+    // PostgREST PGRST202(함수 미발견) → 항상 500 이라 복구가 통째로 죽어 있었음.
     const { data, error } = await supabase.rpc("recover_user", {
-      target_clerk_id: userId,
+      p_clerk_id: userId,
     });
 
     if (error) {

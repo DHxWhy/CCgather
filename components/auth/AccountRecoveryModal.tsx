@@ -2,18 +2,15 @@
 
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { RefreshCw, Trash2, Clock, Trophy, ThumbsUp, AlertTriangle } from "lucide-react";
+import { RefreshCw, Trash2, Clock, AlertTriangle } from "lucide-react";
 
+// 라이브 get_pending_deletion_info(p_clerk_id) 반환 shape 와 정확히 일치 (064 마이그레이션).
 interface PendingDeletionInfo {
-  pending_deletion: true;
+  pending: true;
   deleted_at: string;
-  expires_at: string;
-  remaining_hours: number;
-  stats: {
-    votes_count: number;
-    level: number;
-    username: string;
-  };
+  days_remaining: number;
+  username: string;
+  display_name: string | null;
 }
 
 interface AccountRecoveryModalProps {
@@ -32,17 +29,9 @@ export function AccountRecoveryModal({
   const [isLoading, setIsLoading] = useState<"recover" | "fresh-start" | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const formatRemainingTime = (hours: number) => {
-    if (hours < 1) {
-      const minutes = Math.floor(hours * 60);
-      return `${minutes} minutes`;
-    }
-    const days = Math.floor(hours / 24);
-    const remainingHours = Math.floor(hours % 24);
-    if (days > 0) {
-      return `${days} days ${remainingHours} hours`;
-    }
-    return `${remainingHours} hours`;
+  const formatRemainingDays = (days: number) => {
+    if (days <= 0) return "less than a day";
+    return days === 1 ? "1 day" : `${days} days`;
   };
 
   const handleRecover = async () => {
@@ -100,34 +89,20 @@ export function AccountRecoveryModal({
                 </p>
               </div>
 
-              {/* Stats */}
-              <div className="bg-white/5 rounded-xl p-4 mb-6">
-                <div className="text-sm text-zinc-400 mb-3">
-                  <span className="font-medium text-white">{pendingInfo.stats.username}</span>
-                  &apos;s activity
+              {/* Account */}
+              <div className="bg-white/5 rounded-xl p-4 mb-6 text-center">
+                <div className="text-sm text-zinc-400">
+                  Account <span className="font-medium text-white">@{pendingInfo.username}</span>
                 </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="text-center">
-                    <div className="flex items-center justify-center gap-1 text-zinc-300 mb-1">
-                      <ThumbsUp className="w-4 h-4" />
-                      <span className="font-semibold">{pendingInfo.stats.votes_count}</span>
-                    </div>
-                    <span className="text-xs text-zinc-500">Votes</span>
-                  </div>
-                  <div className="text-center">
-                    <div className="flex items-center justify-center gap-1 text-zinc-300 mb-1">
-                      <Trophy className="w-4 h-4" />
-                      <span className="font-semibold">Lv.{pendingInfo.stats.level}</span>
-                    </div>
-                    <span className="text-xs text-zinc-500">Level</span>
-                  </div>
-                </div>
+                {pendingInfo.display_name && (
+                  <div className="text-xs text-zinc-500 mt-1">{pendingInfo.display_name}</div>
+                )}
               </div>
 
               {/* Remaining time */}
               <div className="flex items-center justify-center gap-2 text-amber-400 text-sm mb-6">
                 <Clock className="w-4 h-4" />
-                <span>Time remaining: {formatRemainingTime(pendingInfo.remaining_hours)}</span>
+                <span>Time remaining: {formatRemainingDays(pendingInfo.days_remaining)}</span>
               </div>
 
               {/* Error */}

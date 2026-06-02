@@ -774,7 +774,7 @@ export type Database = {
       is_admin_user: { Args: Record<string, never>; Returns: boolean };
       is_user_active: { Args: { user_id: string }; Returns: boolean };
       recalculate_ccplan_ranks: { Args: Record<string, never>; Returns: undefined };
-      recover_user: { Args: { target_clerk_id: string }; Returns: Json };
+      recover_user: { Args: { p_clerk_id: string }; Returns: Json };
       soft_delete_user: { Args: { target_clerk_id: string }; Returns: Json };
       update_country_stats: { Args: Record<string, never>; Returns: undefined };
       update_user_ccplan_rank: { Args: { target_user_id: string }; Returns: undefined };

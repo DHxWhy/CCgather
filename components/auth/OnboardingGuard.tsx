@@ -32,16 +32,13 @@ function readOnboardingJustCompleted(): boolean {
   }
 }
 
+// 라이브 get_pending_deletion_info(p_clerk_id) 의 실제 반환 shape (064 마이그레이션).
 interface PendingDeletionInfo {
-  pending_deletion: true;
+  pending: true;
   deleted_at: string;
-  expires_at: string;
-  remaining_hours: number;
-  stats: {
-    votes_count: number;
-    level: number;
-    username: string;
-  };
+  days_remaining: number;
+  username: string;
+  display_name: string | null;
 }
 
 interface OnboardingGuardProps {
@@ -113,6 +110,16 @@ export function OnboardingGuard({ children }: OnboardingGuardProps) {
     setHasMounted(true);
   }, []);
 
+  // isRedirecting latches true the moment we trigger a router.replace and was never
+  // cleared anywhere. OnboardingGuard lives in the persistent (main) layout, so once a
+  // user is bounced to /onboarding the flag stayed true forever — and after they finish
+  // onboarding and land back on a non-skip page (/leaderboard), showLoading kept seeing
+  // isRedirecting===true → infinite "Loading." spinner. Clear it once the navigation
+  // actually lands (pathname changed = redirect complete).
+  useEffect(() => {
+    setIsRedirecting(false);
+  }, [pathname]);
+
   useEffect(() => {
     async function checkOnboardingStatus() {
       // Prevent re-running if already redirecting
@@ -156,7 +163,9 @@ export function OnboardingGuard({ children }: OnboardingGuardProps) {
         // Check for pending deletion first
         if (recoveryResponse.ok) {
           const recoveryData = await recoveryResponse.json();
-          if (recoveryData.pending_deletion) {
+          // 라이브 RPC 계약: { pending, days_remaining, username, display_name }.
+          // 옛 코드는 pending_deletion 을 읽어 항상 undefined → 복구 모달이 영영 안 떴음.
+          if (recoveryData.pending) {
             setPendingDeletionInfo(recoveryData);
             setIsChecking(false);
             return;

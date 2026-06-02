@@ -206,6 +206,187 @@ export async function GET() {
     // (webhook JSON payload uses snake_case `provider_user_id` — different field name, same value)
     const githubId = githubAccount?.externalId || null;
 
+    // ── Re-signup of a soft-deleted account (7-day grace) ───────────────────
+    // Soft-deleted rows keep occupying this identity's globally-UNIQUE slots
+    // (clerk_id / github_id / username / referral_code), so the auto-create
+    // INSERT below would 23505 and dead-end — the months-long "duplicate key" /
+    // 404 signup break. Handle the returning user here instead:
+    //   • same clerk_id → defer to OnboardingGuard's recovery modal
+    //     (Recover / Start-Fresh choice).
+    //   • same github_id with a NEW clerk_id (Clerk account was recreated) →
+    //     silently revive + relink; the modal is keyed on clerk_id and cannot
+    //     see this case. Preserves the user's prior data (votes/level/referrals).
+    {
+      const { data: deletedByClerk } = await supabase
+        .from("users")
+        .select("id")
+        .eq("clerk_id", userId)
+        .not("deleted_at", "is", null)
+        .maybeSingle();
+
+      if (deletedByClerk) {
+        return clearPendingRefCookie(
+          NextResponse.json(
+            { user: null, recovery_pending: true },
+            {
+              headers: {
+                "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
+                Pragma: "no-cache",
+                Expires: "0",
+              },
+            }
+          ),
+          hadPendingRefCookie
+        );
+      }
+
+      if (githubId && /^\d+$/.test(githubId)) {
+        const { data: deletedByGithub } = await supabase
+          .from("users")
+          .select("id")
+          .eq("github_id", githubId)
+          .not("deleted_at", "is", null)
+          .maybeSingle();
+
+        if (deletedByGithub) {
+          const { data: revived, error: reviveError } = await supabase
+            .from("users")
+            .update({
+              deleted_at: null,
+              clerk_id: userId,
+              updated_at: new Date().toISOString(),
+            })
+            .eq("id", deletedByGithub.id)
+            .select(
+              `
+              id,
+              username,
+              display_name,
+              avatar_url,
+              custom_avatar_url,
+              country_code,
+              timezone,
+              current_level,
+              global_rank,
+              country_rank,
+              total_tokens,
+              total_cost,
+              onboarding_completed,
+              is_admin,
+              social_links,
+              referral_code,
+              referred_by,
+              hide_profile_on_invite,
+              ccplan,
+              github_id,
+              created_at,
+              last_submission_at
+            `
+            )
+            .single();
+
+          if (reviveError || !revived) {
+            // Race: between the deletedByClerk check above and this relink UPDATE,
+            // another concurrent request already created/revived the ACTIVE row for
+            // this clerk_id, so SET clerk_id=userId 23505'd. Return that now-active row
+            // instead of a spurious 500 + logged-out flash.
+            if (reviveError?.code === "23505") {
+              const { data: raced } = await supabase
+                .from("users")
+                .select(
+                  `
+                  id,
+                  username,
+                  display_name,
+                  avatar_url,
+                  custom_avatar_url,
+                  country_code,
+                  timezone,
+                  current_level,
+                  global_rank,
+                  country_rank,
+                  total_tokens,
+                  total_cost,
+                  onboarding_completed,
+                  is_admin,
+                  social_links,
+                  referral_code,
+                  referred_by,
+                  hide_profile_on_invite,
+                  ccplan,
+                  github_id,
+                  created_at,
+                  last_submission_at
+                `
+                )
+                .eq("clerk_id", userId)
+                .is("deleted_at", null)
+                .maybeSingle();
+
+              if (raced) {
+                const { count: racedReferralCount } = await supabase
+                  .from("users")
+                  .select("*", { count: "exact", head: true })
+                  .eq("referred_by", raced.id)
+                  .is("deleted_at", null);
+                return clearPendingRefCookie(
+                  NextResponse.json(
+                    { user: { ...raced, referral_count: racedReferralCount || 0 } },
+                    {
+                      headers: {
+                        "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
+                        Pragma: "no-cache",
+                        Expires: "0",
+                      },
+                    }
+                  ),
+                  hadPendingRefCookie
+                );
+              }
+            }
+            console.error("[/api/me] Failed to reactivate soft-deleted account on re-signup:", {
+              clerk_id: userId,
+              error: reviveError,
+            });
+            return NextResponse.json({ error: "Account reactivation failed" }, { status: 500 });
+          }
+
+          console.log("[/api/me] Reactivated soft-deleted account on re-signup:", {
+            user_id: revived.id,
+            new_clerk_id: userId,
+          });
+
+          if (hadPendingRefCookie) {
+            await tryClaimPendingReferral(
+              supabase,
+              revived.id,
+              revived.referred_by,
+              pendingRefCode
+            );
+          }
+          const { count: revivedReferralCount } = await supabase
+            .from("users")
+            .select("*", { count: "exact", head: true })
+            .eq("referred_by", revived.id)
+            .is("deleted_at", null);
+
+          return clearPendingRefCookie(
+            NextResponse.json(
+              { user: { ...revived, referral_count: revivedReferralCount || 0 } },
+              {
+                headers: {
+                  "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
+                  Pragma: "no-cache",
+                  Expires: "0",
+                },
+              }
+            ),
+            hadPendingRefCookie
+          );
+        }
+      }
+    }
+
     if (email && currentProvider === "oauth_github") {
       const { data: existingByEmail } = await supabase
         .from("users")
@@ -393,6 +574,7 @@ export async function GET() {
           `
           )
           .eq("clerk_id", userId)
+          .is("deleted_at", null)
           .single();
 
         if (existingByClerkId) {
@@ -734,6 +916,7 @@ export async function PATCH(request: NextRequest) {
       .from("users")
       .select("id, country_code")
       .eq("clerk_id", userId)
+      .is("deleted_at", null)
       .maybeSingle();
     const previousCountry = existingUser?.country_code ?? null;
 
@@ -787,6 +970,80 @@ export async function PATCH(request: NextRequest) {
         .single();
 
       if (insertError) {
+        // 23505 = 재가입: 소프트삭제된 옛 행이 username/github_id 슬롯을 점유 중.
+        // 새로 INSERT 하는 대신 옛 행을 되살려(데이터 보존) onboarding 업데이트를 함께 적용.
+        // 이 처리가 없어서 국가선택 직후 "Failed to create user: ...users_username_key" 500 발생.
+        if (insertError.code === "23505") {
+          const ghAccount = clerkUser.externalAccounts?.find((a) => a.provider === "oauth_github");
+          const ghId = ghAccount?.externalId || null;
+          const orParts = [`clerk_id.eq.${userId}`];
+          if (ghId && /^\d+$/.test(ghId)) orParts.push(`github_id.eq.${ghId}`);
+
+          const { data: deletedRow } = await supabase
+            .from("users")
+            .select("id")
+            .or(orParts.join(","))
+            .not("deleted_at", "is", null)
+            .order("deleted_at", { ascending: false })
+            .limit(1)
+            .maybeSingle();
+
+          if (deletedRow) {
+            const { data: revived, error: reviveError } = await supabase
+              .from("users")
+              .update({
+                deleted_at: null,
+                clerk_id: userId,
+                updated_at: new Date().toISOString(),
+                ...updateData,
+              })
+              .eq("id", deletedRow.id)
+              .select("*")
+              .single();
+
+            if (!reviveError && revived) {
+              if (parsed.data.country_code !== undefined) {
+                await supabase.rpc("calculate_country_ranks").catch(() => {});
+              }
+              return NextResponse.json({ user: revived });
+            }
+            console.error("Failed to revive soft-deleted account (PATCH):", reviveError);
+          }
+
+          // No soft-deleted row of this user's to revive → the 23505 is a username/
+          // referral_code collision with an UNRELATED row. Retry with unique suffixes
+          // so onboarding never dead-ends at 500 (mirrors the GET auto-create loop).
+          const patchRetryBase = clerkUser.username || "user";
+          for (let attempt = 1; attempt <= 5; attempt++) {
+            const retryUsername =
+              attempt === 1
+                ? `${patchRetryBase}_${userId.slice(0, 8)}`
+                : `${patchRetryBase}_${userId.slice(0, 8)}_${attempt}`;
+            const { data: patchRetryUser, error: patchRetryError } = await supabase
+              .from("users")
+              .insert({
+                clerk_id: userId,
+                username: retryUsername,
+                display_name: displayName,
+                avatar_url: clerkUser.imageUrl,
+                email: clerkUser.emailAddresses[0]?.emailAddress,
+                referral_code: generateShortCode(),
+                ...updateData,
+              })
+              .select("*")
+              .single();
+
+            if (!patchRetryError && patchRetryUser) {
+              if (parsed.data.country_code !== undefined) {
+                await supabase.rpc("calculate_country_ranks").catch(() => {});
+              }
+              return NextResponse.json({ user: patchRetryUser });
+            }
+            // Only UNIQUE violations are fixable by a fresh suffix; bail otherwise.
+            if (patchRetryError?.code !== "23505") break;
+          }
+        }
+
         console.error("Failed to create user:", insertError);
         return NextResponse.json(
           { error: `Failed to create user: ${insertError.message}` },

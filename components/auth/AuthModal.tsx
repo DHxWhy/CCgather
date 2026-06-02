@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { useSignIn, useUser } from "@clerk/nextjs";
+import { useSignUp, useUser } from "@clerk/nextjs";
 import { useRouter } from "next/navigation";
 import { X } from "lucide-react";
 
@@ -12,7 +12,7 @@ interface AuthModalProps {
 }
 
 export function AuthModal({ isOpen, onClose }: AuthModalProps) {
-  const { signIn, isLoaded } = useSignIn();
+  const { signUp, isLoaded } = useSignUp();
   const { isSignedIn } = useUser();
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
@@ -51,20 +51,16 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
       return;
     }
 
-    if (!signIn) {
+    if (!signUp) {
       setError("Authentication service unavailable. Please refresh the page.");
       return;
     }
 
     setIsLoading(true);
     try {
-      // Reset any stale/partial sign-in state to prevent Error #185
-      // (infinite render loop from corrupted Clerk internal state)
-      if (signIn.status !== null) {
-        await signIn.create({});
-      }
-
-      await signIn.authenticateWithRedirect({
+      // useSignUp 의 OAuth 흐름은 Clerk 가 새 user 생성 + 기존 user 시 sso-callback 의
+      // AuthenticateWithRedirectCallback 가 transfer 자동 처리. 명시적 reset 불필요.
+      await signUp.authenticateWithRedirect({
         strategy: "oauth_github",
         redirectUrl: "/sso-callback",
         redirectUrlComplete: "/leaderboard",

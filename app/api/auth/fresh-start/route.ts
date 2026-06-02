@@ -40,7 +40,9 @@ export async function POST() {
       return NextResponse.json({ error: "Failed to check account status" }, { status: 500 });
     }
 
-    if (!pendingInfo.pending_deletion) {
+    // 라이브 get_pending_deletion_info 는 { pending } 키를 반환 (pending_deletion 아님).
+    // 옛 키를 읽어 항상 undefined → !undefined=true → 늘 400 으로 '새로 시작'이 죽어 있었음.
+    if (!pendingInfo.pending) {
       return NextResponse.json({ error: "No pending deletion account found" }, { status: 400 });
     }
 

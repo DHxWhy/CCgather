@@ -7,6 +7,10 @@ const isPublicRoute = createRouteMatcher([
   "/community(.*)",
   "/u/(.*)",
   "/league/(.*)",
+  // 추천 초대 랜딩: 초대받는 사람은 정의상 비로그인 신규 → public 이어야 카드/CTA 가 뜨고
+  // /j/[code] 의 attribution(localStorage + 쿠키) 이 실행됨. public 아니면 /sign-in 으로 튕김.
+  "/j/(.*)",
+  "/join/(.*)",
   "/terms",
   "/privacy",
   "/cli",
@@ -21,6 +25,9 @@ const isPublicRoute = createRouteMatcher([
   "/api/users/(.*)",
   "/api/countries(.*)",
   "/api/cli/(.*)",
+  // /j/[code] 페이지가 mount 시 호출 — inviter 정보 반환 + ccg_pending_ref 쿠키 설정.
+  // 핸들러에 auth() 게이트 없음(의도적 public). 형제 /api/referral/claim·invitees 는 자체 401.
+  "/api/referral/(.*)",
   // Auth-required APIs 가 middleware 의 redirect 가 아닌 401 JSON 응답을 직접
   // 처리할 수 있도록 public 으로 분류. 핸들러 자체가 auth() 체크 후 401 반환.
   // 이게 없으면 비인증 fetch 가 HTML redirect 받아 클라이언트 JSON parse fail.

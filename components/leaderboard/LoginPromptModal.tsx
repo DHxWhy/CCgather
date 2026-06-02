@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { X as CloseIcon } from "lucide-react";
-import { useSignIn, useUser } from "@clerk/nextjs";
+import { useSignUp, useUser } from "@clerk/nextjs";
 
 type PromptType = "social_link" | "community_like" | "community_comment" | "community_post";
 
@@ -54,7 +54,9 @@ export function LoginPromptModal({
   type,
   onContinueAsGuest,
 }: LoginPromptModalProps) {
-  const { signIn, isLoaded } = useSignIn();
+  // useSignUp(가입)으로 OAuth 시작 — 비로그인 사용자에게 뜨는 모달이므로 신규일 수 있고,
+  // useSignIn 은 GitHub-only 환경에서 새 Clerk user 생성 실패(3.5개월 0가입의 그 버그).
+  const { signUp, isLoaded } = useSignUp();
   const { isSignedIn } = useUser();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -83,14 +85,14 @@ export function LoginPromptModal({
       return;
     }
 
-    if (!signIn) {
+    if (!signUp) {
       setError("Authentication unavailable. Please refresh.");
       return;
     }
 
     setIsLoading(true);
     try {
-      await signIn.authenticateWithRedirect({
+      await signUp.authenticateWithRedirect({
         strategy: provider,
         redirectUrl: "/sso-callback",
         redirectUrlComplete: window.location.pathname,
