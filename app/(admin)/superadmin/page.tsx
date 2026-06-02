@@ -40,6 +40,7 @@ interface User {
   ccplan_updated_at: string | null;
   device_count: number;
   shadow_banned: boolean;
+  deleted_at: string | null;
 }
 
 interface PlanStats {
@@ -1217,6 +1218,15 @@ export default function AdminUsersPage() {
                                 >
                                   <EyeOff className="h-2.5 w-2.5" strokeWidth={2} />
                                   SHADOW
+                                </span>
+                              )}
+                              {user.deleted_at && (
+                                <span
+                                  className="inline-flex shrink-0 items-center rounded-[4px] px-1 py-0.5 text-[9px] font-semibold ring-1 ring-amber-500/30 bg-amber-500/15 text-amber-300"
+                                  aria-label="탈퇴 (삭제 대기)"
+                                  title={`탈퇴일: ${new Date(user.deleted_at).toLocaleString("ko-KR")}`}
+                                >
+                                  탈퇴
                                 </span>
                               )}
                             </div>

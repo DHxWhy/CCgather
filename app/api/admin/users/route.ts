@@ -6,6 +6,7 @@ interface UserRow {
   last_submission_at: string | null;
   total_tokens: number | null;
   ccplan: string | null;
+  deleted_at: string | null;
 }
 
 export async function GET() {
@@ -35,7 +36,8 @@ export async function GET() {
         onboarding_completed,
         last_submission_at,
         ccplan,
-        ccplan_updated_at
+        ccplan_updated_at,
+        deleted_at
       `
       )
       .order("created_at", { ascending: false });
@@ -61,19 +63,22 @@ export async function GET() {
       device_count: deviceCountMap.get(u.id)?.size || 0,
     }));
 
-    // Calculate stats
-    const totalUsers = users?.length || 0;
+    // Calculate stats — exclude withdrawn (soft-deleted) users from active metrics.
+    const activeUsers = (users || []).filter((u: UserRow) => !u.deleted_at);
+    const withdrawn = (users?.length || 0) - activeUsers.length;
+    const totalUsers = activeUsers.length;
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
-    const activeToday =
-      users?.filter((u: UserRow) => {
-        if (!u.last_submission_at) return false;
-        return new Date(u.last_submission_at) >= today;
-      }).length || 0;
+    const activeToday = activeUsers.filter((u: UserRow) => {
+      if (!u.last_submission_at) return false;
+      return new Date(u.last_submission_at) >= today;
+    }).length;
 
-    const totalTokens =
-      users?.reduce((sum: number, u: UserRow) => sum + (u.total_tokens || 0), 0) || 0;
+    const totalTokens = activeUsers.reduce(
+      (sum: number, u: UserRow) => sum + (u.total_tokens || 0),
+      0
+    );
 
     // Calculate plan distribution
     const knownPlans = ["free", "pro", "max", "team", "enterprise"];
@@ -86,7 +91,7 @@ export async function GET() {
       unknown: 0, // other values
     };
 
-    users?.forEach((u: UserRow) => {
+    activeUsers.forEach((u: UserRow) => {
       const plan = u.ccplan?.toLowerCase();
       if (!plan) {
         planStats.null++;
@@ -110,6 +115,7 @@ export async function GET() {
         activeToday,
         totalTokens,
         planStats,
+        withdrawn,
       },
     });
   } catch (error) {
