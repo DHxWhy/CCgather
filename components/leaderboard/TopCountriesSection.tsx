@@ -200,6 +200,26 @@ export const TopCountriesSection = forwardRef<TopCountriesSectionRef, TopCountri
       notifyParent();
     }, [notifyParent]);
 
+    // Responsive list height: scales with the device's vertical space instead of a
+    // fixed 300px (which left empty glass + a half-cut row on tall/high-res screens).
+    // Snapped to whole 40px rows so the bottom never shows a clipped row. A 5-row
+    // floor keeps short screens overflowing so the globe-collapse scroll still works.
+    const ROW_H = 40;
+    const [maxListHeight, setMaxListHeight] = useState(7 * ROW_H);
+    useEffect(() => {
+      const compute = () => {
+        // Left column is calc(100vh - 220px); above the list sit the globe spacer
+        // (~420, ~380 on tablet) + 42px sticky header, and the onboarding copy below.
+        const reserve = 220 + (compact ? 380 : 420) + 42 + (hasSubmission ? 12 : 72);
+        const avail = window.innerHeight - reserve;
+        return Math.max(ROW_H * 5, Math.floor(avail / ROW_H) * ROW_H);
+      };
+      setMaxListHeight(compute());
+      const onResize = () => setMaxListHeight(compute());
+      window.addEventListener("resize", onResize);
+      return () => window.removeEventListener("resize", onResize);
+    }, [compact, hasSubmission]);
+
     if (sortedStats.length === 0) {
       return null;
     }
@@ -322,7 +342,7 @@ export const TopCountriesSection = forwardRef<TopCountriesSectionRef, TopCountri
         {/* Virtualized Country List */}
         <Virtuoso
           ref={virtuosoRef}
-          style={{ height: Math.min(sortedStats.length * 40, 300) }}
+          style={{ height: Math.min(sortedStats.length * ROW_H, maxListHeight) }}
           data={sortedStats}
           overscan={100}
           className="scrollbar-hide"
