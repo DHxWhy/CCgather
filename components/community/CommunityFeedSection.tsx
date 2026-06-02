@@ -35,6 +35,7 @@ interface CommunityFeedSectionProps {
   // Callbacks
   onPost?: (content: string, tab: CommunityFilterTag) => void;
   onLike?: (postId: string) => void;
+  onPostDelete?: (postId: string) => void;
   onLoginRequired?: (action: "like" | "comment") => void;
   onSubmissionRequired?: () => void;
   // Display options
@@ -133,6 +134,7 @@ function CommunityFeedSectionComponent({
   onPostModalClose,
   onPost,
   onLike,
+  onPostDelete,
   onLoginRequired,
   onSubmissionRequired,
   variant = "plain",
@@ -245,6 +247,7 @@ function CommunityFeedSectionComponent({
         onAuthorClick={onAuthorClick}
         onLike={handleLike}
         onComment={handleComment}
+        onPostDelete={onPostDelete}
         isSignedIn={isSignedIn}
         hasSubmissionHistory={hasSubmissionHistory}
         onLoginRequired={onLoginRequired}
@@ -263,6 +266,7 @@ function CommunityFeedSectionComponent({
       onAuthorClick,
       handleLike,
       handleComment,
+      onPostDelete,
       isSignedIn,
       hasSubmissionHistory,
       onLoginRequired,
@@ -414,6 +418,7 @@ function CommunityFeedSectionComponent({
                 onAuthorClick={onAuthorClick}
                 onLike={handleLike}
                 onComment={handleComment}
+                onPostDelete={onPostDelete}
                 isSignedIn={isSignedIn}
                 hasSubmissionHistory={hasSubmissionHistory}
                 onLoginRequired={onLoginRequired}

@@ -1404,7 +1404,9 @@ export default function LeaderboardPage() {
         params.set("offset", offset.toString());
         params.set("limit", "20");
 
-        const res = await fetch(`/api/community/posts?${params.toString()}`);
+        const res = await fetch(`/api/community/posts?${params.toString()}`, {
+          cache: "no-store",
+        });
         if (!res.ok) throw new Error("Failed to fetch posts");
         const data = await res.json();
 
@@ -1711,6 +1713,13 @@ export default function LeaderboardPage() {
     },
     [fetchCommunityPosts, communityTab]
   );
+
+  // Remove a deleted post from feed state immediately (FeedCard already hit the DELETE
+  // API + server soft-deleted it). Stable ref so Virtuoso's memoized renderItem isn't
+  // recreated every render.
+  const handlePostDelete = useCallback((postId: string) => {
+    setCommunityPosts((prev) => prev.filter((p) => p.id !== postId));
+  }, []);
 
   // Handle like toggle
   const handleLikePost = useCallback(async (postId: string) => {
@@ -3239,6 +3248,7 @@ export default function LeaderboardPage() {
                       setIsPostModalOpen(false);
                     }}
                     onLike={handleLikePost}
+                    onPostDelete={handlePostDelete}
                     onLoginRequired={(action) => {
                       setLoginModalType(action === "like" ? "community_like" : "community_comment");
                       setIsLoginModalOpen(true);

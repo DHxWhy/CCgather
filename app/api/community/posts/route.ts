@@ -82,7 +82,7 @@ const CreatePostSchema = z.object({
 // =====================================================
 
 function detectLanguage(text: string): string {
-  if (/[\uAC00-\uD7AF]/.test(text)) return "ko";
+  if (/[\uAC00-\uD7AF\u1100-\u11FF\u3130-\u318F]/.test(text)) return "ko"; // \uC644\uC131\uD615 + Jamo(\uCD08\uC131 \u314C\u3145\u314C \uB4F1)
   if (/[\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FAF]/.test(text)) return "ja";
   if (/[\u4E00-\u9FFF]/.test(text) && !/[\u3040-\u309F\u30A0-\u30FF]/.test(text)) return "zh";
   // European languages detection
@@ -611,8 +611,10 @@ function createResponse(data: {
     status: 200,
     headers: {
       "Content-Type": "application/json",
-      // CDN caching: 60s fresh, 5min stale-while-revalidate
-      "Cache-Control": "public, s-maxage=60, stale-while-revalidate=300",
+      // 응답이 per-user(is_liked·preferred_language·auto_translate)라 public CDN 공유는
+      // 유저간 좋아요 상태 누수를 일으키고, 글 작성/삭제가 60초간 반영 안 됨(새 글 안 보임·
+      // 삭제글 재등장). 개인화+변경민감 피드이므로 캐시 금지.
+      "Cache-Control": "private, no-store, max-age=0, must-revalidate",
     },
   });
 }

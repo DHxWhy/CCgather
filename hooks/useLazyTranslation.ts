@@ -322,7 +322,7 @@ export function extractTranslationItems(
 
 // Simple language detection (same as server and client)
 function detectLanguage(text: string): string {
-  if (/[\uAC00-\uD7AF]/.test(text)) return "ko";
+  if (/[\uAC00-\uD7AF\u1100-\u11FF\u3130-\u318F]/.test(text)) return "ko"; // \uC644\uC131\uD615 + Jamo(\uCD08\uC131 \u314C\u3145\u314C \uB4F1)
   if (/[\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FAF]/.test(text)) return "ja";
   if (/[\u4E00-\u9FFF]/.test(text) && !/[\u3040-\u309F\u30A0-\u30FF]/.test(text)) return "zh";
   // European languages detection
