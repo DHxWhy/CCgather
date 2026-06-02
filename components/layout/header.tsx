@@ -242,7 +242,7 @@ export function Header() {
           <div className="hidden md:flex items-center gap-3">
             {/* Sign In 버튼: Clerk 로드 완료 + 로그아웃 상태 또는 로드 실패 시 */}
             {showSignInButton && (
-              <Link href="/sign-up">
+              <Link href="/sign-in">
                 <Button variant="primary" size="sm">
                   Sign In
                 </Button>
@@ -435,7 +435,7 @@ export function Header() {
           {/* Auth Section */}
           <div className="px-4 pt-4 space-y-2">
             {showSignInButton ? (
-              <Link href="/sign-up" onClick={closeMobileMenu}>
+              <Link href="/sign-in" onClick={closeMobileMenu}>
                 <Button variant="primary" size="lg" fullWidth>
                   Sign In
                 </Button>
