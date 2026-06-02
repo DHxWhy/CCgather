@@ -325,16 +325,19 @@ export default function SignUpPage() {
                 invisible/smart widget 은 사용자 클릭 없이 자동 검증. */}
             <div id="clerk-captcha" />
 
-            {/* Sign In Link */}
-            <p className="mt-6 text-center text-sm text-[var(--color-text-muted)]">
-              Already have an account?{" "}
+            {/* Existing-account path — equal-weight button so returning users don't
+                get stuck on the sign-up door (the recurring login confusion). */}
+            <div className="mt-5">
+              <p className="text-center text-xs text-[var(--color-text-muted)] mb-2.5">
+                Already have an account? Sign in below.
+              </p>
               <Link
                 href="/sign-in"
-                className="text-[var(--color-claude-coral)] hover:text-[var(--color-claude-peach)] font-medium"
+                className="w-full flex items-center justify-center px-4 py-3.5 rounded-xl border border-white/10 bg-white/[0.03] hover:bg-white/[0.08] transition-all text-white font-medium"
               >
                 Sign in
               </Link>
-            </p>
+            </div>
 
             {/* Footer */}
             <div className="mt-8 pt-6 border-t border-white/10">

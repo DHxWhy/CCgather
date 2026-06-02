@@ -225,16 +225,19 @@ export default function SignInPage() {
                 Dashboard 의 captcha_enabled=true 인 상태에서 widget 없으면 OAuth fail. */}
             <div id="clerk-captcha" />
 
-            {/* Sign Up Link */}
-            <p className="mt-6 text-center text-sm text-[var(--color-text-muted)]">
-              Don&apos;t have an account?{" "}
+            {/* New-user path — equal-weight button so first-time visitors who land
+                here (e.g. via header "Sign In") can create an account without getting stuck. */}
+            <div className="mt-5">
+              <p className="text-center text-xs text-[var(--color-text-muted)] mb-2.5">
+                New here? Create an account below.
+              </p>
               <Link
                 href="/sign-up"
-                className="text-[var(--color-claude-coral)] hover:text-[var(--color-claude-peach)] font-medium"
+                className="w-full flex items-center justify-center px-4 py-3.5 rounded-xl border border-white/10 bg-white/[0.03] hover:bg-white/[0.08] transition-all text-white font-medium"
               >
                 Sign up
               </Link>
-            </p>
+            </div>
 
             {/* Footer */}
             <div className="mt-8 pt-6 border-t border-white/10">
