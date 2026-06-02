@@ -61,7 +61,7 @@
     "framer-motion": "^12.23.27",
     "frimousse": "^0.3.0",
     "lite-youtube-embed": "^0.3.4",
-    "lucide-react": "^0.562.0",
+    "lucide-react": "^0.577.0",
     "next": "^16.1.1",
     "postcss": "^8.5.6",
     "posthog-js": "^1.318.1",
