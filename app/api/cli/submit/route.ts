@@ -939,6 +939,7 @@ export async function POST(request: NextRequest) {
         .eq("country_code", authenticatedUser.country_code)
         .eq("onboarding_completed", true)
         .is("deleted_at", null)
+        .eq("shadow_banned", false)
         .gt("total_tokens", 0)
         .order("total_tokens", { ascending: false })
         .order("created_at", { ascending: true });
