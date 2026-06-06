@@ -84,7 +84,9 @@ export async function GET(request: Request) {
     const { data: countryData } = await supabase
       .from("users")
       .select("country_code")
-      .not("country_code", "is", null);
+      .not("country_code", "is", null)
+      .is("deleted_at", null)
+      .eq("shadow_banned", false);
 
     // Count users by country
     const countryCounts = new Map<string, number>();

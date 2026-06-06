@@ -7,6 +7,7 @@ interface UserRow {
   total_tokens: number | null;
   ccplan: string | null;
   deleted_at: string | null;
+  shadow_banned: boolean | null;
 }
 
 export async function GET() {
@@ -63,8 +64,9 @@ export async function GET() {
       device_count: deviceCountMap.get(u.id)?.size || 0,
     }));
 
-    // Calculate stats — exclude withdrawn (soft-deleted) users from active metrics.
-    const activeUsers = (users || []).filter((u: UserRow) => !u.deleted_at);
+    // Calculate stats — exclude withdrawn (soft-deleted) AND shadow-banned (abuser)
+    // users from active metrics so totals/tokens reflect only legitimate members.
+    const activeUsers = (users || []).filter((u: UserRow) => !u.deleted_at && !u.shadow_banned);
     const withdrawn = (users?.length || 0) - activeUsers.length;
     const totalUsers = activeUsers.length;
     const today = new Date();

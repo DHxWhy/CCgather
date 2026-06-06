@@ -182,15 +182,23 @@ export async function GET(request: Request) {
         .not("total_tokens", "is", null)
         .gt("total_tokens", 0),
 
-      // Country Distribution
+      // Country Distribution (exclude shadow-banned/soft-deleted abusers)
       supabase
         .from("users")
         .select("country_code")
         .not("country_code", "is", null)
+        .is("deleted_at", null)
+        .eq("shadow_banned", false)
         .gt("total_tokens", 0),
 
       // Plan Distribution
-      supabase.from("users").select("ccplan").not("ccplan", "is", null).gt("total_tokens", 0),
+      supabase
+        .from("users")
+        .select("ccplan")
+        .not("ccplan", "is", null)
+        .is("deleted_at", null)
+        .eq("shadow_banned", false)
+        .gt("total_tokens", 0),
 
       // Model Distribution
       supabase
