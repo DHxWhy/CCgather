@@ -219,12 +219,28 @@ export async function GET() {
     {
       const { data: deletedByClerk } = await supabase
         .from("users")
-        .select("id")
+        .select("id, shadow_banned")
         .eq("clerk_id", userId)
         .not("deleted_at", "is", null)
         .maybeSingle();
 
       if (deletedByClerk) {
+        // Shadow-banned + soft-deleted = permanent block: no recovery modal, no revive.
+        if (deletedByClerk.shadow_banned) {
+          return clearPendingRefCookie(
+            NextResponse.json(
+              { user: null, banned: true },
+              {
+                headers: {
+                  "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
+                  Pragma: "no-cache",
+                  Expires: "0",
+                },
+              }
+            ),
+            hadPendingRefCookie
+          );
+        }
         return clearPendingRefCookie(
           NextResponse.json(
             { user: null, recovery_pending: true },
@@ -243,12 +259,28 @@ export async function GET() {
       if (githubId && /^\d+$/.test(githubId)) {
         const { data: deletedByGithub } = await supabase
           .from("users")
-          .select("id")
+          .select("id, shadow_banned")
           .eq("github_id", githubId)
           .not("deleted_at", "is", null)
           .maybeSingle();
 
         if (deletedByGithub) {
+          // Shadow-banned + soft-deleted = permanent block: no silent revive.
+          if (deletedByGithub.shadow_banned) {
+            return clearPendingRefCookie(
+              NextResponse.json(
+                { user: null, banned: true },
+                {
+                  headers: {
+                    "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
+                    Pragma: "no-cache",
+                    Expires: "0",
+                  },
+                }
+              ),
+              hadPendingRefCookie
+            );
+          }
           const { data: revived, error: reviveError } = await supabase
             .from("users")
             .update({

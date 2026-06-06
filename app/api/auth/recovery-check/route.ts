@@ -25,6 +25,17 @@ export async function GET() {
       return NextResponse.json({ error: "Failed to check recovery status" }, { status: 500 });
     }
 
+    // Shadow-banned account: hide recovery (permanent block — no recovery modal).
+    const { data: target } = await supabase
+      .from("users")
+      .select("shadow_banned")
+      .eq("clerk_id", userId)
+      .not("deleted_at", "is", null)
+      .maybeSingle();
+    if (target?.shadow_banned) {
+      return NextResponse.json({ pending: false, banned: true });
+    }
+
     return NextResponse.json(data);
   } catch (error) {
     console.error("GET /api/auth/recovery-check error:", error);

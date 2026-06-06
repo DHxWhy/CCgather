@@ -54,6 +54,7 @@ export function OnboardingGuard({ children }: OnboardingGuardProps) {
   const [hasMounted, setHasMounted] = useState(false);
   const [isRedirecting, setIsRedirecting] = useState(false);
   const [pendingDeletionInfo, setPendingDeletionInfo] = useState<PendingDeletionInfo | null>(null);
+  const [isBanned, setIsBanned] = useState(false);
   // mount-once guard — survives Strict-Mode double-invoke, prevents the second
   // mount from missing the flag and bouncing the user back to /onboarding.
   const consumedFlagRef = useRef(false);
@@ -163,6 +164,12 @@ export function OnboardingGuard({ children }: OnboardingGuardProps) {
         // Check for pending deletion first
         if (recoveryResponse.ok) {
           const recoveryData = await recoveryResponse.json();
+          // Shadow-banned (강제 탈퇴 + 재가입 차단): 복구 불가 — 차단 화면 고정, redirect 안 함.
+          if (recoveryData.banned) {
+            setIsBanned(true);
+            setIsChecking(false);
+            return;
+          }
           // 라이브 RPC 계약: { pending, days_remaining, username, display_name }.
           // 옛 코드는 pending_deletion 을 읽어 항상 undefined → 복구 모달이 영영 안 떴음.
           if (recoveryData.pending) {
@@ -238,6 +245,17 @@ export function OnboardingGuard({ children }: OnboardingGuardProps) {
     content = (
       <div className="min-h-screen flex items-center justify-center bg-[var(--color-bg-primary)]">
         <BrandSpinner size="lg" showText />
+      </div>
+    );
+  } else if (isBanned) {
+    content = (
+      <div className="min-h-screen flex flex-col items-center justify-center gap-3 bg-[var(--color-bg-primary)] px-6 text-center">
+        <h1 className="text-xl font-semibold text-[var(--color-text-primary)]">
+          계정이 정지되었습니다
+        </h1>
+        <p className="max-w-md text-sm text-[var(--color-text-secondary)]">
+          This account has been suspended for violating our usage policy and cannot be restored.
+        </p>
       </div>
     );
   } else if (showRecoveryModal) {
