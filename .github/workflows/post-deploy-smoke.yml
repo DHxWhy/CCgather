@@ -211,6 +211,7 @@ jobs:
         if: failure() && steps.probe.outputs.failed_count != ''
         env:
           GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }} # 필수·삭제금지: checkout 없어 gh run list 가 레포를 못 찾음 → 직전 결론 '불명' → @here 오발
           TRIGGER: ${{ github.event_name }}
         run: |
           set +e
