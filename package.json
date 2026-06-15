@@ -70,7 +70,7 @@
     "react-dom": "^19.2.3",
     "react-virtuoso": "^4.18.7",
     "recharts": "^3.6.0",
-    "sharp": "^0.34.5",
+    "sharp": "^0.35.1",
     "svix": "^1.84.1",
     "tailwind-merge": "^3.4.0",
     "tailwindcss": "^4.1.18",
