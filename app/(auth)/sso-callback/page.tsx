@@ -152,7 +152,9 @@ export default function SSOCallbackPage() {
         const res = await signIn.create({ transfer: true });
         if (res.status === "complete") {
           await setActive({ session: res.createdSessionId });
-          window.location.href = "/leaderboard";
+          // soft nav 필수: hard reload 면 next-pwa SW 첫 설치와 무거운 /leaderboard
+          // 청크 로드가 경합해 ChunkLoadError→error boundary. 프리빌트 콜백처럼 router 사용.
+          router.replace("/leaderboard");
           return;
         }
         window.location.href = "/sign-in";
@@ -161,7 +163,7 @@ export default function SSOCallbackPage() {
         window.location.href = "/sign-in";
       }
     })();
-  }, [isTransferCase, signIn, setActive]);
+  }, [isTransferCase, signIn, setActive, router]);
 
   const handleSignIn = async () => {
     // Clear stale session/sign-in state completely before retry
