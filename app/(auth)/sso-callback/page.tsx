@@ -1,7 +1,13 @@
 "use client";
 
 import { useEffect, useState, useRef } from "react";
-import { AuthenticateWithRedirectCallback, useClerk, useAuth } from "@clerk/nextjs";
+import {
+  AuthenticateWithRedirectCallback,
+  useClerk,
+  useAuth,
+  useSignIn,
+  useSignUp,
+} from "@clerk/nextjs";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 
@@ -25,16 +31,25 @@ function hasValidCallbackParams(): boolean {
 
 export default function SSOCallbackPage() {
   const router = useRouter();
-  const { signOut } = useClerk();
+  const { signOut, setActive } = useClerk();
   const { isLoaded, isSignedIn } = useAuth();
+  const { signIn } = useSignIn();
+  const { signUp } = useSignUp();
   const [hasError, setHasError] = useState(false);
   const [isTimedOut, setIsTimedOut] = useState(false);
   const [errorType, setErrorType] = useState<ErrorType>("auth");
   // Check immediately (not in effect) to avoid race with AuthenticateWithRedirectCallback
   const [isValidCallback] = useState(() => hasValidCallbackParams());
   const redirectedRef = useRef(false);
+  const transferRef = useRef(false);
   // Cookie/session 진단용 — callback 처리 후 session 활성화 검증
   const [sessionDiagnostic, setSessionDiagnostic] = useState<string | null>(null);
+
+  // 기존 회원이 sign-up(Get Started) 문으로 OAuth 진입 시 Clerk 는 가입을 완료 못하고
+  // externalAccount.status='transferable' 로 표시 → sign-in 으로 이관해야 세션 생성됨.
+  // 프리빌트 콜백은 이 케이스를 자동 처리 안 해 미로그인으로 떨어지므로 직접 처리.
+  const isTransferCase =
+    isLoaded && signUp?.verifications?.externalAccount?.status === "transferable";
 
   // Stale navigation: no OAuth params → redirect to leaderboard (once)
   useEffect(() => {
@@ -123,6 +138,30 @@ export default function SSOCallbackPage() {
 
     setErrorType("auth");
   }, []);
+
+  // existing-user-via-sign-up → sign-in 이관(transfer)으로 세션 생성. 정상 경로(신규가입·일반
+  // 로그인)는 아래 프리빌트 콜백이 그대로 담당 — 이 분기는 transferable 케이스에만 작동(additive).
+  // 실패 시 /sign-in 폴백(현 동작과 동일, 악화 없음).
+  useEffect(() => {
+    if (!isTransferCase || transferRef.current) return;
+    if (!signIn || !setActive) return;
+    transferRef.current = true;
+    redirectedRef.current = true;
+    (async () => {
+      try {
+        const res = await signIn.create({ transfer: true });
+        if (res.status === "complete") {
+          await setActive({ session: res.createdSessionId });
+          window.location.href = "/leaderboard";
+          return;
+        }
+        window.location.href = "/sign-in";
+      } catch (err) {
+        console.error("[SSO] sign-up→sign-in transfer failed:", err);
+        window.location.href = "/sign-in";
+      }
+    })();
+  }, [isTransferCase, signIn, setActive]);
 
   const handleSignIn = async () => {
     // Clear stale session/sign-in state completely before retry
