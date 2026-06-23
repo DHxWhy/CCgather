@@ -82,6 +82,22 @@ function usePWAUpdate() {
         return;
       }
 
+      // OAuth 직후 60s grace: 막 로그인해 landing(/leaderboard 등)에 도착한 순간 controllerchange
+      // reload 가 터지면 Clerk 재하이드레이션 중 Sign In 깜빡임 발생. sso-callback 가 박은 마크가
+      // 살아있으면 보류 (다음 자연 navigate 시 새 SW 자동 적용). PwaMigration 과 동일 패턴.
+      try {
+        const mark = sessionStorage.getItem("ccg_oauth_just_finished");
+        if (mark) {
+          const ts = Number.parseInt(mark, 10);
+          if (!Number.isNaN(ts) && Date.now() - ts < 60_000) {
+            console.log("[SW] controllerchange reload deferred — OAuth just finished");
+            return;
+          }
+        }
+      } catch {
+        // sessionStorage 차단 — grace 없이 진행
+      }
+
       w.__swRefreshing = true;
       // Delay reload to let React finish current render cycle and SW activation complete.
       setTimeout(() => {
