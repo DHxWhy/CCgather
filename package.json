@@ -49,7 +49,7 @@
     "@types/node": "^25.0.3",
     "@types/react": "^19.2.7",
     "@types/react-dom": "^19.2.3",
-    "@types/three": "^0.182.0",
+    "@types/three": "^0.185.0",
     "autoprefixer": "^10.4.23",
     "cheerio": "^1.0.0",
     "class-variance-authority": "^0.7.1",
