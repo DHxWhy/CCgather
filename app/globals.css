@@ -649,6 +649,37 @@ button,
   will-change: background-position;
 }
 
+@keyframes row-focus-shimmer {
+  0% {
+    background-position: 150% 0;
+  }
+  55% {
+    background-position: -150% 0;
+  }
+  100% {
+    background-position: -150% 0;
+  }
+}
+
+.row-focus-shimmer {
+  background-image: linear-gradient(
+    100deg,
+    transparent 30%,
+    rgba(255, 255, 255, 0.42) 50%,
+    transparent 70%
+  );
+  background-size: 200% 100%;
+  background-repeat: no-repeat;
+  animation: row-focus-shimmer 3.2s ease-in-out infinite;
+  will-change: background-position;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .row-focus-shimmer {
+    animation: none;
+  }
+}
+
 /* AI Thinking Shimmer Text - Zero Latency CSS Only */
 .shimmer-text {
   background: linear-gradient(

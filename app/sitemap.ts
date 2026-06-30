@@ -24,13 +24,6 @@ export default function sitemap(): MetadataRoute.Sitemap {
       changeFrequency: "hourly",
       priority: 0.9,
     },
-    // Community - active content area
-    {
-      url: `${BASE_URL}/community`,
-      lastModified: now,
-      changeFrequency: "daily",
-      priority: 0.8,
-    },
     // Legal pages
     {
       url: `${BASE_URL}/privacy`,

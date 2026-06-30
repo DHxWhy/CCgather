@@ -47,12 +47,6 @@ export default function NotFound() {
             >
               Leaderboard
             </Link>
-            <Link
-              href="/community"
-              className="text-sm text-[var(--color-claude-coral)] hover:text-[var(--color-claude-peach)] transition-colors"
-            >
-              Community
-            </Link>
           </div>
         </div>
       </div>

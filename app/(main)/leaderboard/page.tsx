@@ -4,7 +4,7 @@ import React, { useState, useMemo, useEffect, useLayoutEffect, useCallback, useR
 import { useSearchParams, usePathname } from "next/navigation";
 import dynamic from "next/dynamic";
 import Image from "next/image";
-import { TableVirtuoso, type TableComponents } from "react-virtuoso";
+import { TableVirtuoso, type TableComponents, type TableVirtuosoHandle } from "react-virtuoso";
 import { FlagIcon } from "@/components/ui/FlagIcon";
 import { useUser } from "@clerk/nextjs";
 import { GlobeStatsSection } from "@/components/leaderboard/GlobeStatsSection";
@@ -483,6 +483,8 @@ export default function LeaderboardPage() {
 
   // Ref for table container
   const tableContainerRef = useRef<HTMLDivElement>(null);
+  const virtuosoRef = useRef<TableVirtuosoHandle>(null);
+  const scrolledHighlightRef = useRef<string | null>(null);
   // Track scroll position for prepend restoration
   const scrollHeightBeforePrepend = useRef<number>(0);
 
@@ -964,10 +966,24 @@ export default function LeaderboardPage() {
 
     if (targetUser) {
       setHighlightedUsername(highlightUsername.toLowerCase());
-      // Clear highlight after 5 seconds
+      if (scrolledHighlightRef.current !== highlightUsername.toLowerCase()) {
+        scrolledHighlightRef.current = highlightUsername.toLowerCase();
+        const targetIndex = users.findIndex(
+          (u) => u.username.toLowerCase() === highlightUsername.toLowerCase()
+        );
+        if (targetIndex >= 0) {
+          requestAnimationFrame(() => {
+            virtuosoRef.current?.scrollToIndex({
+              index: targetIndex,
+              align: "center",
+              behavior: "smooth",
+            });
+          });
+        }
+      }
       const timer = setTimeout(() => {
         setHighlightedUsername(null);
-      }, 5000);
+      }, 10000);
       return () => clearTimeout(timer);
     }
 
@@ -1257,6 +1273,7 @@ export default function LeaderboardPage() {
     setSelectedUserCountryRank(user.period_country_rank ?? user.country_rank ?? undefined);
     setIsPanelOpen(true);
     setHighlightMyRank(false);
+    setHighlightedUsername(null);
   }, []);
 
   // Memoized Virtuoso components — prevents row remount on every parent render
@@ -1280,7 +1297,7 @@ export default function LeaderboardPage() {
                 : ""
             } ${
               highlightedUsername && user.username.toLowerCase() === highlightedUsername
-                ? "!bg-[var(--color-claude-coral)]/50 ring-2 ring-[var(--color-claude-coral)] animate-pulse"
+                ? "!bg-[var(--color-claude-coral)]/50 ring-2 ring-[var(--color-claude-coral)] row-focus-shimmer"
                 : ""
             }`}
             style={{
@@ -2950,6 +2967,7 @@ export default function LeaderboardPage() {
                       {/* Virtualized Table */}
                       {users.length > 0 && (
                         <TableVirtuoso
+                          ref={virtuosoRef}
                           style={{ height: "100%" }}
                           data={users}
                           overscan={200}

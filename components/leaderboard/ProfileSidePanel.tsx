@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, useMemo, useCallback } from "react";
 import { createPortal } from "react-dom";
 import Image from "next/image";
-import { Github, Linkedin, Globe, Newspaper } from "lucide-react";
+import { Github, Linkedin, Globe, Newspaper, Link2, Check } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { FlagIcon } from "@/components/ui/FlagIcon";
 import { useUser } from "@clerk/nextjs";
@@ -680,11 +680,14 @@ function XIcon({ className }: { className?: string }) {
 }
 
 // Social Links Quick Access (Header Icons) - Brand Colors Applied
+const COMMUNITY_FEED_ENABLED = false;
+
 function SocialLinksQuickAccess({
   socialLinks,
   isSignedIn,
   onLoginRequired,
   userId,
+  username,
   onPostsClick,
   postCount = 0,
   featuredPostId,
@@ -694,11 +697,25 @@ function SocialLinksQuickAccess({
   isSignedIn: boolean;
   onLoginRequired: (url: string) => void;
   userId?: string;
+  username?: string;
   onPostsClick?: (userId: string) => void;
   postCount?: number;
   featuredPostId?: string;
   onViewFeaturedPost?: (postId: string) => void;
 }) {
+  const [copied, setCopied] = useState(false);
+
+  const handleShareClick = async () => {
+    if (!username) return;
+    const url = `${window.location.origin}/leaderboard?u=${encodeURIComponent(username)}`;
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch (error) {
+      console.error("Failed to copy profile link:", error);
+    }
+  };
   const links = [
     {
       key: "github",
@@ -758,8 +775,7 @@ function SocialLinksQuickAccess({
     }
   };
 
-  // Show nothing if no social links AND no posts button
-  if (activeLinks.length === 0 && !userId) return null;
+  if (activeLinks.length === 0 && !userId && !username) return null;
 
   return (
     <div className="flex items-center gap-0.5">
@@ -782,8 +798,16 @@ function SocialLinksQuickAccess({
           </a>
         );
       })}
-      {/* Posts link - only visible when user has posts */}
-      {userId && onPostsClick && postCount > 0 && (
+      <button
+        type="button"
+        onClick={handleShareClick}
+        className="p-1.5 rounded-md transition-all text-[var(--color-text-muted)] hover:text-[var(--color-claude-coral)] hover:bg-[var(--color-claude-coral)]/20"
+        title={copied ? "Copied!" : "Copy profile link"}
+        aria-label="Copy profile link"
+      >
+        {copied ? <Check className="w-3.5 h-3.5" /> : <Link2 className="w-3.5 h-3.5" />}
+      </button>
+      {COMMUNITY_FEED_ENABLED && userId && onPostsClick && postCount > 0 && (
         <button
           onClick={handlePostsClick}
           className="p-1.5 rounded-md transition-all text-[var(--color-claude-coral)] hover:bg-[var(--color-claude-coral)]/20"
@@ -1262,6 +1286,7 @@ export function ProfileSidePanel({
                     isSignedIn={!!isSignedIn}
                     onLoginRequired={handleSocialLinkLoginRequired}
                     userId={currentUser.id}
+                    username={currentUser.username}
                     onPostsClick={handlePostsClick}
                     postCount={currentUser.post_count || 0}
                     featuredPostId={featuredPostId}
