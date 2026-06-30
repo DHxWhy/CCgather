@@ -653,7 +653,7 @@ button,
   0% {
     background-position: 150% 0;
   }
-  75% {
+  88% {
     background-position: -150% 0;
   }
   100% {
@@ -673,7 +673,7 @@ button,
   );
   background-size: 200% 100%;
   background-repeat: no-repeat;
-  animation: row-focus-shimmer 2.7s ease-in-out infinite;
+  animation: row-focus-shimmer 2.3s ease-in-out infinite;
   will-change: background-position;
 }
 
