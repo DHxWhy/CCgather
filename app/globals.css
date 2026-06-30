@@ -667,9 +667,9 @@ button,
     inset 0 -2px 0 0 var(--color-claude-coral);
   background-image: linear-gradient(
     100deg,
-    transparent 30%,
-    rgba(255, 255, 255, 0.42) 50%,
-    transparent 70%
+    transparent 32%,
+    rgba(255, 255, 255, 0.378) 50%,
+    transparent 68%
   );
   background-size: 200% 100%;
   background-repeat: no-repeat;
