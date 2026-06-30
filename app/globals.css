@@ -653,7 +653,7 @@ button,
   0% {
     background-position: 150% 0;
   }
-  55% {
+  75% {
     background-position: -150% 0;
   }
   100% {
@@ -662,6 +662,9 @@ button,
 }
 
 .row-focus-shimmer {
+  box-shadow:
+    inset 0 2px 0 0 var(--color-claude-coral),
+    inset 0 -2px 0 0 var(--color-claude-coral);
   background-image: linear-gradient(
     100deg,
     transparent 30%,
@@ -670,7 +673,7 @@ button,
   );
   background-size: 200% 100%;
   background-repeat: no-repeat;
-  animation: row-focus-shimmer 3.2s ease-in-out infinite;
+  animation: row-focus-shimmer 2.7s ease-in-out infinite;
   will-change: background-position;
 }
 

@@ -1297,7 +1297,7 @@ export default function LeaderboardPage() {
                 : ""
             } ${
               highlightedUsername && user.username.toLowerCase() === highlightedUsername
-                ? "!bg-[var(--color-claude-coral)]/50 ring-2 ring-[var(--color-claude-coral)] row-focus-shimmer"
+                ? "row-focus-shimmer"
                 : ""
             }`}
             style={{
@@ -1305,7 +1305,6 @@ export default function LeaderboardPage() {
                 !user.isCurrentUser &&
                 !(selectedUserId === user.id && isPanelOpen) &&
                 !highlightMyRank &&
-                !(highlightedUsername && user.username.toLowerCase() === highlightedUsername) &&
                 index % 2 === 1
                   ? "var(--color-table-row-even)"
                   : undefined,
