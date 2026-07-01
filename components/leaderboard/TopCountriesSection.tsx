@@ -9,7 +9,6 @@ import {
   useMemo,
   useCallback,
 } from "react";
-import { Virtuoso, VirtuosoHandle } from "react-virtuoso";
 import { FlagIcon } from "@/components/ui/FlagIcon";
 import { formatNumber, formatCost } from "@/lib/utils/format";
 import { GetStartedButton } from "@/components/auth/GetStartedButton";
@@ -74,7 +73,6 @@ export const TopCountriesSection = forwardRef<TopCountriesSectionRef, TopCountri
       isVisible: false,
       direction: null,
     });
-    const virtuosoRef = useRef<VirtuosoHandle>(null);
     const userCountryRowRef = useRef<HTMLDivElement>(null);
 
     // Sort stats based on selected criteria (memoized to prevent infinite loops)
@@ -99,20 +97,17 @@ export const TopCountriesSection = forwardRef<TopCountriesSectionRef, TopCountri
       [sortedStats, userCountryIndex]
     );
 
-    // Expose scrollToUserCountry method via ref (using Virtuoso scrollToIndex)
     useImperativeHandle(
       ref,
       () => ({
         scrollToUserCountry: () => {
-          if (userCountryIndex < 0) return;
-          virtuosoRef.current?.scrollToIndex({
-            index: userCountryIndex,
-            align: "center",
+          userCountryRowRef.current?.scrollIntoView({
+            block: "center",
             behavior: "smooth",
           });
         },
       }),
-      [userCountryIndex]
+      []
     );
 
     // Refs for tracking previous values to prevent unnecessary updates
@@ -125,17 +120,9 @@ export const TopCountriesSection = forwardRef<TopCountriesSectionRef, TopCountri
     const callbackRef = useRef(onUserCountryVisibilityChange);
     callbackRef.current = onUserCountryVisibilityChange;
 
-    // Store scroll container ref value to avoid issues with ref object in dependencies.
-    // Also expose it as state so Virtuoso can use it as customScrollParent: this makes the
-    // list scroll happen ON leftColumnRef itself, which drives the globe-collapse
-    // (handleLeftColumnScroll). Without it Virtuoso scrolls internally and the outer
-    // column never scrolls, so the globe never collapses.
     const scrollRootRef = useRef<HTMLDivElement | null>(null);
-    const [customScrollParent, setCustomScrollParent] = useState<HTMLElement | null>(null);
     useEffect(() => {
-      const el = scrollContainerRef?.current || null;
-      scrollRootRef.current = el;
-      setCustomScrollParent(el);
+      scrollRootRef.current = scrollContainerRef?.current || null;
     }, [scrollContainerRef]);
 
     // IntersectionObserver for user's country row visibility and direction
@@ -206,10 +193,6 @@ export const TopCountriesSection = forwardRef<TopCountriesSectionRef, TopCountri
     useEffect(() => {
       notifyParent();
     }, [notifyParent]);
-
-    // The list scrolls on the shared leftColumnRef (Virtuoso customScrollParent below),
-    // so no internal height cap is needed: the globe spacer + list together overflow the
-    // left column, and that overflow scroll is what collapses the globe.
 
     if (sortedStats.length === 0) {
       return null;
@@ -330,19 +313,13 @@ export const TopCountriesSection = forwardRef<TopCountriesSectionRef, TopCountri
           </div>
         )}
 
-        {/* Virtualized Country List */}
-        <Virtuoso
-          ref={virtuosoRef}
-          customScrollParent={customScrollParent ?? undefined}
-          data={sortedStats}
-          overscan={100}
-          className="scrollbar-hide"
-          itemContent={(index, stat) => {
+        <div className="scrollbar-hide">
+          {sortedStats.map((stat, index) => {
             const isUserCountry =
               userCountryCode && stat.code.toUpperCase() === userCountryCode.toUpperCase();
             return renderCountryRow(stat, index, !!isUserCountry);
-          }}
-        />
+          })}
+        </div>
 
         {/* Onboarding Copy - Only show for users without CLI submission */}
         {!hasSubmission && (
