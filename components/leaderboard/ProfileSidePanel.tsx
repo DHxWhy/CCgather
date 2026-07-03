@@ -16,15 +16,14 @@ import {
   Tooltip,
   ResponsiveContainer,
   CartesianGrid,
-  Area,
-  AreaChart,
 } from "recharts";
-import { ChevronLeft, ChevronRight, X, Maximize2 } from "lucide-react";
+import { Maximize2 } from "lucide-react";
 import { LEVELS, getLevelByTokens } from "@/lib/constants/levels";
 import { BADGES, type Badge } from "@/lib/constants/badges";
 import { ActivityHeatmap } from "@/components/profile/ActivityHeatmap";
 import { CCplanBadge } from "@/components/leaderboard/CCplanBadge";
-import { useUserProfilePanel } from "@/hooks/use-user-profile";
+import { UsageHistoryModal } from "@/components/leaderboard/UsageHistoryModal";
+import { useUserProfilePanel, useUserUsageAllTime } from "@/hooks/use-user-profile";
 import type {
   LeaderboardUser,
   UsageHistoryPoint,
@@ -92,203 +91,6 @@ function aggregateByMonth(data: UsageHistoryPoint[]): { date: string; tokens: nu
       date: month.slice(2),
       tokens,
     }));
-}
-
-// Usage History Modal — yearly pagination, PC/tablet only
-function UsageHistoryModal({
-  history,
-  displayName,
-  onClose,
-}: {
-  history: UsageHistoryPoint[];
-  displayName: string;
-  onClose: () => void;
-}) {
-  const gradientId = `modalTokenGradient-${useMemo(() => Math.random().toString(36).slice(2, 8), [])}`;
-  const closeButtonRef = useRef<HTMLButtonElement>(null);
-
-  // Determine available years from data
-  const years = useMemo(() => {
-    const yearSet = new Set<number>();
-    history.forEach((d) => yearSet.add(Number(d.date.slice(0, 4))));
-    return Array.from(yearSet).sort((a, b) => b - a); // newest first
-  }, [history]);
-
-  const [selectedYearIndex, setSelectedYearIndex] = useState(0);
-  const currentYear = years[selectedYearIndex] ?? new Date().getFullYear();
-
-  const yearData = useMemo(() => {
-    return history
-      .filter((d) => d.date.startsWith(String(currentYear)))
-      .map((d) => ({
-        date: d.date.slice(5), // MM-DD
-        tokens: d.tokens,
-      }));
-  }, [history, currentYear]);
-
-  const yearTotal = useMemo(() => yearData.reduce((sum, d) => sum + d.tokens, 0), [yearData]);
-
-  const yearAvgDaily = useMemo(
-    () => (yearData.length > 0 ? yearTotal / yearData.length : 0),
-    [yearTotal, yearData.length]
-  );
-
-  // Close on Escape + lock body scroll
-  useEffect(() => {
-    const handleKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-    };
-    window.addEventListener("keydown", handleKey);
-    document.body.style.overflow = "hidden";
-    // Focus close button on mount
-    closeButtonRef.current?.focus();
-    return () => {
-      window.removeEventListener("keydown", handleKey);
-      document.body.style.overflow = "";
-    };
-  }, [onClose]);
-
-  return createPortal(
-    <div
-      className="fixed inset-0 z-[9999] flex items-center justify-center p-4 md:p-8"
-      role="dialog"
-      aria-modal="true"
-      aria-label={`${displayName} Usage History`}
-      onClick={onClose}
-    >
-      {/* Backdrop */}
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
-
-      {/* Modal */}
-      <div
-        className="relative w-full max-w-2xl bg-[var(--color-bg-primary)] border border-[var(--border-default)] rounded-xl shadow-2xl overflow-hidden"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Header */}
-        <div className="flex items-center justify-between px-5 py-3 border-b border-[var(--border-default)]">
-          <div className="flex items-center gap-2">
-            <span className="text-sm">📈</span>
-            <span className="text-sm font-semibold text-[var(--color-text-primary)]">
-              {displayName} — Usage History
-            </span>
-          </div>
-          <button
-            ref={closeButtonRef}
-            onClick={onClose}
-            aria-label="Close"
-            className="p-1.5 rounded-md text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] hover:bg-white/10 transition-colors"
-          >
-            <X className="w-4 h-4" />
-          </button>
-        </div>
-
-        {/* Year Pagination */}
-        <div className="flex items-center justify-between px-5 py-2.5 border-b border-[var(--border-default)] bg-white/[0.02]">
-          <button
-            onClick={() => setSelectedYearIndex((i) => Math.min(i + 1, years.length - 1))}
-            disabled={selectedYearIndex >= years.length - 1}
-            aria-label="Previous year"
-            className="p-1.5 rounded-md text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] hover:bg-white/10 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-          >
-            <ChevronLeft className="w-4 h-4" />
-          </button>
-          <div className="text-center">
-            <span className="text-base font-bold text-[var(--color-text-primary)]">
-              {currentYear}
-            </span>
-            <span className="text-xs text-[var(--color-text-muted)] ml-2">
-              ({yearData.length} days)
-            </span>
-          </div>
-          <button
-            onClick={() => setSelectedYearIndex((i) => Math.max(i - 1, 0))}
-            disabled={selectedYearIndex <= 0}
-            aria-label="Next year"
-            className="p-1.5 rounded-md text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] hover:bg-white/10 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-          >
-            <ChevronRight className="w-4 h-4" />
-          </button>
-        </div>
-
-        {/* Chart */}
-        <div className="px-5 py-4">
-          {yearData.length === 0 ? (
-            <div className="h-64 flex items-center justify-center text-[var(--color-text-muted)] text-sm">
-              No data for {currentYear}
-            </div>
-          ) : (
-            <div className="h-64">
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={yearData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-                  <defs>
-                    <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#DA7756" stopOpacity={0.3} />
-                      <stop offset="95%" stopColor="#DA7756" stopOpacity={0} />
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid
-                    strokeDasharray="3 3"
-                    stroke="var(--border-default)"
-                    vertical={false}
-                  />
-                  <XAxis
-                    dataKey="date"
-                    axisLine={false}
-                    tickLine={false}
-                    tick={{ fill: "#71717A", fontSize: 10 }}
-                    interval={Math.max(0, Math.floor(yearData.length / 12) - 1)}
-                  />
-                  <YAxis
-                    axisLine={false}
-                    tickLine={false}
-                    tick={{ fill: "#71717A", fontSize: 10 }}
-                    tickFormatter={formatShortTokens}
-                    width={45}
-                  />
-                  <Tooltip content={<CustomTooltip />} />
-                  <Area
-                    type="monotone"
-                    dataKey="tokens"
-                    stroke="#DA7756"
-                    strokeWidth={2}
-                    fill={`url(#${gradientId})`}
-                    dot={false}
-                    activeDot={{ r: 4, fill: "#DA7756", stroke: "#fff", strokeWidth: 2 }}
-                    isAnimationActive={false}
-                  />
-                </AreaChart>
-              </ResponsiveContainer>
-            </div>
-          )}
-        </div>
-
-        {/* Stats Footer */}
-        <div className="flex items-center justify-around px-5 py-3 border-t border-[var(--border-default)] bg-white/[0.02]">
-          <div className="text-center">
-            <div className="text-[10px] text-[var(--color-text-muted)] mb-0.5">Total Tokens</div>
-            <div className="text-sm font-semibold text-[var(--color-claude-coral)]">
-              {formatTokens(yearTotal)}
-            </div>
-          </div>
-          <div className="w-px h-8 bg-[var(--border-default)]" />
-          <div className="text-center">
-            <div className="text-[10px] text-[var(--color-text-muted)] mb-0.5">Avg Daily</div>
-            <div className="text-sm font-semibold text-[var(--color-text-primary)]">
-              {formatTokens(Math.round(yearAvgDaily))}
-            </div>
-          </div>
-          <div className="w-px h-8 bg-[var(--border-default)]" />
-          <div className="text-center">
-            <div className="text-[10px] text-[var(--color-text-muted)] mb-0.5">Active Days</div>
-            <div className="text-sm font-semibold text-[var(--color-text-primary)]">
-              {yearData.filter((d) => d.tokens > 0).length}
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>,
-    document.body
-  );
 }
 
 // Line chart for usage history
@@ -957,6 +759,10 @@ export function ProfileSidePanel({
     isProfileLoading,
   } = useUserProfilePanel(userId, { enabled: isOpen });
 
+  const { data: allTimeHistory = [] } = useUserUsageAllTime(userId, {
+    enabled: isOpen && showUsageModal,
+  });
+
   // Convert profile to DisplayUser format
   // Use props ranks (from leaderboard table) if available, fall back to DB values
   const displayedUser: DisplayUser | null = useMemo(() => {
@@ -1499,7 +1305,7 @@ export function ProfileSidePanel({
           {/* Usage History Modal — PC/Tablet only */}
           {showUsageModal && usageHistory.length > 0 && (
             <UsageHistoryModal
-              history={usageHistory}
+              history={allTimeHistory.length > 0 ? allTimeHistory : usageHistory}
               displayName={currentUser.display_name || currentUser.username}
               onClose={() => setShowUsageModal(false)}
             />

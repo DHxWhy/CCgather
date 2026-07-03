@@ -66,6 +66,18 @@ async function fetchUsageSummary(userId: string, days: number = 365): Promise<Us
   }));
 }
 
+async function fetchUsageDaily(userId: string): Promise<UsageHistoryPoint[]> {
+  const response = await fetch(`/api/users/${userId}/usage-daily`);
+  if (!response.ok) return [];
+  const data: { daily?: Array<{ date: string; tokens: number; cost: number }> } =
+    await response.json();
+  return (data.daily || []).map((d) => ({
+    date: d.date,
+    tokens: d.tokens,
+    cost: d.cost,
+  }));
+}
+
 async function fetchUserBadges(userId: string): Promise<string[]> {
   const response = await fetch(`/api/users/${userId}/badges`);
   if (!response.ok) return [];
@@ -82,6 +94,7 @@ export const userProfileKeys = {
   profile: (userId: string) => [...userProfileKeys.all, "profile", userId] as const,
   usage: (userId: string, days?: number) =>
     [...userProfileKeys.all, "usage", userId, days ?? 365] as const,
+  usageAll: (userId: string) => [...userProfileKeys.all, "usageAll", userId] as const,
   badges: (userId: string) => [...userProfileKeys.all, "badges", userId] as const,
 };
 
@@ -110,6 +123,16 @@ export function useUserUsageHistory(
     enabled: !!userId && (options?.enabled ?? true),
     staleTime: 3 * 60 * 1000, // 3 minutes - usage data updates on submission
     gcTime: 15 * 60 * 1000, // 15 minutes
+  });
+}
+
+export function useUserUsageAllTime(userId: string | null, options?: { enabled?: boolean }) {
+  return useQuery({
+    queryKey: userProfileKeys.usageAll(userId || ""),
+    queryFn: () => fetchUsageDaily(userId!),
+    enabled: !!userId && (options?.enabled ?? true),
+    staleTime: 5 * 60 * 1000,
+    gcTime: 15 * 60 * 1000,
   });
 }
 
