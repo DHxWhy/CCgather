@@ -188,7 +188,7 @@ export function UsageHistoryModal({
               >
                 <ChevronLeft className="w-4 h-4" />
               </button>
-              <div className="text-center">
+              <div className="w-36 text-center">
                 <span className="text-base font-bold text-[var(--color-text-primary)]">
                   {currentYear}
                 </span>
@@ -215,7 +215,7 @@ export function UsageHistoryModal({
               >
                 <ChevronLeft className="w-4 h-4" />
               </button>
-              <div className="flex items-center gap-1.5">
+              <div className="flex w-60 items-center justify-center gap-1.5">
                 {monthWindow.map((mo) => {
                   const isFocused = mo === focusMonth;
                   const withYear = isFocused || (windowCrossesYear && mo.slice(0, 4) !== focusYear);
