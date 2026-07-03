@@ -177,9 +177,9 @@ export function UsageHistoryModal({
           </div>
         </div>
 
-        <div className="flex items-center justify-between px-5 py-2.5 border-b border-[var(--border-default)] bg-white/[0.02]">
+        <div className="flex items-center justify-center px-5 py-2.5 border-b border-[var(--border-default)] bg-white/[0.02]">
           {view === "year" ? (
-            <>
+            <div className="flex items-center gap-3">
               <button
                 onClick={() => setYearIndex((i) => Math.min(i + 1, years.length - 1))}
                 disabled={yearIndex >= years.length - 1}
@@ -204,9 +204,9 @@ export function UsageHistoryModal({
               >
                 <ChevronRight className="w-4 h-4" />
               </button>
-            </>
+            </div>
           ) : (
-            <>
+            <div className="flex items-center gap-2">
               <button
                 onClick={() => canPrevMonth && setFocusMonth((m) => shiftMonth(m, -1))}
                 disabled={!canPrevMonth}
@@ -242,7 +242,7 @@ export function UsageHistoryModal({
               >
                 <ChevronRight className="w-4 h-4" />
               </button>
-            </>
+            </div>
           )}
         </div>
 
