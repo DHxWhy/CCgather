@@ -82,6 +82,12 @@ const withPWA = withPWAInit({
 const nextConfig: NextConfig = {
   // Turbopack 설정 (Next.js 16 기본 번들러)
   turbopack: {},
+  async redirects() {
+    return [
+      { source: "/u/:username", destination: "/leaderboard?u=:username", permanent: false },
+      { source: "/community/:path*", destination: "/leaderboard", permanent: false },
+    ];
+  },
   // Security headers + CORS
   async headers() {
     const securityHeaders = [

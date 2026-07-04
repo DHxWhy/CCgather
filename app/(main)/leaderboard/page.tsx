@@ -968,6 +968,8 @@ export default function LeaderboardPage() {
       setHighlightedUsername(highlightUsername.toLowerCase());
       if (scrolledHighlightRef.current !== highlightUsername.toLowerCase()) {
         scrolledHighlightRef.current = highlightUsername.toLowerCase();
+        setSelectedUserId(targetUser.id);
+        setIsPanelOpen(true);
         const targetIndex = users.findIndex(
           (u) => u.username.toLowerCase() === highlightUsername.toLowerCase()
         );
