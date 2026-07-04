@@ -116,6 +116,15 @@ jobs:
             echo "$html"
           }
 
+          # 콜드스타트 워밍(A): /sso-callback 은 저트래픽 새벽에 Vercel 함수가 콜드→첫 요청 30s
+          # 타임아웃(000) 오탐(2026-07-05 03:24 KST 사례). strict 검사 전 넉넉히 1회 깨움. 결과
+          # 무시 — 진짜 다운은 아래 probe 가 잡음. 반복 오탐 라우트는 WARMUP 배열에 추가.
+          WARMUP=("/sso-callback")
+          for path in "${WARMUP[@]}"; do
+            wcode=$(curl -sS -o /dev/null --max-time 45 -w "%{http_code}" "${BASE_URL}${path}" 2>/dev/null)
+            echo "  [warmup] ${path} → ${wcode:-000} (결과 무시, 함수 예열용)"
+          done
+
           # ─── 보호 라우트: 비인증 시 redirect(307)/401 가 정상. 404/500 면 빌드 누락 ───
           PROTECTED=(
             "/onboarding"
