@@ -421,7 +421,7 @@ export default function LeaderboardPage() {
   const [isPanelOpen, setIsPanelOpen] = useState(false);
   const closePanelTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [isGlobePanelOpen, setIsGlobePanelOpen] = useState(false);
-  const [periodFilter, setPeriodFilter] = useState<PeriodFilter>("all");
+  const [periodFilter, setPeriodFilter] = useState<PeriodFilter>("30d");
   const [scopeFilter, setScopeFilter] = useState<ScopeFilter>("global");
   const [globePulse, setGlobePulse] = useState(false);
   const [sortBy, setSortBy] = useState<SortByFilter>("tokens");
