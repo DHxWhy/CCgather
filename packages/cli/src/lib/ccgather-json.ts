@@ -493,6 +493,7 @@ export function scanUsageData(options: ScanOptions = {}): CCGatherData | null {
 
   const jsonlFiles = findJsonlFiles(currentProjectDir);
   sessionsCount = jsonlFiles.length;
+  const seenUsageEvents = new Set<string>();
   const { onProgress } = options;
 
   for (let i = 0; i < jsonlFiles.length; i++) {
@@ -524,6 +525,15 @@ export function scanUsageData(options: ScanOptions = {}): CCGatherData | null {
           const event = JSON.parse(line);
 
           if (event.type === "assistant" && event.message?.usage) {
+            // Streaming writes one line per content block, each repeating the
+            // message's full usage — count each message once.
+            const eventKey = event.message.id
+              ? `${event.message.id}:${event.requestId ?? ""}`
+              : null;
+            if (eventKey) {
+              if (seenUsageEvents.has(eventKey)) continue;
+              seenUsageEvents.add(eventKey);
+            }
             // Skip events older than cutoff date (if set)
             if (cutoffDate && event.timestamp && event.timestamp < cutoffDate) {
               continue;
@@ -805,6 +815,7 @@ export function scanUsageDataFromPath(
 
   const jsonlFiles = findJsonlFiles(projectPath);
   sessionsCount = jsonlFiles.length;
+  const seenUsageEvents = new Set<string>();
   const { onProgress } = options;
 
   for (let i = 0; i < jsonlFiles.length; i++) {
@@ -834,6 +845,15 @@ export function scanUsageDataFromPath(
           const event = JSON.parse(line);
 
           if (event.type === "assistant" && event.message?.usage) {
+            // Streaming writes one line per content block, each repeating the
+            // message's full usage — count each message once.
+            const eventKey = event.message.id
+              ? `${event.message.id}:${event.requestId ?? ""}`
+              : null;
+            if (eventKey) {
+              if (seenUsageEvents.has(eventKey)) continue;
+              seenUsageEvents.add(eventKey);
+            }
             if (cutoffDate && event.timestamp && event.timestamp < cutoffDate) {
               continue;
             }
@@ -1223,6 +1243,7 @@ export function scanAllProjects(options: ScanOptions = {}): CCGatherData | null 
     }
   }
   const allJsonlFiles = deduplicateJsonlFiles(rawJsonlFiles);
+  const seenUsageEvents = new Set<string>();
 
   if (allJsonlFiles.length === 0) {
     return null;
@@ -1254,6 +1275,15 @@ export function scanAllProjects(options: ScanOptions = {}): CCGatherData | null 
           const event = JSON.parse(line);
 
           if (event.type === "assistant" && event.message?.usage) {
+            // Streaming writes one line per content block, each repeating the
+            // message's full usage — count each message once.
+            const eventKey = event.message.id
+              ? `${event.message.id}:${event.requestId ?? ""}`
+              : null;
+            if (eventKey) {
+              if (seenUsageEvents.has(eventKey)) continue;
+              seenUsageEvents.add(eventKey);
+            }
             if (cutoffDate && event.timestamp && event.timestamp < cutoffDate) {
               continue;
             }
