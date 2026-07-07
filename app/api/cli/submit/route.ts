@@ -216,7 +216,7 @@ export async function POST(request: NextRequest) {
     // Get previous daily usage dates for comparison (before upsert)
     const { data: previousDailyData } = await supabase
       .from("usage_stats")
-      .select("date, total_tokens, cost_usd")
+      .select("date, total_tokens, cost_usd, device_id")
       .eq("user_id", authenticatedUser.id)
       .order("date", { ascending: true });
 
@@ -225,7 +225,9 @@ export async function POST(request: NextRequest) {
       total_tokens: number;
       cost_usd: number;
     }>(
-      previousDailyData as { date: string; total_tokens: number; cost_usd: number }[] | null,
+      previousDailyData as
+        | { date: string; total_tokens: number; cost_usd: number; device_id: string | null }[]
+        | null,
       (d) => d.date,
       (d) => d.total_tokens ?? 0,
       (d) => d.cost_usd ?? 0
@@ -234,6 +236,26 @@ export async function POST(request: NextRequest) {
     const previousDailyMap = new Map(
       previousDailyAggregated.map((d) => [d.date, { tokens: d.tokens, cost: d.cost }])
     );
+
+    // Per-(date, device) stored totals for the upsert merge policy below.
+    // Local session files rotate out over time, so a re-scan of an old date can
+    // be partial — in that case the previously recorded total must win.
+    const prevTokensByDateDevice = new Map<string, number>();
+    const prevMaxTokensByDate = new Map<string, number>();
+    for (const row of (previousDailyData ?? []) as {
+      date: string;
+      total_tokens: number | null;
+      device_id: string | null;
+    }[]) {
+      const tokens = row.total_tokens ?? 0;
+      const deviceKey = `${row.date}|${row.device_id ?? "legacy"}`;
+      if (tokens > (prevTokensByDateDevice.get(deviceKey) ?? -1)) {
+        prevTokensByDateDevice.set(deviceKey, tokens);
+      }
+      if (tokens > (prevMaxTokensByDate.get(row.date) ?? -1)) {
+        prevMaxTokensByDate.set(row.date, tokens);
+      }
+    }
 
     // ═══════════════════════════════════════════════════════════════════════════
     // STEP 0.5: Validate deviceId input (before session hash storage)
@@ -494,6 +516,9 @@ export async function POST(request: NextRequest) {
     // ═══════════════════════════════════════════════════════════════════════════
     const overallPrimaryModel = getPrimaryModel(body.dailyUsage);
     let upsertSucceeded = false;
+    // Dates actually written this request with their new totals — the cleanup
+    // steps below may only delete rows these fully cover (merge policy).
+    const writtenDayTotals = new Map<string, number>();
 
     // Server-side pricing: recompute cost_usd from token counts + primary_model.
     // The CLI sends day.cost too, but trusting it would let an outdated CLI
@@ -575,36 +600,64 @@ export async function POST(request: NextRequest) {
         };
       });
 
-      // Primary upsert with device_id-aware constraint
-      const { error: statsError } = await supabase
-        .from("usage_stats")
-        .upsert(usageRecords, { onConflict: "user_id,date,device_id" });
+      // Merge policy: a resubmitted date may only raise its stored total, never
+      // lower it (partial re-scans of rotated-out dates would otherwise shrink
+      // recorded history). Skipped dates keep their stored row untouched.
+      const guardedRecords = usageRecords.filter(
+        (r) => (r.total_tokens ?? 0) >= (prevTokensByDateDevice.get(`${r.date}|${deviceId}`) ?? 0)
+      );
+      const keptExisting = usageRecords.length - guardedRecords.length;
+      if (keptExisting > 0) {
+        console.log(
+          `[CLI Submit] Kept ${keptExisting} stored daily record(s) with higher totals for user ${authenticatedUser.username}`
+        );
+      }
+      for (const r of guardedRecords) {
+        writtenDayTotals.set(r.date, r.total_tokens ?? 0);
+      }
 
-      if (statsError) {
-        // Fallback: retry without device_id in records and use legacy constraint
-        console.warn("[CLI Submit] Primary upsert failed, trying fallback:", statsError.message);
-        const legacyRecords = usageRecords.map(({ device_id: _d, ...rest }) => rest);
-        const { error: fallbackError } = await supabase
+      if (guardedRecords.length === 0) {
+        // Nothing to write — stored records already cover every submitted date.
+        upsertSucceeded = true;
+      } else {
+        // Primary upsert with device_id-aware constraint
+        const { error: statsError } = await supabase
           .from("usage_stats")
-          .upsert(legacyRecords, { onConflict: "user_id,date" });
+          .upsert(guardedRecords, { onConflict: "user_id,date,device_id" });
 
-        if (fallbackError) {
-          console.error("[CLI Submit] Fallback upsert also failed:", fallbackError);
+        if (statsError) {
+          // Fallback: retry without device_id in records and use legacy constraint.
+          // The legacy conflict target is (user_id, date) across all devices, so
+          // the merge comparison must use the per-date max.
+          console.warn("[CLI Submit] Primary upsert failed, trying fallback:", statsError.message);
+          const legacyRecords = guardedRecords
+            .filter((r) => (r.total_tokens ?? 0) >= (prevMaxTokensByDate.get(r.date) ?? 0))
+            .map(({ device_id: _d, ...rest }) => rest);
+          const { error: fallbackError } =
+            legacyRecords.length === 0
+              ? { error: null }
+              : await supabase
+                  .from("usage_stats")
+                  .upsert(legacyRecords, { onConflict: "user_id,date" });
+
+          if (fallbackError) {
+            console.error("[CLI Submit] Fallback upsert also failed:", fallbackError);
+          } else {
+            upsertSucceeded = true;
+            console.log(
+              `[CLI Submit] Inserted ${legacyRecords.length} daily usage records (fallback mode) for user ${authenticatedUser.username}`
+            );
+          }
         } else {
           upsertSucceeded = true;
           console.log(
-            `[CLI Submit] Inserted ${usageRecords.length} daily usage records (fallback mode) for user ${authenticatedUser.username}`
+            `[CLI Submit] Inserted ${guardedRecords.length} daily usage records for user ${authenticatedUser.username}`
           );
         }
-      } else {
-        upsertSucceeded = true;
-        console.log(
-          `[CLI Submit] Inserted ${usageRecords.length} daily usage records for user ${authenticatedUser.username}`
-        );
       }
     } else {
       // Fallback: Insert only today's record (legacy behavior)
-      const today = new Date().toISOString().split("T")[0];
+      const today = new Date().toISOString().slice(0, 10);
       const isOpusModel = overallPrimaryModel?.toLowerCase().includes("opus");
 
       // Recompute cost server-side (same rationale as the bulk path above).
@@ -616,29 +669,15 @@ export async function POST(request: NextRequest) {
         cacheReadTokens: body.cacheReadTokens || 0,
       });
 
-      const { error: statsError } = await supabase.from("usage_stats").upsert(
-        {
-          user_id: authenticatedUser.id,
-          date: today,
-          total_tokens: body.totalTokens,
-          input_tokens: body.inputTokens || 0,
-          output_tokens: body.outputTokens || 0,
-          cache_read_tokens: body.cacheReadTokens || 0,
-          cache_write_tokens: body.cacheWriteTokens || 0,
-          cost_usd: computedTodayCost,
-          primary_model: overallPrimaryModel,
-          submitted_at: new Date().toISOString(),
-          device_id: deviceId,
-          submission_source: "cli",
-          league_reason: isOpusModel ? "opus" : null,
-        },
-        { onConflict: "user_id,date,device_id" }
-      );
-
-      if (statsError) {
-        // Fallback: retry without device_id field and use legacy constraint
-        console.warn("[CLI Submit] Today upsert failed, trying fallback:", statsError.message);
-        const { error: fallbackError } = await supabase.from("usage_stats").upsert(
+      // Merge policy: same as the bulk path — never lower a stored total.
+      if ((body.totalTokens || 0) < (prevTokensByDateDevice.get(`${today}|${deviceId}`) ?? 0)) {
+        upsertSucceeded = true;
+        console.log(
+          `[CLI Submit] Kept stored today record with higher total for user ${authenticatedUser.username}`
+        );
+      } else {
+        writtenDayTotals.set(today, body.totalTokens || 0);
+        const { error: statsError } = await supabase.from("usage_stats").upsert(
           {
             user_id: authenticatedUser.id,
             date: today,
@@ -650,19 +689,42 @@ export async function POST(request: NextRequest) {
             cost_usd: computedTodayCost,
             primary_model: overallPrimaryModel,
             submitted_at: new Date().toISOString(),
+            device_id: deviceId,
             submission_source: "cli",
             league_reason: isOpusModel ? "opus" : null,
           },
-          { onConflict: "user_id,date" }
+          { onConflict: "user_id,date,device_id" }
         );
 
-        if (fallbackError) {
-          console.error("[CLI Submit] Fallback today upsert also failed:", fallbackError);
+        if (statsError) {
+          // Fallback: retry without device_id field and use legacy constraint
+          console.warn("[CLI Submit] Today upsert failed, trying fallback:", statsError.message);
+          const { error: fallbackError } = await supabase.from("usage_stats").upsert(
+            {
+              user_id: authenticatedUser.id,
+              date: today,
+              total_tokens: body.totalTokens,
+              input_tokens: body.inputTokens || 0,
+              output_tokens: body.outputTokens || 0,
+              cache_read_tokens: body.cacheReadTokens || 0,
+              cache_write_tokens: body.cacheWriteTokens || 0,
+              cost_usd: computedTodayCost,
+              primary_model: overallPrimaryModel,
+              submitted_at: new Date().toISOString(),
+              submission_source: "cli",
+              league_reason: isOpusModel ? "opus" : null,
+            },
+            { onConflict: "user_id,date" }
+          );
+
+          if (fallbackError) {
+            console.error("[CLI Submit] Fallback today upsert also failed:", fallbackError);
+          } else {
+            upsertSucceeded = true;
+          }
         } else {
           upsertSucceeded = true;
         }
-      } else {
-        upsertSucceeded = true;
       }
     }
 
@@ -672,14 +734,21 @@ export async function POST(request: NextRequest) {
     // device ID. This prevents duplication without risking data loss.
     // ═══════════════════════════════════════════════════════════════════════════
     if (upsertSucceeded && deviceId !== "legacy" && body.dailyUsage && body.dailyUsage.length > 0) {
-      const submittingDates = body.dailyUsage.map((d) => d.date);
+      // Merge policy: only clean legacy rows the just-written row fully covers —
+      // a legacy row holding a higher total must survive.
+      const legacySafeDates = [...writtenDayTotals.entries()]
+        .filter(([date, total]) => total >= (prevTokensByDateDevice.get(`${date}|legacy`) ?? 0))
+        .map(([date]) => date);
 
-      const { error: deleteError, count: deletedCount } = await supabase
-        .from("usage_stats")
-        .delete({ count: "exact" })
-        .eq("user_id", authenticatedUser.id)
-        .eq("device_id", "legacy")
-        .in("date", submittingDates);
+      const { error: deleteError, count: deletedCount } =
+        legacySafeDates.length === 0
+          ? { error: null, count: 0 }
+          : await supabase
+              .from("usage_stats")
+              .delete({ count: "exact" })
+              .eq("user_id", authenticatedUser.id)
+              .eq("device_id", "legacy")
+              .in("date", legacySafeDates);
 
       if (deleteError) {
         console.error("[CLI Submit] Legacy cleanup error:", deleteError);
@@ -698,22 +767,28 @@ export async function POST(request: NextRequest) {
     // Also guards submitted_sessions update with submittingDates to avoid orphaned rows.
     // ═══════════════════════════════════════════════════════════════════════════
     if (upsertSucceeded && staleDeviceInfo && body.dailyUsage && body.dailyUsage.length > 0) {
-      const submittingDates = body.dailyUsage.map((d) => d.date);
-
       console.log(
         `[CLI Submit] Reinstall detected for user ${authenticatedUser.username}: ` +
           `old devices [${staleDeviceInfo.staleDeviceIds.join(",")}] → new device ${deviceId}. ` +
-          `Cleaning ${submittingDates.length} date(s).`
+          `Cleaning up to ${writtenDayTotals.size} date(s).`
       );
 
-      // Delete old device's usage_stats rows for the submitting dates only
+      // Merge policy: a stale-device row is deletable only when the replacement
+      // total is equal or higher — bigger stale rows survive.
       for (const staleId of staleDeviceInfo.staleDeviceIds) {
+        const staleSafeDates = [...writtenDayTotals.entries()]
+          .filter(
+            ([date, total]) => total >= (prevTokensByDateDevice.get(`${date}|${staleId}`) ?? 0)
+          )
+          .map(([date]) => date);
+        if (staleSafeDates.length === 0) continue;
+
         const { error: cleanupError, count: cleanedCount } = await supabase
           .from("usage_stats")
           .delete({ count: "exact" })
           .eq("user_id", authenticatedUser.id)
           .eq("device_id", staleId)
-          .in("date", submittingDates);
+          .in("date", staleSafeDates);
 
         if (cleanupError) {
           console.error(
