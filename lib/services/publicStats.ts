@@ -9,7 +9,7 @@ export interface PublicStats {
   };
   growth: { date: string; signups: number; cumulative: number }[];
   countries: { countryCode: string; users: number; weekSignups: number }[];
-  recentSyncs: { countryCode: string; syncedAt: string }[];
+  recentSyncs: { username: string | null; countryCode: string; syncedAt: string }[];
   models: { family: string; pct: number }[];
   monthRace: {
     username: string;
@@ -54,6 +54,7 @@ interface CountryRaceRow {
 }
 
 interface RecentSyncRow {
+  username?: string | null;
   country_code: string;
   synced_at: string;
 }
@@ -197,6 +198,7 @@ export async function getPublicStats(): Promise<PublicStats> {
       weekSignups: Number(r.week_signups),
     })),
     recentSyncs: ((syncsRes.data as RecentSyncRow[]) ?? []).map((r) => ({
+      username: r.username ?? null,
       countryCode: r.country_code,
       syncedAt: r.synced_at,
     })),

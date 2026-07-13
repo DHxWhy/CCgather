@@ -8,7 +8,6 @@ import { FlagIcon } from "@/components/ui/FlagIcon";
 import { getCountryName } from "@/lib/constants/countries";
 import { GlobeStatsSection } from "@/components/leaderboard/GlobeStatsSection";
 import { TopDevelopers } from "@/components/stats/TopDevelopers";
-import { CopyCommand } from "@/components/stats/CopyCommand";
 import type { PublicStats } from "@/lib/services/publicStats";
 
 const NUM = new Intl.NumberFormat("en-US");
@@ -117,6 +116,7 @@ export function StatsCharts({ stats }: { stats: PublicStats }) {
   const { summary, growth, countries, recentSyncs, models, monthRace, hallOfFame } = stats;
   const maxCountryUsers = countries.length > 0 ? countries[0]!.users : 1;
   const topModel = models[0];
+  const topRacer = monthRace[0];
   const todaySignups = growth.length > 0 ? growth[growth.length - 1]!.signups : 0;
   const cumulativeNow = growth.length > 0 ? growth[growth.length - 1]!.cumulative : 0;
   const cumulative30dAgo = growth.length > 30 ? growth[growth.length - 31]!.cumulative : 0;
@@ -149,22 +149,22 @@ export function StatsCharts({ stats }: { stats: PublicStats }) {
     >
       <motion.div
         variants={reducedMotion ? undefined : staggerParent}
-        className="grid grid-cols-2 gap-3 lg:grid-cols-4"
+        className="grid grid-cols-2 gap-2.5 lg:grid-cols-4"
       >
         <motion.div
           variants={reducedMotion ? undefined : riseIn}
-          className={`${CARD} col-span-2 border-[var(--stats-chart-1)]/40 lg:col-span-1`}
+          className={`${CARD} col-span-2 !p-3 border-[var(--stats-chart-1)]/40 lg:col-span-1`}
         >
           <div className="flex items-center justify-between gap-2">
-            <span className="whitespace-nowrap text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--color-text-muted)]">
+            <span className="whitespace-nowrap text-[9px] font-semibold uppercase tracking-[0.14em] text-[var(--color-text-muted)]">
               Developers
             </span>
             <ScopeChip>All time</ScopeChip>
           </div>
-          <div className="mt-1 font-mono text-3xl font-bold tabular-nums text-[var(--stats-chart-1)]">
+          <div className="font-mono text-2xl font-bold tabular-nums text-[var(--stats-chart-1)]">
             <CountUp value={summary.totalUsers} />
           </div>
-          <div className="text-[11px] font-medium text-[var(--stats-chart-3)]">{heroDelta}</div>
+          <div className="text-[10px] font-medium text-[var(--stats-chart-3)]">{heroDelta}</div>
         </motion.div>
 
         {[
@@ -190,18 +190,18 @@ export function StatsCharts({ stats }: { stats: PublicStats }) {
           <motion.div
             key={card.label}
             variants={reducedMotion ? undefined : riseIn}
-            className={CARD}
+            className={`${CARD} !p-3`}
           >
             <div className="flex items-center justify-between gap-2">
-              <span className="truncate whitespace-nowrap text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--color-text-muted)]">
+              <span className="truncate whitespace-nowrap text-[9px] font-semibold uppercase tracking-[0.14em] text-[var(--color-text-muted)]">
                 {card.label}
               </span>
               <ScopeChip>{card.scope}</ScopeChip>
             </div>
-            <div className="mt-1 font-mono text-xl font-bold tabular-nums text-[var(--color-text-primary)]">
+            <div className="font-mono text-lg font-bold tabular-nums text-[var(--color-text-primary)]">
               {card.value}
             </div>
-            <div className="truncate text-[11px] text-[var(--color-text-muted)]">
+            <div className="truncate text-[10px] text-[var(--color-text-muted)]">
               {card.caption}
             </div>
           </motion.div>
@@ -211,10 +211,17 @@ export function StatsCharts({ stats }: { stats: PublicStats }) {
       <div className="grid gap-4 lg:grid-cols-3">
         <motion.section
           variants={reducedMotion ? undefined : riseIn}
-          className={`${CARD} flex flex-col`}
+          className={`${CARD} flex flex-col lg:row-span-2`}
         >
-          <SectionTitle title="Around the world" caption={`${summary.totalCountries} countries`} />
-          <div className="flex flex-1 items-center justify-center">
+          <SectionTitle
+            title="Around the world"
+            caption={
+              <span className="text-xs text-[var(--color-text-secondary)]">
+                <span className="text-[var(--stats-chart-3)]">▲ new this week</span>
+              </span>
+            }
+          />
+          <div className="flex items-center justify-center py-1">
             <GlobeStatsSection
               size="default"
               hideStats
@@ -223,16 +230,53 @@ export function StatsCharts({ stats }: { stats: PublicStats }) {
               scopeFilter="global"
             />
           </div>
+          <ol className="mt-2 space-y-1">
+            {countries.map((c, i) => (
+              <li key={c.countryCode}>
+                <Link
+                  href="/leaderboard"
+                  className="-mx-2 flex items-center gap-2.5 rounded-md px-2 py-0.5 transition-colors hover:bg-[var(--color-bg-card-hover)]"
+                >
+                  <span className="w-4 text-right font-mono text-xs tabular-nums text-[var(--color-text-muted)]">
+                    {i + 1}
+                  </span>
+                  <FlagIcon countryCode={c.countryCode} size="xs" />
+                  <span
+                    title={getCountryName(c.countryCode)}
+                    className="w-24 truncate text-sm text-[var(--color-text-primary)]"
+                  >
+                    {getCountryName(c.countryCode)}
+                  </span>
+                  <div
+                    aria-hidden
+                    className="h-1.5 flex-1 overflow-hidden rounded-full bg-[var(--color-bg-elevated)]"
+                  >
+                    <div
+                      className="h-full rounded-full"
+                      style={{
+                        width: `${Math.max((c.users / maxCountryUsers) * 100, 4)}%`,
+                        backgroundColor: "var(--stats-chart-1)",
+                        opacity: Math.max(1 - i * 0.03, 0.75),
+                      }}
+                    />
+                  </div>
+                  <span className="w-7 text-right font-mono text-sm font-medium tabular-nums text-[var(--color-text-secondary)]">
+                    {NUM.format(c.users)}
+                  </span>
+                  <span className="w-9 text-right font-mono text-[10px] font-medium tabular-nums text-[var(--stats-chart-3)]">
+                    {c.weekSignups > 0 ? `▲ +${c.weekSignups}` : ""}
+                  </span>
+                </Link>
+              </li>
+            ))}
+          </ol>
         </motion.section>
 
         <motion.section variants={reducedMotion ? undefined : riseIn} className={CARD}>
           <SectionTitle
             title="This month's race"
             caption={
-              <span className="text-xs text-[var(--color-text-secondary)]">
-                resets in <span className="font-mono tabular-nums">{daysToReset}d</span> ·{" "}
-                {leaderboardLink}
-              </span>
+              <span className="text-xs text-[var(--color-text-secondary)]">{leaderboardLink}</span>
             }
           />
           <TopDevelopers devs={monthRace} />
@@ -311,168 +355,156 @@ export function StatsCharts({ stats }: { stats: PublicStats }) {
             Share of tokens processed — not share of developers.
           </p>
         </motion.section>
-      </div>
 
-      <motion.section variants={reducedMotion ? undefined : riseIn} className={CARD}>
-        <SectionTitle
-          title="Country race"
-          caption={
-            <span className="text-xs text-[var(--color-text-secondary)]">
-              <span className="text-[var(--stats-chart-3)]">▲ new this week</span> ·{" "}
-              {leaderboardLink}
-            </span>
-          }
-        />
-        <ol className="grid gap-x-10 gap-y-2 sm:grid-cols-2">
-          {countries.map((c, i) => (
-            <li key={c.countryCode}>
-              <Link
-                href="/leaderboard"
-                className="-mx-2 flex items-center gap-2.5 rounded-md px-2 py-0.5 transition-colors hover:bg-[var(--color-bg-card-hover)]"
-              >
-                <span className="w-4 text-right font-mono text-xs tabular-nums text-[var(--color-text-muted)]">
-                  {i + 1}
-                </span>
-                <FlagIcon countryCode={c.countryCode} size="xs" />
-                <span
-                  title={getCountryName(c.countryCode)}
-                  className="w-24 truncate text-sm text-[var(--color-text-primary)]"
-                >
-                  {getCountryName(c.countryCode)}
-                </span>
-                <div
-                  aria-hidden
-                  className="h-1.5 flex-1 overflow-hidden rounded-full bg-[var(--color-bg-elevated)]"
-                >
-                  <div
-                    className="h-full rounded-full"
-                    style={{
-                      width: `${Math.max((c.users / maxCountryUsers) * 100, 4)}%`,
-                      backgroundColor: "var(--stats-chart-1)",
-                      opacity: Math.max(1 - i * 0.03, 0.75),
-                    }}
-                  />
-                </div>
-                <span className="w-8 text-right font-mono text-sm font-medium tabular-nums text-[var(--color-text-secondary)]">
-                  {NUM.format(c.users)}
-                </span>
-                <span className="w-10 text-right font-mono text-[10px] font-medium tabular-nums text-[var(--stats-chart-3)]">
-                  {c.weekSignups > 0 ? `▲ +${c.weekSignups}` : ""}
-                </span>
-              </Link>
-            </li>
-          ))}
-        </ol>
-      </motion.section>
-
-      {hallOfFame.length > 0 && (
-        <motion.section variants={reducedMotion ? undefined : riseIn} className={CARD}>
-          <SectionTitle title="Hall of Fame" caption="monthly champions, inscribed forever" />
-          <div className="space-y-5">
-            {hallOfFame.map((entry) => (
-              <div key={entry.month}>
-                <div className="mb-2 flex items-baseline justify-between">
-                  <span className="font-mono text-sm font-semibold text-[var(--color-text-primary)]">
-                    {new Date(`${entry.month}T00:00:00Z`).toLocaleDateString("en-US", {
-                      month: "long",
-                      year: "numeric",
-                      timeZone: "UTC",
-                    })}
-                  </span>
-                  {entry.topCountry && (
-                    <span className="flex items-center gap-1.5 text-xs text-[var(--color-text-secondary)]">
-                      Country champion{" "}
-                      <FlagIcon countryCode={entry.topCountry.countryCode} size="xs" />
+        {hallOfFame.length > 0 ? (
+          <motion.section
+            variants={reducedMotion ? undefined : riseIn}
+            className={`${CARD} lg:col-span-2`}
+          >
+            <SectionTitle title="Hall of Fame" caption="monthly champions, inscribed forever" />
+            <div className="space-y-5">
+              {hallOfFame.map((entry) => (
+                <div key={entry.month}>
+                  <div className="mb-2 flex items-baseline justify-between">
+                    <span className="font-mono text-sm font-semibold text-[var(--color-text-primary)]">
+                      {new Date(`${entry.month}T00:00:00Z`).toLocaleDateString("en-US", {
+                        month: "long",
+                        year: "numeric",
+                        timeZone: "UTC",
+                      })}
                     </span>
-                  )}
-                </div>
-                <div className="grid gap-3 sm:grid-cols-3">
-                  {entry.users.map((u) => (
-                    <Link
-                      key={u.rank}
-                      href={`/leaderboard?u=${encodeURIComponent(u.username)}`}
-                      className={`flex items-center gap-3 rounded-xl border p-3 transition-colors hover:bg-[var(--color-bg-card-hover)] ${
-                        u.rank === 1
-                          ? "border-[var(--stats-chart-1)]/60 bg-[var(--color-bg-elevated)]/60"
-                          : "border-[var(--border-default)] bg-[var(--color-bg-elevated)]/40"
-                      }`}
-                    >
-                      <span className="text-lg">
-                        {u.rank === 1 ? "🥇" : u.rank === 2 ? "🥈" : "🥉"}
+                    {entry.topCountry && (
+                      <span className="flex items-center gap-1.5 text-xs text-[var(--color-text-secondary)]">
+                        Country champion{" "}
+                        <FlagIcon countryCode={entry.topCountry.countryCode} size="xs" />
                       </span>
-                      {u.avatarUrl ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img
-                          src={u.avatarUrl}
-                          alt=""
-                          width={36}
-                          height={36}
-                          className="h-9 w-9 shrink-0 rounded-full border border-[var(--border-default)] object-cover"
-                        />
-                      ) : (
-                        <div className="h-9 w-9 shrink-0 rounded-full bg-[var(--color-bg-elevated)]" />
-                      )}
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-1.5">
-                          <span className="truncate text-sm font-semibold text-[var(--color-text-primary)]">
-                            {u.displayName || u.username}
-                          </span>
-                          {u.countryCode && <FlagIcon countryCode={u.countryCode} size="xs" />}
+                    )}
+                  </div>
+                  <div className="grid gap-3 sm:grid-cols-3">
+                    {entry.users.map((u) => (
+                      <Link
+                        key={u.rank}
+                        href={`/leaderboard?u=${encodeURIComponent(u.username)}`}
+                        className={`flex items-center gap-3 rounded-xl border p-3 transition-colors hover:bg-[var(--color-bg-card-hover)] ${
+                          u.rank === 1
+                            ? "border-[var(--stats-chart-1)]/60 bg-[var(--color-bg-elevated)]/60"
+                            : "border-[var(--border-default)] bg-[var(--color-bg-elevated)]/40"
+                        }`}
+                      >
+                        <span className="text-lg">
+                          {u.rank === 1 ? "🥇" : u.rank === 2 ? "🥈" : "🥉"}
+                        </span>
+                        {u.avatarUrl ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={u.avatarUrl}
+                            alt=""
+                            width={36}
+                            height={36}
+                            className="h-9 w-9 shrink-0 rounded-full border border-[var(--border-default)] object-cover"
+                          />
+                        ) : (
+                          <div className="h-9 w-9 shrink-0 rounded-full bg-[var(--color-bg-elevated)]" />
+                        )}
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-1.5">
+                            <span className="truncate text-sm font-semibold text-[var(--color-text-primary)]">
+                              {u.displayName || u.username}
+                            </span>
+                            {u.countryCode && <FlagIcon countryCode={u.countryCode} size="xs" />}
+                          </div>
+                          <div className="font-mono text-xs tabular-nums text-[var(--stats-chart-1)]">
+                            {formatCompact(u.tokens)} tokens
+                          </div>
                         </div>
-                        <div className="font-mono text-xs tabular-nums text-[var(--stats-chart-1)]">
-                          {formatCompact(u.tokens)} tokens
-                        </div>
-                      </div>
-                    </Link>
-                  ))}
+                      </Link>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </motion.section>
+        ) : (
+          <motion.section
+            variants={reducedMotion ? undefined : riseIn}
+            className={`${CARD} border-[var(--stats-chart-1)]/40 lg:col-span-2`}
+          >
+            <div className="flex flex-col items-center gap-4 sm:flex-row sm:justify-between">
+              <div className="flex items-center gap-4">
+                <span aria-hidden className="text-4xl">
+                  🏆
+                </span>
+                <div>
+                  <div className="text-base font-bold text-[var(--color-text-primary)]">
+                    Season 1 — July 2026
+                  </div>
+                  <p className="text-xs text-[var(--color-text-secondary)]">
+                    Top 3 developers and the country champion will be inscribed in the Hall of Fame,
+                    forever.
+                  </p>
                 </div>
               </div>
+              <div className="flex items-center gap-5">
+                {topRacer && (
+                  <div className="text-right">
+                    <div className="text-[9px] uppercase tracking-widest text-[var(--color-text-muted)]">
+                      Current leader
+                    </div>
+                    <div className="flex items-center gap-1.5 text-sm font-semibold text-[var(--color-text-primary)]">
+                      {topRacer.displayName || topRacer.username}
+                      {topRacer.countryCode && (
+                        <FlagIcon countryCode={topRacer.countryCode} size="xs" />
+                      )}
+                      <span className="font-mono text-xs tabular-nums text-[var(--stats-chart-1)]">
+                        {formatCompact(topRacer.tokens)}
+                      </span>
+                    </div>
+                  </div>
+                )}
+                <div className="text-center">
+                  <div className="font-mono text-3xl font-bold tabular-nums text-[var(--stats-chart-1)]">
+                    {daysToReset}d
+                  </div>
+                  <div className="text-[9px] uppercase tracking-widest text-[var(--color-text-muted)]">
+                    until inscribed
+                  </div>
+                </div>
+              </div>
+            </div>
+          </motion.section>
+        )}
+      </div>
+
+      {recentSyncs.length > 0 && (
+        <motion.section variants={reducedMotion ? undefined : riseIn} className={`${CARD} py-3`}>
+          <ul className="flex flex-wrap items-center gap-x-5 gap-y-1.5">
+            <li className="text-[10px] uppercase tracking-widest text-[var(--color-text-muted)]">
+              Live syncs
+            </li>
+            {recentSyncs.slice(0, 8).map((s, i) => (
+              <li key={`${s.countryCode}-${i}`}>
+                {s.username ? (
+                  <Link
+                    href={`/leaderboard?u=${encodeURIComponent(s.username)}`}
+                    className="flex items-center gap-1.5 text-xs text-[var(--color-text-secondary)] transition-colors hover:text-[var(--stats-chart-1)]"
+                  >
+                    <FlagIcon countryCode={s.countryCode} size="xs" />
+                    <span className="font-medium">@{s.username}</span>
+                    <span className="font-mono tabular-nums text-[var(--color-text-muted)]">
+                      {timeAgo(s.syncedAt)}
+                    </span>
+                  </Link>
+                ) : (
+                  <span className="flex items-center gap-1.5 text-xs text-[var(--color-text-secondary)]">
+                    <FlagIcon countryCode={s.countryCode} size="xs" />
+                    <span className="font-mono tabular-nums">{timeAgo(s.syncedAt)}</span>
+                  </span>
+                )}
+              </li>
             ))}
-          </div>
+          </ul>
         </motion.section>
       )}
-
-      <motion.section variants={reducedMotion ? undefined : riseIn} className={`${CARD} py-3`}>
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-          {hallOfFame.length === 0 && (
-            <span className="flex items-center gap-2 text-xs text-[var(--color-text-secondary)]">
-              <span aria-hidden>🏆</span>
-              <span>
-                <span className="font-semibold text-[var(--color-text-primary)]">Season 1</span> ·
-                first champions inscribed in{" "}
-                <span className="font-mono font-semibold tabular-nums text-[var(--stats-chart-1)]">
-                  {daysToReset}d
-                </span>
-              </span>
-            </span>
-          )}
-          {recentSyncs.length > 0 && (
-            <ul className="flex flex-wrap items-center gap-x-4 gap-y-1">
-              <li className="text-[10px] uppercase tracking-widest text-[var(--color-text-muted)]">
-                Live syncs
-              </li>
-              {recentSyncs.slice(0, 6).map((s, i) => (
-                <li
-                  key={`${s.countryCode}-${i}`}
-                  className="flex items-center gap-1.5 text-xs text-[var(--color-text-secondary)]"
-                >
-                  <FlagIcon countryCode={s.countryCode} size="xs" />
-                  <span className="font-mono tabular-nums">{timeAgo(s.syncedAt)}</span>
-                </li>
-              ))}
-            </ul>
-          )}
-          <div className="flex items-center gap-2">
-            <CopyCommand command="npx ccgather" />
-            <Link
-              href="/leaderboard"
-              className="whitespace-nowrap rounded-lg bg-[var(--stats-chart-1)] px-3 py-2 text-sm font-semibold text-[var(--color-bg-primary)] transition-opacity hover:opacity-90"
-            >
-              Join the leaderboard →
-            </Link>
-          </div>
-        </div>
-      </motion.section>
     </motion.div>
   );
 }
