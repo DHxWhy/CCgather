@@ -365,11 +365,10 @@ export function Globe({
   const overlayMarkers = overlayDots
     ? markers.filter((m) => COUNTRY_COORDINATES[m.code.toUpperCase()])
     : [];
-  const flagTopCodes = new Set(
+  const flagRankByCode = new Map(
     [...overlayMarkers]
       .sort((a, b) => b.tokens - a.tokens)
-      .slice(0, 5)
-      .map((m) => m.code.toUpperCase())
+      .map((m, rank) => [m.code.toUpperCase(), rank])
   );
 
   const updateOverlayDots = useCallback(
@@ -561,43 +560,31 @@ export function Globe({
 
       {overlayDots &&
         overlayMarkers.map((m, i) => {
-          const isTopCountry = flagTopCodes.has(m.code.toUpperCase());
-          const dotSize = Math.max(7, Math.min(13, 7 + (m.tokens / maxTokens) * 6));
+          const rank = flagRankByCode.get(m.code.toUpperCase()) ?? 99;
+          const flagSize = rank === 0 ? "md" : rank < 5 ? "sm" : "xs";
+          const isTopCountry = rank < 5;
           return (
             <div
               key={m.code}
               ref={(el) => {
                 overlayDotRefs.current[i] = el;
               }}
-              className={`absolute pointer-events-none ${isTopCountry ? "" : "animate-pulse-glow"}`}
-              style={
-                isTopCountry
-                  ? {
-                      left: -100,
-                      top: -100,
-                      transform: "translate(-50%, -50%)",
-                      transition: "opacity 0.3s",
-                      borderRadius: "3px",
-                      overflow: "hidden",
-                      lineHeight: 0,
-                      boxShadow:
-                        "0 0 0 1.5px rgba(16, 185, 129, 0.9), 0 0 8px #10b981, 0 0 14px rgba(16, 185, 129, 0.5)",
-                    }
-                  : {
-                      left: -100,
-                      top: -100,
-                      width: dotSize,
-                      height: dotSize,
-                      borderRadius: "50%",
-                      backgroundColor: "#10b981",
-                      boxShadow:
-                        "0 0 4px rgba(255,255,255,0.65), 0 0 8px #10b981, 0 0 16px rgba(16, 185, 129, 0.6)",
-                      transform: "translate(-50%, -50%)",
-                      transition: "opacity 0.3s",
-                    }
-              }
+              className="absolute pointer-events-none"
+              style={{
+                left: -100,
+                top: -100,
+                transform: "translate(-50%, -50%)",
+                transition: "opacity 0.3s",
+                borderRadius: "3px",
+                overflow: "hidden",
+                lineHeight: 0,
+                zIndex: isTopCountry ? 2 : 1,
+                boxShadow: isTopCountry
+                  ? "0 0 0 1.5px rgba(16, 185, 129, 0.9), 0 0 8px #10b981, 0 0 14px rgba(16, 185, 129, 0.5)"
+                  : "0 0 0 1px rgba(16, 185, 129, 0.7), 0 0 6px rgba(16, 185, 129, 0.5)",
+              }}
             >
-              {isTopCountry && <FlagIcon countryCode={m.code} size="xs" />}
+              <FlagIcon countryCode={m.code} size={flagSize} />
             </div>
           );
         })}
