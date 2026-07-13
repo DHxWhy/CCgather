@@ -41,6 +41,12 @@
   --color-claude-sand: #f5e6d3;
   --color-claude-cream: #fff8f0;
 
+  /* Stats chart series — shadcn --chart-* 와 충돌 방지 위해 별도 네임스페이스, light 블록에서 재정의 */
+  --stats-chart-1: #da7756;
+  --stats-chart-2: #8b5cf6;
+  --stats-chart-3: #10b981;
+  --stats-chart-4: #71717a;
+
   /* Primary (Claude 기반) */
   --color-primary: #da7756;
   --color-primary-light: #e8a087;
@@ -222,6 +228,12 @@
   --color-text-secondary: #52525b;
   --color-text-muted: #71717a;
   --color-text-disabled: #a1a1aa;
+
+  /* Stats chart series - Light (베이지 카드 위 3:1 대비 확보) */
+  --stats-chart-1: #b85c3d;
+  --stats-chart-2: #6d28d9;
+  --stats-chart-3: #047857;
+  --stats-chart-4: #52525b;
 
   /* Borders - Light (visible gray lines) */
   --border-default: rgba(0, 0, 0, 0.18);

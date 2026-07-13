@@ -35,6 +35,9 @@ export function Footer() {
             <Link href="/leaderboard" className="hover:text-text-primary transition-colors">
               Leaderboard
             </Link>
+            <Link href="/stats" className="hover:text-text-primary transition-colors">
+              Stats
+            </Link>
             <Link href="/privacy" className="hover:text-text-primary transition-colors">
               Privacy
             </Link>

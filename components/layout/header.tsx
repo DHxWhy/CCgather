@@ -31,7 +31,10 @@ const FeedbackModal = lazy(() =>
 // Navigation Links
 // ============================================
 
-const navLinks = [{ href: "/leaderboard", label: "Leaderboard" }];
+const navLinks = [
+  { href: "/leaderboard", label: "Leaderboard" },
+  { href: "/stats", label: "Stats" },
+];
 
 // ============================================
 // NavLink Component
