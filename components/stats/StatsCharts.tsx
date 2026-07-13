@@ -13,6 +13,7 @@ import {
   Pie,
   Cell,
 } from "recharts";
+import Link from "next/link";
 import { FlagIcon } from "@/components/ui/FlagIcon";
 import { getCountryName } from "@/lib/constants/countries";
 import type { PublicStats } from "@/lib/services/publicStats";
@@ -61,7 +62,7 @@ const riseIn = {
 };
 
 const CARD =
-  "rounded-xl border border-[var(--border-default)] bg-[var(--color-bg-card)] p-5 shadow-[var(--shadow-sm)]";
+  "rounded-xl border border-[var(--border-default)] bg-[var(--color-bg-card)] p-5 shadow-[var(--shadow-sm)] transition-[border-color,box-shadow] duration-200 hover:border-[var(--border-hover)] hover:shadow-[var(--shadow-md)]";
 
 const tooltipStyle = {
   backgroundColor: "var(--color-bg-elevated)",
@@ -83,7 +84,7 @@ function ScopeChip({ children }: { children: React.ReactNode }) {
   );
 }
 
-function SectionTitle({ title, caption }: { title: string; caption?: string }) {
+function SectionTitle({ title, caption }: { title: string; caption?: React.ReactNode }) {
   return (
     <div className="mb-4 flex flex-wrap items-baseline justify-between gap-1">
       <h2 className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--color-text-muted)]">
@@ -180,6 +181,9 @@ export function StatsCharts({ stats }: { stats: PublicStats }) {
   const maxCountryUsers = countries.length > 0 ? countries[0]!.users : 1;
   const topModel = models[0];
   const todaySignups = growth.length > 0 ? growth[growth.length - 1]!.signups : 0;
+  const cumulativeNow = growth.length > 0 ? growth[growth.length - 1]!.cumulative : 0;
+  const cumulative30dAgo = growth.length > 30 ? growth[growth.length - 31]!.cumulative : 0;
+  const delta30 = Math.max(cumulativeNow - cumulative30dAgo, 0);
   const weekSignups = growth.slice(-7).reduce((a, g) => a + g.signups, 0);
   const heroDelta =
     todaySignups > 0
@@ -263,7 +267,10 @@ export function StatsCharts({ stats }: { stats: PublicStats }) {
       </motion.div>
 
       <motion.section variants={reducedMotion ? undefined : riseIn} className={CARD}>
-        <SectionTitle title="Community growth" caption="cumulative developers" />
+        <SectionTitle
+          title="Community growth"
+          caption={`+${NUM.format(delta30)} developers in 30 days`}
+        />
         <p className="sr-only">{growthSummary}</p>
         <TrendArea
           data={growth}
@@ -279,36 +286,51 @@ export function StatsCharts({ stats }: { stats: PublicStats }) {
 
       <div className="grid gap-6 lg:grid-cols-2">
         <motion.section variants={reducedMotion ? undefined : riseIn} className={CARD}>
-          <SectionTitle title="Top countries" caption="developers per country" />
+          <SectionTitle
+            title="Top countries"
+            caption={
+              <Link
+                href="/leaderboard"
+                className="text-xs text-[var(--color-text-secondary)] transition-colors hover:text-[var(--stats-chart-1)]"
+              >
+                full leaderboard →
+              </Link>
+            }
+          />
           <ol className="space-y-3">
             {countries.map((c, i) => (
-              <li key={c.countryCode} className="flex items-center gap-3">
-                <span className="w-5 text-right font-mono text-xs tabular-nums text-[var(--color-text-muted)]">
-                  {i + 1}
-                </span>
-                <FlagIcon countryCode={c.countryCode} size="sm" />
-                <span
-                  title={getCountryName(c.countryCode)}
-                  className="w-28 truncate text-sm text-[var(--color-text-primary)]"
+              <li key={c.countryCode}>
+                <Link
+                  href="/leaderboard"
+                  className="-mx-2 flex items-center gap-3 rounded-md px-2 py-0.5 transition-colors hover:bg-[var(--color-bg-card-hover)]"
                 >
-                  {getCountryName(c.countryCode)}
-                </span>
-                <div
-                  aria-hidden
-                  className="h-2 flex-1 overflow-hidden rounded-full bg-[var(--color-bg-elevated)]"
-                >
+                  <span className="w-5 text-right font-mono text-xs tabular-nums text-[var(--color-text-muted)]">
+                    {i + 1}
+                  </span>
+                  <FlagIcon countryCode={c.countryCode} size="sm" />
+                  <span
+                    title={getCountryName(c.countryCode)}
+                    className="w-32 truncate text-sm text-[var(--color-text-primary)]"
+                  >
+                    {getCountryName(c.countryCode)}
+                  </span>
                   <div
-                    className="h-full rounded-full"
-                    style={{
-                      width: `${Math.max((c.users / maxCountryUsers) * 100, 4)}%`,
-                      backgroundColor: "var(--stats-chart-1)",
-                      opacity: Math.max(1 - i * 0.03, 0.75),
-                    }}
-                  />
-                </div>
-                <span className="w-10 text-right font-mono text-sm font-medium tabular-nums text-[var(--color-text-secondary)]">
-                  {NUM.format(c.users)}
-                </span>
+                    aria-hidden
+                    className="h-2 flex-1 overflow-hidden rounded-full bg-[var(--color-bg-elevated)]"
+                  >
+                    <div
+                      className="h-full rounded-full"
+                      style={{
+                        width: `${Math.max((c.users / maxCountryUsers) * 100, 4)}%`,
+                        backgroundColor: "var(--stats-chart-1)",
+                        opacity: Math.max(1 - i * 0.03, 0.75),
+                      }}
+                    />
+                  </div>
+                  <span className="w-10 text-right font-mono text-sm font-medium tabular-nums text-[var(--color-text-secondary)]">
+                    {NUM.format(c.users)}
+                  </span>
+                </Link>
               </li>
             ))}
           </ol>
