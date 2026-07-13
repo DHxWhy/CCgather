@@ -63,7 +63,7 @@ const tooltipStyle = {
 export function StatsCharts({ stats }: { stats: PublicStats }) {
   const { summary, growth, countries, visitors, models } = stats;
   const maxCountryUsers = countries.length > 0 ? countries[0]!.users : 1;
-  const modelTotal = models.reduce((a, m) => a + m.totalTokens, 0);
+  const modelTotal = models.reduce((a, m) => a + m.pct, 0);
 
   return (
     <div className="space-y-6">
@@ -157,7 +157,7 @@ export function StatsCharts({ stats }: { stats: PublicStats }) {
           </ul>
         </Section>
 
-        <Section title="Model usage · tokens">
+        <Section title="Model usage">
           {modelTotal > 0 ? (
             <div className="space-y-4">
               <div className="flex h-3 w-full overflow-hidden rounded-full bg-[var(--color-bg-elevated)]">
@@ -179,9 +179,7 @@ export function StatsCharts({ stats }: { stats: PublicStats }) {
                       style={{ backgroundColor: MODEL_COLORS[m.family] ?? MODEL_COLORS.Other }}
                     />
                     <span className="text-[var(--color-text-primary)]">{m.family}</span>
-                    <span className="ml-auto text-[var(--color-text-secondary)]">
-                      {formatCompact(m.totalTokens)} · {m.pct}%
-                    </span>
+                    <span className="ml-auto text-[var(--color-text-secondary)]">{m.pct}%</span>
                   </li>
                 ))}
               </ul>
