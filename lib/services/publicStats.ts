@@ -19,6 +19,7 @@ export interface PublicStats {
     currentLevel: number;
     tokens: number;
   }[];
+  monthCountryRace: { countryCode: string; tokens: number; users: number }[];
   hallOfFame: {
     month: string;
     users: {
@@ -66,6 +67,12 @@ interface MonthRaceRow {
   country_code: string | null;
   current_level: number;
   tokens: number;
+}
+
+interface MonthCountryRow {
+  country_code: string;
+  tokens: number;
+  users: number;
 }
 
 interface HofUserRow {
@@ -138,6 +145,7 @@ export async function getPublicStats(): Promise<PublicStats> {
     syncsRes,
     modelsRes,
     monthRaceRes,
+    monthCountryRes,
     hofUsersRes,
     hofCountriesRes,
   ] = await Promise.all([
@@ -147,6 +155,7 @@ export async function getPublicStats(): Promise<PublicStats> {
     sb.rpc("get_recent_syncs"),
     sb.rpc("get_model_distribution"),
     sb.rpc("get_month_race"),
+    sb.rpc("get_month_country_race"),
     sb
       .from("monthly_hall_of_fame")
       .select("month, rank, username, display_name, avatar_url, country_code, tokens")
@@ -167,6 +176,7 @@ export async function getPublicStats(): Promise<PublicStats> {
       ["syncs", syncsRes],
       ["models", modelsRes],
       ["monthRace", monthRaceRes],
+      ["monthCountry", monthCountryRes],
       ["hofUsers", hofUsersRes],
       ["hofCountries", hofCountriesRes],
     ] as const
@@ -213,6 +223,11 @@ export async function getPublicStats(): Promise<PublicStats> {
       countryCode: r.country_code,
       currentLevel: Number(r.current_level),
       tokens: Number(r.tokens),
+    })),
+    monthCountryRace: ((monthCountryRes.data as MonthCountryRow[]) ?? []).map((r) => ({
+      countryCode: r.country_code,
+      tokens: Number(r.tokens),
+      users: Number(r.users),
     })),
     hallOfFame: buildHallOfFame(
       (hofUsersRes.data as HofUserRow[]) ?? [],

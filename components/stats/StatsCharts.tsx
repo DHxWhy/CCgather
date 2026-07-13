@@ -113,10 +113,24 @@ function SectionTitle({ title, caption }: { title: string; caption?: React.React
 
 export function StatsCharts({ stats }: { stats: PublicStats }) {
   const reducedMotion = useReducedMotion() ?? false;
-  const { summary, growth, countries, recentSyncs, models, monthRace, hallOfFame } = stats;
+  const {
+    summary,
+    growth,
+    countries,
+    recentSyncs,
+    models,
+    monthRace,
+    monthCountryRace,
+    hallOfFame,
+  } = stats;
   const maxCountryUsers = countries.length > 0 ? countries[0]!.users : 1;
   const topModel = models[0];
   const topRacer = monthRace[0];
+  const runnerUp = monthRace[1];
+  const userGap = topRacer && runnerUp ? topRacer.tokens - runnerUp.tokens : 0;
+  const topCountry = monthCountryRace[0];
+  const runnerCountry = monthCountryRace[1];
+  const countryGap = topCountry && runnerCountry ? topCountry.tokens - runnerCountry.tokens : 0;
   const todaySignups = growth.length > 0 ? growth[growth.length - 1]!.signups : 0;
   const cumulativeNow = growth.length > 0 ? growth[growth.length - 1]!.cumulative : 0;
   const cumulative30dAgo = growth.length > 30 ? growth[growth.length - 31]!.cumulative : 0;
@@ -429,9 +443,9 @@ export function StatsCharts({ stats }: { stats: PublicStats }) {
             variants={reducedMotion ? undefined : riseIn}
             className={`${CARD} border-[var(--stats-chart-1)]/40 lg:col-span-2`}
           >
-            <div className="flex flex-col items-center gap-4 sm:flex-row sm:justify-between">
-              <div className="flex items-center gap-4">
-                <span aria-hidden className="text-4xl">
+            <div className="flex items-start justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <span aria-hidden className="text-3xl">
                   🏆
                 </span>
                 <div>
@@ -439,37 +453,93 @@ export function StatsCharts({ stats }: { stats: PublicStats }) {
                     Season 1 — July 2026
                   </div>
                   <p className="text-xs text-[var(--color-text-secondary)]">
-                    Top 3 developers and the country champion will be inscribed in the Hall of Fame,
-                    forever.
+                    Top 3 developers and the country champion get a permanent Hall of Fame badge.
                   </p>
                 </div>
               </div>
-              <div className="flex items-center gap-5">
-                {topRacer && (
-                  <div className="text-right">
-                    <div className="text-[9px] uppercase tracking-widest text-[var(--color-text-muted)]">
-                      Current leader
-                    </div>
-                    <div className="flex items-center gap-1.5 text-sm font-semibold text-[var(--color-text-primary)]">
-                      {topRacer.displayName || topRacer.username}
-                      {topRacer.countryCode && (
-                        <FlagIcon countryCode={topRacer.countryCode} size="xs" />
-                      )}
-                      <span className="font-mono text-xs tabular-nums text-[var(--stats-chart-1)]">
-                        {formatCompact(topRacer.tokens)}
-                      </span>
-                    </div>
-                  </div>
-                )}
-                <div className="text-center">
-                  <div className="font-mono text-3xl font-bold tabular-nums text-[var(--stats-chart-1)]">
-                    {daysToReset}d
-                  </div>
-                  <div className="text-[9px] uppercase tracking-widest text-[var(--color-text-muted)]">
-                    until inscribed
-                  </div>
+              <div className="shrink-0 text-center">
+                <div className="font-mono text-3xl font-bold tabular-nums leading-none text-[var(--stats-chart-1)]">
+                  {daysToReset}d
+                </div>
+                <div className="mt-1 text-[9px] uppercase tracking-widest text-[var(--color-text-muted)]">
+                  until inscribed
                 </div>
               </div>
+            </div>
+
+            <div className="mt-4 grid gap-3 sm:grid-cols-2">
+              {topRacer && (
+                <Link
+                  href={`/leaderboard?u=${encodeURIComponent(topRacer.username)}`}
+                  className="rounded-lg border border-[var(--border-default)] bg-[var(--color-bg-elevated)]/40 p-3 transition-colors hover:bg-[var(--color-bg-card-hover)]"
+                >
+                  <div className="text-[9px] uppercase tracking-widest text-[var(--color-text-muted)]">
+                    Developer champion
+                  </div>
+                  <div className="mt-1 flex items-center gap-2">
+                    {topRacer.avatarUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={topRacer.avatarUrl}
+                        alt=""
+                        width={28}
+                        height={28}
+                        className="h-7 w-7 shrink-0 rounded-full border border-[var(--border-default)] object-cover"
+                      />
+                    ) : null}
+                    <span className="truncate text-sm font-semibold text-[var(--color-text-primary)]">
+                      {topRacer.displayName || topRacer.username}
+                    </span>
+                    {topRacer.countryCode && (
+                      <FlagIcon countryCode={topRacer.countryCode} size="xs" />
+                    )}
+                    <span className="ml-auto font-mono text-sm font-bold tabular-nums text-[var(--stats-chart-1)]">
+                      {formatCompact(topRacer.tokens)}
+                    </span>
+                  </div>
+                  {runnerUp && (
+                    <div className="mt-1.5 text-[11px] text-[var(--color-text-muted)]">
+                      leads @{runnerUp.username} by{" "}
+                      <span className="font-mono font-semibold tabular-nums text-[var(--stats-chart-3)]">
+                        {formatCompact(userGap)}
+                      </span>
+                    </div>
+                  )}
+                </Link>
+              )}
+
+              {topCountry && (
+                <Link
+                  href="/leaderboard"
+                  className="rounded-lg border border-[var(--border-default)] bg-[var(--color-bg-elevated)]/40 p-3 transition-colors hover:bg-[var(--color-bg-card-hover)]"
+                >
+                  <div className="text-[9px] uppercase tracking-widest text-[var(--color-text-muted)]">
+                    Country champion
+                  </div>
+                  <div className="mt-1 flex items-center gap-2">
+                    <FlagIcon countryCode={topCountry.countryCode} size="sm" />
+                    <span className="truncate text-sm font-semibold text-[var(--color-text-primary)]">
+                      {getCountryName(topCountry.countryCode)}
+                    </span>
+                    <span className="text-[11px] text-[var(--color-text-muted)]">
+                      {NUM.format(topCountry.users)} devs
+                    </span>
+                    <span className="ml-auto font-mono text-sm font-bold tabular-nums text-[var(--stats-chart-1)]">
+                      {formatCompact(topCountry.tokens)}
+                    </span>
+                  </div>
+                  {runnerCountry && (
+                    <div className="mt-1.5 flex items-center gap-1 text-[11px] text-[var(--color-text-muted)]">
+                      leads
+                      <FlagIcon countryCode={runnerCountry.countryCode} size="xs" />
+                      {getCountryName(runnerCountry.countryCode)} by{" "}
+                      <span className="font-mono font-semibold tabular-nums text-[var(--stats-chart-3)]">
+                        {formatCompact(countryGap)}
+                      </span>
+                    </div>
+                  )}
+                </Link>
+              )}
             </div>
           </motion.section>
         )}
@@ -477,32 +547,40 @@ export function StatsCharts({ stats }: { stats: PublicStats }) {
 
       {recentSyncs.length > 0 && (
         <motion.section variants={reducedMotion ? undefined : riseIn} className={`${CARD} py-3`}>
-          <ul className="flex flex-wrap items-center gap-x-5 gap-y-1.5">
-            <li className="text-[10px] uppercase tracking-widest text-[var(--color-text-muted)]">
+          <div className="flex items-center gap-4">
+            <span className="shrink-0 text-[11px] font-semibold uppercase tracking-widest text-[var(--color-text-muted)]">
               Live syncs
-            </li>
-            {recentSyncs.slice(0, 8).map((s, i) => (
-              <li key={`${s.countryCode}-${i}`}>
-                {s.username ? (
-                  <Link
-                    href={`/leaderboard?u=${encodeURIComponent(s.username)}`}
-                    className="flex items-center gap-1.5 text-xs text-[var(--color-text-secondary)] transition-colors hover:text-[var(--stats-chart-1)]"
-                  >
-                    <FlagIcon countryCode={s.countryCode} size="xs" />
-                    <span className="font-medium">@{s.username}</span>
-                    <span className="font-mono tabular-nums text-[var(--color-text-muted)]">
-                      {timeAgo(s.syncedAt)}
-                    </span>
-                  </Link>
-                ) : (
-                  <span className="flex items-center gap-1.5 text-xs text-[var(--color-text-secondary)]">
-                    <FlagIcon countryCode={s.countryCode} size="xs" />
-                    <span className="font-mono tabular-nums">{timeAgo(s.syncedAt)}</span>
-                  </span>
-                )}
-              </li>
-            ))}
-          </ul>
+            </span>
+            <div className="marquee-viewport relative flex-1 overflow-hidden">
+              <ul className="marquee-track flex w-max items-center gap-x-6 whitespace-nowrap">
+                {[...recentSyncs, ...recentSyncs].map((s, i) => (
+                  <li key={`${s.countryCode}-${i}`} className="shrink-0">
+                    {s.username ? (
+                      <Link
+                        href={`/leaderboard?u=${encodeURIComponent(s.username)}`}
+                        className="flex items-center gap-1.5 text-sm text-[var(--color-text-secondary)] transition-colors hover:text-[var(--stats-chart-1)]"
+                      >
+                        <FlagIcon countryCode={s.countryCode} size="sm" />
+                        <span className="font-medium text-[var(--color-text-primary)]">
+                          @{s.username}
+                        </span>
+                        <span className="font-mono text-xs tabular-nums text-[var(--color-text-muted)]">
+                          {timeAgo(s.syncedAt)}
+                        </span>
+                      </Link>
+                    ) : (
+                      <span className="flex items-center gap-1.5 text-sm text-[var(--color-text-secondary)]">
+                        <FlagIcon countryCode={s.countryCode} size="sm" />
+                        <span className="font-mono text-xs tabular-nums">
+                          {timeAgo(s.syncedAt)}
+                        </span>
+                      </span>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
         </motion.section>
       )}
     </motion.div>
