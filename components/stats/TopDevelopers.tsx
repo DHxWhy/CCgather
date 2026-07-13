@@ -30,7 +30,7 @@ export function TopDevelopers({ devs }: { devs: PublicStats["monthRace"] }) {
         <Link
           key={dev.username}
           href={`/leaderboard?u=${encodeURIComponent(dev.username)}`}
-          className={`flex items-center gap-3 rounded-lg border bg-[var(--color-bg-elevated)]/40 px-3 py-2 transition-colors hover:bg-[var(--color-bg-card-hover)] ${RANK_STYLES[i]}`}
+          className={`flex items-center gap-3 rounded-lg border bg-[var(--color-bg-card)]/60 px-3 py-2 transition-colors hover:bg-[var(--color-bg-card-hover)] ${RANK_STYLES[i]}`}
         >
           <span className="w-4 text-center font-mono text-sm font-bold tabular-nums text-[var(--color-text-muted)]">
             {i + 1}
@@ -49,17 +49,17 @@ export function TopDevelopers({ devs }: { devs: PublicStats["monthRace"] }) {
           )}
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-1.5">
-              <span className="truncate text-sm font-semibold text-[var(--color-text-primary)]">
+              <span className="truncate text-xs font-semibold text-[var(--color-text-primary)]">
                 {dev.displayName || dev.username}
               </span>
               {dev.countryCode && <FlagIcon countryCode={dev.countryCode} size="xs" />}
             </div>
-            <div className="text-[11px] text-[var(--color-text-muted)]">
+            <div className="text-[10px] text-[var(--color-text-muted)]">
               @{dev.username} · Lv.{dev.currentLevel}
             </div>
           </div>
           <div className="text-right">
-            <div className="font-mono text-base font-bold tabular-nums text-[var(--stats-chart-1)]">
+            <div className="font-mono text-sm font-bold tabular-nums text-[var(--stats-chart-1)]">
               {formatCompact(dev.tokens)}
             </div>
             <div className="text-[9px] uppercase tracking-widest text-[var(--color-text-muted)]">

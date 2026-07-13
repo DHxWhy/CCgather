@@ -17,6 +17,13 @@ export default function sitemap(): MetadataRoute.Sitemap {
       changeFrequency: "daily",
       priority: 1.0,
     },
+    // Stats - public growth dashboard, hourly ISR
+    {
+      url: `${BASE_URL}/stats`,
+      lastModified: now,
+      changeFrequency: "hourly",
+      priority: 0.9,
+    },
     // Leaderboard - core feature, updates frequently
     {
       url: `${BASE_URL}/leaderboard`,

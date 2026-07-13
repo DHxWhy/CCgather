@@ -59,7 +59,7 @@ const riseIn = {
 };
 
 const CARD =
-  "rounded-xl border border-[var(--border-default)] bg-[var(--color-bg-card)] p-4 shadow-[var(--shadow-sm)] transition-[border-color,box-shadow] duration-200 hover:border-[var(--border-hover)] hover:shadow-[var(--shadow-md)]";
+  "rounded-xl border border-[var(--border-default)] bg-[var(--color-bg-secondary)] p-4 transition-colors duration-200 hover:border-[var(--border-hover)]";
 
 const tooltipStyle = {
   backgroundColor: "var(--color-bg-elevated)",
@@ -175,7 +175,7 @@ export function StatsCharts({ stats }: { stats: PublicStats }) {
             </span>
             <ScopeChip>All time</ScopeChip>
           </div>
-          <div className="font-mono text-2xl font-bold tabular-nums text-[var(--stats-chart-1)]">
+          <div className="font-mono text-xl font-bold tabular-nums text-[var(--stats-chart-1)]">
             <CountUp value={summary.totalUsers} />
           </div>
           <div className="text-[10px] font-medium text-[var(--stats-chart-3)]">{heroDelta}</div>
@@ -212,7 +212,7 @@ export function StatsCharts({ stats }: { stats: PublicStats }) {
               </span>
               <ScopeChip>{card.scope}</ScopeChip>
             </div>
-            <div className="font-mono text-lg font-bold tabular-nums text-[var(--color-text-primary)]">
+            <div className="font-mono text-base font-bold tabular-nums text-[var(--color-text-primary)]">
               {card.value}
             </div>
             <div className="truncate text-[10px] text-[var(--color-text-muted)]">
@@ -274,7 +274,7 @@ export function StatsCharts({ stats }: { stats: PublicStats }) {
                       }}
                     />
                   </div>
-                  <span className="w-7 text-right font-mono text-sm font-medium tabular-nums text-[var(--color-text-secondary)]">
+                  <span className="w-7 text-right font-mono text-xs font-medium tabular-nums text-[var(--color-text-secondary)]">
                     {NUM.format(c.users)}
                   </span>
                   <span className="w-9 text-right font-mono text-[10px] font-medium tabular-nums text-[var(--stats-chart-3)]">
@@ -313,6 +313,9 @@ export function StatsCharts({ stats }: { stats: PublicStats }) {
                     <Tooltip
                       contentStyle={tooltipStyle}
                       itemStyle={tooltipItemStyle}
+                      wrapperStyle={{ zIndex: 20 }}
+                      position={{ y: -8 }}
+                      offset={12}
                       formatter={(value: number | undefined, name: string | undefined) => [
                         `${value ?? 0}%`,
                         name,
@@ -338,7 +341,7 @@ export function StatsCharts({ stats }: { stats: PublicStats }) {
                   </PieChart>
                 </ResponsiveContainer>
                 <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
-                  <span className="font-mono text-lg font-bold tabular-nums text-[var(--color-text-primary)]">
+                  <span className="font-mono text-base font-bold tabular-nums text-[var(--color-text-primary)]">
                     {topModel.pct}%
                   </span>
                   <span className="text-[9px] uppercase tracking-widest text-[var(--color-text-muted)]">
@@ -445,20 +448,20 @@ export function StatsCharts({ stats }: { stats: PublicStats }) {
           >
             <div className="flex items-start justify-between gap-4">
               <div className="flex items-center gap-3">
-                <span aria-hidden className="text-3xl">
+                <span aria-hidden className="text-2xl">
                   🏆
                 </span>
                 <div>
-                  <div className="text-base font-bold text-[var(--color-text-primary)]">
+                  <div className="text-sm font-bold text-[var(--color-text-primary)]">
                     Season 1 — July 2026
                   </div>
-                  <p className="text-xs text-[var(--color-text-secondary)]">
+                  <p className="text-[11px] text-[var(--color-text-secondary)]">
                     Top 3 developers and the country champion get a permanent Hall of Fame badge.
                   </p>
                 </div>
               </div>
               <div className="shrink-0 text-center">
-                <div className="font-mono text-3xl font-bold tabular-nums leading-none text-[var(--stats-chart-1)]">
+                <div className="font-mono text-xl font-bold tabular-nums leading-none text-[var(--stats-chart-1)]">
                   {daysToReset}d
                 </div>
                 <div className="mt-1 text-[9px] uppercase tracking-widest text-[var(--color-text-muted)]">
@@ -487,13 +490,13 @@ export function StatsCharts({ stats }: { stats: PublicStats }) {
                         className="h-7 w-7 shrink-0 rounded-full border border-[var(--border-default)] object-cover"
                       />
                     ) : null}
-                    <span className="truncate text-sm font-semibold text-[var(--color-text-primary)]">
+                    <span className="truncate text-xs font-semibold text-[var(--color-text-primary)]">
                       {topRacer.displayName || topRacer.username}
                     </span>
                     {topRacer.countryCode && (
                       <FlagIcon countryCode={topRacer.countryCode} size="xs" />
                     )}
-                    <span className="ml-auto font-mono text-sm font-bold tabular-nums text-[var(--stats-chart-1)]">
+                    <span className="ml-auto font-mono text-xs font-bold tabular-nums text-[var(--stats-chart-1)]">
                       {formatCompact(topRacer.tokens)}
                     </span>
                   </div>
@@ -518,13 +521,13 @@ export function StatsCharts({ stats }: { stats: PublicStats }) {
                   </div>
                   <div className="mt-1 flex items-center gap-2">
                     <FlagIcon countryCode={topCountry.countryCode} size="sm" />
-                    <span className="truncate text-sm font-semibold text-[var(--color-text-primary)]">
+                    <span className="truncate text-xs font-semibold text-[var(--color-text-primary)]">
                       {getCountryName(topCountry.countryCode)}
                     </span>
                     <span className="text-[11px] text-[var(--color-text-muted)]">
                       {NUM.format(topCountry.users)} devs
                     </span>
-                    <span className="ml-auto font-mono text-sm font-bold tabular-nums text-[var(--stats-chart-1)]">
+                    <span className="ml-auto font-mono text-xs font-bold tabular-nums text-[var(--stats-chart-1)]">
                       {formatCompact(topCountry.tokens)}
                     </span>
                   </div>
@@ -558,19 +561,19 @@ export function StatsCharts({ stats }: { stats: PublicStats }) {
                     {s.username ? (
                       <Link
                         href={`/leaderboard?u=${encodeURIComponent(s.username)}`}
-                        className="flex items-center gap-1.5 text-sm text-[var(--color-text-secondary)] transition-colors hover:text-[var(--stats-chart-1)]"
+                        className="flex items-center gap-1.5 text-xs text-[var(--color-text-secondary)] transition-colors hover:text-[var(--stats-chart-1)]"
                       >
-                        <FlagIcon countryCode={s.countryCode} size="sm" />
+                        <FlagIcon countryCode={s.countryCode} size="xs" />
                         <span className="font-medium text-[var(--color-text-primary)]">
                           @{s.username}
                         </span>
-                        <span className="font-mono text-xs tabular-nums text-[var(--color-text-muted)]">
+                        <span className="font-mono text-[11px] tabular-nums text-[var(--color-text-muted)]">
                           {timeAgo(s.syncedAt)}
                         </span>
                       </Link>
                     ) : (
-                      <span className="flex items-center gap-1.5 text-sm text-[var(--color-text-secondary)]">
-                        <FlagIcon countryCode={s.countryCode} size="sm" />
+                      <span className="flex items-center gap-1.5 text-xs text-[var(--color-text-secondary)]">
+                        <FlagIcon countryCode={s.countryCode} size="xs" />
                         <span className="font-mono text-xs tabular-nums">
                           {timeAgo(s.syncedAt)}
                         </span>
