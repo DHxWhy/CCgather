@@ -64,6 +64,8 @@ export const COUNTRY_COORDINATES: Record<string, [number, number]> = {
   KH: [11.5564, 104.9282], // Cambodia (Phnom Penh)
   CM: [3.848, 11.5021], // Cameroon (Yaoundé)
   CA: [45.4215, -75.6972], // Canada (Ottawa)
+  CN: [35.8617, 104.1954], // China
+  HK: [22.3193, 114.1694], // Hong Kong
   TD: [12.1348, 15.0557], // Chad (N'Djamena)
   CL: [-33.4489, -70.6693], // Chile (Santiago)
   CO: [4.711, -74.0721], // Colombia (Bogotá)
@@ -380,7 +382,7 @@ export function Globe({
         const { x, y, visible } = latLngToScreen(coords[0], coords[1], phi, theta, size);
         el.style.left = `${x}px`;
         el.style.top = `${y}px`;
-        el.style.opacity = visible ? "1" : "0.12";
+        el.style.opacity = visible ? "1" : "0.28";
       }
     },
     [overlayDots, overlayMarkers, size]
@@ -560,7 +562,7 @@ export function Globe({
       {overlayDots &&
         overlayMarkers.map((m, i) => {
           const isTopCountry = flagTopCodes.has(m.code.toUpperCase());
-          const dotSize = Math.max(5, Math.min(10, 5 + (m.tokens / maxTokens) * 5));
+          const dotSize = Math.max(7, Math.min(13, 7 + (m.tokens / maxTokens) * 6));
           return (
             <div
               key={m.code}
@@ -588,7 +590,8 @@ export function Globe({
                       height: dotSize,
                       borderRadius: "50%",
                       backgroundColor: "#10b981",
-                      boxShadow: "0 0 6px #10b981, 0 0 12px rgba(16, 185, 129, 0.5)",
+                      boxShadow:
+                        "0 0 4px rgba(255,255,255,0.65), 0 0 8px #10b981, 0 0 16px rgba(16, 185, 129, 0.6)",
                       transform: "translate(-50%, -50%)",
                       transition: "opacity 0.3s",
                     }
