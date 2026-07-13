@@ -17,6 +17,12 @@ import {
   computeReviewStatus,
 } from "@/lib/services/submit-validators";
 import { notifyValidationIssue } from "@/lib/services/validation-notify";
+import { alertOps } from "@/lib/services/ops-alert";
+import {
+  fetchHashOwners,
+  fetchStaleDeviceRows,
+  type OwnedHashRow,
+} from "@/lib/utils/session-hash-query";
 
 interface DailyUsage {
   date: string;
@@ -277,58 +283,55 @@ export async function POST(request: NextRequest) {
     if (body.sessionFingerprint?.sessionHashes?.length) {
       const { sessionHashes } = body.sessionFingerprint;
 
-      // Check if any of these session hashes already belong to another user
-      const { data: existingHashes } = await supabase
-        .from("submitted_sessions")
-        .select("session_hash, user_id")
-        .in("session_hash", sessionHashes);
-
-      if (existingHashes && existingHashes.length > 0) {
-        // Check if any hash belongs to a different user
-        const foreignHashes = existingHashes.filter(
-          (h: { session_hash: string; user_id: string }) => h.user_id !== authenticatedUser.id
+      // Fail-closed: this lookup IS the anti-theft gate. If it errors we must not
+      // accept the payload with the gate silently open (that was the old bug).
+      let existingHashes: OwnedHashRow[];
+      try {
+        existingHashes = await fetchHashOwners(supabase, sessionHashes);
+      } catch (lookupError) {
+        await alertOps("Session hash owner lookup failed", {
+          username: authenticatedUser.username,
+          hashCount: sessionHashes.length,
+          error: lookupError instanceof Error ? lookupError.message : String(lookupError),
+        });
+        return NextResponse.json(
+          {
+            error: "Could not verify session ownership. Please try again.",
+            code: "HASH_LOOKUP_FAILED",
+          },
+          { status: 503 }
         );
-
-        if (foreignHashes.length > 0) {
-          console.log(
-            `[CLI Submit] Duplicate session detected! User ${authenticatedUser.username} tried to submit sessions owned by another user. Conflicting hashes: ${foreignHashes.length}`
-          );
-          return NextResponse.json(
-            {
-              error: "These sessions have already been submitted by another account.",
-              hint: "Each project's data can only be submitted by one account (1 Project 1 Person).",
-              code: "DUPLICATE_SESSION",
-            },
-            { status: 409 }
-          );
-        }
       }
 
-      // Store new session hashes for this user
-      const newHashes = sessionHashes.filter(
-        (hash: string) =>
-          !existingHashes?.some((e: { session_hash: string }) => e.session_hash === hash)
-      );
+      const foreignHashes = existingHashes.filter((h) => h.user_id !== authenticatedUser.id);
+      if (foreignHashes.length > 0) {
+        console.log(
+          `[CLI Submit] Duplicate session detected! User ${authenticatedUser.username} tried to submit sessions owned by another user. Conflicting hashes: ${foreignHashes.length}`
+        );
+        return NextResponse.json(
+          {
+            error: "These sessions have already been submitted by another account.",
+            hint: "Each project's data can only be submitted by one account (1 Project 1 Person).",
+            code: "DUPLICATE_SESSION",
+          },
+          { status: 409 }
+        );
+      }
 
-      if (newHashes.length > 0) {
-        const hashRecords = newHashes.map((hash: string) => ({
-          session_hash: hash,
-          user_id: authenticatedUser.id,
-          device_id: deviceId !== "legacy" ? deviceId : null,
-        }));
+      // Upsert (not insert): re-submitted hashes are the norm, and a plain insert
+      // aborts the whole batch on the first UNIQUE(session_hash) collision.
+      const hashRecords = sessionHashes.map((hash: string) => ({
+        session_hash: hash,
+        user_id: authenticatedUser.id,
+        device_id: deviceId !== "legacy" ? deviceId : null,
+      }));
 
-        const { error: insertError } = await supabase
-          .from("submitted_sessions")
-          .insert(hashRecords);
+      const { error: insertError } = await supabase
+        .from("submitted_sessions")
+        .upsert(hashRecords, { onConflict: "session_hash", ignoreDuplicates: true });
 
-        if (insertError) {
-          console.error("[CLI Submit] Failed to store session hashes:", insertError);
-          // Don't fail the submission, just log the error
-        } else {
-          console.log(
-            `[CLI Submit] Stored ${newHashes.length} new session hashes for user ${authenticatedUser.username}`
-          );
-        }
+      if (insertError) {
+        console.error("[CLI Submit] Failed to store session hashes:", insertError);
       }
     }
 
@@ -488,26 +491,38 @@ export async function POST(request: NextRequest) {
     // NOTE: This query must run AFTER session hash insertion (lines above) because
     // new hashes are inserted with the current device_id and won't match here.
     // ═══════════════════════════════════════════════════════════════════════════
-    let staleDeviceInfo: { staleDeviceIds: string[]; staleHashes: string[] } | null = null;
+    let staleDeviceInfo: { staleDeviceIds: string[] } | null = null;
 
     if (deviceId !== "legacy" && body.sessionFingerprint?.sessionHashes?.length) {
-      const { data: staleDeviceRows } = await supabase
-        .from("submitted_sessions")
-        .select("session_hash, device_id")
-        .eq("user_id", authenticatedUser.id)
-        .in("session_hash", body.sessionFingerprint.sessionHashes)
-        .not("device_id", "is", null)
-        .neq("device_id", deviceId);
-
-      if (staleDeviceRows && staleDeviceRows.length > 0) {
-        const staleIds = staleDeviceRows.map(
-          (r: { device_id: string | null }) => r.device_id as string
+      // Fail-closed: a silent failure here would disable the migration guard and
+      // let the same machine's history be counted under two device IDs.
+      let staleDeviceRows;
+      try {
+        staleDeviceRows = await fetchStaleDeviceRows(
+          supabase,
+          authenticatedUser.id,
+          body.sessionFingerprint.sessionHashes,
+          deviceId
         );
-        const staleHashList = staleDeviceRows.map((r: { session_hash: string }) => r.session_hash);
-        staleDeviceInfo = {
-          staleDeviceIds: [...new Set<string>(staleIds)],
-          staleHashes: staleHashList,
-        };
+      } catch (lookupError) {
+        await alertOps("Stale device lookup failed", {
+          username: authenticatedUser.username,
+          hashCount: body.sessionFingerprint.sessionHashes.length,
+          deviceId,
+          error: lookupError instanceof Error ? lookupError.message : String(lookupError),
+        });
+        return NextResponse.json(
+          {
+            error: "Could not verify device history. Please try again.",
+            code: "DEVICE_LOOKUP_FAILED",
+          },
+          { status: 503 }
+        );
+      }
+
+      if (staleDeviceRows.length > 0) {
+        const staleIds = staleDeviceRows.map((r) => r.device_id as string);
+        staleDeviceInfo = { staleDeviceIds: [...new Set<string>(staleIds)] };
       }
     }
 
@@ -609,15 +624,16 @@ export async function POST(request: NextRequest) {
       // when the new total is >= the stale one. So the guard must compare against
       // the stale device too — otherwise a lower re-scan would write a new row
       // while the bigger stale row survives, and the two would sum (double count).
-      const staleIdsForGuard = staleDeviceInfo?.staleDeviceIds ?? [];
-      const effectivePrevTokens = (date: string): number => {
-        let max = prevTokensByDateDevice.get(`${date}|${deviceId}`) ?? 0;
-        for (const staleId of staleIdsForGuard) {
-          const staleTokens = prevTokensByDateDevice.get(`${date}|${staleId}`) ?? 0;
-          if (staleTokens > max) max = staleTokens;
-        }
-        return max;
-      };
+      const devicesWhoseRowsCanSurviveThisWrite = [
+        deviceId,
+        ...(staleDeviceInfo?.staleDeviceIds ?? []),
+        "legacy",
+      ];
+      const effectivePrevTokens = (date: string): number =>
+        devicesWhoseRowsCanSurviveThisWrite.reduce(
+          (max, device) => Math.max(max, prevTokensByDateDevice.get(`${date}|${device}`) ?? 0),
+          0
+        );
       const guardedRecords = usageRecords.filter(
         (r) => (r.total_tokens ?? 0) >= effectivePrevTokens(r.date)
       );
@@ -796,34 +812,63 @@ export async function POST(request: NextRequest) {
             ([date, total]) => total >= (prevTokensByDateDevice.get(`${date}|${staleId}`) ?? 0)
           )
           .map(([date]) => date);
-        if (staleSafeDates.length === 0) continue;
 
-        const { error: cleanupError, count: cleanedCount } = await supabase
-          .from("usage_stats")
-          .delete({ count: "exact" })
-          .eq("user_id", authenticatedUser.id)
-          .eq("device_id", staleId)
-          .in("date", staleSafeDates);
+        if (staleSafeDates.length > 0) {
+          const { error: cleanupError, count: cleanedCount } = await supabase
+            .from("usage_stats")
+            .delete({ count: "exact" })
+            .eq("user_id", authenticatedUser.id)
+            .eq("device_id", staleId)
+            .in("date", staleSafeDates);
 
-        if (cleanupError) {
-          console.error(
-            `[CLI Submit] Reinstall cleanup error for device ${staleId}:`,
-            cleanupError
-          );
-        } else if (cleanedCount && cleanedCount > 0) {
-          console.log(`[CLI Submit] Cleaned ${cleanedCount} rows from stale device ${staleId}`);
+          if (cleanupError) {
+            console.error(
+              `[CLI Submit] Reinstall cleanup error for device ${staleId}:`,
+              cleanupError
+            );
+            continue;
+          }
+          if (cleanedCount && cleanedCount > 0) {
+            console.log(`[CLI Submit] Cleaned ${cleanedCount} rows from stale device ${staleId}`);
+          }
         }
-      }
 
-      // Update submitted_sessions to the new device_id (only when cleanup ran)
-      const { error: updateError } = await supabase
-        .from("submitted_sessions")
-        .update({ device_id: deviceId })
-        .eq("user_id", authenticatedUser.id)
-        .in("session_hash", staleDeviceInfo.staleHashes);
+        // Hand the session hashes over ONLY once the stale device is fully drained.
+        // Moving them while it still owns usage rows would hide it from STEP 0.7 on
+        // the next submit — the guard would then see no stale device, write the
+        // smaller re-scan under the new ID, and the surviving stale row would sum
+        // on top of it (double count). Keeping the hashes anchored keeps it visible.
+        const { count: remainingRows, error: remainingError } = await supabase
+          .from("usage_stats")
+          .select("id", { count: "exact", head: true })
+          .eq("user_id", authenticatedUser.id)
+          .eq("device_id", staleId);
 
-      if (updateError) {
-        console.error("[CLI Submit] Failed to update session device_id:", updateError);
+        if (remainingError) {
+          console.error(
+            `[CLI Submit] Could not verify stale device ${staleId} drain state:`,
+            remainingError
+          );
+          continue;
+        }
+
+        if (remainingRows && remainingRows > 0) {
+          console.log(
+            `[CLI Submit] Stale device ${staleId} still holds ${remainingRows} row(s) — ` +
+              `keeping its session hashes so the migration stays detectable.`
+          );
+          continue;
+        }
+
+        const { error: updateError } = await supabase
+          .from("submitted_sessions")
+          .update({ device_id: deviceId })
+          .eq("user_id", authenticatedUser.id)
+          .eq("device_id", staleId);
+
+        if (updateError) {
+          console.error("[CLI Submit] Failed to update session device_id:", updateError);
+        }
       }
     }
 
