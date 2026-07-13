@@ -20,6 +20,16 @@ export interface PublicStats {
     tokens: number;
   }[];
   monthCountryRace: { countryCode: string; tokens: number; users: number }[];
+  seasonCategories: {
+    category: "tokens" | "cost" | "sessions";
+    username: string;
+    displayName: string | null;
+    avatarUrl: string | null;
+    countryCode: string | null;
+    tokens: number;
+    cost: number;
+    sessions: number;
+  }[];
   hallOfFame: {
     month: string;
     users: {
@@ -73,6 +83,17 @@ interface MonthCountryRow {
   country_code: string;
   tokens: number;
   users: number;
+}
+
+interface SeasonCategoryRow {
+  category: "tokens" | "cost" | "sessions";
+  username: string;
+  display_name: string | null;
+  avatar_url: string | null;
+  country_code: string | null;
+  tokens: number;
+  cost: number;
+  sessions: number;
 }
 
 interface HofUserRow {
@@ -146,6 +167,7 @@ export async function getPublicStats(): Promise<PublicStats> {
     modelsRes,
     monthRaceRes,
     monthCountryRes,
+    seasonCatsRes,
     hofUsersRes,
     hofCountriesRes,
   ] = await Promise.all([
@@ -156,6 +178,7 @@ export async function getPublicStats(): Promise<PublicStats> {
     sb.rpc("get_model_distribution"),
     sb.rpc("get_month_race"),
     sb.rpc("get_month_country_race"),
+    sb.rpc("get_season_categories"),
     sb
       .from("monthly_hall_of_fame")
       .select("month, rank, username, display_name, avatar_url, country_code, tokens")
@@ -177,6 +200,7 @@ export async function getPublicStats(): Promise<PublicStats> {
       ["models", modelsRes],
       ["monthRace", monthRaceRes],
       ["monthCountry", monthCountryRes],
+      ["seasonCats", seasonCatsRes],
       ["hofUsers", hofUsersRes],
       ["hofCountries", hofCountriesRes],
     ] as const
@@ -228,6 +252,16 @@ export async function getPublicStats(): Promise<PublicStats> {
       countryCode: r.country_code,
       tokens: Number(r.tokens),
       users: Number(r.users),
+    })),
+    seasonCategories: ((seasonCatsRes.data as SeasonCategoryRow[]) ?? []).map((r) => ({
+      category: r.category,
+      username: r.username,
+      displayName: r.display_name,
+      avatarUrl: r.avatar_url,
+      countryCode: r.country_code,
+      tokens: Number(r.tokens),
+      cost: Number(r.cost),
+      sessions: Number(r.sessions),
     })),
     hallOfFame: buildHallOfFame(
       (hofUsersRes.data as HofUserRow[]) ?? [],

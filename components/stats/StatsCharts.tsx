@@ -8,6 +8,7 @@ import { FlagIcon } from "@/components/ui/FlagIcon";
 import { getCountryName } from "@/lib/constants/countries";
 import { GlobeStatsSection } from "@/components/leaderboard/GlobeStatsSection";
 import { TopDevelopers } from "@/components/stats/TopDevelopers";
+import { SeasonChampions } from "@/components/stats/SeasonChampions";
 import type { PublicStats } from "@/lib/services/publicStats";
 import {
   SEASON_TAGLINES,
@@ -144,6 +145,7 @@ export function StatsCharts({ stats }: { stats: PublicStats }) {
     models,
     monthRace,
     monthCountryRace,
+    seasonCategories,
     hallOfFame,
   } = stats;
   const maxCountryUsers = countries.length > 0 ? countries[0]!.users : 1;
@@ -491,7 +493,11 @@ export function StatsCharts({ stats }: { stats: PublicStats }) {
               </div>
             </div>
 
-            <div className="mt-4 grid gap-3 sm:grid-cols-2">
+            <div className="mt-3">
+              <SeasonChampions champions={seasonCategories} />
+            </div>
+
+            <div className="mt-3 grid gap-3 sm:grid-cols-2">
               {topRacer && (
                 <Link
                   href={`/leaderboard?u=${encodeURIComponent(topRacer.username)}`}
