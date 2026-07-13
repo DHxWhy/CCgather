@@ -11,6 +11,26 @@ export interface PublicStats {
   countries: { countryCode: string; users: number; weekSignups: number }[];
   recentSyncs: { countryCode: string; syncedAt: string }[];
   models: { family: string; pct: number }[];
+  monthRace: {
+    username: string;
+    displayName: string | null;
+    avatarUrl: string | null;
+    countryCode: string | null;
+    currentLevel: number;
+    tokens: number;
+  }[];
+  hallOfFame: {
+    month: string;
+    users: {
+      rank: number;
+      username: string;
+      displayName: string | null;
+      avatarUrl: string | null;
+      countryCode: string | null;
+      tokens: number;
+    }[];
+    topCountry: { countryCode: string; tokens: number; users: number } | null;
+  }[];
 }
 
 interface SummaryRow {
@@ -36,6 +56,33 @@ interface CountryRaceRow {
 interface RecentSyncRow {
   country_code: string;
   synced_at: string;
+}
+
+interface MonthRaceRow {
+  username: string;
+  display_name: string | null;
+  avatar_url: string | null;
+  country_code: string | null;
+  current_level: number;
+  tokens: number;
+}
+
+interface HofUserRow {
+  month: string;
+  rank: number;
+  username: string;
+  display_name: string | null;
+  avatar_url: string | null;
+  country_code: string | null;
+  tokens: number;
+}
+
+interface HofCountryRow {
+  month: string;
+  rank: number;
+  country_code: string;
+  tokens: number;
+  users: number;
 }
 
 interface ModelRow {
@@ -68,14 +115,47 @@ export async function getPublicStats(): Promise<PublicStats> {
   // 신규 RPC는 자동 생성 타입에 없어 우회 (프로젝트 규칙)
   const sb = supabase as never as {
     rpc: (fn: string) => PromiseLike<{ data: unknown; error: { message: string } | null }>;
+    from: (table: string) => {
+      select: (cols: string) => {
+        order: (
+          col: string,
+          opts: { ascending: boolean }
+        ) => {
+          order: (
+            col2: string,
+            opts2: { ascending: boolean }
+          ) => PromiseLike<{ data: unknown; error: { message: string } | null }>;
+        };
+      };
+    };
   };
 
-  const [summaryRes, growthRes, raceRes, syncsRes, modelsRes] = await Promise.all([
+  const [
+    summaryRes,
+    growthRes,
+    raceRes,
+    syncsRes,
+    modelsRes,
+    monthRaceRes,
+    hofUsersRes,
+    hofCountriesRes,
+  ] = await Promise.all([
     sb.rpc("get_public_stats_summary"),
     sb.rpc("get_signup_growth"),
     sb.rpc("get_country_race"),
     sb.rpc("get_recent_syncs"),
     sb.rpc("get_model_distribution"),
+    sb.rpc("get_month_race"),
+    sb
+      .from("monthly_hall_of_fame")
+      .select("month, rank, username, display_name, avatar_url, country_code, tokens")
+      .order("month", { ascending: false })
+      .order("rank", { ascending: true }),
+    sb
+      .from("monthly_country_hof")
+      .select("month, rank, country_code, tokens, users")
+      .order("month", { ascending: false })
+      .order("rank", { ascending: true }),
   ]);
 
   const failures = (
@@ -85,6 +165,9 @@ export async function getPublicStats(): Promise<PublicStats> {
       ["race", raceRes],
       ["syncs", syncsRes],
       ["models", modelsRes],
+      ["monthRace", monthRaceRes],
+      ["hofUsers", hofUsersRes],
+      ["hofCountries", hofCountriesRes],
     ] as const
   ).filter(([, res]) => res.error);
   if (failures.length > 0) {
@@ -121,5 +204,47 @@ export async function getPublicStats(): Promise<PublicStats> {
       family: r.family,
       pct: Number(r.pct),
     })),
+    monthRace: ((monthRaceRes.data as MonthRaceRow[]) ?? []).map((r) => ({
+      username: r.username,
+      displayName: r.display_name,
+      avatarUrl: r.avatar_url,
+      countryCode: r.country_code,
+      currentLevel: Number(r.current_level),
+      tokens: Number(r.tokens),
+    })),
+    hallOfFame: buildHallOfFame(
+      (hofUsersRes.data as HofUserRow[]) ?? [],
+      (hofCountriesRes.data as HofCountryRow[]) ?? []
+    ),
   };
+}
+
+function buildHallOfFame(
+  userRows: HofUserRow[],
+  countryRows: HofCountryRow[]
+): PublicStats["hallOfFame"] {
+  const months = [...new Set(userRows.map((r) => r.month))];
+  return months.map((month) => {
+    const topCountryRow = countryRows.find((c) => c.month === month && c.rank === 1);
+    return {
+      month,
+      users: userRows
+        .filter((r) => r.month === month && r.rank <= 3)
+        .map((r) => ({
+          rank: r.rank,
+          username: r.username,
+          displayName: r.display_name,
+          avatarUrl: r.avatar_url,
+          countryCode: r.country_code,
+          tokens: Number(r.tokens),
+        })),
+      topCountry: topCountryRow
+        ? {
+            countryCode: topCountryRow.country_code,
+            tokens: Number(topCountryRow.tokens),
+            users: Number(topCountryRow.users),
+          }
+        : null,
+    };
+  });
 }

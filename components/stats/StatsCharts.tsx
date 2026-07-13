@@ -113,7 +113,7 @@ function SectionTitle({ title, caption }: { title: string; caption?: React.React
 
 export function StatsCharts({ stats }: { stats: PublicStats }) {
   const reducedMotion = useReducedMotion() ?? false;
-  const { summary, growth, countries, recentSyncs, models } = stats;
+  const { summary, growth, countries, recentSyncs, models, monthRace, hallOfFame } = stats;
   const maxCountryUsers = countries.length > 0 ? countries[0]!.users : 1;
   const topModel = models[0];
   const todaySignups = growth.length > 0 ? growth[growth.length - 1]!.signups : 0;
@@ -121,6 +121,9 @@ export function StatsCharts({ stats }: { stats: PublicStats }) {
   const cumulative30dAgo = growth.length > 30 ? growth[growth.length - 31]!.cumulative : 0;
   const delta30 = Math.max(cumulativeNow - cumulative30dAgo, 0);
   const weekSignups = growth.slice(-7).reduce((a, g) => a + g.signups, 0);
+  const now = new Date();
+  const nextMonthUTC = Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1);
+  const daysToReset = Math.max(1, Math.ceil((nextMonthUTC - now.getTime()) / 86_400_000));
   const heroDelta =
     todaySignups > 0
       ? `+${NUM.format(todaySignups)} joined today`
@@ -239,17 +242,20 @@ export function StatsCharts({ stats }: { stats: PublicStats }) {
           className={`${CARD} flex flex-col`}
         >
           <SectionTitle
-            title="Top developers"
+            title="This month's race"
             caption={
-              <Link
-                href="/leaderboard"
-                className="text-xs text-[var(--color-text-secondary)] transition-colors hover:text-[var(--stats-chart-1)]"
-              >
-                full leaderboard →
-              </Link>
+              <span className="text-xs text-[var(--color-text-secondary)]">
+                resets in <span className="font-mono tabular-nums">{daysToReset}d</span> ·{" "}
+                <Link
+                  href="/leaderboard"
+                  className="transition-colors hover:text-[var(--stats-chart-1)]"
+                >
+                  full leaderboard →
+                </Link>
+              </span>
             }
           />
-          <TopDevelopers />
+          <TopDevelopers devs={monthRace} />
         </motion.section>
       </div>
 
@@ -385,6 +391,92 @@ export function StatsCharts({ stats }: { stats: PublicStats }) {
           </p>
         </motion.section>
       </div>
+
+      <motion.section variants={reducedMotion ? undefined : riseIn} className={CARD}>
+        <SectionTitle
+          title="Hall of Fame"
+          caption={
+            hallOfFame.length > 0 ? "monthly champions, inscribed forever" : "season 1 in progress"
+          }
+        />
+        {hallOfFame.length > 0 ? (
+          <div className="space-y-6">
+            {hallOfFame.map((entry) => (
+              <div key={entry.month}>
+                <div className="mb-3 flex items-baseline justify-between">
+                  <span className="font-mono text-sm font-semibold text-[var(--color-text-primary)]">
+                    {new Date(`${entry.month}T00:00:00Z`).toLocaleDateString("en-US", {
+                      month: "long",
+                      year: "numeric",
+                      timeZone: "UTC",
+                    })}
+                  </span>
+                  {entry.topCountry && (
+                    <span className="flex items-center gap-1.5 text-xs text-[var(--color-text-secondary)]">
+                      Country champion{" "}
+                      <FlagIcon countryCode={entry.topCountry.countryCode} size="xs" />
+                    </span>
+                  )}
+                </div>
+                <div className="grid gap-3 sm:grid-cols-3">
+                  {entry.users.map((u) => (
+                    <Link
+                      key={u.rank}
+                      href={`/leaderboard?u=${encodeURIComponent(u.username)}`}
+                      className={`flex items-center gap-3 rounded-xl border p-3 transition-colors hover:bg-[var(--color-bg-card-hover)] ${
+                        u.rank === 1
+                          ? "border-[var(--stats-chart-1)]/60 bg-[var(--color-bg-elevated)]/60"
+                          : "border-[var(--border-default)] bg-[var(--color-bg-elevated)]/40"
+                      }`}
+                    >
+                      <span className="text-lg">
+                        {u.rank === 1 ? "🥇" : u.rank === 2 ? "🥈" : "🥉"}
+                      </span>
+                      {u.avatarUrl ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={u.avatarUrl}
+                          alt=""
+                          width={36}
+                          height={36}
+                          className="h-9 w-9 shrink-0 rounded-full border border-[var(--border-default)] object-cover"
+                        />
+                      ) : (
+                        <div className="h-9 w-9 shrink-0 rounded-full bg-[var(--color-bg-elevated)]" />
+                      )}
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-1.5">
+                          <span className="truncate text-sm font-semibold text-[var(--color-text-primary)]">
+                            {u.displayName || u.username}
+                          </span>
+                          {u.countryCode && <FlagIcon countryCode={u.countryCode} size="xs" />}
+                        </div>
+                        <div className="font-mono text-xs tabular-nums text-[var(--stats-chart-1)]">
+                          {formatCompact(u.tokens)} tokens
+                        </div>
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="flex flex-col items-center gap-2 py-6 text-center">
+            <span className="text-3xl">🏆</span>
+            <p className="text-sm font-semibold text-[var(--color-text-primary)]">
+              Season 1 · July 2026
+            </p>
+            <p className="text-xs text-[var(--color-text-secondary)]">
+              First champions will be inscribed here in{" "}
+              <span className="font-mono font-semibold tabular-nums text-[var(--stats-chart-1)]">
+                {daysToReset}d
+              </span>{" "}
+              — top 3 developers and the country champion, forever.
+            </p>
+          </div>
+        )}
+      </motion.section>
 
       {recentSyncs.length > 0 && (
         <motion.section variants={reducedMotion ? undefined : riseIn} className={`${CARD} py-4`}>
