@@ -60,6 +60,11 @@ const riseIn = {
   show: { opacity: 1, y: 0, transition: { duration: 0.5, ease: EASE } },
 };
 
+const VIEWPORT = { once: true, margin: "-40px" } as const;
+
+const CARD =
+  "rounded-xl border border-[var(--border-default)] bg-[var(--color-bg-card)] p-5 shadow-[var(--shadow-sm)]";
+
 const tooltipStyle = {
   backgroundColor: "var(--color-bg-elevated)",
   border: "1px solid var(--border-default)",
@@ -68,6 +73,9 @@ const tooltipStyle = {
   fontFamily: "var(--font-mono, monospace)",
   color: "var(--color-text-primary)",
 };
+
+const tooltipItemStyle = { color: "var(--color-text-primary)" };
+const tooltipLabelStyle = { color: "var(--color-text-secondary)" };
 
 function ScopeChip({ children }: { children: React.ReactNode }) {
   return (
@@ -115,7 +123,7 @@ function TrendArea({
         <AreaChart
           accessibilityLayer={false}
           data={data}
-          margin={{ top: 5, right: 10, left: 0, bottom: 0 }}
+          margin={{ top: 5, right: 28, left: 0, bottom: 0 }}
         >
           <defs>
             <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
@@ -149,6 +157,8 @@ function TrendArea({
           />
           <Tooltip
             contentStyle={tooltipStyle}
+            itemStyle={tooltipItemStyle}
+            labelStyle={tooltipLabelStyle}
             labelFormatter={formatMonthDay}
             formatter={(value: number | undefined) => [NUM.format(value ?? 0), tooltipLabel]}
           />
@@ -171,6 +181,14 @@ export function StatsCharts({ stats }: { stats: PublicStats }) {
   const { summary, growth, countries, visitors, models } = stats;
   const maxCountryUsers = countries.length > 0 ? countries[0]!.users : 1;
   const topModel = models[0];
+  const todaySignups = growth.length > 0 ? growth[growth.length - 1]!.signups : 0;
+  const weekSignups = growth.slice(-7).reduce((a, g) => a + g.signups, 0);
+  const heroDelta =
+    todaySignups > 0
+      ? `+${NUM.format(todaySignups)} joined today`
+      : weekSignups > 0
+        ? `+${NUM.format(weekSignups)} joined this week`
+        : "tracking their Claude Code journey";
   const growthSummary =
     growth.length > 0
       ? `Cumulative developers from ${formatMonthDay(growth[0]!.date)} (${growth[0]!.cumulative}) to ${formatMonthDay(growth[growth.length - 1]!.date)} (${growth[growth.length - 1]!.cumulative}).`
@@ -181,26 +199,24 @@ export function StatsCharts({ stats }: { stats: PublicStats }) {
       : "";
 
   return (
-    <motion.div
-      className="space-y-6"
-      variants={reducedMotion ? undefined : staggerParent}
-      initial={reducedMotion ? undefined : "hidden"}
-      animate={reducedMotion ? undefined : "show"}
-    >
-      <motion.div variants={riseIn} className="grid gap-4 lg:grid-cols-[1.4fr_1fr_1fr_1fr]">
-        <div className="rounded-xl border border-[var(--color-claude-coral)]/40 bg-[var(--color-bg-card)] p-5">
-          <div className="flex items-center justify-between">
-            <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--color-text-muted)]">
+    <div className="space-y-6">
+      <motion.div
+        variants={reducedMotion ? undefined : staggerParent}
+        initial={reducedMotion ? undefined : "hidden"}
+        animate={reducedMotion ? undefined : "show"}
+        className="grid grid-cols-2 gap-4 lg:grid-cols-[1.4fr_1fr_1fr_1fr]"
+      >
+        <div className={`${CARD} col-span-2 border-[var(--stats-chart-1)]/40 lg:col-span-1`}>
+          <div className="flex items-center justify-between gap-2">
+            <span className="truncate whitespace-nowrap text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--color-text-muted)]">
               Developers
             </span>
             <ScopeChip>All time</ScopeChip>
           </div>
-          <div className="mt-2 font-mono text-5xl font-bold tabular-nums text-[var(--color-claude-coral)]">
+          <div className="mt-2 font-mono text-5xl font-bold tabular-nums text-[var(--stats-chart-1)]">
             {NUM.format(summary.totalUsers)}
           </div>
-          <div className="mt-1 text-xs text-[var(--color-text-secondary)]">
-            tracking their Claude Code journey
-          </div>
+          <div className="mt-1 text-xs font-medium text-[var(--stats-chart-3)]">{heroDelta}</div>
         </div>
 
         {[
@@ -208,21 +224,18 @@ export function StatsCharts({ stats }: { stats: PublicStats }) {
           {
             label: "Tokens",
             value: formatCompact(summary.tokens30d),
-            scope: "Last 30 days",
+            scope: "30 days",
             caption: "input + output + cache",
           },
           {
             label: "Active devs",
             value: NUM.format(summary.activeDevs30d),
-            scope: "Last 30 days",
+            scope: "30 days",
           },
         ].map((card) => (
-          <div
-            key={card.label}
-            className="rounded-xl border border-[var(--border-default)] bg-[var(--color-bg-card)] p-5"
-          >
+          <div key={card.label} className={CARD}>
             <div className="flex items-center justify-between gap-2">
-              <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--color-text-muted)]">
+              <span className="truncate whitespace-nowrap text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--color-text-muted)]">
                 {card.label}
               </span>
               <ScopeChip>{card.scope}</ScopeChip>
@@ -238,8 +251,11 @@ export function StatsCharts({ stats }: { stats: PublicStats }) {
       </motion.div>
 
       <motion.section
-        variants={riseIn}
-        className="rounded-xl border border-[var(--border-default)] bg-[var(--color-bg-card)] p-5"
+        variants={reducedMotion ? undefined : riseIn}
+        initial={reducedMotion ? undefined : "hidden"}
+        whileInView={reducedMotion ? undefined : "show"}
+        viewport={VIEWPORT}
+        className={CARD}
       >
         <SectionTitle title="Community growth" caption="cumulative developers" />
         <p className="sr-only">{growthSummary}</p>
@@ -257,8 +273,11 @@ export function StatsCharts({ stats }: { stats: PublicStats }) {
 
       <div className="grid gap-6 lg:grid-cols-2">
         <motion.section
-          variants={riseIn}
-          className="rounded-xl border border-[var(--border-default)] bg-[var(--color-bg-card)] p-5"
+          variants={reducedMotion ? undefined : riseIn}
+          initial={reducedMotion ? undefined : "hidden"}
+          whileInView={reducedMotion ? undefined : "show"}
+          viewport={VIEWPORT}
+          className={CARD}
         >
           <SectionTitle title="Top countries" caption="developers per country" />
           <ol className="space-y-3">
@@ -268,7 +287,10 @@ export function StatsCharts({ stats }: { stats: PublicStats }) {
                   {i + 1}
                 </span>
                 <FlagIcon countryCode={c.countryCode} size="sm" />
-                <span className="w-28 truncate text-sm text-[var(--color-text-primary)]">
+                <span
+                  title={getCountryName(c.countryCode)}
+                  className="w-28 truncate text-sm text-[var(--color-text-primary)]"
+                >
                   {getCountryName(c.countryCode)}
                 </span>
                 <div
@@ -280,7 +302,7 @@ export function StatsCharts({ stats }: { stats: PublicStats }) {
                     style={{
                       width: `${Math.max((c.users / maxCountryUsers) * 100, 4)}%`,
                       backgroundColor: "var(--stats-chart-1)",
-                      opacity: Math.max(1 - i * 0.08, 0.35),
+                      opacity: Math.max(1 - i * 0.06, 0.55),
                     }}
                   />
                 </div>
@@ -293,8 +315,11 @@ export function StatsCharts({ stats }: { stats: PublicStats }) {
         </motion.section>
 
         <motion.section
-          variants={riseIn}
-          className="rounded-xl border border-[var(--border-default)] bg-[var(--color-bg-card)] p-5"
+          variants={reducedMotion ? undefined : riseIn}
+          initial={reducedMotion ? undefined : "hidden"}
+          whileInView={reducedMotion ? undefined : "show"}
+          viewport={VIEWPORT}
+          className={`${CARD} flex flex-col`}
         >
           <SectionTitle title="Model mix" caption="share of tokens processed" />
           {models.length > 0 && topModel ? (
@@ -306,6 +331,14 @@ export function StatsCharts({ stats }: { stats: PublicStats }) {
               >
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart accessibilityLayer={false}>
+                    <Tooltip
+                      contentStyle={tooltipStyle}
+                      itemStyle={tooltipItemStyle}
+                      formatter={(value: number | undefined, name: string | undefined) => [
+                        `${value ?? 0}%`,
+                        name,
+                      ]}
+                    />
                     <Pie
                       data={models}
                       dataKey="pct"
@@ -353,15 +386,18 @@ export function StatsCharts({ stats }: { stats: PublicStats }) {
           ) : (
             <p className="text-sm text-[var(--color-text-muted)]">No model data yet.</p>
           )}
-          <p className="mt-4 text-[11px] leading-relaxed text-[var(--color-text-muted)]">
+          <p className="mt-auto pt-4 text-[11px] leading-relaxed text-[var(--color-text-muted)]">
             Share of tokens processed — not share of developers.
           </p>
         </motion.section>
       </div>
 
       <motion.section
-        variants={riseIn}
-        className="rounded-xl border border-[var(--border-default)] bg-[var(--color-bg-card)] p-5"
+        variants={reducedMotion ? undefined : riseIn}
+        initial={reducedMotion ? undefined : "hidden"}
+        whileInView={reducedMotion ? undefined : "show"}
+        viewport={VIEWPORT}
+        className={CARD}
       >
         <SectionTitle title="Daily visitors" caption="unique visitors per day" />
         {visitors.length > 0 ? (
@@ -384,6 +420,6 @@ export function StatsCharts({ stats }: { stats: PublicStats }) {
           </p>
         )}
       </motion.section>
-    </motion.div>
+    </div>
   );
 }
