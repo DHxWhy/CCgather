@@ -60,8 +60,6 @@ const riseIn = {
   show: { opacity: 1, y: 0, transition: { duration: 0.5, ease: EASE } },
 };
 
-const VIEWPORT = { once: true, margin: "-40px" } as const;
-
 const CARD =
   "rounded-xl border border-[var(--border-default)] bg-[var(--color-bg-card)] p-5 shadow-[var(--shadow-sm)]";
 
@@ -199,25 +197,33 @@ export function StatsCharts({ stats }: { stats: PublicStats }) {
       : "";
 
   return (
-    <div className="space-y-6">
+    <motion.div
+      className="space-y-6"
+      variants={reducedMotion ? undefined : staggerParent}
+      initial={reducedMotion ? undefined : "hidden"}
+      animate={reducedMotion ? undefined : "show"}
+    >
       <motion.div
         variants={reducedMotion ? undefined : staggerParent}
-        initial={reducedMotion ? undefined : "hidden"}
-        animate={reducedMotion ? undefined : "show"}
         className="grid grid-cols-2 gap-4 lg:grid-cols-[1.4fr_1fr_1fr_1fr]"
       >
-        <div className={`${CARD} col-span-2 border-[var(--stats-chart-1)]/40 lg:col-span-1`}>
-          <div className="flex items-center justify-between gap-2">
-            <span className="truncate whitespace-nowrap text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--color-text-muted)]">
+        <motion.div
+          variants={reducedMotion ? undefined : riseIn}
+          className={`${CARD} col-span-2 border-[var(--stats-chart-1)]/40 lg:col-span-1`}
+        >
+          <div className="flex flex-col gap-1 lg:flex-row lg:items-center lg:justify-between lg:gap-2">
+            <span className="whitespace-nowrap text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--color-text-muted)]">
               Developers
             </span>
-            <ScopeChip>All time</ScopeChip>
+            <span className="self-start lg:self-auto">
+              <ScopeChip>All time</ScopeChip>
+            </span>
           </div>
           <div className="mt-2 font-mono text-5xl font-bold tabular-nums text-[var(--stats-chart-1)]">
             {NUM.format(summary.totalUsers)}
           </div>
           <div className="mt-1 text-xs font-medium text-[var(--stats-chart-3)]">{heroDelta}</div>
-        </div>
+        </motion.div>
 
         {[
           { label: "Countries", value: NUM.format(summary.totalCountries), scope: "All time" },
@@ -233,12 +239,18 @@ export function StatsCharts({ stats }: { stats: PublicStats }) {
             scope: "30 days",
           },
         ].map((card) => (
-          <div key={card.label} className={CARD}>
-            <div className="flex items-center justify-between gap-2">
-              <span className="truncate whitespace-nowrap text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--color-text-muted)]">
+          <motion.div
+            key={card.label}
+            variants={reducedMotion ? undefined : riseIn}
+            className={CARD}
+          >
+            <div className="flex flex-col gap-1 lg:flex-row lg:items-center lg:justify-between lg:gap-2">
+              <span className="whitespace-nowrap text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--color-text-muted)]">
                 {card.label}
               </span>
-              <ScopeChip>{card.scope}</ScopeChip>
+              <span className="self-start lg:self-auto">
+                <ScopeChip>{card.scope}</ScopeChip>
+              </span>
             </div>
             <div className="mt-2 font-mono text-2xl font-bold tabular-nums text-[var(--color-text-primary)]">
               {card.value}
@@ -246,17 +258,11 @@ export function StatsCharts({ stats }: { stats: PublicStats }) {
             {card.caption && (
               <div className="mt-1 text-[11px] text-[var(--color-text-muted)]">{card.caption}</div>
             )}
-          </div>
+          </motion.div>
         ))}
       </motion.div>
 
-      <motion.section
-        variants={reducedMotion ? undefined : riseIn}
-        initial={reducedMotion ? undefined : "hidden"}
-        whileInView={reducedMotion ? undefined : "show"}
-        viewport={VIEWPORT}
-        className={CARD}
-      >
+      <motion.section variants={reducedMotion ? undefined : riseIn} className={CARD}>
         <SectionTitle title="Community growth" caption="cumulative developers" />
         <p className="sr-only">{growthSummary}</p>
         <TrendArea
@@ -272,13 +278,7 @@ export function StatsCharts({ stats }: { stats: PublicStats }) {
       </motion.section>
 
       <div className="grid gap-6 lg:grid-cols-2">
-        <motion.section
-          variants={reducedMotion ? undefined : riseIn}
-          initial={reducedMotion ? undefined : "hidden"}
-          whileInView={reducedMotion ? undefined : "show"}
-          viewport={VIEWPORT}
-          className={CARD}
-        >
+        <motion.section variants={reducedMotion ? undefined : riseIn} className={CARD}>
           <SectionTitle title="Top countries" caption="developers per country" />
           <ol className="space-y-3">
             {countries.map((c, i) => (
@@ -302,7 +302,7 @@ export function StatsCharts({ stats }: { stats: PublicStats }) {
                     style={{
                       width: `${Math.max((c.users / maxCountryUsers) * 100, 4)}%`,
                       backgroundColor: "var(--stats-chart-1)",
-                      opacity: Math.max(1 - i * 0.06, 0.55),
+                      opacity: Math.max(1 - i * 0.03, 0.75),
                     }}
                   />
                 </div>
@@ -316,9 +316,6 @@ export function StatsCharts({ stats }: { stats: PublicStats }) {
 
         <motion.section
           variants={reducedMotion ? undefined : riseIn}
-          initial={reducedMotion ? undefined : "hidden"}
-          whileInView={reducedMotion ? undefined : "show"}
-          viewport={VIEWPORT}
           className={`${CARD} flex flex-col`}
         >
           <SectionTitle title="Model mix" caption="share of tokens processed" />
@@ -392,13 +389,7 @@ export function StatsCharts({ stats }: { stats: PublicStats }) {
         </motion.section>
       </div>
 
-      <motion.section
-        variants={reducedMotion ? undefined : riseIn}
-        initial={reducedMotion ? undefined : "hidden"}
-        whileInView={reducedMotion ? undefined : "show"}
-        viewport={VIEWPORT}
-        className={CARD}
-      >
+      <motion.section variants={reducedMotion ? undefined : riseIn} className={CARD}>
         <SectionTitle title="Daily visitors" caption="unique visitors per day" />
         {visitors.length > 0 ? (
           <>
@@ -420,6 +411,6 @@ export function StatsCharts({ stats }: { stats: PublicStats }) {
           </p>
         )}
       </motion.section>
-    </div>
+    </motion.div>
   );
 }

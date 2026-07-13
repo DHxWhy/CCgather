@@ -71,7 +71,7 @@ export default async function StatsPage() {
             <CopyCommand command="npx ccgather" />
             <Link
               href="/cli"
-              className="rounded-lg bg-[var(--stats-chart-1)] px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90"
+              className="rounded-lg bg-[var(--stats-chart-1)] px-4 py-2 text-sm font-semibold text-[var(--color-bg-primary)] transition-opacity hover:opacity-90"
             >
               Get the CLI
             </Link>
