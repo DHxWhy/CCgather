@@ -71,6 +71,23 @@ class PostHogApiClient {
     return !!(POSTHOG_API_KEY && PROJECT_ID);
   }
 
+  async queryHogQL(query: string): Promise<unknown[][]> {
+    if (!this.isConfigured()) {
+      throw new Error("PostHog API not configured");
+    }
+    const response = await fetch(`${this.baseUrl}/query/`, {
+      method: "POST",
+      headers: this.headers,
+      body: JSON.stringify({ query: { kind: "HogQLQuery", query } }),
+      signal: AbortSignal.timeout(10_000),
+    });
+    if (!response.ok) {
+      throw new Error(`PostHog HogQL error: ${response.status} ${await response.text()}`);
+    }
+    const data = (await response.json()) as { results?: unknown[][] };
+    return data.results ?? [];
+  }
+
   /**
    * Get trends data for specified events
    */
