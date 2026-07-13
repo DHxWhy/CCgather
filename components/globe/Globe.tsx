@@ -573,7 +573,7 @@ export function Globe({
               style={{
                 left: -100,
                 top: -100,
-                transform: "translate(-50%, -50%)",
+                transform: "translate(-50%, -50%) scale(0.75)",
                 transition: "opacity 0.3s",
                 borderRadius: "3px",
                 overflow: "hidden",
