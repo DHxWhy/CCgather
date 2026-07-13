@@ -9,6 +9,15 @@ import { getCountryName } from "@/lib/constants/countries";
 import { GlobeStatsSection } from "@/components/leaderboard/GlobeStatsSection";
 import { TopDevelopers } from "@/components/stats/TopDevelopers";
 import type { PublicStats } from "@/lib/services/publicStats";
+import {
+  SEASON_TAGLINES,
+  SEASON_SUBLINES,
+  CROWN_LABELS,
+  FLAG_LABELS,
+  COUNTDOWN_LABELS,
+  HOF_CAPTIONS,
+  pickRandom,
+} from "@/lib/constants/seasonCopy";
 
 const NUM = new Intl.NumberFormat("en-US");
 
@@ -92,6 +101,14 @@ function CountUp({ value }: { value: number }) {
   return <>{NUM.format(display)}</>;
 }
 
+function useRotatingCopy<T>(pool: readonly T[]): T {
+  const [copy, setCopy] = useState<T>(pool[0]!);
+  useEffect(() => {
+    setCopy(pickRandom(pool));
+  }, [pool]);
+  return copy;
+}
+
 function ScopeChip({ children }: { children: React.ReactNode }) {
   return (
     <span className="rounded-full border border-[var(--border-default)] px-1.5 py-0.5 text-[8px] font-medium uppercase tracking-widest text-[var(--color-text-muted)]">
@@ -113,6 +130,12 @@ function SectionTitle({ title, caption }: { title: string; caption?: React.React
 
 export function StatsCharts({ stats }: { stats: PublicStats }) {
   const reducedMotion = useReducedMotion() ?? false;
+  const tagline = useRotatingCopy(SEASON_TAGLINES);
+  const subline = useRotatingCopy(SEASON_SUBLINES);
+  const crownLabel = useRotatingCopy(CROWN_LABELS);
+  const flagLabel = useRotatingCopy(FLAG_LABELS);
+  const countdownLabel = useRotatingCopy(COUNTDOWN_LABELS);
+  const hofCaption = useRotatingCopy(HOF_CAPTIONS);
   const {
     summary,
     growth,
@@ -378,7 +401,7 @@ export function StatsCharts({ stats }: { stats: PublicStats }) {
             variants={reducedMotion ? undefined : riseIn}
             className={`${CARD} lg:col-span-2`}
           >
-            <SectionTitle title="Hall of Fame" caption="monthly champions, inscribed forever" />
+            <SectionTitle title="Hall of Fame" caption={hofCaption} />
             <div className="space-y-5">
               {hallOfFame.map((entry) => (
                 <div key={entry.month}>
@@ -453,11 +476,9 @@ export function StatsCharts({ stats }: { stats: PublicStats }) {
                 </span>
                 <div>
                   <div className="text-sm font-bold text-[var(--color-text-primary)]">
-                    Season 1 — July 2026
+                    Season 1 · July 2026 — {tagline}
                   </div>
-                  <p className="text-[11px] text-[var(--color-text-secondary)]">
-                    Top 3 developers and the country champion get a permanent Hall of Fame badge.
-                  </p>
+                  <p className="text-[11px] text-[var(--color-text-secondary)]">{subline}</p>
                 </div>
               </div>
               <div className="shrink-0 text-center">
@@ -465,7 +486,7 @@ export function StatsCharts({ stats }: { stats: PublicStats }) {
                   {daysToReset}d
                 </div>
                 <div className="mt-1 text-[9px] uppercase tracking-widest text-[var(--color-text-muted)]">
-                  until inscribed
+                  {countdownLabel}
                 </div>
               </div>
             </div>
@@ -477,7 +498,7 @@ export function StatsCharts({ stats }: { stats: PublicStats }) {
                   className="rounded-lg border border-[var(--border-default)] bg-[var(--color-bg-elevated)]/40 p-3 transition-colors hover:bg-[var(--color-bg-card-hover)]"
                 >
                   <div className="text-[9px] uppercase tracking-widest text-[var(--color-text-muted)]">
-                    Developer champion
+                    {crownLabel}
                   </div>
                   <div className="mt-1 flex items-center gap-2">
                     {topRacer.avatarUrl ? (
@@ -502,10 +523,11 @@ export function StatsCharts({ stats }: { stats: PublicStats }) {
                   </div>
                   {runnerUp && (
                     <div className="mt-1.5 text-[11px] text-[var(--color-text-muted)]">
-                      leads @{runnerUp.username} by{" "}
+                      @{runnerUp.username} needs{" "}
                       <span className="font-mono font-semibold tabular-nums text-[var(--stats-chart-3)]">
                         {formatCompact(userGap)}
-                      </span>
+                      </span>{" "}
+                      to steal it
                     </div>
                   )}
                 </Link>
@@ -517,7 +539,7 @@ export function StatsCharts({ stats }: { stats: PublicStats }) {
                   className="rounded-lg border border-[var(--border-default)] bg-[var(--color-bg-elevated)]/40 p-3 transition-colors hover:bg-[var(--color-bg-card-hover)]"
                 >
                   <div className="text-[9px] uppercase tracking-widest text-[var(--color-text-muted)]">
-                    Country champion
+                    {flagLabel}
                   </div>
                   <div className="mt-1 flex items-center gap-2">
                     <FlagIcon countryCode={topCountry.countryCode} size="sm" />
@@ -533,12 +555,12 @@ export function StatsCharts({ stats }: { stats: PublicStats }) {
                   </div>
                   {runnerCountry && (
                     <div className="mt-1.5 flex items-center gap-1 text-[11px] text-[var(--color-text-muted)]">
-                      leads
                       <FlagIcon countryCode={runnerCountry.countryCode} size="xs" />
-                      {getCountryName(runnerCountry.countryCode)} by{" "}
+                      {getCountryName(runnerCountry.countryCode)} is{" "}
                       <span className="font-mono font-semibold tabular-nums text-[var(--stats-chart-3)]">
                         {formatCompact(countryGap)}
-                      </span>
+                      </span>{" "}
+                      behind
                     </div>
                   )}
                 </Link>
