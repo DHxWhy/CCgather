@@ -1,9 +1,7 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { cache } from "react";
 import { getPublicStats } from "@/lib/services/publicStats";
 import { StatsCharts } from "@/components/stats/StatsCharts";
-import { CopyCommand } from "@/components/stats/CopyCommand";
 
 export const revalidate = 3600;
 
@@ -37,9 +35,9 @@ export default async function StatsPage() {
   const { totalUsers, totalCountries } = stats.summary;
 
   return (
-    <div className="mx-auto max-w-5xl space-y-8 px-4 py-10">
-      <header className="space-y-3">
-        <h1 className="text-3xl font-bold tracking-tight text-[var(--color-text-primary)] sm:text-4xl">
+    <div className="mx-auto max-w-6xl space-y-4 px-4 py-6">
+      <header className="flex flex-wrap items-baseline justify-between gap-2">
+        <h1 className="text-xl font-bold tracking-tight text-[var(--color-text-primary)] sm:text-2xl">
           <span className="font-mono tabular-nums tracking-normal text-[var(--stats-chart-1)]">
             {NUM.format(totalUsers)}
           </span>{" "}
@@ -49,30 +47,12 @@ export default async function StatsPage() {
           </span>{" "}
           countries. One leaderboard.
         </h1>
-        <p className="max-w-2xl text-sm leading-relaxed text-[var(--color-text-secondary)]">
-          CCgather is a free, open-source leaderboard for Claude Code usage. These are our live
-          community numbers — updated hourly.
+        <p className="text-xs text-[var(--color-text-secondary)]">
+          Free, open-source Claude Code leaderboard · live numbers, updated hourly
         </p>
       </header>
 
       <StatsCharts stats={stats} />
-
-      <section className="rounded-xl border border-[var(--stats-chart-1)]/40 bg-[var(--color-bg-card)] p-6 shadow-[var(--shadow-sm)] sm:p-8">
-        <div className="flex flex-col items-start justify-between gap-5 sm:flex-row sm:items-center">
-          <h2 className="text-xl font-bold text-[var(--color-text-primary)]">
-            Join {NUM.format(totalUsers)} developers tracking their Claude Code journey.
-          </h2>
-          <div className="flex flex-wrap items-center gap-3">
-            <CopyCommand command="npx ccgather" />
-            <Link
-              href="/leaderboard"
-              className="rounded-lg border border-[var(--border-default)] px-4 py-2 text-sm font-medium text-[var(--color-text-primary)] transition-colors hover:bg-[var(--color-bg-card-hover)]"
-            >
-              See the leaderboard →
-            </Link>
-          </div>
-        </div>
-      </section>
     </div>
   );
 }
