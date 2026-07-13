@@ -68,6 +68,10 @@ export function Footer() {
           CCgather is a free, open-source Claude Code leaderboard. Track token usage, compare
           rankings, and connect with AI developers worldwide.
         </p>
+        <p className="text-center text-[10px] text-[var(--color-text-muted)] mt-2 max-w-xl mx-auto leading-relaxed">
+          An independent community project — not affiliated with, endorsed by, or sponsored by
+          Anthropic. &quot;Claude&quot; and &quot;Claude Code&quot; are trademarks of Anthropic.
+        </p>
       </div>
     </footer>
   );
