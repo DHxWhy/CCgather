@@ -246,6 +246,7 @@ interface GlobeProps {
   scopeFilter?: "global" | "country";
   autoRotate?: boolean;
   initialPhi?: number;
+  overlayDots?: boolean;
 }
 
 // Project lat/lng to screen coordinates matching cobe's rendering
@@ -293,9 +294,11 @@ export function Globe({
   scopeFilter = "global",
   autoRotate = true,
   initialPhi = 0,
+  overlayDots = false,
 }: GlobeProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const userDotRef = useRef<HTMLDivElement>(null);
+  const overlayDotRefs = useRef<(HTMLDivElement | null)[]>([]);
   const pulseRingRef = useRef<HTMLDivElement>(null);
   const pointerInteracting = useRef<number | null>(null);
   const pointerInteractionMovement = useRef(0);
@@ -356,6 +359,26 @@ export function Globe({
     [userCoords, size]
   );
 
+  const overlayMarkers = overlayDots
+    ? markers.filter((m) => COUNTRY_COORDINATES[m.code.toUpperCase()])
+    : [];
+
+  const updateOverlayDots = useCallback(
+    (phi: number, theta: number) => {
+      if (!overlayDots) return;
+      for (let i = 0; i < overlayMarkers.length; i++) {
+        const el = overlayDotRefs.current[i];
+        const coords = COUNTRY_COORDINATES[overlayMarkers[i]!.code.toUpperCase()];
+        if (!el || !coords) continue;
+        const { x, y, visible } = latLngToScreen(coords[0], coords[1], phi, theta, size);
+        el.style.left = `${x}px`;
+        el.style.top = `${y}px`;
+        el.style.opacity = visible ? "1" : "0.12";
+      }
+    },
+    [overlayDots, overlayMarkers, size]
+  );
+
   // Shared globe config refs for recreation on drag
   const phiRef = useRef(initialPhi);
   const globeConfigRef = useRef<Record<string, unknown> | null>(null);
@@ -386,6 +409,7 @@ export function Globe({
         state.height = size * dpr;
 
         updateUserDot(state.phi, theta);
+        updateOverlayDots(state.phi, theta);
 
         // When not auto-rotating, destroy after render stabilizes to free CPU
         if (!autoRotate) {
@@ -399,7 +423,7 @@ export function Globe({
     } as COBEOptions);
 
     globeRef.current = globe;
-  }, [size, autoRotate, updateUserDot]);
+  }, [size, autoRotate, updateUserDot, updateOverlayDots]);
 
   useEffect(() => {
     phiRef.current = initialPhi;
@@ -460,6 +484,7 @@ export function Globe({
         state.height = size * dpr;
 
         updateUserDot(state.phi, theta);
+        updateOverlayDots(state.phi, theta);
 
         // When not auto-rotating, destroy after initial render to free CPU
         if (!autoRotate) {
@@ -484,7 +509,7 @@ export function Globe({
       globe.destroy();
       globeRef.current = null;
     };
-  }, [size, userCountryCode, updateUserDot, isDark]);
+  }, [size, userCountryCode, updateUserDot, updateOverlayDots, isDark]);
 
   return (
     <div className={`relative ${className}`} style={{ width: size, height: size }}>
@@ -524,6 +549,31 @@ export function Globe({
           }
         }}
       />
+
+      {overlayDots &&
+        overlayMarkers.map((m, i) => {
+          const dotSize = Math.max(5, Math.min(10, 5 + (m.tokens / maxTokens) * 5));
+          return (
+            <div
+              key={m.code}
+              ref={(el) => {
+                overlayDotRefs.current[i] = el;
+              }}
+              className="absolute pointer-events-none animate-pulse-glow"
+              style={{
+                left: -100,
+                top: -100,
+                width: dotSize,
+                height: dotSize,
+                borderRadius: "50%",
+                backgroundColor: "#10b981",
+                boxShadow: "0 0 6px #10b981, 0 0 12px rgba(16, 185, 129, 0.5)",
+                transform: "translate(-50%, -50%)",
+                transition: "opacity 0.3s",
+              }}
+            />
+          );
+        })}
 
       {/* User's country green dot overlay with pulse effect */}
       {userCoords && (

@@ -39,6 +39,7 @@ interface GlobeStatsSectionProps {
   compact?: boolean; // Tighter spacing for tablet
   hideParticles?: boolean; // Hide particles (when rendered separately)
   hideStats?: boolean; // Hide stats summary (when rendered in sticky header)
+  overlayDots?: boolean; // All-country glowing DOM dots (public /stats)
 }
 
 // Hook for responsive globe size
@@ -89,6 +90,7 @@ export function GlobeStatsSection({
   compact = false,
   hideParticles = false,
   hideStats = false,
+  overlayDots = false,
 }: GlobeStatsSectionProps) {
   const [stats, setStats] = useState<CountryStat[]>([]);
   const [totalTokens, setTotalTokens] = useState(0);
@@ -159,6 +161,7 @@ export function GlobeStatsSection({
           <div className={initialLoadComplete ? "" : "animate-fadeIn"}>
             {!hideParticles && <GlobeParticles size={globeSize} />}
             <Globe
+              overlayDots={overlayDots}
               markers={stats}
               size={globeSize}
               className="mx-auto"

@@ -224,7 +224,13 @@ export function StatsCharts({ stats }: { stats: PublicStats }) {
             caption={`+${NUM.format(delta30)} devs in 30 days`}
           />
           <div className="flex flex-1 items-center justify-center py-2">
-            <GlobeStatsSection size="large" hideStats hideParticles scopeFilter="global" />
+            <GlobeStatsSection
+              size="large"
+              hideStats
+              hideParticles
+              overlayDots
+              scopeFilter="global"
+            />
           </div>
         </motion.section>
 
