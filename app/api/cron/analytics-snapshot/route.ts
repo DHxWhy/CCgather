@@ -50,13 +50,15 @@ async function handleSnapshot(request: NextRequest) {
         `SELECT toDate(timestamp) AS d, uniq(distinct_id) AS visitors, count() AS pageviews
          FROM events
          WHERE event = '$pageview' AND timestamp > now() - INTERVAL ${days} DAY
-         GROUP BY d ORDER BY d`
+         GROUP BY d ORDER BY d
+         LIMIT 10000`
       ),
       posthogApi.queryHogQL(
         `SELECT toDate(timestamp) AS d, coalesce(properties.$referring_domain, '$direct') AS ref, uniq(distinct_id) AS visitors
          FROM events
          WHERE event = '$pageview' AND timestamp > now() - INTERVAL ${days} DAY
-         GROUP BY d, ref ORDER BY d, visitors DESC`
+         GROUP BY d, ref ORDER BY d, visitors DESC
+         LIMIT 10000`
       ),
     ]);
 

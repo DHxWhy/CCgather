@@ -13,6 +13,7 @@ const isPublicRoute = createRouteMatcher([
   "/join/(.*)",
   "/terms",
   "/privacy",
+  "/stats",
   "/cli",
   "/cli/auth(.*)",
   "/sign-in(.*)",
@@ -33,6 +34,9 @@ const isPublicRoute = createRouteMatcher([
   // 이게 없으면 비인증 fetch 가 HTML redirect 받아 클라이언트 JSON parse fail.
   "/api/me(.*)",
   "/api/auth/recovery-check",
+  // 공개 stats API + 크론 (크론 핸들러는 CRON_SECRET/x-vercel-cron 자체 인증)
+  "/api/stats(.*)",
+  "/api/cron/(.*)",
   // 비인증 사용자에게도 통계 보여줘야 — 비인증 시 핸들러가 빈 stats 반환.
   // public 안 두면 middleware 가 307 HTML redirect → 클라이언트 JSON parse fail
   // → console error (무한 루프 아니지만 노이즈).
