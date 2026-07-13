@@ -30,6 +30,7 @@ const MAC_EASE = "cubic-bezier(0.25, 0.46, 0.45, 0.94)";
 // =====================================================
 // Period — funnels 와 동일 NSSegmentedControl 패턴
 // API 값 "-1d/-7d/-14d/-30d/-90d" 100% 유지
+// 90일 초과("-180d"/"all")는 서버가 analytics_daily 스냅샷으로 분기
 // =====================================================
 const PERIOD_OPTIONS = [
   { label: "오늘", value: "-1d" },
@@ -37,6 +38,8 @@ const PERIOD_OPTIONS = [
   { label: "14일", value: "-14d" },
   { label: "30일", value: "-30d" },
   { label: "90일", value: "-90d" },
+  { label: "180일", value: "-180d" },
+  { label: "전체", value: "all" },
 ] as const;
 
 type PeriodValue = (typeof PERIOD_OPTIONS)[number]["value"];

@@ -38,6 +38,7 @@ const PERIOD_OPTIONS = [
   { label: "7일", value: 7 },
   { label: "14일", value: 14 },
   { label: "30일", value: 30 },
+  { label: "90일", value: 90 },
 ] as const;
 
 type PeriodValue = (typeof PERIOD_OPTIONS)[number]["value"];

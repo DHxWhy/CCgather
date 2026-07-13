@@ -6,6 +6,7 @@
 import { NextResponse } from "next/server";
 import { isAdmin } from "@/lib/admin";
 import { posthogApi } from "@/lib/posthog/api-client";
+import { createServiceClient } from "@/lib/supabase/server";
 
 // =====================================================
 // Domain Classification
@@ -107,6 +108,11 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const dateFrom = searchParams.get("date_from") || "-7d";
     const dateTo = searchParams.get("date_to") || undefined;
+
+    const parsedDays = dateFrom === "all" ? Infinity : Math.abs(parseInt(dateFrom, 10) || 7);
+    if (parsedDays > 90) {
+      return serveFromSnapshot(dateFrom);
+    }
 
     if (!posthogApi.isConfigured()) {
       return NextResponse.json(
@@ -308,4 +314,109 @@ export async function GET(request: Request) {
       { status: 500 }
     );
   }
+}
+
+interface SnapshotRow {
+  date: string;
+  visitors: number;
+  top_referrers: { domain: string; visitors: number }[];
+}
+
+async function serveFromSnapshot(dateFrom: string) {
+  const supabase = createServiceClient();
+  let query = (
+    supabase as never as {
+      from: (t: string) => {
+        select: (c: string) => {
+          gte: (col: string, v: string) => unknown;
+          order: (col: string, o: { ascending: boolean }) => unknown;
+        };
+      };
+    }
+  )
+    .from("analytics_daily")
+    .select("date, visitors, top_referrers") as {
+    gte: (col: string, v: string) => typeof query;
+    order: (
+      col: string,
+      o: { ascending: boolean }
+    ) => PromiseLike<{ data: SnapshotRow[] | null; error: { message: string } | null }>;
+  };
+
+  if (dateFrom !== "all") {
+    const days = Math.abs(parseInt(dateFrom, 10) || 180);
+    const from = new Date();
+    from.setUTCDate(from.getUTCDate() - days);
+    query = query.gte("date", from.toISOString().slice(0, 10));
+  }
+
+  const { data, error } = await query.order("date", { ascending: true });
+  if (error) {
+    return NextResponse.json({ error: `snapshot query failed: ${error.message}` }, { status: 500 });
+  }
+
+  const rows = data ?? [];
+  const domainCounts = new Map<string, number>();
+  const sourceTotals: Record<SourceType, number> = { direct: 0, search: 0, social: 0, referral: 0 };
+  let totalVisitors = 0;
+
+  const trend = rows.map((row) => {
+    const daily: Record<SourceType, number> = { direct: 0, search: 0, social: 0, referral: 0 };
+    for (const ref of row.top_referrers ?? []) {
+      const domain =
+        ref.domain === "" || ref.domain === "$direct" ? "(direct)" : normalizeDomain(ref.domain);
+      const type = classifySource(ref.domain);
+      daily[type] += ref.visitors;
+      sourceTotals[type] += ref.visitors;
+      domainCounts.set(domain, (domainCounts.get(domain) || 0) + ref.visitors);
+    }
+    totalVisitors += row.visitors;
+    return { date: row.date, ...daily };
+  });
+
+  const pct = (n: number) => (totalVisitors > 0 ? Math.round((n / totalVisitors) * 1000) / 10 : 0);
+
+  const summary = {
+    direct: {
+      count: sourceTotals.direct,
+      percent: pct(sourceTotals.direct),
+      icon: getSourceIcon("direct"),
+    },
+    search: {
+      count: sourceTotals.search,
+      percent: pct(sourceTotals.search),
+      icon: getSourceIcon("search"),
+    },
+    social: {
+      count: sourceTotals.social,
+      percent: pct(sourceTotals.social),
+      icon: getSourceIcon("social"),
+    },
+    referral: {
+      count: sourceTotals.referral,
+      percent: pct(sourceTotals.referral),
+      icon: getSourceIcon("referral"),
+    },
+  };
+
+  const topDomains = Array.from(domainCounts.entries())
+    .sort(([, a], [, b]) => b - a)
+    .slice(0, 100)
+    .map(([domain, count]) => ({
+      domain,
+      count,
+      percent: pct(count),
+      type: classifySource(domain),
+      icon: getDomainIcon(domain),
+      details: [],
+    }));
+
+  return NextResponse.json({
+    summary,
+    trend,
+    topDomains,
+    totalVisitors,
+    dateRange: { from: dateFrom, to: undefined },
+    source: "snapshot",
+  });
 }
