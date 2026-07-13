@@ -2,20 +2,11 @@
 
 import { useEffect, useState } from "react";
 import { motion, animate, useReducedMotion } from "framer-motion";
-import {
-  AreaChart,
-  Area,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  PieChart,
-  Pie,
-  Cell,
-} from "recharts";
+import { Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
 import Link from "next/link";
 import { FlagIcon } from "@/components/ui/FlagIcon";
+import { GlobeStatsSection } from "@/components/leaderboard/GlobeStatsSection";
+import { TopDevelopers } from "@/components/stats/TopDevelopers";
 import { getCountryName } from "@/lib/constants/countries";
 import type { PublicStats } from "@/lib/services/publicStats";
 
@@ -45,14 +36,6 @@ function formatCompact(n: number): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
   if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
   return NUM.format(Math.round(n));
-}
-
-function formatMonthDay(dateStr: string): string {
-  return new Date(`${dateStr}T00:00:00Z`).toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    timeZone: "UTC",
-  });
 }
 
 function timeAgo(iso: string): string {
@@ -88,7 +71,6 @@ const tooltipStyle = {
 };
 
 const tooltipItemStyle = { color: "var(--color-text-primary)" };
-const tooltipLabelStyle = { color: "var(--color-text-secondary)" };
 
 function CountUp({ value }: { value: number }) {
   const reducedMotion = useReducedMotion() ?? false;
@@ -129,86 +111,6 @@ function SectionTitle({ title, caption }: { title: string; caption?: React.React
   );
 }
 
-interface TrendAreaProps {
-  data: Record<string, string | number>[];
-  dataKey: string;
-  ariaLabel: string;
-  stroke: string;
-  gradientId: string;
-  height: number;
-  animateChart: boolean;
-  tooltipLabel: string;
-}
-
-function TrendArea({
-  data,
-  dataKey,
-  ariaLabel,
-  stroke,
-  gradientId,
-  height,
-  animateChart,
-  tooltipLabel,
-}: TrendAreaProps) {
-  return (
-    <div role="img" aria-label={ariaLabel} style={{ height }}>
-      <ResponsiveContainer width="100%" height="100%">
-        <AreaChart
-          accessibilityLayer={false}
-          data={data}
-          margin={{ top: 5, right: 28, left: 0, bottom: 0 }}
-        >
-          <defs>
-            <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor={stroke} stopOpacity={0.3} />
-              <stop offset="100%" stopColor={stroke} stopOpacity={0.02} />
-            </linearGradient>
-          </defs>
-          <CartesianGrid strokeDasharray="3 3" stroke="var(--border-default)" vertical={false} />
-          <XAxis
-            dataKey="date"
-            tickFormatter={formatMonthDay}
-            tick={{
-              fontSize: 10,
-              fill: "var(--color-text-muted)",
-              fontFamily: "var(--font-mono, monospace)",
-            }}
-            tickLine={false}
-            axisLine={false}
-            minTickGap={48}
-          />
-          <YAxis
-            tick={{
-              fontSize: 10,
-              fill: "var(--color-text-muted)",
-              fontFamily: "var(--font-mono, monospace)",
-            }}
-            tickLine={false}
-            axisLine={false}
-            width={38}
-            allowDecimals={false}
-          />
-          <Tooltip
-            contentStyle={tooltipStyle}
-            itemStyle={tooltipItemStyle}
-            labelStyle={tooltipLabelStyle}
-            labelFormatter={formatMonthDay}
-            formatter={(value: number | undefined) => [NUM.format(value ?? 0), tooltipLabel]}
-          />
-          <Area
-            type="monotone"
-            dataKey={dataKey}
-            stroke={stroke}
-            strokeWidth={2}
-            fill={`url(#${gradientId})`}
-            isAnimationActive={animateChart}
-          />
-        </AreaChart>
-      </ResponsiveContainer>
-    </div>
-  );
-}
-
 export function StatsCharts({ stats }: { stats: PublicStats }) {
   const reducedMotion = useReducedMotion() ?? false;
   const { summary, growth, countries, recentSyncs, models } = stats;
@@ -227,10 +129,6 @@ export function StatsCharts({ stats }: { stats: PublicStats }) {
         : "tracking their Claude Code journey";
   const novels = (summary.tokens30d * WORDS_PER_TOKEN) / WORDS_PER_NOVEL;
   const tokensPerSecond = summary.tokens30d / SECONDS_30D;
-  const growthSummary =
-    growth.length > 0
-      ? `Cumulative developers from ${formatMonthDay(growth[0]!.date)} (${growth[0]!.cumulative}) to ${formatMonthDay(growth[growth.length - 1]!.date)} (${growth[growth.length - 1]!.cumulative}).`
-      : "";
 
   return (
     <motion.div
@@ -316,23 +214,38 @@ export function StatsCharts({ stats }: { stats: PublicStats }) {
         </motion.p>
       )}
 
-      <motion.section variants={reducedMotion ? undefined : riseIn} className={CARD}>
-        <SectionTitle
-          title="Community growth"
-          caption={`+${NUM.format(delta30)} developers in 30 days`}
-        />
-        <p className="sr-only">{growthSummary}</p>
-        <TrendArea
-          data={growth}
-          dataKey="cumulative"
-          ariaLabel={`Community growth chart. ${growthSummary}`}
-          stroke="var(--stats-chart-1)"
-          gradientId="growthFill"
-          height={224}
-          animateChart={!reducedMotion}
-          tooltipLabel="Total developers"
-        />
-      </motion.section>
+      <div className="grid gap-6 lg:grid-cols-[1fr_1.25fr]">
+        <motion.section
+          variants={reducedMotion ? undefined : riseIn}
+          className={`${CARD} flex flex-col`}
+        >
+          <SectionTitle
+            title="Around the world"
+            caption={`+${NUM.format(delta30)} devs in 30 days`}
+          />
+          <div className="flex flex-1 items-center justify-center py-2">
+            <GlobeStatsSection size="large" hideStats hideParticles scopeFilter="global" />
+          </div>
+        </motion.section>
+
+        <motion.section
+          variants={reducedMotion ? undefined : riseIn}
+          className={`${CARD} flex flex-col`}
+        >
+          <SectionTitle
+            title="Top developers"
+            caption={
+              <Link
+                href="/leaderboard"
+                className="text-xs text-[var(--color-text-secondary)] transition-colors hover:text-[var(--stats-chart-1)]"
+              >
+                full leaderboard →
+              </Link>
+            }
+          />
+          <TopDevelopers />
+        </motion.section>
+      </div>
 
       <div className="grid gap-6 lg:grid-cols-2">
         <motion.section variants={reducedMotion ? undefined : riseIn} className={CARD}>
