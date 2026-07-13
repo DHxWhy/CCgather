@@ -603,8 +603,23 @@ export async function POST(request: NextRequest) {
       // Merge policy: a resubmitted date may only raise its stored total, never
       // lower it (partial re-scans of rotated-out dates would otherwise shrink
       // recorded history). Skipped dates keep their stored row untouched.
+      //
+      // Device migration (hostname/homedir change → new device_id): the stale
+      // device's rows for the same dates are cleaned up in STEP 1.7, but ONLY
+      // when the new total is >= the stale one. So the guard must compare against
+      // the stale device too — otherwise a lower re-scan would write a new row
+      // while the bigger stale row survives, and the two would sum (double count).
+      const staleIdsForGuard = staleDeviceInfo?.staleDeviceIds ?? [];
+      const effectivePrevTokens = (date: string): number => {
+        let max = prevTokensByDateDevice.get(`${date}|${deviceId}`) ?? 0;
+        for (const staleId of staleIdsForGuard) {
+          const staleTokens = prevTokensByDateDevice.get(`${date}|${staleId}`) ?? 0;
+          if (staleTokens > max) max = staleTokens;
+        }
+        return max;
+      };
       const guardedRecords = usageRecords.filter(
-        (r) => (r.total_tokens ?? 0) >= (prevTokensByDateDevice.get(`${r.date}|${deviceId}`) ?? 0)
+        (r) => (r.total_tokens ?? 0) >= effectivePrevTokens(r.date)
       );
       const keptExisting = usageRecords.length - guardedRecords.length;
       if (keptExisting > 0) {
