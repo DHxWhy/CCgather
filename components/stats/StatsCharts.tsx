@@ -1,6 +1,7 @@
 "use client";
 
-import { motion, useReducedMotion } from "framer-motion";
+import { useEffect, useState } from "react";
+import { motion, animate, useReducedMotion } from "framer-motion";
 import {
   AreaChart,
   Area,
@@ -29,16 +30,21 @@ const CHART_TOKENS = [
 
 const MODEL_COLORS: Record<string, string> = {
   Opus: "var(--stats-chart-1)",
-  Sonnet: "var(--stats-chart-2)",
+  Fable: "var(--stats-chart-2)",
+  Sonnet: "var(--stats-chart-5)",
   Haiku: "var(--stats-chart-3)",
   Other: "var(--stats-chart-4)",
 };
+
+const WORDS_PER_TOKEN = 0.75;
+const WORDS_PER_NOVEL = 90_000;
+const SECONDS_30D = 30 * 24 * 60 * 60;
 
 function formatCompact(n: number): string {
   if (n >= 1_000_000_000) return `${(n / 1_000_000_000).toFixed(1)}B`;
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
   if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
-  return NUM.format(n);
+  return NUM.format(Math.round(n));
 }
 
 function formatMonthDay(dateStr: string): string {
@@ -47,6 +53,14 @@ function formatMonthDay(dateStr: string): string {
     day: "numeric",
     timeZone: "UTC",
   });
+}
+
+function timeAgo(iso: string): string {
+  const diffMs = Date.now() - new Date(iso).getTime();
+  const hours = Math.floor(diffMs / 3_600_000);
+  if (hours < 1) return "just now";
+  if (hours < 24) return `${hours}h ago`;
+  return `${Math.floor(hours / 24)}d ago`;
 }
 
 const EASE = [0.22, 1, 0.36, 1] as const;
@@ -76,6 +90,26 @@ const tooltipStyle = {
 const tooltipItemStyle = { color: "var(--color-text-primary)" };
 const tooltipLabelStyle = { color: "var(--color-text-secondary)" };
 
+function CountUp({ value }: { value: number }) {
+  const reducedMotion = useReducedMotion() ?? false;
+  const [display, setDisplay] = useState(0);
+
+  useEffect(() => {
+    if (reducedMotion) {
+      setDisplay(value);
+      return;
+    }
+    const controls = animate(0, value, {
+      duration: 0.9,
+      ease: EASE,
+      onUpdate: (v) => setDisplay(Math.round(v)),
+    });
+    return () => controls.stop();
+  }, [value, reducedMotion]);
+
+  return <>{NUM.format(display)}</>;
+}
+
 function ScopeChip({ children }: { children: React.ReactNode }) {
   return (
     <span className="rounded-full border border-[var(--border-default)] px-2 py-0.5 text-[9px] font-medium uppercase tracking-widest text-[var(--color-text-muted)]">
@@ -102,7 +136,7 @@ interface TrendAreaProps {
   stroke: string;
   gradientId: string;
   height: number;
-  animate: boolean;
+  animateChart: boolean;
   tooltipLabel: string;
 }
 
@@ -113,7 +147,7 @@ function TrendArea({
   stroke,
   gradientId,
   height,
-  animate,
+  animateChart,
   tooltipLabel,
 }: TrendAreaProps) {
   return (
@@ -167,7 +201,7 @@ function TrendArea({
             stroke={stroke}
             strokeWidth={2}
             fill={`url(#${gradientId})`}
-            isAnimationActive={animate}
+            isAnimationActive={animateChart}
           />
         </AreaChart>
       </ResponsiveContainer>
@@ -177,7 +211,7 @@ function TrendArea({
 
 export function StatsCharts({ stats }: { stats: PublicStats }) {
   const reducedMotion = useReducedMotion() ?? false;
-  const { summary, growth, countries, visitors, models } = stats;
+  const { summary, growth, countries, recentSyncs, models } = stats;
   const maxCountryUsers = countries.length > 0 ? countries[0]!.users : 1;
   const topModel = models[0];
   const todaySignups = growth.length > 0 ? growth[growth.length - 1]!.signups : 0;
@@ -191,13 +225,11 @@ export function StatsCharts({ stats }: { stats: PublicStats }) {
       : weekSignups > 0
         ? `+${NUM.format(weekSignups)} joined this week`
         : "tracking their Claude Code journey";
+  const novels = (summary.tokens30d * WORDS_PER_TOKEN) / WORDS_PER_NOVEL;
+  const tokensPerSecond = summary.tokens30d / SECONDS_30D;
   const growthSummary =
     growth.length > 0
       ? `Cumulative developers from ${formatMonthDay(growth[0]!.date)} (${growth[0]!.cumulative}) to ${formatMonthDay(growth[growth.length - 1]!.date)} (${growth[growth.length - 1]!.cumulative}).`
-      : "";
-  const visitorsSummary =
-    visitors.length > 0
-      ? `Daily unique visitors from ${formatMonthDay(visitors[0]!.date)} to ${formatMonthDay(visitors[visitors.length - 1]!.date)}, latest ${NUM.format(visitors[visitors.length - 1]!.visitors)}.`
       : "";
 
   return (
@@ -224,7 +256,7 @@ export function StatsCharts({ stats }: { stats: PublicStats }) {
             </span>
           </div>
           <div className="mt-2 font-mono text-5xl font-bold tabular-nums text-[var(--stats-chart-1)]">
-            {NUM.format(summary.totalUsers)}
+            <CountUp value={summary.totalUsers} />
           </div>
           <div className="mt-1 text-xs font-medium text-[var(--stats-chart-3)]">{heroDelta}</div>
         </motion.div>
@@ -238,9 +270,10 @@ export function StatsCharts({ stats }: { stats: PublicStats }) {
             caption: "input + output + cache",
           },
           {
-            label: "Active devs",
-            value: NUM.format(summary.activeDevs30d),
+            label: "Sessions",
+            value: formatCompact(summary.sessions30d),
             scope: "30 days",
+            caption: "synced via CLI",
           },
         ].map((card) => (
           <motion.div
@@ -266,6 +299,23 @@ export function StatsCharts({ stats }: { stats: PublicStats }) {
         ))}
       </motion.div>
 
+      {summary.tokens30d > 0 && (
+        <motion.p
+          variants={reducedMotion ? undefined : riseIn}
+          className="px-1 text-xs text-[var(--color-text-secondary)]"
+        >
+          That&apos;s ≈{" "}
+          <span className="font-mono font-semibold tabular-nums text-[var(--color-text-primary)]">
+            {formatCompact(novels)}
+          </span>{" "}
+          novels&apos; worth of text — about{" "}
+          <span className="font-mono font-semibold tabular-nums text-[var(--color-text-primary)]">
+            {formatCompact(tokensPerSecond)}
+          </span>{" "}
+          tokens every second, around the clock.
+        </motion.p>
+      )}
+
       <motion.section variants={reducedMotion ? undefined : riseIn} className={CARD}>
         <SectionTitle
           title="Community growth"
@@ -279,7 +329,7 @@ export function StatsCharts({ stats }: { stats: PublicStats }) {
           stroke="var(--stats-chart-1)"
           gradientId="growthFill"
           height={224}
-          animate={!reducedMotion}
+          animateChart={!reducedMotion}
           tooltipLabel="Total developers"
         />
       </motion.section>
@@ -287,7 +337,7 @@ export function StatsCharts({ stats }: { stats: PublicStats }) {
       <div className="grid gap-6 lg:grid-cols-2">
         <motion.section variants={reducedMotion ? undefined : riseIn} className={CARD}>
           <SectionTitle
-            title="Top countries"
+            title="Country race"
             caption={
               <Link
                 href="/leaderboard"
@@ -330,10 +380,16 @@ export function StatsCharts({ stats }: { stats: PublicStats }) {
                   <span className="w-10 text-right font-mono text-sm font-medium tabular-nums text-[var(--color-text-secondary)]">
                     {NUM.format(c.users)}
                   </span>
+                  <span className="w-12 text-right font-mono text-[10px] font-medium tabular-nums text-[var(--stats-chart-3)]">
+                    {c.weekSignups > 0 ? `▲ +${c.weekSignups}` : ""}
+                  </span>
                 </Link>
               </li>
             ))}
           </ol>
+          <p className="mt-3 text-right text-[10px] uppercase tracking-widest text-[var(--color-text-muted)]">
+            ▲ new this week
+          </p>
         </motion.section>
 
         <motion.section
@@ -411,28 +467,22 @@ export function StatsCharts({ stats }: { stats: PublicStats }) {
         </motion.section>
       </div>
 
-      <motion.section variants={reducedMotion ? undefined : riseIn} className={CARD}>
-        <SectionTitle title="Daily visitors" caption="unique visitors per day" />
-        {visitors.length > 0 ? (
-          <>
-            <p className="sr-only">{visitorsSummary}</p>
-            <TrendArea
-              data={visitors}
-              dataKey="visitors"
-              ariaLabel={`Daily visitors chart. ${visitorsSummary}`}
-              stroke="var(--stats-chart-4)"
-              gradientId="visitorsFill"
-              height={192}
-              animate={!reducedMotion}
-              tooltipLabel="Visitors"
-            />
-          </>
-        ) : (
-          <p className="text-sm text-[var(--color-text-muted)]">
-            Data collection started July 2026 — charts will grow daily.
-          </p>
-        )}
-      </motion.section>
+      {recentSyncs.length > 0 && (
+        <motion.section variants={reducedMotion ? undefined : riseIn} className={`${CARD} py-4`}>
+          <SectionTitle title="Live syncs" caption="latest CLI submissions" />
+          <ul className="flex flex-wrap items-center gap-x-5 gap-y-2">
+            {recentSyncs.map((s, i) => (
+              <li
+                key={`${s.countryCode}-${i}`}
+                className="flex items-center gap-1.5 text-xs text-[var(--color-text-secondary)]"
+              >
+                <FlagIcon countryCode={s.countryCode} size="xs" />
+                <span className="font-mono tabular-nums">{timeAgo(s.syncedAt)}</span>
+              </li>
+            ))}
+          </ul>
+        </motion.section>
+      )}
     </motion.div>
   );
 }

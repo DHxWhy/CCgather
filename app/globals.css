@@ -46,6 +46,7 @@
   --stats-chart-2: #8b5cf6;
   --stats-chart-3: #10b981;
   --stats-chart-4: #71717a;
+  --stats-chart-5: #3b82f6;
 
   /* Primary (Claude 기반) */
   --color-primary: #da7756;
@@ -234,6 +235,7 @@
   --stats-chart-2: #6d28d9;
   --stats-chart-3: #047857;
   --stats-chart-4: #52525b;
+  --stats-chart-5: #1d4ed8;
 
   /* Borders - Light (visible gray lines) */
   --border-default: rgba(0, 0, 0, 0.18);

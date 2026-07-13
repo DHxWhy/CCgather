@@ -5,11 +5,11 @@ export interface PublicStats {
     totalUsers: number;
     totalCountries: number;
     tokens30d: number;
-    activeDevs30d: number;
+    sessions30d: number;
   };
   growth: { date: string; signups: number; cumulative: number }[];
-  countries: { countryCode: string; users: number }[];
-  visitors: { date: string; visitors: number; pageviews: number }[];
+  countries: { countryCode: string; users: number; weekSignups: number }[];
+  recentSyncs: { countryCode: string; syncedAt: string }[];
   models: { family: string; pct: number }[];
 }
 
@@ -17,7 +17,7 @@ interface SummaryRow {
   total_users: number;
   total_countries: number;
   tokens_30d: number;
-  active_devs_30d: number;
+  sessions_30d: number;
 }
 
 interface GrowthRow {
@@ -26,15 +26,16 @@ interface GrowthRow {
   cumulative: number;
 }
 
-interface CountryRow {
+interface CountryRaceRow {
   country_code: string;
-  user_count: number;
+  total_users: number;
+  week_signups: number;
+  prev_week_signups: number;
 }
 
-interface VisitorRow {
-  date: string;
-  visitors: number;
-  pageviews: number;
+interface RecentSyncRow {
+  country_code: string;
+  synced_at: string;
 }
 
 interface ModelRow {
@@ -42,6 +43,8 @@ interface ModelRow {
   total_tokens: number;
   pct: number;
 }
+
+const PUBLIC_GROWTH_DAYS = 90;
 
 function fillDailyGrowth(rows: PublicStats["growth"]): PublicStats["growth"] {
   if (rows.length === 0) return rows;
@@ -62,30 +65,16 @@ function fillDailyGrowth(rows: PublicStats["growth"]): PublicStats["growth"] {
 
 export async function getPublicStats(): Promise<PublicStats> {
   const supabase = createServiceClient();
-  // analytics_daily·신규 RPC는 자동 생성 타입에 없어 우회 (프로젝트 규칙)
+  // 신규 RPC는 자동 생성 타입에 없어 우회 (프로젝트 규칙)
   const sb = supabase as never as {
     rpc: (fn: string) => PromiseLike<{ data: unknown; error: { message: string } | null }>;
-    from: (table: string) => {
-      select: (cols: string) => {
-        order: (
-          col: string,
-          opts: { ascending: boolean }
-        ) => {
-          limit: (n: number) => PromiseLike<{ data: unknown; error: { message: string } | null }>;
-        };
-      };
-    };
   };
 
-  const [summaryRes, growthRes, countryRes, visitorsRes, modelsRes] = await Promise.all([
+  const [summaryRes, growthRes, raceRes, syncsRes, modelsRes] = await Promise.all([
     sb.rpc("get_public_stats_summary"),
     sb.rpc("get_signup_growth"),
-    sb.rpc("get_country_distribution"),
-    sb
-      .from("analytics_daily")
-      .select("date, visitors, pageviews")
-      .order("date", { ascending: true })
-      .limit(730),
+    sb.rpc("get_country_race"),
+    sb.rpc("get_recent_syncs"),
     sb.rpc("get_model_distribution"),
   ]);
 
@@ -93,8 +82,8 @@ export async function getPublicStats(): Promise<PublicStats> {
     [
       ["summary", summaryRes],
       ["growth", growthRes],
-      ["country", countryRes],
-      ["visitors", visitorsRes],
+      ["race", raceRes],
+      ["syncs", syncsRes],
       ["models", modelsRes],
     ] as const
   ).filter(([, res]) => res.error);
@@ -110,7 +99,7 @@ export async function getPublicStats(): Promise<PublicStats> {
       totalUsers: Number(s?.total_users ?? 0),
       totalCountries: Number(s?.total_countries ?? 0),
       tokens30d: Number(s?.tokens_30d ?? 0),
-      activeDevs30d: Number(s?.active_devs_30d ?? 0),
+      sessions30d: Number(s?.sessions_30d ?? 0),
     },
     growth: fillDailyGrowth(
       ((growthRes.data as GrowthRow[]) ?? []).map((r) => ({
@@ -118,15 +107,15 @@ export async function getPublicStats(): Promise<PublicStats> {
         signups: Number(r.signups),
         cumulative: Number(r.cumulative),
       }))
-    ),
-    countries: ((countryRes.data as CountryRow[]) ?? []).slice(0, 10).map((r) => ({
+    ).slice(-PUBLIC_GROWTH_DAYS),
+    countries: ((raceRes.data as CountryRaceRow[]) ?? []).slice(0, 10).map((r) => ({
       countryCode: r.country_code,
-      users: Number(r.user_count),
+      users: Number(r.total_users),
+      weekSignups: Number(r.week_signups),
     })),
-    visitors: ((visitorsRes.data as VisitorRow[]) ?? []).map((r) => ({
-      date: r.date,
-      visitors: Number(r.visitors),
-      pageviews: Number(r.pageviews),
+    recentSyncs: ((syncsRes.data as RecentSyncRow[]) ?? []).map((r) => ({
+      countryCode: r.country_code,
+      syncedAt: r.synced_at,
     })),
     models: ((modelsRes.data as ModelRow[]) ?? []).map((r) => ({
       family: r.family,
