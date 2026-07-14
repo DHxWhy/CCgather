@@ -18,11 +18,7 @@ import {
 } from "@/lib/services/submit-validators";
 import { notifyValidationIssue } from "@/lib/services/validation-notify";
 import { alertOps } from "@/lib/services/ops-alert";
-import {
-  fetchHashOwners,
-  fetchStaleDeviceRows,
-  type OwnedHashRow,
-} from "@/lib/utils/session-hash-query";
+import { fetchSessionHashRows, type SessionHashRow } from "@/lib/utils/session-hash-query";
 
 interface DailyUsage {
   date: string;
@@ -279,19 +275,25 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Session fingerprint duplicate check (1 Project 1 Person principle)
+    // Session fingerprint duplicate check (1 Project 1 Person principle).
+    // One lookup answers both questions the submit path needs — who owns these
+    // hashes, and which of this user's devices already hold them — so the stale
+    // device set is derived here instead of costing a second full scan later.
+    let staleDeviceIdsFromHashes: string[] = [];
+
     if (body.sessionFingerprint?.sessionHashes?.length) {
       const { sessionHashes } = body.sessionFingerprint;
 
-      // Fail-closed: this lookup IS the anti-theft gate. If it errors we must not
-      // accept the payload with the gate silently open (that was the old bug).
-      let existingHashes: OwnedHashRow[];
+      // Fail-closed: this lookup IS the anti-theft and anti-double-count gate.
+      // Accepting the payload while it is silently broken was the original bug.
+      let existingHashes: SessionHashRow[];
       try {
-        existingHashes = await fetchHashOwners(supabase, sessionHashes);
+        existingHashes = await fetchSessionHashRows(supabase, sessionHashes);
       } catch (lookupError) {
-        await alertOps("Session hash owner lookup failed", {
+        await alertOps("Session hash lookup failed", {
           username: authenticatedUser.username,
           hashCount: sessionHashes.length,
+          deviceId,
           error: lookupError instanceof Error ? lookupError.message : String(lookupError),
         });
         return NextResponse.json(
@@ -301,6 +303,21 @@ export async function POST(request: NextRequest) {
           },
           { status: 503 }
         );
+      }
+
+      if (deviceId !== "legacy") {
+        staleDeviceIdsFromHashes = [
+          ...new Set(
+            existingHashes
+              .filter(
+                (h) =>
+                  h.user_id === authenticatedUser.id &&
+                  h.device_id !== null &&
+                  h.device_id !== deviceId
+              )
+              .map((h) => h.device_id as string)
+          ),
+        ];
       }
 
       const foreignHashes = existingHashes.filter((h) => h.user_id !== authenticatedUser.id);
@@ -484,47 +501,13 @@ export async function POST(request: NextRequest) {
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
-    // STEP 0.7: Reinstall detection — QUERY ONLY (cleanup deferred to STEP 1.7)
-    // Detect if same session hashes appear with a different device_id, indicating
-    // a CLI reinstall. Actual cleanup runs AFTER successful upsert to prevent
-    // data loss if upsert fails.
-    // NOTE: This query must run AFTER session hash insertion (lines above) because
-    // new hashes are inserted with the current device_id and won't match here.
+    // STEP 0.7: Reinstall detection — derived from the hash lookup above.
+    // Same session hashes under a different device_id means the same machine came
+    // back with a new ID (hostname/homedir change, CLI reinstall). The rows are
+    // cleaned up in STEP 1.7, after the new data is safely written.
     // ═══════════════════════════════════════════════════════════════════════════
-    let staleDeviceInfo: { staleDeviceIds: string[] } | null = null;
-
-    if (deviceId !== "legacy" && body.sessionFingerprint?.sessionHashes?.length) {
-      // Fail-closed: a silent failure here would disable the migration guard and
-      // let the same machine's history be counted under two device IDs.
-      let staleDeviceRows;
-      try {
-        staleDeviceRows = await fetchStaleDeviceRows(
-          supabase,
-          authenticatedUser.id,
-          body.sessionFingerprint.sessionHashes,
-          deviceId
-        );
-      } catch (lookupError) {
-        await alertOps("Stale device lookup failed", {
-          username: authenticatedUser.username,
-          hashCount: body.sessionFingerprint.sessionHashes.length,
-          deviceId,
-          error: lookupError instanceof Error ? lookupError.message : String(lookupError),
-        });
-        return NextResponse.json(
-          {
-            error: "Could not verify device history. Please try again.",
-            code: "DEVICE_LOOKUP_FAILED",
-          },
-          { status: 503 }
-        );
-      }
-
-      if (staleDeviceRows.length > 0) {
-        const staleIds = staleDeviceRows.map((r) => r.device_id as string);
-        staleDeviceInfo = { staleDeviceIds: [...new Set<string>(staleIds)] };
-      }
-    }
+    const staleDeviceInfo: { staleDeviceIds: string[] } | null =
+      staleDeviceIdsFromHashes.length > 0 ? { staleDeviceIds: staleDeviceIdsFromHashes } : null;
 
     // ═══════════════════════════════════════════════════════════════════════════
     // STEP 1: Insert/Update daily usage records FIRST (before legacy cleanup)
