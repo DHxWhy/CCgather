@@ -21,6 +21,29 @@ function chunk<T>(items: T[], size: number): T[][] {
   return out;
 }
 
+// A heavy user issues ~100 chunks; without a retry, one transient blip in any
+// single chunk would fail the whole submit. Retry each chunk before giving up.
+const CHUNK_RETRIES = 2;
+
+async function queryChunk(supabase: SupabaseClient, batch: string[]): Promise<SessionHashRow[]> {
+  let lastError = "";
+  for (let attempt = 0; attempt <= CHUNK_RETRIES; attempt++) {
+    const { data, error } = (await supabase
+      .from("submitted_sessions")
+      .select("session_hash, user_id, device_id")
+      .in("session_hash", batch)) as {
+      data: SessionHashRow[] | null;
+      error: { message: string } | null;
+    };
+    if (!error) return data ?? [];
+    lastError = error.message;
+    if (attempt < CHUNK_RETRIES) {
+      await new Promise((r) => setTimeout(r, 150 * (attempt + 1)));
+    }
+  }
+  throw new Error(`session hash lookup failed: ${lastError}`);
+}
+
 export async function fetchSessionHashRows(
   supabase: SupabaseClient,
   hashes: string[]
@@ -29,25 +52,8 @@ export async function fetchSessionHashRows(
   const rows: SessionHashRow[] = [];
 
   for (const wave of chunk(batches, MAX_CONCURRENT)) {
-    const settled = await Promise.all(
-      wave.map(
-        (batch) =>
-          supabase
-            .from("submitted_sessions")
-            .select("session_hash, user_id, device_id")
-            .in("session_hash", batch) as PromiseLike<{
-            data: SessionHashRow[] | null;
-            error: { message: string } | null;
-          }>
-      )
-    );
-
-    for (const { data, error } of settled) {
-      if (error) {
-        throw new Error(`session hash lookup failed: ${error.message}`);
-      }
-      if (data) rows.push(...data);
-    }
+    const settled = await Promise.all(wave.map((batch) => queryChunk(supabase, batch)));
+    for (const data of settled) rows.push(...data);
   }
 
   return rows;

@@ -263,16 +263,31 @@ export async function POST(request: NextRequest) {
     // STEP 0.5: Validate deviceId input (before session hash storage)
     // ═══════════════════════════════════════════════════════════════════════════
     const rawDeviceId = body.deviceId || "legacy";
-    const deviceId =
+    const validatedDeviceId =
       rawDeviceId === "legacy" || /^[a-f0-9]{8,16}$/.test(rawDeviceId) ? rawDeviceId : "legacy";
 
-    // Warn legacy (no deviceId) submissions — log for monitoring but allow through
-    // to avoid breaking existing CLI users until npm publish includes deviceId support
+    // Anti-amplification: a real deviceId only earns its own usage bucket when it
+    // proves which machine it is via a session fingerprint. The genuine CLI always
+    // sends one (fingerprints predate deviceId in the CLI), so a real-looking
+    // deviceId with no fingerprint is either a broken client or an attacker rotating
+    // deviceId to make the same logs sum repeatedly. Collapse it into the single
+    // 'legacy' bucket, where the freeze guard keeps MAX and rotation gains nothing.
+    const hasFingerprint = !!body.sessionFingerprint?.sessionHashes?.length;
+    const deviceId =
+      validatedDeviceId !== "legacy" && !hasFingerprint ? "legacy" : validatedDeviceId;
+
     if (deviceId === "legacy") {
-      console.warn(
-        `[CLI Submit] Legacy submission (no deviceId) from user ${authenticatedUser.username}. ` +
-          `Multi-device overwrite risk exists. User should update CLI.`
-      );
+      if (validatedDeviceId !== "legacy") {
+        console.warn(
+          `[CLI Submit] Real deviceId with no fingerprint from ${authenticatedUser.username} — ` +
+            `collapsed to legacy to prevent device rotation amplification.`
+        );
+      } else {
+        console.warn(
+          `[CLI Submit] Legacy submission (no deviceId) from user ${authenticatedUser.username}. ` +
+            `Multi-device overwrite risk exists. User should update CLI.`
+        );
+      }
     }
 
     // Session fingerprint duplicate check (1 Project 1 Person principle).
