@@ -247,6 +247,45 @@ export function StatsCharts({ stats }: { stats: PublicStats }) {
         ))}
       </motion.div>
 
+      {recentSyncs.length > 0 && (
+        <motion.div variants={reducedMotion ? undefined : riseIn} className={`${CARD} !py-2.5`}>
+          <div className="flex items-center gap-4">
+            <span className="shrink-0 text-[10px] font-semibold uppercase tracking-widest text-[var(--color-text-muted)]">
+              Live syncs
+            </span>
+            <div className="marquee-viewport relative flex-1 overflow-hidden">
+              <ul className="marquee-track flex w-max items-center gap-x-6 whitespace-nowrap">
+                {[...recentSyncs, ...recentSyncs].map((s, i) => (
+                  <li key={`${s.countryCode}-${i}`} className="shrink-0">
+                    {s.username ? (
+                      <Link
+                        href={`/leaderboard?u=${encodeURIComponent(s.username)}`}
+                        className="flex items-center gap-1.5 text-xs text-[var(--color-text-secondary)] transition-colors hover:text-[var(--stats-chart-1)]"
+                      >
+                        <FlagIcon countryCode={s.countryCode} size="xs" />
+                        <span className="font-medium text-[var(--color-text-primary)]">
+                          @{s.username}
+                        </span>
+                        <span className="font-mono text-[11px] tabular-nums text-[var(--color-text-muted)]">
+                          {timeAgo(s.syncedAt)}
+                        </span>
+                      </Link>
+                    ) : (
+                      <span className="flex items-center gap-1.5 text-xs text-[var(--color-text-secondary)]">
+                        <FlagIcon countryCode={s.countryCode} size="xs" />
+                        <span className="font-mono text-xs tabular-nums">
+                          {timeAgo(s.syncedAt)}
+                        </span>
+                      </span>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        </motion.div>
+      )}
+
       <div className="grid gap-4 lg:grid-cols-3">
         <motion.section
           variants={reducedMotion ? undefined : riseIn}
@@ -260,16 +299,16 @@ export function StatsCharts({ stats }: { stats: PublicStats }) {
               </span>
             }
           />
-          <div className="flex items-center justify-center py-1">
+          <div className="flex flex-1 items-center justify-center py-3">
             <GlobeStatsSection
-              size="default"
+              size="large"
               hideStats
               hideParticles
               overlayDots
               scopeFilter="global"
             />
           </div>
-          <ol className="mt-2 space-y-1">
+          <ol className="mt-3 space-y-1.5">
             {countries.map((c, i) => (
               <li key={c.countryCode}>
                 <Link
@@ -311,7 +350,10 @@ export function StatsCharts({ stats }: { stats: PublicStats }) {
           </ol>
         </motion.section>
 
-        <motion.section variants={reducedMotion ? undefined : riseIn} className={CARD}>
+        <motion.section
+          variants={reducedMotion ? undefined : riseIn}
+          className={`${CARD} flex flex-col`}
+        >
           <SectionTitle
             title="This month's race"
             caption={
@@ -575,45 +617,6 @@ export function StatsCharts({ stats }: { stats: PublicStats }) {
           </motion.section>
         )}
       </div>
-
-      {recentSyncs.length > 0 && (
-        <motion.section variants={reducedMotion ? undefined : riseIn} className={`${CARD} py-3`}>
-          <div className="flex items-center gap-4">
-            <span className="shrink-0 text-[11px] font-semibold uppercase tracking-widest text-[var(--color-text-muted)]">
-              Live syncs
-            </span>
-            <div className="marquee-viewport relative flex-1 overflow-hidden">
-              <ul className="marquee-track flex w-max items-center gap-x-6 whitespace-nowrap">
-                {[...recentSyncs, ...recentSyncs].map((s, i) => (
-                  <li key={`${s.countryCode}-${i}`} className="shrink-0">
-                    {s.username ? (
-                      <Link
-                        href={`/leaderboard?u=${encodeURIComponent(s.username)}`}
-                        className="flex items-center gap-1.5 text-xs text-[var(--color-text-secondary)] transition-colors hover:text-[var(--stats-chart-1)]"
-                      >
-                        <FlagIcon countryCode={s.countryCode} size="xs" />
-                        <span className="font-medium text-[var(--color-text-primary)]">
-                          @{s.username}
-                        </span>
-                        <span className="font-mono text-[11px] tabular-nums text-[var(--color-text-muted)]">
-                          {timeAgo(s.syncedAt)}
-                        </span>
-                      </Link>
-                    ) : (
-                      <span className="flex items-center gap-1.5 text-xs text-[var(--color-text-secondary)]">
-                        <FlagIcon countryCode={s.countryCode} size="xs" />
-                        <span className="font-mono text-xs tabular-nums">
-                          {timeAgo(s.syncedAt)}
-                        </span>
-                      </span>
-                    )}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          </div>
-        </motion.section>
-      )}
     </motion.div>
   );
 }

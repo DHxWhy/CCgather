@@ -25,12 +25,12 @@ export function TopDevelopers({ devs }: { devs: PublicStats["monthRace"] }) {
   }
 
   return (
-    <div className="space-y-2">
+    <div className="flex flex-1 flex-col justify-center gap-3">
       {devs.map((dev, i) => (
         <Link
           key={dev.username}
           href={`/leaderboard?u=${encodeURIComponent(dev.username)}`}
-          className={`flex items-center gap-3 rounded-lg border bg-[var(--color-bg-card)]/60 px-3 py-2 transition-colors hover:bg-[var(--color-bg-card-hover)] ${RANK_STYLES[i]}`}
+          className={`flex items-center gap-3 rounded-lg border bg-[var(--color-bg-card)]/60 px-3 py-3 transition-colors hover:bg-[var(--color-bg-card-hover)] ${RANK_STYLES[i]}`}
         >
           <span className="w-4 text-center font-mono text-sm font-bold tabular-nums text-[var(--color-text-muted)]">
             {i + 1}

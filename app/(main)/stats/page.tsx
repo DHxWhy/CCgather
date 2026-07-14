@@ -47,7 +47,7 @@ export default async function StatsPage() {
   };
 
   return (
-    <div className="mx-auto max-w-6xl space-y-4 px-4 py-6">
+    <div className="mx-auto max-w-6xl space-y-4 px-4 pb-24 pt-6">
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
