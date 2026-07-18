@@ -192,7 +192,7 @@ export function StatsCharts({ stats }: { stats: PublicStats }) {
       >
         <motion.div
           variants={reducedMotion ? undefined : riseIn}
-          className={`${CARD} col-span-2 !p-3 border-[var(--stats-chart-1)]/40 lg:col-span-1`}
+          className={`${CARD} !p-3 border-[var(--stats-chart-1)]/40`}
         >
           <div className="flex items-center justify-between gap-2">
             <span className="whitespace-nowrap text-[9px] font-semibold uppercase tracking-[0.14em] text-[var(--color-text-muted)]">
@@ -513,23 +513,23 @@ export function StatsCharts({ stats }: { stats: PublicStats }) {
             variants={reducedMotion ? undefined : riseIn}
             className={`${CARD} border-[var(--stats-chart-1)]/40 lg:col-span-2`}
           >
-            <div className="flex items-start justify-between gap-4">
-              <div className="flex items-center gap-3">
-                <span aria-hidden className="text-2xl">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+              <div className="flex min-w-0 items-center gap-3">
+                <span aria-hidden className="shrink-0 text-2xl">
                   🏆
                 </span>
-                <div>
+                <div className="min-w-0">
                   <div className="text-sm font-bold text-[var(--color-text-primary)]">
                     Season 1 · July 2026 — {tagline}
                   </div>
                   <p className="text-[11px] text-[var(--color-text-secondary)]">{subline}</p>
                 </div>
               </div>
-              <div className="shrink-0 text-center">
+              <div className="flex shrink-0 items-baseline gap-2 text-left sm:block sm:gap-0 sm:text-center">
                 <div className="font-mono text-xl font-bold tabular-nums leading-none text-[var(--stats-chart-1)]">
                   {daysToReset}d
                 </div>
-                <div className="mt-1 text-[9px] uppercase tracking-widest text-[var(--color-text-muted)]">
+                <div className="text-[9px] uppercase tracking-widest text-[var(--color-text-muted)] sm:mt-1">
                   {countdownLabel}
                 </div>
               </div>
@@ -559,7 +559,7 @@ export function StatsCharts({ stats }: { stats: PublicStats }) {
                         className="h-7 w-7 shrink-0 rounded-full border border-[var(--border-default)] object-cover"
                       />
                     ) : null}
-                    <span className="truncate text-xs font-semibold text-[var(--color-text-primary)]">
+                    <span className="min-w-0 truncate text-xs font-semibold text-[var(--color-text-primary)]">
                       {topRacer.displayName || topRacer.username}
                     </span>
                     {topRacer.countryCode && (
@@ -591,7 +591,7 @@ export function StatsCharts({ stats }: { stats: PublicStats }) {
                   </div>
                   <div className="mt-1 flex items-center gap-2">
                     <FlagIcon countryCode={topCountry.countryCode} size="sm" />
-                    <span className="truncate text-xs font-semibold text-[var(--color-text-primary)]">
+                    <span className="min-w-0 truncate text-xs font-semibold text-[var(--color-text-primary)]">
                       {getCountryName(topCountry.countryCode)}
                     </span>
                     <span className="text-[11px] text-[var(--color-text-muted)]">

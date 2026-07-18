@@ -67,7 +67,7 @@ export function SeasonChampions({ champions }: { champions: PublicStats["seasonC
                   className="h-5 w-5 shrink-0 rounded-full border border-[var(--border-default)] object-cover"
                 />
               ) : null}
-              <span className="truncate text-xs font-semibold text-[var(--color-text-primary)]">
+              <span className="min-w-0 truncate text-xs font-semibold text-[var(--color-text-primary)]">
                 {c.displayName || c.username}
               </span>
               {c.countryCode && <FlagIcon countryCode={c.countryCode} size="xs" />}
