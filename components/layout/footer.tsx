@@ -30,7 +30,7 @@ export function Footer() {
 
           <nav
             aria-label="Footer navigation"
-            className="flex items-center gap-6 text-sm text-text-secondary"
+            className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-sm text-text-secondary"
           >
             <Link href="/leaderboard" className="hover:text-text-primary transition-colors">
               Leaderboard

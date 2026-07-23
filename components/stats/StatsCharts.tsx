@@ -69,7 +69,7 @@ const riseIn = {
 };
 
 const CARD =
-  "rounded-xl border border-[var(--border-default)] bg-[var(--color-bg-secondary)] p-4 transition-colors duration-200 hover:border-[var(--border-hover)]";
+  "min-w-0 rounded-xl border border-[var(--border-default)] bg-[var(--color-bg-secondary)] p-4 transition-colors duration-200 hover:border-[var(--border-hover)]";
 
 const tooltipStyle = {
   backgroundColor: "var(--color-bg-elevated)",
