@@ -15,6 +15,7 @@ export {
   formatCost,
   formatTokens,
   formatCurrency,
+  formatCompact,
   formatCompactCurrency,
   formatPercentage,
   formatRelativeTime,

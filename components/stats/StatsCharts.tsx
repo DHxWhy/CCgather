@@ -9,6 +9,8 @@ import { getCountryName } from "@/lib/constants/countries";
 import { GlobeStatsSection } from "@/components/leaderboard/GlobeStatsSection";
 import { TopDevelopers } from "@/components/stats/TopDevelopers";
 import { SeasonChampions } from "@/components/stats/SeasonChampions";
+import { SeasonSprint } from "@/components/stats/SeasonSprint";
+import { formatCompact } from "@/lib/utils/format";
 import type { PublicStats } from "@/lib/services/publicStats";
 import {
   SEASON_TAGLINES,
@@ -40,13 +42,6 @@ const MODEL_COLORS: Record<string, string> = {
 const WORDS_PER_TOKEN = 0.75;
 const WORDS_PER_NOVEL = 90_000;
 const SECONDS_30D = 30 * 24 * 60 * 60;
-
-function formatCompact(n: number): string {
-  if (n >= 1_000_000_000) return `${(n / 1_000_000_000).toFixed(1)}B`;
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
-  return NUM.format(Math.round(n));
-}
 
 function timeAgo(iso: string): string {
   const diffMs = Date.now() - new Date(iso).getTime();
@@ -146,6 +141,7 @@ export function StatsCharts({ stats }: { stats: PublicStats }) {
     monthRace,
     monthCountryRace,
     seasonCategories,
+    seasons,
     hallOfFame,
   } = stats;
   const maxCountryUsers = countries.length > 0 ? countries[0]!.users : 1;
@@ -172,12 +168,6 @@ export function StatsCharts({ stats }: { stats: PublicStats }) {
         : "tracking their Claude Code journey";
   const novels = (summary.tokens30d * WORDS_PER_TOKEN) / WORDS_PER_NOVEL;
   const tokensPerSecond = summary.tokens30d / SECONDS_30D;
-
-  const leaderboardLink = (
-    <Link href="/leaderboard" className="transition-colors hover:text-[var(--stats-chart-1)]">
-      full leaderboard →
-    </Link>
-  );
 
   return (
     <motion.div
@@ -355,9 +345,14 @@ export function StatsCharts({ stats }: { stats: PublicStats }) {
           className={`${CARD} flex flex-col`}
         >
           <SectionTitle
-            title="This month's race"
+            title="Top 3 this month"
             caption={
-              <span className="text-xs text-[var(--color-text-secondary)]">{leaderboardLink}</span>
+              <a
+                href="#season-sprint"
+                className="text-xs text-[var(--color-text-secondary)] transition-colors hover:text-[var(--stats-chart-1)]"
+              >
+                full board ↓
+              </a>
             }
           />
           <TopDevelopers devs={monthRace} />
@@ -616,6 +611,10 @@ export function StatsCharts({ stats }: { stats: PublicStats }) {
             </div>
           </motion.section>
         )}
+      </div>
+
+      <div id="season-sprint" className="scroll-mt-20">
+        <SeasonSprint seasons={seasons} />
       </div>
     </motion.div>
   );

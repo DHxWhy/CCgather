@@ -1,4 +1,36 @@
 import { createServiceClient } from "@/lib/supabase/server";
+import {
+  currentSeasonStart,
+  previousSeasonStart,
+  isSeasonFinalized,
+  toMonthKey,
+  SEASON_ONE_MONTH,
+} from "@/lib/constants/season";
+
+const SEASON_BOARD_SIZE = 20;
+const HOF_PODIUM_RANKS = 3;
+
+type SbResult = PromiseLike<{ data: unknown; error: { message: string } | null }>;
+interface OrderChain {
+  order: (col: string, opts: { ascending: boolean }) => OrderChain & SbResult;
+}
+
+export interface SeasonBoardRow {
+  rank: number;
+  username: string;
+  displayName: string | null;
+  avatarUrl: string | null;
+  countryCode: string | null;
+  currentLevel: number | null;
+  tokens: number;
+  cost: number;
+}
+
+export interface SeasonBoard {
+  month: string;
+  finalized: boolean;
+  rows: SeasonBoardRow[];
+}
 
 export interface PublicStats {
   summary: {
@@ -19,6 +51,10 @@ export interface PublicStats {
     currentLevel: number;
     tokens: number;
   }[];
+  seasons: {
+    current: SeasonBoard;
+    previous: SeasonBoard | null;
+  };
   monthCountryRace: { countryCode: string; tokens: number; users: number }[];
   seasonCategories: {
     category: "tokens" | "cost" | "sessions";
@@ -77,6 +113,18 @@ interface MonthRaceRow {
   country_code: string | null;
   current_level: number;
   tokens: number;
+}
+
+interface SeasonBoardRawRow {
+  rank: number;
+  username: string;
+  display_name: string | null;
+  avatar_url: string | null;
+  country_code: string | null;
+  current_level: number | null;
+  tokens: number;
+  cost: number;
+  frozen: boolean;
 }
 
 interface MonthCountryRow {
@@ -143,21 +191,18 @@ export async function getPublicStats(): Promise<PublicStats> {
   const supabase = createServiceClient();
   // 신규 RPC는 자동 생성 타입에 없어 우회 (프로젝트 규칙)
   const sb = supabase as never as {
-    rpc: (fn: string) => PromiseLike<{ data: unknown; error: { message: string } | null }>;
+    rpc: (
+      fn: string,
+      args?: Record<string, unknown>
+    ) => PromiseLike<{ data: unknown; error: { message: string } | null }>;
     from: (table: string) => {
-      select: (cols: string) => {
-        order: (
-          col: string,
-          opts: { ascending: boolean }
-        ) => {
-          order: (
-            col2: string,
-            opts2: { ascending: boolean }
-          ) => PromiseLike<{ data: unknown; error: { message: string } | null }>;
-        };
-      };
+      select: (cols: string) => OrderChain & { lte: (col: string, value: number) => OrderChain };
     };
   };
+
+  const now = new Date();
+  const curMonth = toMonthKey(currentSeasonStart(now));
+  const prevMonth = toMonthKey(previousSeasonStart(now));
 
   const [
     summaryRes,
@@ -166,6 +211,8 @@ export async function getPublicStats(): Promise<PublicStats> {
     syncsRes,
     modelsRes,
     monthRaceRes,
+    curSeasonRes,
+    prevSeasonRes,
     monthCountryRes,
     seasonCatsRes,
     hofUsersRes,
@@ -177,11 +224,14 @@ export async function getPublicStats(): Promise<PublicStats> {
     sb.rpc("get_recent_syncs"),
     sb.rpc("get_model_distribution"),
     sb.rpc("get_month_race"),
+    sb.rpc("get_season_board", { m_start: curMonth, n: SEASON_BOARD_SIZE }),
+    sb.rpc("get_season_board", { m_start: prevMonth, n: SEASON_BOARD_SIZE }),
     sb.rpc("get_month_country_race"),
     sb.rpc("get_season_categories"),
     sb
       .from("monthly_hall_of_fame")
       .select("month, rank, username, display_name, avatar_url, country_code, tokens")
+      .lte("rank", HOF_PODIUM_RANKS)
       .order("month", { ascending: false })
       .order("rank", { ascending: true }),
     sb
@@ -199,6 +249,8 @@ export async function getPublicStats(): Promise<PublicStats> {
       ["syncs", syncsRes],
       ["models", modelsRes],
       ["monthRace", monthRaceRes],
+      ["curSeason", curSeasonRes],
+      ["prevSeason", prevSeasonRes],
       ["monthCountry", monthCountryRes],
       ["seasonCats", seasonCatsRes],
       ["hofUsers", hofUsersRes],
@@ -248,6 +300,21 @@ export async function getPublicStats(): Promise<PublicStats> {
       currentLevel: Number(r.current_level),
       tokens: Number(r.tokens),
     })),
+    seasons: {
+      current: {
+        month: curMonth,
+        finalized: false,
+        rows: mapSeasonRows(curSeasonRes.data),
+      },
+      previous:
+        prevMonth < SEASON_ONE_MONTH
+          ? null
+          : {
+              month: prevMonth,
+              finalized: isSeasonFinalized(previousSeasonStart(now), now),
+              rows: mapSeasonRows(prevSeasonRes.data),
+            },
+    },
     monthCountryRace: ((monthCountryRes.data as MonthCountryRow[]) ?? []).map((r) => ({
       countryCode: r.country_code,
       tokens: Number(r.tokens),
@@ -268,6 +335,19 @@ export async function getPublicStats(): Promise<PublicStats> {
       (hofCountriesRes.data as HofCountryRow[]) ?? []
     ),
   };
+}
+
+function mapSeasonRows(data: unknown): SeasonBoardRow[] {
+  return ((data as SeasonBoardRawRow[]) ?? []).map((r) => ({
+    rank: Number(r.rank),
+    username: r.username,
+    displayName: r.display_name,
+    avatarUrl: r.avatar_url,
+    countryCode: r.country_code,
+    currentLevel: r.current_level === null ? null : Number(r.current_level),
+    tokens: Number(r.tokens),
+    cost: Number(r.cost),
+  }));
 }
 
 function buildHallOfFame(

@@ -2,16 +2,8 @@
 
 import Link from "next/link";
 import { FlagIcon } from "@/components/ui/FlagIcon";
+import { formatCompact } from "@/lib/utils/format";
 import type { PublicStats } from "@/lib/services/publicStats";
-
-const NUM = new Intl.NumberFormat("en-US");
-
-function formatCompact(n: number): string {
-  if (n >= 1_000_000_000) return `${(n / 1_000_000_000).toFixed(1)}B`;
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
-  return NUM.format(n);
-}
 
 const RANK_STYLES = [
   "border-[var(--stats-chart-1)]/60",

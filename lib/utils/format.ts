@@ -42,6 +42,15 @@ export function formatTokens(tokens: number): string {
   return formatNumber(tokens);
 }
 
+const COMPACT_NUM = new Intl.NumberFormat("en-US");
+
+export function formatCompact(n: number): string {
+  if (n >= 1_000_000_000) return `${(n / 1_000_000_000).toFixed(1)}B`;
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
+  return COMPACT_NUM.format(Math.round(n));
+}
+
 /**
  * Format USD currency
  * @example formatCurrency(1234.56) // "$1,234.56"
