@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { checkAdminAccess } from "@/lib/admin";
-import { createClient } from "@/lib/supabase/server";
+import { createServiceClient } from "@/lib/supabase/server";
 
 export async function GET() {
   try {
@@ -8,7 +8,7 @@ export async function GET() {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const supabase = await createClient();
+    const supabase = createServiceClient();
     const startTime = Date.now();
 
     // DB 연결 테스트

@@ -1,7 +1,7 @@
-import { NextResponse } from 'next/server';
-import { auth, currentUser } from '@clerk/nextjs/server';
-import { createClient } from '@/lib/supabase/server';
-import { randomBytes } from 'crypto';
+import { NextResponse } from "next/server";
+import { auth, currentUser } from "@clerk/nextjs/server";
+import { createServiceClient } from "@/lib/supabase/server";
+import { randomBytes } from "crypto";
 
 /**
  * Generate a new API token for CLI authentication
@@ -12,35 +12,26 @@ export async function POST() {
     const { userId: clerkUserId } = await auth();
 
     if (!clerkUserId) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      );
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     const user = await currentUser();
     if (!user) {
-      return NextResponse.json(
-        { error: 'User not found' },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
-    const supabase = await createClient();
+    const supabase = createServiceClient();
 
     // Find or create user in database
     const { data: existingUser, error: findError } = await supabase
-      .from('users')
-      .select('id, username, api_key')
-      .eq('clerk_id', clerkUserId)
+      .from("users")
+      .select("id, username, api_key")
+      .eq("clerk_id", clerkUserId)
       .single();
 
-    if (findError && findError.code !== 'PGRST116') {
-      console.error('[CLI Auth] Error finding user:', findError);
-      return NextResponse.json(
-        { error: 'Database error' },
-        { status: 500 }
-      );
+    if (findError && findError.code !== "PGRST116") {
+      console.error("[CLI Auth] Error finding user:", findError);
+      return NextResponse.json({ error: "Database error" }, { status: 500 });
     }
 
     let apiKey: string;
@@ -53,19 +44,16 @@ export async function POST() {
         apiKey = existingUser.api_key;
       } else {
         // Generate new API key
-        apiKey = `ccg_${randomBytes(32).toString('hex')}`;
+        apiKey = `ccg_${randomBytes(32).toString("hex")}`;
 
         const { error: updateError } = await supabase
-          .from('users')
+          .from("users")
           .update({ api_key: apiKey })
-          .eq('id', existingUser.id);
+          .eq("id", existingUser.id);
 
         if (updateError) {
-          console.error('[CLI Auth] Error updating API key:', updateError);
-          return NextResponse.json(
-            { error: 'Failed to generate token' },
-            { status: 500 }
-          );
+          console.error("[CLI Auth] Error updating API key:", updateError);
+          return NextResponse.json({ error: "Failed to generate token" }, { status: 500 });
         }
       }
 
@@ -73,11 +61,11 @@ export async function POST() {
       username = existingUser.username;
     } else {
       // Create new user
-      apiKey = `ccg_${randomBytes(32).toString('hex')}`;
-      username = user.username || user.firstName || 'user';
+      apiKey = `ccg_${randomBytes(32).toString("hex")}`;
+      username = user.username || user.firstName || "user";
 
       const { data: newUser, error: createError } = await supabase
-        .from('users')
+        .from("users")
         .insert({
           clerk_id: clerkUserId,
           username: username,
@@ -86,15 +74,12 @@ export async function POST() {
           api_key: apiKey,
           onboarding_completed: false,
         })
-        .select('id')
+        .select("id")
         .single();
 
       if (createError) {
-        console.error('[CLI Auth] Error creating user:', createError);
-        return NextResponse.json(
-          { error: 'Failed to create user' },
-          { status: 500 }
-        );
+        console.error("[CLI Auth] Error creating user:", createError);
+        return NextResponse.json({ error: "Failed to create user" }, { status: 500 });
       }
 
       dbUserId = newUser.id;
@@ -106,10 +91,7 @@ export async function POST() {
       username: username,
     });
   } catch (error) {
-    console.error('[CLI Auth] Unexpected error:', error);
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    );
+    console.error("[CLI Auth] Unexpected error:", error);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }

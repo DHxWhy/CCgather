@@ -18,7 +18,9 @@ export async function GET(
     // Fetch user profile
     const { data: user, error } = await supabase
       .from("users")
-      .select("*")
+      .select(
+        "id, username, display_avatar_url, country_code, current_level, global_rank, total_tokens, total_cost, ccplan, social_links, created_at"
+      )
       .eq("username", username)
       .single();
 
@@ -29,9 +31,9 @@ export async function GET(
     // Calculate percentile
     const { count: totalUsers } = await supabase
       .from("users")
-      .select("*", { count: "exact", head: true });
+      .select("id", { count: "exact", head: true });
 
-    const percentile = totalUsers ? ((totalUsers - user.rank + 1) / totalUsers) * 100 : 0;
+    const percentile = totalUsers ? ((totalUsers - user.global_rank + 1) / totalUsers) * 100 : 0;
 
     // Fetch usage history (last 30 days)
     const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
@@ -46,16 +48,14 @@ export async function GET(
       id: user.id,
       username: user.username,
       avatarUrl: user.display_avatar_url,
-      bio: user.bio,
-      country: user.country,
-      rank: user.rank,
-      tier: user.tier,
+      country: user.country_code,
+      rank: user.global_rank,
+      level: user.current_level,
+      tier: user.ccplan,
       totalTokens: user.total_tokens,
-      totalSpent: user.total_spent,
-      badges: user.badges || [],
+      totalSpent: user.total_cost,
+      socialLinks: user.social_links,
       createdAt: user.created_at,
-      githubUrl: user.github_url,
-      twitterUrl: user.twitter_url,
       percentile,
     };
 
@@ -66,7 +66,6 @@ export async function GET(
           date: row.date,
           tokens: row.tokens,
         })),
-        modelBreakdown: user.model_breakdown || {},
       },
       {
         headers: {

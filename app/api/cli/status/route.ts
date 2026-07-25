@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { createServiceClient } from "@/lib/supabase/server";
 
 export async function GET(request: NextRequest) {
   try {
@@ -17,7 +17,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Invalid API token" }, { status: 401 });
     }
 
-    const supabase = await createClient();
+    const supabase = createServiceClient();
 
     // Find user by API key
     const { data: user, error: userError } = await supabase
@@ -41,12 +41,12 @@ export async function GET(request: NextRequest) {
       .select("badge_type")
       .eq("user_id", user.id);
 
-    const badges = userBadges?.map((b) => b.badge_type) || [];
+    const badges = userBadges?.map((b: { badge_type: string }) => b.badge_type) || [];
 
     // Calculate percentile
     const { count: totalUsers } = await supabase
       .from("users")
-      .select("*", { count: "exact", head: true });
+      .select("id", { count: "exact", head: true });
 
     const percentile =
       totalUsers && user.global_rank ? ((totalUsers - user.global_rank + 1) / totalUsers) * 100 : 0;

@@ -4,7 +4,7 @@
  */
 
 import { auth } from "@clerk/nextjs/server";
-import { createClient } from "@/lib/supabase/server";
+import { createServiceClient } from "@/lib/supabase/server";
 
 /**
  * Check if the current user has admin privileges
@@ -19,7 +19,7 @@ export async function checkAdmin(): Promise<string | null> {
 
   // Check admin status in database
   try {
-    const supabase = await createClient();
+    const supabase = createServiceClient();
     const { data: user } = await supabase
       .from("users")
       .select("is_admin")
@@ -52,7 +52,7 @@ export async function checkAdminAccess(): Promise<boolean> {
   if (!userId) return false;
 
   // Verify is_admin flag in database
-  const supabase = await createClient();
+  const supabase = createServiceClient();
   const { data } = await supabase.from("users").select("is_admin").eq("clerk_id", userId).single();
 
   return data?.is_admin === true;

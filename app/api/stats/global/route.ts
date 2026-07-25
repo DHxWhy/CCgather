@@ -15,7 +15,7 @@ export async function GET() {
   // Get total users with usage data
   const { count: totalUsers } = await supabase
     .from("users")
-    .select("*", { count: "exact", head: true })
+    .select("id", { count: "exact", head: true })
     .eq("onboarding_completed", true)
     .eq("shadow_banned", false)
     .gt("total_tokens", 0);
