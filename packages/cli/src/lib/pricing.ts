@@ -33,6 +33,7 @@ interface PricingCache {
 // Per-million-token rates from Anthropic official pricing (claude.com/pricing).
 // Opus 4 / 4.1 stayed at the legacy higher tier; Opus 4.5+ moved to a new lower tier.
 const FALLBACK_PRICING: Record<string, ModelPricing> = {
+  "fable-5": { input: 10, output: 50, cacheWrite: 12.5, cacheRead: 1 },
   // Opus 4 / 4.1 (legacy higher tier)
   "opus-4": { input: 15, output: 75, cacheWrite: 18.75, cacheRead: 1.5 },
   // Opus 4.5 / 4.6 / 4.7 (current generation lower tier)
@@ -264,8 +265,12 @@ export async function initPricing(): Promise<void> {
 function fallbackForModel(model: string): ModelPricing {
   const m = model.toLowerCase();
 
-  // Opus 4.5 / 4.6 / 4.7 — current generation, lower tier
-  if (/opus-?4[-.]?(5|6|7)/.test(m)) return FALLBACK_PRICING["opus-4-5"];
+  if (m.includes("fable") || m.includes("mythos")) return FALLBACK_PRICING["fable-5"];
+
+  // Opus 4.5+ / Opus 5+ — current generation, lower tier ($5/$25)
+  // Matches opus-4-5~4-19 minor (4-8 incl.) OR opus-5+ standalone (Opus 5, 6…).
+  // Legacy Opus 4 / 4.1 / 3 fall through to the $15/$75 tier below.
+  if (/opus-?(4[-.]?([5-9]|1\d)|[5-9]|1\d)/.test(m)) return FALLBACK_PRICING["opus-4-5"];
 
   // Other Opus (Opus 4, 4.1, 3, ...) — legacy higher tier
   if (m.includes("opus")) return FALLBACK_PRICING["opus-4"];
@@ -304,6 +309,13 @@ function matchModel(model: string): ModelPricing {
     // 3. Without version suffix.
     const withoutVersion = normalized.replace(/-v\d+:\d+$/, "").replace(/-\d{8}$/, "");
     if (pricingData[withoutVersion]) return pricingData[withoutVersion];
+
+    // Opus tier guard (mirrors lib/services/pricing.ts): stop the fuzzy loop
+    // below from matching a new minor (opus-4-8) to the synthetic legacy
+    // "claude-opus-4" key ($15/$75) → 3x overcharge. Unmatched opus → regex tier.
+    if (/opus/i.test(normalized)) {
+      return fallbackForModel(model);
+    }
 
     // 4. Family prefix match (longest key wins).
     const modelLower = normalized.toLowerCase();

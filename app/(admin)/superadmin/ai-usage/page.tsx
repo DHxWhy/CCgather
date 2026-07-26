@@ -93,8 +93,8 @@ const CLAUDE_MODELS: Record<string, ModelConfig> = {
   "claude-opus-4-5-20250514": {
     name: "Opus 4.5",
     role: "Summary",
-    input: 15.0,
-    output: 75.0,
+    input: 5.0,
+    output: 25.0,
     status: "ga",
   },
   "claude-sonnet-4-20250514": {
