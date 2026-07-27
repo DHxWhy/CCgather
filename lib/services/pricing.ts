@@ -299,7 +299,7 @@ function isTokenCount(v: unknown): v is number {
 }
 
 function readSplit(value: unknown): ModelTokenSplit | null {
-  if (value === null || typeof value !== "object" || Array.isArray(value)) return null;
+  if (value === null || typeof value !== "object") return null;
   const v = value as Record<string, unknown>;
   if (
     !isTokenCount(v.inputTokens) ||
@@ -360,7 +360,7 @@ export function computeDayCostByModel(
 
   const declaredKeys = Object.keys(declaredModels);
   const entries = Object.entries(modelTokens as Record<string, unknown>);
-  if (entries.length === 0 || entries.length > MAX_MODELS_PER_DAY) return null;
+  if (entries.length === 0) return null;
   if (declaredKeys.length === 0 || declaredKeys.length > MAX_MODELS_PER_DAY) return null;
 
   const splits: { model: string; split: ModelTokenSplit }[] = [];
@@ -398,14 +398,26 @@ export function computeDayCostByModel(
     return null;
   }
 
+  // `matchModel` is O(pricing table) for ids without an exact hit, and this runs
+  // per model per day (up to 50 x 730 per request) — memoize within the call.
+  const priceCache = new Map<string, ModelPricing>();
+  const priceOf = (model: string): ModelPricing => {
+    let price = priceCache.get(model);
+    if (!price) {
+      price = matchModel(model, pricingData);
+      priceCache.set(model, price);
+    }
+    return price;
+  };
+
   let total = 0;
   for (const { model, split } of splits) {
-    total += rawCost(matchModel(model, pricingData), split);
+    total += rawCost(priceOf(model), split);
   }
 
   let ceiling = 0;
   for (const model of declaredKeys) {
-    ceiling = Math.max(ceiling, rawCost(matchModel(model, pricingData), dayTotals));
+    ceiling = Math.max(ceiling, rawCost(priceOf(model), dayTotals));
   }
 
   return Math.round(Math.min(total, ceiling) * 100) / 100;

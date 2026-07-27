@@ -1,0 +1,36 @@
+name: test
+# 서버 단위 테스트 + 타입체크. 가드 회귀 테스트가 자동으로 돌지 않으면
+# 무의미해지므로(뮤테이션으로 실효성 검증됨) push/PR 마다 실행합니다.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  unit:
+    name: typecheck + unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Typecheck
+        run: bunx tsc --noEmit
+
+      - name: Server unit tests
+        run: bun run test
+
+      - name: CLI unit tests
+        working-directory: packages/cli
+        run: bunx vitest run

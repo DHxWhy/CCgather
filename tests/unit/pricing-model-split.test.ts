@@ -58,25 +58,27 @@ describe("computeDayCostByModel", () => {
     });
 
     it("sums unrounded so sub-cent models are not dropped", () => {
-      const dayTotals = {
-        inputTokens: 6_000,
-        outputTokens: 1_200,
-        cacheWriteTokens: 0,
-        cacheReadTokens: 0,
-      };
+      const modelTokens: Record<string, unknown> = {};
+      const declaredModels: Record<string, number> = {};
       const one = {
         inputTokens: 2_000,
-        outputTokens: 400,
+        outputTokens: 0,
         cacheWriteTokens: 0,
         cacheReadTokens: 0,
       };
-      const perModel = computeDayCostByModel(null, {
-        modelTokens: { "claude-haiku-4-5": { ...dayTotals } },
-        declaredModels: { "claude-haiku-4-5": 7_200 },
-        dayTotals,
-      });
-      expect(computeDayCost(null, { model: "claude-haiku-4-5", ...one })).toBe(0);
-      expect(perModel).toBe(0.01);
+      for (let i = 0; i < 5; i++) {
+        modelTokens[`claude-haiku-4-5-v${i}`] = { ...one };
+        declaredModels[`claude-haiku-4-5-v${i}`] = 2_000;
+      }
+      const dayTotals = {
+        inputTokens: 10_000,
+        outputTokens: 0,
+        cacheWriteTokens: 0,
+        cacheReadTokens: 0,
+      };
+
+      expect(computeDayCost(null, { model: "claude-haiku-4-5-v0", ...one })).toBe(0);
+      expect(computeDayCostByModel(null, { modelTokens, declaredModels, dayTotals })).toBe(0.01);
     });
   });
 
@@ -101,64 +103,145 @@ describe("computeDayCostByModel", () => {
       ).toBeNull();
     });
 
-    it("a per-type sum that disagrees with the day totals is rejected", () => {
-      expect(
-        computeDayCostByModel(null, {
-          modelTokens: { "claude-haiku-4-5": split(HAIKU_DAY) },
-          declaredModels: { "claude-haiku-4-5": 200 * M },
-          dayTotals: { ...HAIKU_DAY, outputTokens: 2 * M },
-        })
-      ).toBeNull();
-    });
+    it.each(["inputTokens", "outputTokens", "cacheWriteTokens", "cacheReadTokens"] as const)(
+      "a day total that disagrees on %s alone is rejected",
+      (field) => {
+        const declared = {
+          inputTokens: 10,
+          outputTokens: 20,
+          cacheWriteTokens: 30,
+          cacheReadTokens: 40,
+        };
+        expect(
+          computeDayCostByModel(null, {
+            modelTokens: { "claude-haiku-4-5": { ...declared } },
+            declaredModels: { "claude-haiku-4-5": 100 },
+            dayTotals: { ...declared, [field]: declared[field] + 1 },
+          })
+        ).toBeNull();
+      }
+    );
   });
 
   describe("rejects malformed input", () => {
-    it.each([
-      [
-        "negative tokens",
-        { inputTokens: -1, outputTokens: 0, cacheWriteTokens: 0, cacheReadTokens: 0 },
-      ],
-      [
-        "non-finite tokens",
-        { inputTokens: Infinity, outputTokens: 0, cacheWriteTokens: 0, cacheReadTokens: 0 },
-      ],
-      ["missing fields", { inputTokens: 1 }],
-      ["not an object", 42],
-    ])("%s", (_label, value) => {
+    it("a negative token count is rejected even when every sum still reconciles", () => {
       expect(
         computeDayCostByModel(null, {
-          modelTokens: { "claude-haiku-4-5": value },
+          modelTokens: {
+            "claude-haiku-4-5": {
+              inputTokens: -1,
+              outputTokens: 2,
+              cacheWriteTokens: 0,
+              cacheReadTokens: 0,
+            },
+            "claude-sonnet-4-5": {
+              inputTokens: 1,
+              outputTokens: 0,
+              cacheWriteTokens: 0,
+              cacheReadTokens: 0,
+            },
+          },
+          declaredModels: { "claude-haiku-4-5": 1, "claude-sonnet-4-5": 1 },
+          dayTotals: { inputTokens: 0, outputTokens: 2, cacheWriteTokens: 0, cacheReadTokens: 0 },
+        })
+      ).toBeNull();
+    });
+
+    it("a non-finite token count is rejected even when every sum reconciles", () => {
+      expect(
+        computeDayCostByModel(null, {
+          modelTokens: {
+            "claude-haiku-4-5": {
+              inputTokens: Infinity,
+              outputTokens: 0,
+              cacheWriteTokens: 0,
+              cacheReadTokens: 0,
+            },
+          },
+          declaredModels: { "claude-haiku-4-5": Infinity },
+          dayTotals: {
+            inputTokens: Infinity,
+            outputTokens: 0,
+            cacheWriteTokens: 0,
+            cacheReadTokens: 0,
+          },
+        })
+      ).toBeNull();
+    });
+
+    it("a null split value is rejected rather than throwing", () => {
+      expect(
+        computeDayCostByModel(null, {
+          modelTokens: { "claude-haiku-4-5": null },
           declaredModels: { "claude-haiku-4-5": 1 },
           dayTotals: { inputTokens: 1, outputTokens: 0, cacheWriteTokens: 0, cacheReadTokens: 0 },
         })
       ).toBeNull();
     });
 
-    it.each([
-      ["missing modelTokens", undefined],
-      ["array modelTokens", []],
-      ["empty modelTokens", {}],
-    ])("%s", (_label, modelTokens) => {
+    it("a non-empty array modelTokens is rejected", () => {
       expect(
         computeDayCostByModel(null, {
-          modelTokens,
-          declaredModels: { "claude-haiku-4-5": 1 },
+          modelTokens: [
+            { inputTokens: 1, outputTokens: 0, cacheWriteTokens: 0, cacheReadTokens: 0 },
+          ],
+          declaredModels: { "0": 1 },
           dayTotals: { inputTokens: 1, outputTokens: 0, cacheWriteTokens: 0, cacheReadTokens: 0 },
         })
       ).toBeNull();
     });
 
-    it("more models than the per-day limit is rejected", () => {
+    it("an empty modelTokens is rejected rather than priced as zero", () => {
+      expect(
+        computeDayCostByModel(null, {
+          modelTokens: {},
+          declaredModels: { "claude-haiku-4-5": 0 },
+          dayTotals: { inputTokens: 0, outputTokens: 0, cacheWriteTokens: 0, cacheReadTokens: 0 },
+        })
+      ).toBeNull();
+    });
+
+    it("a null declaredModels is rejected", () => {
+      expect(
+        computeDayCostByModel(null, {
+          modelTokens: {
+            "claude-haiku-4-5": {
+              inputTokens: 1,
+              outputTokens: 0,
+              cacheWriteTokens: 0,
+              cacheReadTokens: 0,
+            },
+          },
+          declaredModels: null,
+          dayTotals: { inputTokens: 1, outputTokens: 0, cacheWriteTokens: 0, cacheReadTokens: 0 },
+        })
+      ).toBeNull();
+    });
+
+    it("an over-long model key is rejected", () => {
+      const key = `claude-${"x".repeat(200)}`;
+      expect(
+        computeDayCostByModel(null, {
+          modelTokens: {
+            [key]: { inputTokens: 1, outputTokens: 0, cacheWriteTokens: 0, cacheReadTokens: 0 },
+          },
+          declaredModels: { [key]: 1 },
+          dayTotals: { inputTokens: 1, outputTokens: 0, cacheWriteTokens: 0, cacheReadTokens: 0 },
+        })
+      ).toBeNull();
+    });
+
+    it("more declared models than the per-day limit is rejected", () => {
       const modelTokens: Record<string, unknown> = {};
       const declaredModels: Record<string, number> = {};
       for (let i = 0; i < 51; i++) {
-        modelTokens[`m${i}`] = {
+        modelTokens[`claude-haiku-4-5-v${i}`] = {
           inputTokens: 1,
           outputTokens: 0,
           cacheWriteTokens: 0,
           cacheReadTokens: 0,
         };
-        declaredModels[`m${i}`] = 1;
+        declaredModels[`claude-haiku-4-5-v${i}`] = 1;
       }
       expect(
         computeDayCostByModel(null, {

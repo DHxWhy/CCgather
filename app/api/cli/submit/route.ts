@@ -33,8 +33,9 @@ interface DailyUsage {
   modelTokens?: unknown; // model name -> per-type token split (validated in pricing)
 }
 
-// Per-model pricing applies from this date on; earlier days keep the primary-model
-// figure they were stored with, so resubmitting history never rewrites past costs.
+// Per-model pricing applies from this date on. Earlier days keep the PRIMARY-MODEL
+// METHOD (their cost is still recomputed from current prices on every resubmit, as
+// it always was) — the methodology is frozen, not the stored figure.
 const PER_MODEL_COST_START_DATE = "2026-08-01";
 
 // Find the most used model from daily usage data
@@ -577,6 +578,23 @@ export async function POST(request: NextRequest) {
                 dayTotals,
               })
             : null;
+        if (day.modelTokens != null && perModelCost === null) {
+          // Guards rejected a split the CLI did send: without this the feature can
+          // silently switch itself off for everyone and never be noticed.
+          console.warn(
+            JSON.stringify({
+              evt: "per_model_cost_rejected",
+              username: authenticatedUser.username,
+              date: day.date,
+              declared_models: Object.keys(day.models ?? {}).length,
+              split_models:
+                typeof day.modelTokens === "object" && !Array.isArray(day.modelTokens)
+                  ? Object.keys(day.modelTokens as Record<string, unknown>).length
+                  : -1,
+            })
+          );
+        }
+
         const computedCost =
           perModelCost ?? computeDayCost(pricingData, { model: dayPrimaryModel, ...dayTotals });
 
