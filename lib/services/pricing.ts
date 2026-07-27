@@ -278,6 +278,139 @@ export function computeDayCost(
   return Math.round((inputCost + outputCost + cacheWriteCost + cacheReadCost) * 100) / 100;
 }
 
+export interface ModelTokenSplit {
+  inputTokens: number;
+  outputTokens: number;
+  cacheWriteTokens: number;
+  cacheReadTokens: number;
+}
+
+export interface ModelSplitCostInputs {
+  modelTokens: unknown;
+  declaredModels: Record<string, number> | null | undefined;
+  dayTotals: Omit<DayCostInputs, "model">;
+}
+
+const MAX_MODELS_PER_DAY = 50;
+const MAX_MODEL_KEY_LENGTH = 200;
+
+function isTokenCount(v: unknown): v is number {
+  return typeof v === "number" && Number.isFinite(v) && v >= 0;
+}
+
+function readSplit(value: unknown): ModelTokenSplit | null {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) return null;
+  const v = value as Record<string, unknown>;
+  if (
+    !isTokenCount(v.inputTokens) ||
+    !isTokenCount(v.outputTokens) ||
+    !isTokenCount(v.cacheWriteTokens) ||
+    !isTokenCount(v.cacheReadTokens)
+  ) {
+    return null;
+  }
+  return {
+    inputTokens: v.inputTokens,
+    outputTokens: v.outputTokens,
+    cacheWriteTokens: v.cacheWriteTokens,
+    cacheReadTokens: v.cacheReadTokens,
+  };
+}
+
+function rawCost(price: ModelPricing, t: ModelTokenSplit): number {
+  return (
+    (t.inputTokens / 1_000_000) * price.input +
+    (t.outputTokens / 1_000_000) * price.output +
+    (t.cacheWriteTokens / 1_000_000) * price.cacheWrite +
+    (t.cacheReadTokens / 1_000_000) * price.cacheRead
+  );
+}
+
+/**
+ * Price a day per model; returns null when the split can't be trusted so the
+ * caller falls back to `computeDayCost`.
+ *
+ * SECURITY — every input is user-supplied. The split is accepted only as a
+ * refinement of the already-declared `day.models` (the field `primary_model`
+ * comes from), and is clamped to the priciest single-model reading of the day.
+ * Drop any of those checks and a caller can keep the day totals intact while
+ * billing them to a pricier model than `primary_model` reports: cost inflation
+ * with no visible signal. The clamp holds even if the upstream price table
+ * stops having one model that is priciest on all four token types.
+ * Summed unrounded, rounded once — per-model rounding drops sub-cent models.
+ */
+export function computeDayCostByModel(
+  pricingData: Record<string, ModelPricing> | null,
+  inputs: ModelSplitCostInputs
+): number | null {
+  const { modelTokens, declaredModels, dayTotals } = inputs;
+
+  if (!declaredModels || typeof declaredModels !== "object") return null;
+  if (modelTokens === null || typeof modelTokens !== "object" || Array.isArray(modelTokens)) {
+    return null;
+  }
+  if (
+    !isTokenCount(dayTotals.inputTokens) ||
+    !isTokenCount(dayTotals.outputTokens) ||
+    !isTokenCount(dayTotals.cacheWriteTokens) ||
+    !isTokenCount(dayTotals.cacheReadTokens)
+  ) {
+    return null;
+  }
+
+  const declaredKeys = Object.keys(declaredModels);
+  const entries = Object.entries(modelTokens as Record<string, unknown>);
+  if (entries.length === 0 || entries.length > MAX_MODELS_PER_DAY) return null;
+  if (declaredKeys.length === 0 || declaredKeys.length > MAX_MODELS_PER_DAY) return null;
+
+  const splits: { model: string; split: ModelTokenSplit }[] = [];
+  let sumInput = 0;
+  let sumOutput = 0;
+  let sumCacheWrite = 0;
+  let sumCacheRead = 0;
+
+  for (const [model, value] of entries) {
+    if (model.length > MAX_MODEL_KEY_LENGTH) return null;
+
+    const declaredTotal = declaredModels[model];
+    if (!isTokenCount(declaredTotal)) return null;
+
+    const split = readSplit(value);
+    if (!split) return null;
+
+    const splitTotal =
+      split.inputTokens + split.outputTokens + split.cacheWriteTokens + split.cacheReadTokens;
+    if (splitTotal !== declaredTotal) return null;
+
+    sumInput += split.inputTokens;
+    sumOutput += split.outputTokens;
+    sumCacheWrite += split.cacheWriteTokens;
+    sumCacheRead += split.cacheReadTokens;
+    splits.push({ model, split });
+  }
+
+  if (
+    sumInput !== dayTotals.inputTokens ||
+    sumOutput !== dayTotals.outputTokens ||
+    sumCacheWrite !== dayTotals.cacheWriteTokens ||
+    sumCacheRead !== dayTotals.cacheReadTokens
+  ) {
+    return null;
+  }
+
+  let total = 0;
+  for (const { model, split } of splits) {
+    total += rawCost(matchModel(model, pricingData), split);
+  }
+
+  let ceiling = 0;
+  for (const model of declaredKeys) {
+    ceiling = Math.max(ceiling, rawCost(matchModel(model, pricingData), dayTotals));
+  }
+
+  return Math.round(Math.min(total, ceiling) * 100) / 100;
+}
+
 /**
  * Get the latest pricing table (LiteLLM with 24h cache, fallback to null
  * which causes computeDayCost to use the hardcoded fallback per-model).

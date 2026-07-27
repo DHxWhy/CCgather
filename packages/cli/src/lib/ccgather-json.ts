@@ -5,6 +5,13 @@ import * as crypto from "crypto";
 import { readCredentials } from "./credentials.js";
 import { estimateCost } from "./pricing.js";
 
+export interface ModelTokenSplit {
+  inputTokens: number;
+  outputTokens: number;
+  cacheWriteTokens: number;
+  cacheReadTokens: number;
+}
+
 export interface DailyUsage {
   date: string; // YYYY-MM-DD
   tokens: number;
@@ -15,6 +22,7 @@ export interface DailyUsage {
   cacheReadTokens: number;
   sessions: number;
   models: Record<string, number>;
+  modelTokens?: Record<string, ModelTokenSplit>;
   ccplan?: string; // Plan at submission time (for fair league placement)
 }
 
@@ -1218,6 +1226,7 @@ export function scanAllProjects(options: ScanOptions = {}): CCGatherData | null 
       cacheReadTokens: number;
       sessions: Set<string>;
       models: Record<string, number>;
+      modelTokens: Record<string, ModelTokenSplit>;
     }
   > = {};
   let firstTimestamp: string | null = null;
@@ -1331,6 +1340,7 @@ export function scanAllProjects(options: ScanOptions = {}): CCGatherData | null 
                   cacheReadTokens: 0,
                   sessions: new Set(),
                   models: {},
+                  modelTokens: {},
                 };
               }
 
@@ -1343,6 +1353,17 @@ export function scanAllProjects(options: ScanOptions = {}): CCGatherData | null 
               dailyData[date].sessions.add(filePath);
               dailyData[date].models[model] =
                 (dailyData[date].models[model] || 0) + totalModelTokens;
+
+              const split = (dailyData[date].modelTokens[model] ??= {
+                inputTokens: 0,
+                outputTokens: 0,
+                cacheWriteTokens: 0,
+                cacheReadTokens: 0,
+              });
+              split.inputTokens += inputTokens;
+              split.outputTokens += outputTokens;
+              split.cacheWriteTokens += cacheWrite;
+              split.cacheReadTokens += cacheRead;
 
               if (!firstTimestamp || event.timestamp < firstTimestamp) {
                 firstTimestamp = event.timestamp;
@@ -1387,6 +1408,7 @@ export function scanAllProjects(options: ScanOptions = {}): CCGatherData | null 
       cacheReadTokens: data.cacheReadTokens,
       sessions: data.sessions.size,
       models: data.models,
+      modelTokens: data.modelTokens,
     }))
     .sort((a, b) => a.date.localeCompare(b.date));
 

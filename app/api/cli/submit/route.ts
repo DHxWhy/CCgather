@@ -9,7 +9,7 @@ import {
   createSubmissionSummaryNotification,
 } from "@/lib/push/send-notification";
 import { aggregateByDate } from "@/lib/utils/usage-aggregation";
-import { computeDayCost, getPricingData } from "@/lib/services/pricing";
+import { computeDayCost, computeDayCostByModel, getPricingData } from "@/lib/services/pricing";
 import { parseValidationMode } from "@/lib/config/validation-thresholds";
 import {
   runAllValidations,
@@ -30,7 +30,12 @@ interface DailyUsage {
   cacheWriteTokens?: number;
   sessions?: number;
   models?: Record<string, number>; // model name -> token count
+  modelTokens?: unknown; // model name -> per-type token split (validated in pricing)
 }
+
+// Per-model pricing applies from this date on; earlier days keep the primary-model
+// figure they were stored with, so resubmitting history never rewrites past costs.
+const PER_MODEL_COST_START_DATE = "2026-08-01";
 
 // Find the most used model from daily usage data
 function getPrimaryModel(dailyUsage?: DailyUsage[]): string | null {
@@ -558,13 +563,22 @@ export async function POST(request: NextRequest) {
         const isOpusModel = dayPrimaryModel?.toLowerCase().includes("opus");
 
         // Recompute cost server-side using the latest LiteLLM pricing.
-        const computedCost = computeDayCost(pricingData, {
-          model: dayPrimaryModel,
+        const dayTotals = {
           inputTokens: day.inputTokens || 0,
           outputTokens: day.outputTokens || 0,
           cacheWriteTokens: day.cacheWriteTokens || 0,
           cacheReadTokens: day.cacheReadTokens || 0,
-        });
+        };
+        const perModelCost =
+          day.date >= PER_MODEL_COST_START_DATE
+            ? computeDayCostByModel(pricingData, {
+                modelTokens: day.modelTokens,
+                declaredModels: day.models,
+                dayTotals,
+              })
+            : null;
+        const computedCost =
+          perModelCost ?? computeDayCost(pricingData, { model: dayPrimaryModel, ...dayTotals });
 
         // Per-day validation flags (notify/log modes only). Uses the
         // server-recomputed cost so the V2 cost cap evaluates the trusted value,
