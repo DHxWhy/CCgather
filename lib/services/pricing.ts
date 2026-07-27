@@ -423,6 +423,54 @@ export function computeDayCostByModel(
   return Math.round(Math.min(total, ceiling) * 100) / 100;
 }
 
+// Per-model pricing applies from this date on. Earlier days keep the PRIMARY-MODEL
+// METHOD — their cost is still recomputed from current prices on every resubmit, as
+// it always was; the methodology is frozen, not the stored figure.
+export const PER_MODEL_COST_START_DATE = "2026-08-01";
+
+export interface DayCostResolution {
+  cost: number;
+  perModelApplied: boolean;
+  splitRejected: boolean;
+}
+
+/**
+ * Single decision point for a day's cost: date gate, per-model attempt, fallback,
+ * and whether a split the client actually sent was refused.
+ * `splitRejected` must stay false when the split was merely out of scope (pre-cutoff
+ * date, or no split sent) — otherwise every historical day logs a false alarm.
+ */
+export function resolveDayCost(
+  pricingData: Record<string, ModelPricing> | null,
+  inputs: {
+    date: string;
+    primaryModel: string | null | undefined;
+    modelTokens: unknown;
+    declaredModels: Record<string, number> | null | undefined;
+    dayTotals: Omit<DayCostInputs, "model">;
+  }
+): DayCostResolution {
+  const eligible = inputs.date >= PER_MODEL_COST_START_DATE;
+
+  const perModel = eligible
+    ? computeDayCostByModel(pricingData, {
+        modelTokens: inputs.modelTokens,
+        declaredModels: inputs.declaredModels,
+        dayTotals: inputs.dayTotals,
+      })
+    : null;
+
+  if (perModel !== null) {
+    return { cost: perModel, perModelApplied: true, splitRejected: false };
+  }
+
+  return {
+    cost: computeDayCost(pricingData, { model: inputs.primaryModel, ...inputs.dayTotals }),
+    perModelApplied: false,
+    splitRejected: eligible && inputs.modelTokens != null,
+  };
+}
+
 /**
  * Get the latest pricing table (LiteLLM with 24h cache, fallback to null
  * which causes computeDayCost to use the hardcoded fallback per-model).

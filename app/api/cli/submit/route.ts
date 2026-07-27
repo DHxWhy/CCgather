@@ -9,7 +9,7 @@ import {
   createSubmissionSummaryNotification,
 } from "@/lib/push/send-notification";
 import { aggregateByDate } from "@/lib/utils/usage-aggregation";
-import { computeDayCost, computeDayCostByModel, getPricingData } from "@/lib/services/pricing";
+import { computeDayCost, getPricingData, resolveDayCost } from "@/lib/services/pricing";
 import { parseValidationMode } from "@/lib/config/validation-thresholds";
 import {
   runAllValidations,
@@ -32,11 +32,6 @@ interface DailyUsage {
   models?: Record<string, number>; // model name -> token count
   modelTokens?: unknown; // model name -> per-type token split (validated in pricing)
 }
-
-// Per-model pricing applies from this date on. Earlier days keep the PRIMARY-MODEL
-// METHOD (their cost is still recomputed from current prices on every resubmit, as
-// it always was) — the methodology is frozen, not the stored figure.
-const PER_MODEL_COST_START_DATE = "2026-08-01";
 
 // Find the most used model from daily usage data
 function getPrimaryModel(dailyUsage?: DailyUsage[]): string | null {
@@ -570,15 +565,14 @@ export async function POST(request: NextRequest) {
           cacheWriteTokens: day.cacheWriteTokens || 0,
           cacheReadTokens: day.cacheReadTokens || 0,
         };
-        const perModelCost =
-          day.date >= PER_MODEL_COST_START_DATE
-            ? computeDayCostByModel(pricingData, {
-                modelTokens: day.modelTokens,
-                declaredModels: day.models,
-                dayTotals,
-              })
-            : null;
-        if (day.modelTokens != null && perModelCost === null) {
+        const { cost: computedCost, splitRejected } = resolveDayCost(pricingData, {
+          date: day.date,
+          primaryModel: dayPrimaryModel,
+          modelTokens: day.modelTokens,
+          declaredModels: day.models,
+          dayTotals,
+        });
+        if (splitRejected) {
           // Guards rejected a split the CLI did send: without this the feature can
           // silently switch itself off for everyone and never be noticed.
           console.warn(
@@ -594,9 +588,6 @@ export async function POST(request: NextRequest) {
             })
           );
         }
-
-        const computedCost =
-          perModelCost ?? computeDayCost(pricingData, { model: dayPrimaryModel, ...dayTotals });
 
         // Per-day validation flags (notify/log modes only). Uses the
         // server-recomputed cost so the V2 cost cap evaluates the trusted value,
