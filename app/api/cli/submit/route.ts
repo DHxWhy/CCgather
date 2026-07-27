@@ -10,6 +10,7 @@ import {
 } from "@/lib/push/send-notification";
 import { aggregateByDate } from "@/lib/utils/usage-aggregation";
 import { computeDayCost, getPricingData, resolveDayCost } from "@/lib/services/pricing";
+import type { PriceCache } from "@/lib/services/pricing";
 import { parseValidationMode } from "@/lib/config/validation-thresholds";
 import {
   runAllValidations,
@@ -539,6 +540,8 @@ export async function POST(request: NextRequest) {
     // version (with stale fallback prices) corrupt the leaderboard. Recomputing
     // here makes cost values independent of the user's CLI version.
     const pricingData = await getPricingData();
+    // One lookup cache for the whole request: model ids repeat across days.
+    const priceCache: PriceCache = new Map();
 
     if (body.dailyUsage && body.dailyUsage.length > 0) {
       // Bulk insert daily usage data (upsert - replace existing records for same date)
@@ -571,6 +574,7 @@ export async function POST(request: NextRequest) {
           modelTokens: day.modelTokens,
           declaredModels: day.models,
           dayTotals,
+          priceCache,
         });
         if (splitRejected) {
           // Guards rejected a split the CLI did send: without this the feature can

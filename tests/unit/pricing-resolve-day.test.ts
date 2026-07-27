@@ -40,7 +40,7 @@ describe("resolveDayCost", () => {
   it("applies the per-model split on/after the cutoff", () => {
     const r = resolveDayCost(null, {
       date: PER_MODEL_COST_START_DATE,
-      primaryModel: "claude-sonnet-4-5",
+      primaryModel: "claude-haiku-4-5",
       modelTokens: VALID_SPLIT,
       declaredModels: DECLARED,
       dayTotals: DAY_TOTALS,
@@ -53,19 +53,19 @@ describe("resolveDayCost", () => {
   it("keeps the primary-model method before the cutoff", () => {
     const r = resolveDayCost(null, {
       date: beforeCutoff(),
-      primaryModel: "claude-sonnet-4-5",
+      primaryModel: "claude-haiku-4-5",
       modelTokens: VALID_SPLIT,
       declaredModels: DECLARED,
       dayTotals: DAY_TOTALS,
     });
     expect(r.perModelApplied).toBe(false);
-    expect(r.cost).toBe(computeDayCost(null, { model: "claude-sonnet-4-5", ...DAY_TOTALS }));
+    expect(r.cost).toBe(computeDayCost(null, { model: "claude-haiku-4-5", ...DAY_TOTALS }));
   });
 
   it("does not report a rejected split for a pre-cutoff day that carried one", () => {
     const r = resolveDayCost(null, {
       date: beforeCutoff(),
-      primaryModel: "claude-sonnet-4-5",
+      primaryModel: "claude-haiku-4-5",
       modelTokens: VALID_SPLIT,
       declaredModels: DECLARED,
       dayTotals: DAY_TOTALS,
@@ -76,7 +76,7 @@ describe("resolveDayCost", () => {
   it("does not report a rejected split when the client sent none", () => {
     const r = resolveDayCost(null, {
       date: PER_MODEL_COST_START_DATE,
-      primaryModel: "claude-sonnet-4-5",
+      primaryModel: "claude-haiku-4-5",
       modelTokens: undefined,
       declaredModels: DECLARED,
       dayTotals: DAY_TOTALS,
@@ -88,13 +88,13 @@ describe("resolveDayCost", () => {
   it("reports a rejected split only when an in-scope split failed the guards", () => {
     const r = resolveDayCost(null, {
       date: PER_MODEL_COST_START_DATE,
-      primaryModel: "claude-sonnet-4-5",
+      primaryModel: "claude-haiku-4-5",
       modelTokens: { "claude-opus-4-20250514": { ...DAY_TOTALS } },
       declaredModels: DECLARED,
       dayTotals: DAY_TOTALS,
     });
     expect(r.splitRejected).toBe(true);
     expect(r.perModelApplied).toBe(false);
-    expect(r.cost).toBe(computeDayCost(null, { model: "claude-sonnet-4-5", ...DAY_TOTALS }));
+    expect(r.cost).toBe(computeDayCost(null, { model: "claude-haiku-4-5", ...DAY_TOTALS }));
   });
 });

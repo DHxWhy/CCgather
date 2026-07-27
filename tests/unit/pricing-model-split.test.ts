@@ -124,25 +124,62 @@ describe("computeDayCostByModel", () => {
   });
 
   describe("rejects malformed input", () => {
-    it("a negative token count is rejected even when every sum still reconciles", () => {
+    it.each(["inputTokens", "outputTokens", "cacheWriteTokens", "cacheReadTokens"] as const)(
+      "a negative %s is rejected even when every sum still reconciles",
+      (field) => {
+        const zero = {
+          inputTokens: 0,
+          outputTokens: 0,
+          cacheWriteTokens: 0,
+          cacheReadTokens: 0,
+        };
+        // -1 on one model and +1 on the other, with a positive carrier in a
+        // different field: every per-model total and day total still reconciles,
+        // so only the field-level guard can reject. The carrier must not be the
+        // field under test or it would overwrite the negative.
+        const carrier = field === "inputTokens" ? "outputTokens" : "inputTokens";
+        expect(
+          computeDayCostByModel(null, {
+            modelTokens: {
+              "claude-haiku-4-5": { ...zero, [carrier]: 2, [field]: -1 },
+              "claude-sonnet-4-5": { ...zero, [field]: 1 },
+            },
+            declaredModels: { "claude-haiku-4-5": 1, "claude-sonnet-4-5": 1 },
+            dayTotals: { ...zero, [carrier]: 2, [field]: 0 },
+          })
+        ).toBeNull();
+      }
+    );
+
+    it("a declared total that overflows to Infinity is rejected", () => {
+      const HUGE = 1.5e308;
       expect(
         computeDayCostByModel(null, {
           modelTokens: {
             "claude-haiku-4-5": {
-              inputTokens: -1,
-              outputTokens: 2,
-              cacheWriteTokens: 0,
-              cacheReadTokens: 0,
-            },
-            "claude-sonnet-4-5": {
-              inputTokens: 1,
-              outputTokens: 0,
+              inputTokens: HUGE,
+              outputTokens: HUGE,
               cacheWriteTokens: 0,
               cacheReadTokens: 0,
             },
           },
-          declaredModels: { "claude-haiku-4-5": 1, "claude-sonnet-4-5": 1 },
-          dayTotals: { inputTokens: 0, outputTokens: 2, cacheWriteTokens: 0, cacheReadTokens: 0 },
+          declaredModels: { "claude-haiku-4-5": Infinity },
+          dayTotals: {
+            inputTokens: HUGE,
+            outputTokens: HUGE,
+            cacheWriteTokens: 0,
+            cacheReadTokens: 0,
+          },
+        })
+      ).toBeNull();
+    });
+
+    it("a null modelTokens is rejected rather than throwing", () => {
+      expect(
+        computeDayCostByModel(null, {
+          modelTokens: null,
+          declaredModels: { "claude-haiku-4-5": 1 },
+          dayTotals: { inputTokens: 1, outputTokens: 0, cacheWriteTokens: 0, cacheReadTokens: 0 },
         })
       ).toBeNull();
     });
@@ -250,6 +287,47 @@ describe("computeDayCostByModel", () => {
           dayTotals: { inputTokens: 51, outputTokens: 0, cacheWriteTokens: 0, cacheReadTokens: 0 },
         })
       ).toBeNull();
+    });
+  });
+
+  describe("the clamp ceiling spans only the models actually billed", () => {
+    const SPLIT_PEAKS = {
+      "cheap-in-pricey-out": { input: 1, output: 100, cacheWrite: 1, cacheRead: 1 },
+      "pricey-in-cheap-out": { input: 100, output: 1, cacheWrite: 1, cacheRead: 1 },
+      "declared-but-unused": { input: 1000, output: 1000, cacheWrite: 1000, cacheRead: 1000 },
+    };
+
+    it("a model declared with zero tokens cannot raise the ceiling", () => {
+      const dayTotals = {
+        inputTokens: 1 * M,
+        outputTokens: 1 * M,
+        cacheWriteTokens: 0,
+        cacheReadTokens: 0,
+      };
+      const capped = computeDayCostByModel(SPLIT_PEAKS, {
+        modelTokens: {
+          "cheap-in-pricey-out": {
+            inputTokens: 0,
+            outputTokens: 1 * M,
+            cacheWriteTokens: 0,
+            cacheReadTokens: 0,
+          },
+          "pricey-in-cheap-out": {
+            inputTokens: 1 * M,
+            outputTokens: 0,
+            cacheWriteTokens: 0,
+            cacheReadTokens: 0,
+          },
+        },
+        declaredModels: {
+          "cheap-in-pricey-out": 1 * M,
+          "pricey-in-cheap-out": 1 * M,
+          "declared-but-unused": 0,
+        },
+        dayTotals,
+      });
+
+      expect(capped).toBe(101);
     });
   });
 

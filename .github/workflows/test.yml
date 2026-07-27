@@ -20,17 +20,35 @@ jobs:
 
       - uses: oven-sh/setup-bun@v2
         with:
-          bun-version: latest
+          bun-version: "1.3.11"
 
-      - name: Install dependencies
+      - name: Install app dependencies
         run: bun install --frozen-lockfile
 
-      - name: Typecheck
+      - name: Typecheck (app)
         run: bunx tsc --noEmit
+
+      # 루트 tsconfig 는 tests/ 를 제외하므로 가드 테스트가 타입체크되지 않는다.
+      - name: Typecheck (tests)
+        run: bunx tsc --noEmit -p tsconfig.tests.json
 
       - name: Server unit tests
         run: bun run test
 
+      # CLI 의존성은 pnpm.overrides 보안핀(6건)을 따라야 하므로 pnpm 9 로 설치한다.
+      # bun 으로 설치하면 핀이 무시되어 CI 트리가 배포본과 달라진다.
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Install CLI dependencies (pnpm, security pins)
+        working-directory: packages/cli
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck (CLI)
+        working-directory: packages/cli
+        run: pnpm run typecheck
+
       - name: CLI unit tests
         working-directory: packages/cli
-        run: bunx vitest run
+        run: pnpm exec vitest run

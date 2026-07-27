@@ -285,10 +285,13 @@ export interface ModelTokenSplit {
   cacheReadTokens: number;
 }
 
+export type PriceCache = Map<string, ModelPricing>;
+
 export interface ModelSplitCostInputs {
   modelTokens: unknown;
   declaredModels: Record<string, number> | null | undefined;
   dayTotals: Omit<DayCostInputs, "model">;
+  priceCache?: PriceCache;
 }
 
 const MAX_MODELS_PER_DAY = 50;
@@ -398,9 +401,11 @@ export function computeDayCostByModel(
     return null;
   }
 
-  // `matchModel` is O(pricing table) for ids without an exact hit, and this runs
-  // per model per day (up to 50 x 730 per request) — memoize within the call.
-  const priceCache = new Map<string, ModelPricing>();
+  // `matchModel` is O(pricing table) for ids without an exact hit and runs per model
+  // per day, so a 730-day x 50-model payload rescans the table 36,500 times. The
+  // caller passes one cache for the whole request to collapse that to one scan per
+  // distinct id.
+  const priceCache = inputs.priceCache ?? new Map();
   const priceOf = (model: string): ModelPricing => {
     let price = priceCache.get(model);
     if (!price) {
@@ -411,13 +416,13 @@ export function computeDayCostByModel(
   };
 
   let total = 0;
-  for (const { model, split } of splits) {
-    total += rawCost(priceOf(model), split);
-  }
-
   let ceiling = 0;
-  for (const model of declaredKeys) {
-    ceiling = Math.max(ceiling, rawCost(priceOf(model), dayTotals));
+  for (const { model, split } of splits) {
+    const price = priceOf(model);
+    total += rawCost(price, split);
+    // Ceiling spans only the models actually being billed: a model declared with
+    // zero tokens must not be able to raise the cap it is clamped against.
+    ceiling = Math.max(ceiling, rawCost(price, dayTotals));
   }
 
   return Math.round(Math.min(total, ceiling) * 100) / 100;
@@ -448,6 +453,7 @@ export function resolveDayCost(
     modelTokens: unknown;
     declaredModels: Record<string, number> | null | undefined;
     dayTotals: Omit<DayCostInputs, "model">;
+    priceCache?: PriceCache;
   }
 ): DayCostResolution {
   const eligible = inputs.date >= PER_MODEL_COST_START_DATE;
@@ -457,6 +463,7 @@ export function resolveDayCost(
         modelTokens: inputs.modelTokens,
         declaredModels: inputs.declaredModels,
         dayTotals: inputs.dayTotals,
+        priceCache: inputs.priceCache,
       })
     : null;
 
