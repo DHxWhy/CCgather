@@ -9,31 +9,76 @@ interface ErrorProps {
   reset: () => void;
 }
 
+// 배포 직후 열려 있던 탭은 사라진 해시의 chunk 를 요청해 404 를 받는다. 사용자
+// 잘못이 아니고 재방문이면 반드시 풀리므로, 화면을 보여주기 전에 한 번은 조용히
+// 회복시킨다. 무한 새로고침을 막기 위해 탭 단위(sessionStorage)로 1회만 시도한다.
+const AUTO_RECOVERY_KEY = "ccg:chunk-auto-recovery";
+
+function isChunkLoadError(error: Error): boolean {
+  const name = error.name || "";
+  const message = error.message || "";
+  return (
+    name === "ChunkLoadError" ||
+    /Loading chunk|Loading CSS chunk|dynamically imported module|Importing a module script failed|error loading dynamically imported module/i.test(
+      message
+    )
+  );
+}
+
+async function purgeServiceWorkerAndCaches(): Promise<void> {
+  try {
+    if ("serviceWorker" in navigator) {
+      const regs = await navigator.serviceWorker.getRegistrations();
+      await Promise.all(regs.map((r) => r.unregister()));
+    }
+  } catch {
+    // SW API 차단 환경
+  }
+  try {
+    if ("caches" in window) {
+      const keys = await caches.keys();
+      await Promise.all(keys.map((k) => caches.delete(k)));
+    }
+  } catch {
+    // Cache API 차단 환경
+  }
+}
+
 export default function Error({ error, reset }: ErrorProps) {
   const retryCount = useRef(0);
   const [isRecovering, setIsRecovering] = useState(false);
+
+  // 첫 렌더에서 동기적으로 판정해야 에러 화면이 깜빡이지 않는다.
+  const [autoRecovering] = useState(() => {
+    if (typeof window === "undefined") return false;
+    if (!isChunkLoadError(error)) return false;
+    try {
+      if (sessionStorage.getItem(AUTO_RECOVERY_KEY)) return false;
+      sessionStorage.setItem(AUTO_RECOVERY_KEY, String(Date.now()));
+    } catch {
+      return false;
+    }
+    return true;
+  });
+
+  useEffect(() => {
+    if (!autoRecovering) return;
+    let cancelled = false;
+    void (async () => {
+      await purgeServiceWorkerAndCaches();
+      if (!cancelled) window.location.reload();
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [autoRecovering]);
 
   // 갇힌 사용자 escape hatch — F12 콘솔 명령 대체.
   // SW + 모든 cache + localStorage + sessionStorage 전부 청소 후 root 로 이동.
   // Try Again 으로 안 풀리는 사용자가 한 번 클릭으로 회복.
   const handleHardReset = useCallback(async () => {
     setIsRecovering(true);
-    try {
-      if ("serviceWorker" in navigator) {
-        const regs = await navigator.serviceWorker.getRegistrations();
-        await Promise.all(regs.map((r) => r.unregister()));
-      }
-    } catch {
-      // SW API 차단
-    }
-    try {
-      if ("caches" in window) {
-        const keys = await caches.keys();
-        await Promise.all(keys.map((k) => caches.delete(k)));
-      }
-    } catch {
-      // Cache API 차단
-    }
+    await purgeServiceWorkerAndCaches();
     try {
       localStorage.clear();
       sessionStorage.clear();
@@ -57,22 +102,7 @@ export default function Error({ error, reset }: ErrorProps) {
     retryCount.current += 1;
 
     // 모든 시도에서 SW + cache 전체 청소. precache 도 새 build 에서 다시 만들어짐.
-    try {
-      if ("serviceWorker" in navigator) {
-        const regs = await navigator.serviceWorker.getRegistrations();
-        await Promise.all(regs.map((r) => r.unregister()));
-      }
-    } catch {
-      // SW API 없는 환경 — 무시
-    }
-    try {
-      if ("caches" in window) {
-        const keys = await caches.keys();
-        await Promise.all(keys.map((k) => caches.delete(k)));
-      }
-    } catch {
-      // Cache API 차단 — 무시
-    }
+    await purgeServiceWorkerAndCaches();
 
     // 첫 시도는 reset() 으로 가벼운 재시도, 두 번째부터 hard reload.
     if (retryCount.current <= 1) {
@@ -81,6 +111,10 @@ export default function Error({ error, reset }: ErrorProps) {
     }
     window.location.reload();
   }, [reset]);
+
+  if (autoRecovering) {
+    return <div className="min-h-screen bg-bg-primary" aria-busy="true" />;
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-bg-primary px-4">
