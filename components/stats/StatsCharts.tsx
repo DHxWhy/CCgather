@@ -294,7 +294,7 @@ export function StatsCharts({ stats }: { stats: PublicStats }) {
               size="large"
               hideStats
               hideParticles
-              overlayDots
+              flagOverlay
               scopeFilter="global"
             />
           </div>

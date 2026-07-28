@@ -3,6 +3,7 @@
 import { useEffect, useRef, useCallback, useState } from "react";
 import createGlobe, { COBEOptions } from "cobe";
 import { FlagIcon } from "@/components/ui/FlagIcon";
+import { flagSizeForRank, selectFlagMarkers } from "@/lib/globe/select-flag-markers";
 
 // Hook to detect light/dark theme
 function useTheme() {
@@ -249,7 +250,8 @@ interface GlobeProps {
   scopeFilter?: "global" | "country";
   autoRotate?: boolean;
   initialPhi?: number;
-  overlayDots?: boolean;
+  flagOverlay?: boolean;
+  sortBy?: "tokens" | "cost";
 }
 
 // Project lat/lng to screen coordinates matching cobe's rendering
@@ -297,7 +299,8 @@ export function Globe({
   scopeFilter = "global",
   autoRotate = true,
   initialPhi = 0,
-  overlayDots = false,
+  flagOverlay = false,
+  sortBy = "tokens",
 }: GlobeProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const userDotRef = useRef<HTMLDivElement>(null);
@@ -362,21 +365,22 @@ export function Globe({
     [userCoords, size]
   );
 
-  const overlayMarkers = overlayDots
-    ? markers.filter((m) => COUNTRY_COORDINATES[m.code.toUpperCase()])
+  const flagMarkers = flagOverlay
+    ? selectFlagMarkers({
+        markers,
+        hasCoordinates: (code) => Boolean(COUNTRY_COORDINATES[code]),
+        scopeFilter,
+        userCountryCode,
+        sortBy,
+      })
     : [];
-  const flagRankByCode = new Map(
-    [...overlayMarkers]
-      .sort((a, b) => b.tokens - a.tokens)
-      .map((m, rank) => [m.code.toUpperCase(), rank])
-  );
 
   const updateOverlayDots = useCallback(
     (phi: number, theta: number) => {
-      if (!overlayDots) return;
-      for (let i = 0; i < overlayMarkers.length; i++) {
+      if (!flagOverlay) return;
+      for (let i = 0; i < flagMarkers.length; i++) {
         const el = overlayDotRefs.current[i];
-        const coords = COUNTRY_COORDINATES[overlayMarkers[i]!.code.toUpperCase()];
+        const coords = COUNTRY_COORDINATES[flagMarkers[i]!.code];
         if (!el || !coords) continue;
         const { x, y, visible } = latLngToScreen(coords[0], coords[1], phi, theta, size);
         el.style.left = `${x}px`;
@@ -384,7 +388,7 @@ export function Globe({
         el.style.opacity = visible ? "1" : "0.28";
       }
     },
-    [overlayDots, overlayMarkers, size]
+    [flagOverlay, flagMarkers, size]
   );
 
   // Shared globe config refs for recreation on drag
@@ -467,7 +471,7 @@ export function Globe({
         location: [coords[0], coords[1]] as [number, number],
         size: markerSize,
       }));
-    const globeMarkers = overlayDots ? [] : [japanMarker, ...otherMarkers];
+    const globeMarkers = flagOverlay ? [] : [japanMarker, ...otherMarkers];
 
     // Store config for recreation on drag
     globeConfigRef.current = { ...globeConfig, mapSamples, markers: globeMarkers };
@@ -517,7 +521,7 @@ export function Globe({
       globe.destroy();
       globeRef.current = null;
     };
-  }, [size, userCountryCode, updateUserDot, updateOverlayDots, isDark, overlayDots]);
+  }, [size, userCountryCode, updateUserDot, updateOverlayDots, isDark, flagOverlay]);
 
   return (
     <div className={`relative ${className}`} style={{ width: size, height: size }}>
@@ -558,18 +562,16 @@ export function Globe({
         }}
       />
 
-      {overlayDots &&
-        overlayMarkers.map((m, i) => {
-          const rank = flagRankByCode.get(m.code.toUpperCase()) ?? 99;
-          const flagSize = rank === 0 ? "md" : rank < 5 ? "sm" : "xs";
-          const isTopCountry = rank < 5;
+      {flagOverlay &&
+        flagMarkers.map((m, i) => {
+          const isTopCountry = m.rank < 5;
           return (
             <div
               key={m.code}
               ref={(el) => {
                 overlayDotRefs.current[i] = el;
               }}
-              className="absolute pointer-events-none"
+              className={`absolute pointer-events-none ${m.isMine ? "animate-pulse-glow" : ""}`}
               style={{
                 left: -100,
                 top: -100,
@@ -578,19 +580,25 @@ export function Globe({
                 borderRadius: "3px",
                 overflow: "hidden",
                 lineHeight: 0,
-                zIndex: isTopCountry ? 2 : 1,
-                boxShadow: isTopCountry
-                  ? "0 0 0 1.5px rgba(16, 185, 129, 0.9), 0 0 8px #10b981, 0 0 14px rgba(16, 185, 129, 0.5)"
-                  : "0 0 0 1px rgba(16, 185, 129, 0.7), 0 0 6px rgba(16, 185, 129, 0.5)",
+                zIndex: m.isMine ? 3 : isTopCountry ? 2 : 1,
+                // 내 국기 링은 outline 으로 그린다. pulse-glow 키프레임이 모든
+                // 구간에서 box-shadow 를 지정해 인라인 box-shadow 를 덮어버린다.
+                outline: m.isMine ? "2px solid #10b981" : undefined,
+                outlineOffset: m.isMine ? "1px" : undefined,
+                boxShadow: m.isMine
+                  ? undefined
+                  : isTopCountry
+                    ? "0 0 0 1.5px rgba(16, 185, 129, 0.9), 0 0 8px #10b981, 0 0 14px rgba(16, 185, 129, 0.5)"
+                    : "0 0 0 1px rgba(16, 185, 129, 0.7), 0 0 6px rgba(16, 185, 129, 0.5)",
               }}
             >
-              <FlagIcon countryCode={m.code} size={flagSize} />
+              <FlagIcon countryCode={m.code} size={flagSizeForRank(m.rank)} />
             </div>
           );
         })}
 
       {/* User's country green dot overlay with pulse effect */}
-      {userCoords && (
+      {!flagOverlay && userCoords && (
         <>
           {/* Pulse ring - size based on usage, opacity based on filter */}
           <div
