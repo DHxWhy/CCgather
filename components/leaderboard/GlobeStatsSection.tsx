@@ -162,6 +162,7 @@ export function GlobeStatsSection({
             {!hideParticles && <GlobeParticles size={globeSize} />}
             <Globe
               flagOverlay={flagOverlay}
+              sortBy={sortBy}
               markers={stats}
               size={globeSize}
               className="mx-auto"

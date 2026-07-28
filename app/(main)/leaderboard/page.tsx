@@ -2165,6 +2165,7 @@ export default function LeaderboardPage() {
                         scopeFilter={scopeFilter}
                         sortBy={sortBy}
                         compact={isTablet}
+                        flagOverlay
                         hideParticles
                         hideStats
                       />
