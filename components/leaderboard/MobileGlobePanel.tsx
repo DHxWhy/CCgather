@@ -349,6 +349,9 @@ export function MobileGlobePanel({
                   <GlobeParticles size={globeSize} className="z-0" />
                   <Globe
                     size={globeSize}
+                    markers={countryStats}
+                    flagOverlay
+                    sortBy={sortBy}
                     userCountryCode={userCountryCode}
                     scopeFilter={scopeFilter}
                     className="relative z-10"
