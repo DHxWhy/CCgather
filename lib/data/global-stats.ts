@@ -1,7 +1,7 @@
 import { createServiceClient } from "@/lib/supabase/server";
 
 // Thresholds for showing stats vs early adopter message
-const THRESHOLDS = {
+export const GLOBAL_STATS_THRESHOLDS = {
   minUsers: 100,
   minCountries: 10,
   minTokens: 100_000_000_000, // 100B
@@ -23,20 +23,22 @@ export async function getGlobalStats(): Promise<GlobalStats> {
   try {
     const supabase = createServiceClient();
 
-    // Parallel queries: count + (countries, tokens, cost combined)
+    // 가입 기준으로 센다. 제출(total_tokens > 0)로 좁히면 랜딩이 커뮤니티
+    // 규모를 실제보다 훨씬 작게 보여준다(2026-07 기준 143명 vs 82명, 22개국 vs 16개국).
+    // 토큰·비용 합계는 미제출자가 0 이라 기준을 넓혀도 값이 변하지 않는다.
     const [countResult, aggregateResult] = await Promise.all([
-      // Query 1: total user count
       supabase
         .from("users")
         .select("*", { count: "exact", head: true })
         .eq("onboarding_completed", true)
-        .gt("total_tokens", 0),
-      // Query 2: countries + tokens + cost in a single query
+        .is("deleted_at", null)
+        .eq("shadow_banned", false),
       supabase
         .from("users")
         .select("country_code, total_tokens, total_cost")
         .eq("onboarding_completed", true)
-        .gt("total_tokens", 0),
+        .is("deleted_at", null)
+        .eq("shadow_banned", false),
     ]);
 
     const totalUsers = countResult.count;
@@ -63,9 +65,9 @@ export async function getGlobalStats(): Promise<GlobalStats> {
 
     // Determine if we should show stats or early adopter message
     const showStats =
-      (totalUsers || 0) >= THRESHOLDS.minUsers &&
-      totalCountries >= THRESHOLDS.minCountries &&
-      totalTokens >= THRESHOLDS.minTokens;
+      (totalUsers || 0) >= GLOBAL_STATS_THRESHOLDS.minUsers &&
+      totalCountries >= GLOBAL_STATS_THRESHOLDS.minCountries &&
+      totalTokens >= GLOBAL_STATS_THRESHOLDS.minTokens;
 
     return {
       totalUsers: totalUsers || 0,

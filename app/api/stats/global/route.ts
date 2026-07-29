@@ -1,64 +1,14 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { GLOBAL_STATS_THRESHOLDS, getGlobalStats } from "@/lib/data/global-stats";
 
-// Thresholds for showing stats vs early adopter message
-// All three must be met to show stats
-const THRESHOLDS = {
-  minUsers: 100,
-  minCountries: 10,
-  minTokens: 100_000_000_000, // 100B
-};
-
+// 집계는 getGlobalStats 하나만 쓴다. 예전에는 이 라우트가 같은 쿼리를 따로
+// 구현해, 서버 렌더(lib)와 클라이언트 fetch(라우트)가 서로 다른 집계 기준을
+// 쓰면 같은 화면에 다른 숫자가 나올 수 있었다.
 export async function GET() {
-  const supabase = await createClient();
-
-  // Get total users with usage data
-  const { count: totalUsers } = await supabase
-    .from("users")
-    .select("id", { count: "exact", head: true })
-    .eq("onboarding_completed", true)
-    .eq("shadow_banned", false)
-    .gt("total_tokens", 0);
-
-  // Get unique countries
-  const { data: countriesData } = await supabase
-    .from("users")
-    .select("country_code")
-    .eq("onboarding_completed", true)
-    .eq("shadow_banned", false)
-    .gt("total_tokens", 0)
-    .not("country_code", "is", null);
-
-  const uniqueCountries = new Set(countriesData?.map((u) => u.country_code) || []);
-  const totalCountries = uniqueCountries.size;
-
-  // Get total tokens and cost
-  const { data: aggregateData } = await supabase
-    .from("users")
-    .select("total_tokens, total_cost")
-    .eq("onboarding_completed", true)
-    .eq("shadow_banned", false)
-    .gt("total_tokens", 0);
-
-  const totalTokens = aggregateData?.reduce((sum, u) => sum + (u.total_tokens || 0), 0) || 0;
-  const totalCost = aggregateData?.reduce((sum, u) => sum + (u.total_cost || 0), 0) || 0;
-
-  // Determine if we should show stats or early adopter message
-  // All three conditions must be met
-  const showStats =
-    (totalUsers || 0) >= THRESHOLDS.minUsers &&
-    totalCountries >= THRESHOLDS.minCountries &&
-    totalTokens >= THRESHOLDS.minTokens;
+  const stats = await getGlobalStats();
 
   return NextResponse.json(
-    {
-      totalUsers: totalUsers || 0,
-      totalCountries,
-      totalTokens,
-      totalCost,
-      showStats,
-      thresholds: THRESHOLDS,
-    },
+    { ...stats, thresholds: GLOBAL_STATS_THRESHOLDS },
     {
       headers: {
         "Cache-Control": "public, s-maxage=300, stale-while-revalidate=60",
