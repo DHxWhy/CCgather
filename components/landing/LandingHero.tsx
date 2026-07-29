@@ -5,7 +5,7 @@ import dynamic from "next/dynamic";
 import Link from "next/link";
 import { GetStartedLink } from "@/components/landing/GetStartedLink";
 import { GlobeParticles } from "@/components/ui/globe-particles";
-import { formatCost } from "@/lib/utils/format";
+import { CountUp } from "@/components/landing/CountUp";
 import type { GlobalStats } from "@/lib/data/global-stats";
 
 // Globe 플레이스홀더 - 레이아웃 시프트 방지용 빈 공간
@@ -213,8 +213,8 @@ export function LandingHero({ initialStats }: LandingHeroProps) {
               // Real Stats Mode - compact on mobile
               <div className="flex items-center justify-center md:justify-start gap-3 min-[400px]:gap-4 md:gap-6 lg:gap-8 mb-8 md:mb-10 min-h-[60px] md:min-h-[72px]">
                 <div className="text-center md:text-left">
-                  <div className="text-xl min-[400px]:text-2xl md:text-3xl font-bold text-[var(--color-text-primary)]">
-                    {stats.totalCountries}+
+                  <div className="text-xl min-[400px]:text-2xl md:text-3xl font-bold text-[var(--color-text-primary)] tabular-nums">
+                    <CountUp value={stats.totalCountries} format={(n) => `${n}+`} />
                   </div>
                   <div className="text-[10px] min-[400px]:text-xs text-[var(--color-text-muted)] uppercase tracking-wider">
                     Countries
@@ -225,7 +225,7 @@ export function LandingHero({ initialStats }: LandingHeroProps) {
                   {/* 축약(1.7T)하면 규모가 안 와닿아 전체 자릿수로 보여준다.
                       17자라 다른 지표보다 한 단계 작은 글자를 쓴다. */}
                   <div className="text-sm min-[400px]:text-base md:text-xl lg:text-2xl font-bold text-[var(--color-claude-coral)] tabular-nums whitespace-nowrap">
-                    {stats.totalTokens.toLocaleString("en-US")}
+                    <CountUp value={stats.totalTokens} format={(n) => n.toLocaleString("en-US")} />
                   </div>
                   <div className="text-[10px] min-[400px]:text-xs text-[var(--color-text-muted)] uppercase tracking-wider">
                     Tokens
@@ -233,8 +233,11 @@ export function LandingHero({ initialStats }: LandingHeroProps) {
                 </div>
                 <div className="w-px h-8 min-[400px]:h-10 bg-white/10" />
                 <div className="text-center md:text-left">
-                  <div className="text-xl min-[400px]:text-2xl md:text-3xl font-bold text-emerald-400">
-                    {formatCost(stats.totalCost)}
+                  <div className="text-sm min-[400px]:text-base md:text-xl lg:text-2xl font-bold text-emerald-400 tabular-nums whitespace-nowrap">
+                    <CountUp
+                      value={Math.round(stats.totalCost)}
+                      format={(n) => `$${n.toLocaleString("en-US")}`}
+                    />
                   </div>
                   <div className="text-[10px] min-[400px]:text-xs text-[var(--color-text-muted)] uppercase tracking-wider">
                     Spent
