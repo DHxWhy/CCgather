@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { GetStartedLink } from "@/components/landing/GetStartedLink";
@@ -114,36 +114,36 @@ interface LandingHeroProps {
   initialStats?: GlobalStats | null;
 }
 
-// Hook to get current breakpoint
-function useBreakpoint() {
-  const [breakpoint, setBreakpoint] = useState<"mobile" | "tablet" | "desktop">("desktop");
+// 지구본 크기는 컨테이너 실측으로 정한다. 예전에는 JS 가 브레이크포인트 px 를
+// 따로 들고 있었는데, 이 프로젝트는 --breakpoint-lg 를 1040px 로 커스텀해 두어
+// JS(1024)와 CSS(1040)가 어긋나는 16px 구간에서 지구본이 컨테이너보다 커져
+// 본문을 덮었다. CSS 를 단일 기준으로 두면 이 종류의 불일치가 생기지 않는다.
+function useMeasuredSize(ref: React.RefObject<HTMLDivElement | null>, fallback: number) {
+  const [size, setSize] = useState(fallback);
 
   useEffect(() => {
-    const checkBreakpoint = () => {
-      if (window.innerWidth < 768) {
-        setBreakpoint("mobile");
-      } else if (window.innerWidth < 1024) {
-        setBreakpoint("tablet");
-      } else {
-        setBreakpoint("desktop");
-      }
+    const el = ref.current;
+    if (!el) return;
+
+    const update = () => {
+      const w = Math.round(el.getBoundingClientRect().width);
+      if (w > 0) setSize(w);
     };
 
-    checkBreakpoint();
-    window.addEventListener("resize", checkBreakpoint);
-    return () => window.removeEventListener("resize", checkBreakpoint);
-  }, []);
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [ref]);
 
-  return breakpoint;
+  return size;
 }
 
 export function LandingHero({ initialStats }: LandingHeroProps) {
   const [mounted, setMounted] = useState(false);
   const [stats, setStats] = useState<GlobalStats | null>(initialStats ?? null);
-  const breakpoint = useBreakpoint();
-
-  // Get globe size based on breakpoint
-  const globeSize = breakpoint === "mobile" ? 260 : breakpoint === "tablet" ? 280 : 400;
+  const globeColRef = useRef<HTMLDivElement>(null);
+  const globeSize = useMeasuredSize(globeColRef, 400);
 
   useEffect(() => {
     setMounted(true);
@@ -164,7 +164,10 @@ export function LandingHero({ initialStats }: LandingHeroProps) {
         <div className="flex flex-col md:flex-row items-center justify-center gap-8 lg:gap-16 mx-auto max-w-7xl w-full">
           {/* Globe - Top on mobile, Left on tablet/PC */}
           {/* Fixed dimensions to prevent CLS */}
-          <div className="flex-shrink-0 flex items-center justify-center w-full max-w-[260px] aspect-square md:max-w-[280px] lg:max-w-[400px]">
+          <div
+            ref={globeColRef}
+            className="flex-shrink-0 flex items-center justify-center w-full max-w-[260px] aspect-square md:max-w-[280px] lg:max-w-[320px] xl:max-w-[400px]"
+          >
             <div className="relative" style={{ width: globeSize, height: globeSize }}>
               {/* 플레이스홀더 - 항상 표시, Globe 로드 후 숨김 */}
               {!mounted && <GlobePlaceholder size={globeSize} />}
