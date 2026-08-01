@@ -37,7 +37,7 @@ jobs:
 
       # CLI 의존성은 pnpm.overrides 보안핀(6건)을 따라야 하므로 pnpm 9 로 설치한다.
       # bun 으로 설치하면 핀이 무시되어 CI 트리가 배포본과 달라진다.
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
         with:
           version: 9
 
