@@ -32,9 +32,12 @@ function fullPage(startId: number): number[] {
 }
 
 function requestedPage(callIndex: number): string | null {
-  const url = String(fetchMock.mock.calls[callIndex][0]);
-  const match = url.match(/[?&]page=(\d+)/);
-  return match ? match[1] : null;
+  const call = fetchMock.mock.calls[callIndex];
+  if (!call) {
+    return null;
+  }
+  const match = String(call[0]).match(/[?&]page=(\d+)/);
+  return match?.[1] ?? null;
 }
 
 beforeEach(() => {
@@ -57,7 +60,7 @@ describe("checkUserStarred", () => {
 
     expect(result).toBe(true);
     expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect(fetchMock.mock.calls[0][0]).toBe(STARRED_URL);
+    expect(fetchMock.mock.calls[0]?.[0]).toBe(STARRED_URL);
   });
 
   it("trusts 404 as not-starred when the token has repo scope", async () => {
@@ -81,7 +84,7 @@ describe("checkUserStarred", () => {
     const result = await checkUserStarred({ clerkId: "clerk_1", githubId: "111" });
 
     expect(result).toBe(true);
-    expect(fetchMock.mock.calls[1][0]).toContain(STARGAZERS_PREFIX);
+    expect(fetchMock.mock.calls[1]?.[0]).toContain(STARGAZERS_PREFIX);
   });
 
   it("returns false when a single short page has no match (full coverage)", async () => {
