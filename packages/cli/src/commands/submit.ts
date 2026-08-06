@@ -13,6 +13,7 @@ import {
   getSessionPathDebugInfo,
 } from "../lib/ccgather-json.js";
 import { initPricing } from "../lib/pricing.js";
+import { shouldPromptStar, promptStarNudge, REPO_URL } from "../lib/star-nudge.js";
 import {
   colors,
   formatNumber,
@@ -293,7 +294,9 @@ function displayNewBadges(badges: BadgeInfo[]): void {
 /**
  * Verify token validity with server
  */
-async function verifyToken(): Promise<{ valid: boolean; username?: string }> {
+async function verifyToken(
+  requestStarStatus: boolean
+): Promise<{ valid: boolean; username?: string; hasStarred?: boolean | null }> {
   const apiUrl = getApiUrl();
   const config = getConfig();
   const apiToken = config.get("apiToken");
@@ -303,20 +306,27 @@ async function verifyToken(): Promise<{ valid: boolean; username?: string }> {
   }
 
   try {
-    const response = await fetch(`${apiUrl}/cli/verify`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${apiToken}`,
-      },
-    });
+    const response = await fetch(
+      `${apiUrl}/cli/verify${requestStarStatus ? "?star_status=1" : ""}`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${apiToken}`,
+        },
+      }
+    );
 
     if (!response.ok) {
       return { valid: false };
     }
 
-    const data = (await response.json()) as { userId: string; username: string };
-    return { valid: true, username: data.username };
+    const data = (await response.json()) as {
+      userId: string;
+      username: string;
+      hasStarred?: boolean | null;
+    };
+    return { valid: true, username: data.username, hasStarred: data.hasStarred };
   } catch {
     return { valid: false };
   }
@@ -356,13 +366,22 @@ export async function submit(options: SubmitOptions): Promise<void> {
 
   const config = getConfig();
 
+  const isInteractive = Boolean(process.stdout.isTTY && process.stdin.isTTY);
+  const starState = {
+    isTTY: isInteractive,
+    starConfirmed: config.get("starConfirmed") === true,
+    hasSubmittedBefore: Boolean(config.get("lastSync")),
+  };
+  const starPromptCandidate = shouldPromptStar({ ...starState, hasStarred: null });
+  const requestStarStatus = starState.hasSubmittedBefore && !starState.starConfirmed;
+
   // Verify token with server FIRST (before any scanning)
   const verifySpinner = ora({
     text: "Verifying authentication...",
     color: "cyan",
   }).start();
 
-  const tokenCheck = await verifyToken();
+  const tokenCheck = await verifyToken(requestStarStatus);
 
   if (!tokenCheck.valid) {
     verifySpinner.stop();
@@ -397,6 +416,15 @@ export async function submit(options: SubmitOptions): Promise<void> {
 
   const username = tokenCheck.username || config.get("username");
   verifySpinner.succeed(colors.success(`Authenticated as ${colors.white(username || "unknown")}`));
+
+  if (tokenCheck.hasStarred === true) {
+    config.set("starConfirmed", true);
+  } else if (
+    starPromptCandidate &&
+    shouldPromptStar({ ...starState, hasStarred: tokenCheck.hasStarred })
+  ) {
+    await promptStarNudge(config);
+  }
 
   // Initialize dynamic pricing from LiteLLM (cached, non-blocking fallback)
   await initPricing();
@@ -529,6 +557,7 @@ export async function submit(options: SubmitOptions): Promise<void> {
 
   if (result.success) {
     submitSpinner.succeed(colors.success("Successfully submitted!"));
+    config.set("lastSync", new Date().toISOString());
     console.log();
 
     // Section header with trailing line (aligned to box width: 48 = 2 indent + 46 content + 2 borders)
@@ -683,6 +712,9 @@ export async function submit(options: SubmitOptions): Promise<void> {
     const leaderboardUrl = `https://ccgather.com/leaderboard?u=${username}`;
     console.log(`  ${colors.dim("─".repeat(48))}`);
     console.log(`  ${colors.muted("View full stats:")} ${link(leaderboardUrl)}`);
+    if (config.get("starConfirmed") !== true) {
+      console.log(`  ${colors.muted("Enjoying CCgather? Star us:")} ${link(REPO_URL)}`);
+    }
     console.log();
 
     // Regular Submission Reminder

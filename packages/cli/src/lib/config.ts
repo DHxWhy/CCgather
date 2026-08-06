@@ -10,6 +10,7 @@ export interface CliConfig {
   userId?: string;
   username?: string;
   deviceId?: string;
+  starConfirmed?: boolean;
 }
 
 const defaults: CliConfig = {

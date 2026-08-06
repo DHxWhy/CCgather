@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import { useUser, useSignUp } from "@clerk/nextjs";
 import { useSearchParams, useRouter } from "next/navigation";
 import { useMe } from "@/hooks/use-me";
+import { CliAuthSuccessCard } from "@/components/cli/CliAuthSuccessCard";
 
 // Persist CLI device code across OAuth/onboarding redirects (Guard may strip URL params)
 const CLI_PENDING_CODE_KEY = "ccgather_cli_pending_code";
@@ -72,17 +73,6 @@ export default function CLIAuthPage() {
     // Existing user (or legacy callback flow) — proceed straight to authorization
     authorizeDirectly();
   }, [isLoaded, isSignedIn, userCode, isMeFetched, meData, router, authorizeDirectly]);
-
-  // Redirect to leaderboard after success (unless callback flow)
-  useEffect(() => {
-    if (status === "success" && !callback) {
-      const timer = setTimeout(() => {
-        router.push("/leaderboard");
-      }, 2000);
-      return () => clearTimeout(timer);
-    }
-    return;
-  }, [status, callback, router]);
 
   async function authorizeDevice(code: string) {
     setStatus("authorizing");
@@ -293,18 +283,19 @@ export default function CLIAuthPage() {
           </>
         )}
 
-        {status === "success" && (
-          <div className="bg-[var(--color-bg-secondary)] border border-green-500/30 rounded-xl p-8">
-            <div className="text-6xl mb-4">✅</div>
-            <h1 className="text-2xl font-bold text-green-400 mb-2">CLI Authorized!</h1>
-            <p className="text-[var(--color-text-muted)] mb-4">
-              {callback ? "Redirecting to CLI..." : "Redirecting to leaderboard..."}
-            </p>
-            <p className="text-sm text-[var(--color-text-muted)]">
-              Return to your terminal to submit usage data.
-            </p>
-          </div>
-        )}
+        {status === "success" &&
+          (callback ? (
+            <div className="bg-[var(--color-bg-secondary)] border border-green-500/30 rounded-xl p-8">
+              <div className="text-6xl mb-4">✅</div>
+              <h1 className="text-2xl font-bold text-green-400 mb-2">CLI Authorized!</h1>
+              <p className="text-[var(--color-text-muted)] mb-4">Redirecting to CLI...</p>
+              <p className="text-sm text-[var(--color-text-muted)]">
+                Return to your terminal to submit usage data.
+              </p>
+            </div>
+          ) : (
+            <CliAuthSuccessCard />
+          ))}
 
         {status === "error" && (
           <div className="bg-[var(--color-bg-secondary)] border border-[var(--color-claude-coral)]/30 rounded-xl p-8">

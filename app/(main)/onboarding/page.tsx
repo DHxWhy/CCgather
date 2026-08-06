@@ -8,6 +8,7 @@ import { CountryCard } from "@/components/onboarding/CountryCard";
 import { CountrySearchPalette } from "@/components/onboarding/CountrySearchPalette";
 import { Confetti, SparkleEffect } from "@/components/onboarding/Confetti";
 import { CLIModal } from "@/components/cli/CLIModal";
+import { CliAuthSuccessCard } from "@/components/cli/CliAuthSuccessCard";
 import { ChevronRight, Sparkles } from "lucide-react";
 import { FlagIcon } from "@/components/ui/FlagIcon";
 import { useToast } from "@/components/ui/ToastProvider";
@@ -170,10 +171,6 @@ export default function OnboardingPage() {
         setCliAuthStatus("success");
         // Set flag to skip OnboardingGuard check
         sessionStorage.setItem("onboarding_just_completed", Date.now().toString());
-        // Show success briefly then redirect
-        setTimeout(() => {
-          router.replace("/leaderboard");
-        }, 2000);
       } else {
         const data = await response.json().catch((e) => {
           console.warn("[CLI Auth] JSON parse failed:", e instanceof Error ? e.message : e);
@@ -215,16 +212,7 @@ export default function OnboardingPage() {
               <p className="text-text-muted">Please wait</p>
             </>
           )}
-          {cliAuthStatus === "success" && (
-            <div className="bg-bg-secondary border border-green-500/30 rounded-xl p-8">
-              <div className="text-6xl mb-4">✅</div>
-              <h1 className="text-2xl font-bold text-green-400 mb-2">CLI Authorized!</h1>
-              <p className="text-text-muted mb-4">
-                You can close this window and return to your terminal.
-              </p>
-              <p className="text-sm text-text-muted">Redirecting to leaderboard...</p>
-            </div>
-          )}
+          {cliAuthStatus === "success" && <CliAuthSuccessCard />}
         </div>
       </div>
     );

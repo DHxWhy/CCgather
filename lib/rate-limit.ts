@@ -135,6 +135,13 @@ export const rateLimiters = {
       limit: 5,
       windowMs: 60 * 60 * 1000, // 1 hour
     }),
+
+  /** CLI verify star-status check: 10 requests per hour */
+  starStatus: (identifier: string) =>
+    checkRateLimit(`star:${identifier}`, {
+      limit: 10,
+      windowMs: 60 * 60 * 1000, // 1 hour
+    }),
 };
 
 /**
