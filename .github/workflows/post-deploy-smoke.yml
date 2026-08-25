@@ -80,11 +80,19 @@ jobs:
           # 의도: GitHub Actions ↔ Vercel 의 cold start / 일시 망 글리치로 인한
           # false positive 차단. 진짜 빌드 fail (404/500) 은 즉시 결과 (재시도 X).
           # 최대 timeout 30s 로 콜드스타트 여유 확보 (15s→30s, off-peak 콜드스타트 대응) + hang 방지.
+          # 000 의 실제 원인(DNS 6 / 연결거부 7 / 타임아웃 28 / TLS 35·60)을 남긴다.
+          # fetch_code 는 $() 서브셸에서 호출돼 변수로 못 넘기므로 파일로 전달
+          # (프로브는 순차 실행이라 경합 없음). 2026-08-23 /cli/auth 000 사건이
+          # 로그에 "000" 세 글자만 남아 원인 미확정으로 끝난 재발 방지.
+          DIAG_FILE="$(mktemp)"
+
           fetch_code() {
             local url="$1"
-            local code
-            code=$(curl -sS -o /dev/null --max-time 30 -w "%{http_code}" "$url" 2>/dev/null)
+            local out code
+            out=$(curl -sS -o /dev/null --max-time 30 -w "%{http_code}|%{exitcode}|%{errormsg}" "$url" 2>/dev/null)
+            code="${out%%|*}"
             code="${code:-000}"
+            printf '%s' "${out#*|}" > "$DIAG_FILE"
             # 네트워크 글리치/일시 서버 에러만 재시도 (총 2회 추가, 30s + 60s 백오프)
             local attempt=1
             while [ "$code" = "000" ] || [ "$code" = "502" ] || [ "$code" = "503" ] || [ "$code" = "504" ]; do
@@ -92,11 +100,29 @@ jobs:
               local backoff=$((attempt * 30))
               echo "    [retry $attempt] $url 응답 $code → ${backoff}s 대기 후 재시도" >&2
               sleep $backoff
-              code=$(curl -sS -o /dev/null --max-time 30 -w "%{http_code}" "$url" 2>/dev/null)
+              out=$(curl -sS -o /dev/null --max-time 30 -w "%{http_code}|%{exitcode}|%{errormsg}" "$url" 2>/dev/null)
+              code="${out%%|*}"
               code="${code:-000}"
+              printf '%s' "${out#*|}" > "$DIAG_FILE"
               attempt=$((attempt + 1))
             done
             echo "$code"
+          }
+
+          # 직전 fetch_code 의 curl 진단을 사람이 읽는 문장으로
+          last_diag() {
+            local d ec msg
+            d=$(cat "$DIAG_FILE" 2>/dev/null)
+            ec="${d%%|*}"
+            msg="${d#*|}"
+            if [ -z "$ec" ]; then echo "진단정보 없음"; return; fi
+            case "$ec" in
+              6)  echo "DNS 실패 (curl 6): ${msg}" ;;
+              7)  echo "연결 거부 (curl 7): ${msg}" ;;
+              28) echo "타임아웃 (curl 28): ${msg}" ;;
+              35|60) echo "TLS/인증서 실패 (curl ${ec}): ${msg}" ;;
+              *)  echo "curl exit=${ec}: ${msg}" ;;
+            esac
           }
 
           fetch_matched() {
@@ -147,7 +173,9 @@ jobs:
               matched=$(fetch_matched "$url")
             fi
             echo "  $code  $path  matched=$matched"
-            if [ "$code" = "404" ] || [ "$code" = "500" ] || [ "$matched" = "/404" ]; then
+            if [ "$code" = "000" ]; then
+              failures+=("🔌 **보호 라우트 무응답** — \`${path}\` 가 재시도 3회 내내 응답 없음(000). $(last_diag). 로그인 사용자가 이 기능을 못 씁니다.")
+            elif [ "$code" = "404" ] || [ "$code" = "500" ] || [ "$matched" = "/404" ]; then
               failures+=("🔒 **보호 라우트 빌드 누락** — \`${path}\` 가 HTTP ${code} 응답 (정상은 307 redirect). 가입 후 사용자가 404 페이지를 봅니다.")
             fi
           done
@@ -158,7 +186,9 @@ jobs:
             url="${BASE_URL}${path}"
             code=$(fetch_code "$url")
             echo "  $code  $path"
-            if [ "$code" != "200" ]; then
+            if [ "$code" = "000" ]; then
+              failures+=("🔌 **공개 페이지 무응답** — \`${path}\` 가 재시도 3회 내내 응답 없음(000). $(last_diag). 이 페이지로 진입한 사용자가 화면을 못 봅니다.")
+            elif [ "$code" != "200" ]; then
               failures+=("🌐 **공개 페이지 다운** — \`${path}\` 가 HTTP ${code} 응답 (정상은 200). 이 페이지로 진입한 사용자가 화면을 못 봅니다.")
             fi
           done
@@ -169,14 +199,18 @@ jobs:
             url="${BASE_URL}${path}"
             code=$(fetch_code "$url")
             echo "  $code  $path"
-            if [ "$code" = "404" ] || [ "$code" = "500" ]; then
+            if [ "$code" = "000" ] || [ "$code" = "404" ] || [ "$code" = "500" ]; then
               ctx=""
               case "$path" in
                 "/api/webhooks/clerk") ctx=" — Clerk 가 신규 가입자 정보를 전달 못 함" ;;
                 "/api/leaderboard") ctx=" — 리더보드 자체가 빈 화면" ;;
                 "/api/cli/auth/device") ctx=" — CLI 신규 인증 불가" ;;
               esac
-              failures+=("🛠 **API 다운** — \`${path}\` 가 HTTP ${code}${ctx}.")
+              if [ "$code" = "000" ]; then
+                failures+=("🔌 **API 무응답** — \`${path}\` 가 재시도 3회 내내 응답 없음(000)${ctx}. $(last_diag).")
+              else
+                failures+=("🛠 **API 다운** — \`${path}\` 가 HTTP ${code}${ctx}.")
+              fi
             fi
           done
 
