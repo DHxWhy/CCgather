@@ -58,6 +58,7 @@ export const BADGES: Badge[] = [
   // ═══════════════════════════════════════
   {
     id: "streak_180",
+    image: "/badges/v1/streak_180",
     name: "Half-Year Hero",
     description: "180 days consecutive usage",
     praise: "Six months of dedication! You're in the hall of fame.",
@@ -68,6 +69,7 @@ export const BADGES: Badge[] = [
   },
   {
     id: "streak_90",
+    image: "/badges/v1/streak_90",
     name: "Quarter Master",
     description: "90 days consecutive usage",
     praise: "Three months of commitment! You're building something great.",
@@ -78,6 +80,7 @@ export const BADGES: Badge[] = [
   },
   {
     id: "streak_60",
+    image: "/badges/v1/streak_60",
     name: "Two-Month Titan",
     description: "60 days consecutive usage",
     praise: "Two months strong! You're unstoppable.",
@@ -88,6 +91,7 @@ export const BADGES: Badge[] = [
   },
   {
     id: "streak_30",
+    image: "/badges/v1/streak_30",
     name: "Monthly Warrior",
     description: "30 days consecutive usage",
     praise: "One month streak! You're on the right track.",
@@ -146,6 +150,7 @@ export const BADGES: Badge[] = [
   },
   {
     id: "whale",
+    image: "/badges/v1/whale",
     name: "Whale",
     description: "Spent $10,000+ total",
     praise: "A true whale! Making waves in the Claude ocean.",
@@ -167,6 +172,7 @@ export const BADGES: Badge[] = [
   },
   {
     id: "big_spender",
+    image: "/badges/v1/big_spender",
     name: "Big Spender",
     description: "Spent $5,000+ total",
     praise: "Investing in AI excellence! Your commitment is remarkable.",
@@ -192,6 +198,7 @@ export const BADGES: Badge[] = [
   // ═══════════════════════════════════════
   {
     id: "global_first",
+    image: "/badges/v1/global_first",
     name: "Global Champion",
     description: "Reached #1 Worldwide",
     praise: "The absolute champion! You stand at the top of the world.",
@@ -202,6 +209,7 @@ export const BADGES: Badge[] = [
   },
   {
     id: "top_3",
+    image: "/badges/v1/top_3",
     name: "Podium",
     description: "Reached Global Top 3",
     praise: "On the podium! One of the top 3 in the world.",
@@ -223,6 +231,7 @@ export const BADGES: Badge[] = [
   },
   {
     id: "country_first",
+    image: "/badges/v1/country_first",
     name: "National Champion",
     description: "Reached #1 in your country",
     praise: "National champion! You've conquered your homeland.",
@@ -244,6 +253,7 @@ export const BADGES: Badge[] = [
   },
   {
     id: "rising_star",
+    image: "/badges/v1/rising_star",
     name: "Rising Star",
     description: "Gained 100+ ranks in a week",
     praise: "Shooting star! Your rise is inspiring everyone.",
@@ -269,6 +279,7 @@ export const BADGES: Badge[] = [
   },
   {
     id: "sonnet_master",
+    image: "/badges/v1/sonnet_master",
     name: "Sonnet Master",
     description: "70%+ of tokens on Sonnet models",
     praise: "Balance of power and efficiency! Sonnet suits you perfectly.",
@@ -279,6 +290,7 @@ export const BADGES: Badge[] = [
   },
   {
     id: "model_explorer",
+    image: "/badges/v1/model_explorer",
     name: "Model Explorer",
     description: "Used all available Claude models (100K+ each)",
     praise: "Versatile explorer! You've mastered the entire Claude family.",
@@ -294,6 +306,7 @@ export const BADGES: Badge[] = [
   },
   {
     id: "haiku_ninja",
+    image: "/badges/v1/haiku_ninja",
     name: "Haiku Ninja",
     description: "70%+ of tokens on Haiku models",
     praise: "Speed demon! Quick and efficient like a true ninja.",
@@ -308,6 +321,7 @@ export const BADGES: Badge[] = [
   // ═══════════════════════════════════════
   {
     id: "social_legend",
+    image: "/badges/v1/social_legend",
     name: "Social Legend",
     description: "Referred 50+ friends who joined",
     praise: "Legendary influencer! You built an army.",
@@ -318,6 +332,7 @@ export const BADGES: Badge[] = [
   },
   {
     id: "social_star",
+    image: "/badges/v1/social_star",
     name: "Social Star",
     description: "Referred 30+ friends who joined",
     praise: "Star power! Your network is impressive.",
@@ -328,6 +343,7 @@ export const BADGES: Badge[] = [
   },
   {
     id: "influencer",
+    image: "/badges/v1/influencer",
     name: "Influencer",
     description: "Referred 20+ friends who joined",
     praise: "Community builder! You're a true ambassador.",
@@ -338,6 +354,7 @@ export const BADGES: Badge[] = [
   },
   {
     id: "networker",
+    image: "/badges/v1/networker",
     name: "Networker",
     description: "Referred 10+ friends who joined",
     praise: "Growing your network! Keep spreading the word.",
@@ -348,6 +365,7 @@ export const BADGES: Badge[] = [
   },
   {
     id: "recruiter",
+    image: "/badges/v1/recruiter",
     name: "Recruiter",
     description: "Referred 5+ friends who joined",
     praise: "First recruits! Thanks for sharing.",
