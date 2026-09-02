@@ -465,8 +465,8 @@ function BadgeItem({
         {badge.image ? (
           // eslint-disable-next-line @next/next/no-img-element -- static immutable asset, no optimizer round-trip
           <img
-            src={`${badge.image}-96.webp`}
-            srcSet={`${badge.image}-96.webp 1x, ${badge.image}-192.webp 2x`}
+            src={`${badge.image}-small-96.webp`}
+            srcSet={`${badge.image}-small-96.webp 1x, ${badge.image}-small-192.webp 2x`}
             width={34}
             height={34}
             alt={badge.name}
