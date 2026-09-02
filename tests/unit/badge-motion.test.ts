@@ -49,7 +49,8 @@ describe("composeBadgeMotion", () => {
         tt?: number;
       }>;
       const matteIdx = layers.findIndex((l) => l.nm === "pin-matte");
-      expect(layers[matteIdx].td).toBe(1);
+      expect(matteIdx).toBeGreaterThanOrEqual(0);
+      expect(layers[matteIdx]?.td).toBe(1);
       expect(layers[matteIdx + 1]).toMatchObject({ nm: "sheen", tt: 1 });
     }
   });
