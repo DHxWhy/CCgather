@@ -20,6 +20,8 @@ import {
 import { Maximize2 } from "lucide-react";
 import { LEVELS, getLevelByTokens } from "@/lib/constants/levels";
 import { BADGES, type Badge } from "@/lib/constants/badges";
+import { PIN_ASSET_SIZES } from "@/lib/badges/pin-motion";
+import { PinWithMotion } from "@/components/badges/PinWithMotion";
 import { ActivityHeatmap } from "@/components/profile/ActivityHeatmap";
 import { CCplanBadge } from "@/components/leaderboard/CCplanBadge";
 import { UsageHistoryModal } from "@/components/leaderboard/UsageHistoryModal";
@@ -412,14 +414,7 @@ function BadgeItem({
       <div className="flex items-center gap-2 mb-1.5">
         <span className="text-lg">
           {badge.image ? (
-            // eslint-disable-next-line @next/next/no-img-element -- static immutable asset
-            <img
-              src={`${badge.image}-192.webp`}
-              width={48}
-              height={48}
-              alt=""
-              className={`h-12 w-12 object-contain ${!isEarned ? "grayscale opacity-50" : ""}`}
-            />
+            <PinWithMotion image={badge.image} rarity={badge.rarity} earned={isEarned} size={48} />
           ) : badge.id === "country_first" && userCountry ? (
             <FlagIcon countryCode={userCountry} size="sm" />
           ) : (
@@ -465,8 +460,8 @@ function BadgeItem({
         {badge.image ? (
           // eslint-disable-next-line @next/next/no-img-element -- static immutable asset, no optimizer round-trip
           <img
-            src={`${badge.image}-small-96.webp`}
-            srcSet={`${badge.image}-small-96.webp 1x, ${badge.image}-small-192.webp 2x`}
+            src={`${badge.image}-${PIN_ASSET_SIZES.tile}.webp`}
+            srcSet={`${badge.image}-${PIN_ASSET_SIZES.tile}.webp 1x, ${badge.image}-${PIN_ASSET_SIZES.tile2x}.webp 2x`}
             width={34}
             height={34}
             alt={badge.name}

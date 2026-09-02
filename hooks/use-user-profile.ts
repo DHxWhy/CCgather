@@ -146,6 +146,23 @@ export function useUserBadges(userId: string | null, options?: { enabled?: boole
   });
 }
 
+async function fetchUserBadgeRows(userId: string): Promise<UserBadgesResponse["badges"]> {
+  const response = await fetch(`/api/users/${userId}/badges`);
+  if (!response.ok) return [];
+  const data: UserBadgesResponse = await response.json();
+  return data.badges || [];
+}
+
+export function useUserBadgeRows(userId: string | null) {
+  return useQuery({
+    queryKey: [...userProfileKeys.badges(userId || ""), "rows"],
+    queryFn: () => fetchUserBadgeRows(userId!),
+    enabled: !!userId,
+    staleTime: 10 * 60 * 1000,
+    gcTime: 30 * 60 * 1000,
+  });
+}
+
 // ===========================================
 // Combined Hook for ProfileSidePanel
 // ===========================================

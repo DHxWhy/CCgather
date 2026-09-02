@@ -1,0 +1,396 @@
+[
+  {
+    "sheet": "V2_S1_streak_ritual",
+    "title": "Streak & Ritual",
+    "items": [
+      [
+        "streak_7",
+        "Week Starter",
+        "streak",
+        "common",
+        "circular pin with a thin tally ring, one small ember spark at the center — the first week of daily Claude Code use"
+      ],
+      [
+        "streak_14",
+        "Fortnight Fighter",
+        "streak",
+        "common",
+        "circular pin, tally ring one quarter lit, a small steady flame at the center"
+      ],
+      [
+        "streak_30",
+        "Monthly Warrior",
+        "streak",
+        "rare",
+        "circular pin, tally ring half lit, a full flame with a second inner tongue"
+      ],
+      [
+        "streak_60",
+        "Two-Month Titan",
+        "streak",
+        "rare",
+        "circular pin, tally ring three-quarters lit, a handheld torch flame"
+      ],
+      [
+        "streak_90",
+        "Quarter Master",
+        "streak",
+        "epic",
+        "circular pin, tally ring fully lit and glowing, a brazier bowl with a tall flame"
+      ],
+      [
+        "streak_180",
+        "Half-Year Hero",
+        "streak",
+        "legendary",
+        "circular pin framed by a laurel wreath, a beacon tower flame with sparks, gem inlays on the ring"
+      ],
+      [
+        "ritual_4",
+        "Weekly Ritual I",
+        "ritual",
+        "common",
+        "circular pin, a strip of seven small dots with one dot highlighted and a checkmark — one sync every week"
+      ],
+      [
+        "ritual_8",
+        "Weekly Ritual II",
+        "ritual",
+        "rare",
+        "circular pin, the seven-dot strip doubled with two checkmarks"
+      ],
+      [
+        "ritual_12",
+        "Weekly Ritual III",
+        "ritual",
+        "epic",
+        "circular pin, seven-dot strip inside a glowing ring with three checkmarks"
+      ]
+    ]
+  },
+  {
+    "sheet": "V2_S2_tokens",
+    "title": "Tokens",
+    "items": [
+      [
+        "first_million",
+        "First Million",
+        "tokens",
+        "common",
+        "hexagonal crystal-shaped pin, a single small rough crystal shard"
+      ],
+      ["hundred_million", "100M Club", "tokens", "common", "hexagonal pin, one cleanly cut gem"],
+      [
+        "billion_club",
+        "Billion Club",
+        "tokens",
+        "rare",
+        "hexagonal pin, two cut gems side by side with a highlight"
+      ],
+      [
+        "10b_club",
+        "10B Club",
+        "tokens",
+        "epic",
+        "hexagonal pin, a cluster of three gems with inner glow"
+      ],
+      [
+        "50b_club",
+        "50B Club",
+        "tokens",
+        "epic",
+        "hexagonal pin, an open geode half revealing crystals inside"
+      ],
+      [
+        "100b_club",
+        "100B Club",
+        "tokens",
+        "legendary",
+        "hexagonal pin with laurel, a large gem topped by a small crown, gem inlays"
+      ],
+      [
+        "200b_club",
+        "200B Club",
+        "tokens",
+        "legendary",
+        "hexagonal pin with laurel, a gem comet with an orbit ring and sparkles"
+      ],
+      [
+        "big_spender",
+        "Big Spender",
+        "tokens",
+        "rare",
+        "hexagonal pin, a neat stack of three coins"
+      ],
+      [
+        "whale",
+        "Whale",
+        "tokens",
+        "epic",
+        "hexagonal pin, a stylized whale with a water spout and inner glow"
+      ]
+    ]
+  },
+  {
+    "sheet": "V2_S3_rank_country",
+    "title": "Rank & Country",
+    "items": [
+      [
+        "global_first",
+        "Global Champion",
+        "rank",
+        "legendary",
+        "shield-shaped crest pin with laurel, a small globe topped by a crown, gem inlays"
+      ],
+      [
+        "top_3",
+        "Podium",
+        "rank",
+        "legendary",
+        "shield crest pin with laurel, a three-step podium with a star on the top step"
+      ],
+      [
+        "top_50",
+        "Global 50",
+        "rank",
+        "common",
+        "shield crest pin, a small globe with a single ribbon"
+      ],
+      [
+        "country_first",
+        "National Champion",
+        "rank",
+        "epic",
+        "shield crest pin, a waving flag banner over a medal, inner glow"
+      ],
+      [
+        "trailblazer",
+        "Trailblazer",
+        "rank",
+        "legendary",
+        "shield crest pin with laurel, a compass rose over a winding path at sunrise"
+      ],
+      [
+        "rising_star",
+        "Rising Star",
+        "rank",
+        "rare",
+        "shield crest pin, an upward arrow with a star at its tip"
+      ],
+      [
+        "country_pillar",
+        "Country Pillar",
+        "rank",
+        "rare",
+        "shield crest pin, a classical column supporting a small flag"
+      ],
+      [
+        "country_goal",
+        "Country Goal",
+        "rank",
+        "epic",
+        "shield crest pin, a flag planted on a summit with sun rays, inner glow"
+      ],
+      [
+        "first_national_rank",
+        "First National Rank",
+        "rank",
+        "common",
+        "shield crest pin, a map pin with a small star"
+      ]
+    ]
+  },
+  {
+    "sheet": "V2_S4_model_milestone",
+    "title": "Model & Milestones",
+    "items": [
+      [
+        "opus_lover",
+        "Opus Connoisseur",
+        "model",
+        "epic",
+        "rounded-square chip pin, a conductor's baton over a sheet of music score, inner glow — Opus, the grand work"
+      ],
+      [
+        "sonnet_master",
+        "Sonnet Master",
+        "model",
+        "rare",
+        "rounded-square chip pin, a quill pen writing on a small scroll — the sonnet"
+      ],
+      [
+        "haiku_ninja",
+        "Haiku Ninja",
+        "model",
+        "common",
+        "rounded-square chip pin, a cherry blossom branch with three brush-stroke petals — the haiku"
+      ],
+      [
+        "model_explorer",
+        "Model Explorer",
+        "model",
+        "rare",
+        "rounded-square chip pin, a compass needle pointing at four small gems arranged around it — four model families"
+      ],
+      [
+        "fable_pioneer",
+        "Fable Pioneer",
+        "model",
+        "epic",
+        "rounded-square chip pin, an open storybook with a small fox sitting on it, inner glow — the fable"
+      ],
+      [
+        "first_sync",
+        "First Sync",
+        "milestone",
+        "common",
+        "circular pin with a small check tab, two circular arrows around a blinking terminal cursor block — the first npx sync"
+      ],
+      [
+        "first_ritual",
+        "First Ritual",
+        "milestone",
+        "common",
+        "circular pin with a check tab, a seven-dot week strip with the first dot lit"
+      ],
+      [
+        "personal_best",
+        "Personal Best",
+        "milestone",
+        "rare",
+        "circular pin with a check tab, a stopwatch whose hand points at a star"
+      ],
+      [
+        "quest_master",
+        "Quest Master",
+        "milestone",
+        "rare",
+        "circular pin with a check tab, a scroll with three checkmarks and a small ribbon"
+      ]
+    ]
+  },
+  {
+    "sheet": "V2_S5_social_comeback",
+    "title": "Social & Comeback",
+    "items": [
+      [
+        "recruiter",
+        "Recruiter",
+        "social",
+        "common",
+        "rounded-diamond link pin, a single sealed invitation envelope"
+      ],
+      [
+        "networker",
+        "Networker",
+        "social",
+        "rare",
+        "rounded-diamond link pin, three dots connected in a small triangle"
+      ],
+      [
+        "influencer",
+        "Influencer",
+        "social",
+        "rare",
+        "rounded-diamond link pin, a network graph of six connected dots"
+      ],
+      [
+        "social_star",
+        "Social Star",
+        "social",
+        "epic",
+        "rounded-diamond link pin, a megaphone sending three sound waves, inner glow"
+      ],
+      [
+        "social_legend",
+        "Social Legend",
+        "social",
+        "legendary",
+        "rounded-diamond link pin with laurel, a broadcasting tower with rings of signal, gem inlays"
+      ],
+      [
+        "activator",
+        "Activator",
+        "social",
+        "common",
+        "rounded-diamond link pin, a power button with a single spark"
+      ],
+      [
+        "stargazer",
+        "Stargazer",
+        "social",
+        "common",
+        "rounded-diamond link pin, a small telescope aimed at one bright star"
+      ],
+      [
+        "team_mvp",
+        "Team MVP",
+        "social",
+        "rare",
+        "rounded-diamond link pin, a pennant flag with a star"
+      ],
+      [
+        "back_from_the_void",
+        "Back from the Void",
+        "comeback",
+        "common",
+        "circular pin, a phoenix rising from a thin ring of embers"
+      ]
+    ]
+  },
+  {
+    "sheet": "V2_S6_season_limited",
+    "title": "Season & Limited",
+    "items": [
+      [
+        "day_one",
+        "Day One",
+        "season",
+        "common",
+        "pennant-shaped banner pin, a sunrise over a single calendar page"
+      ],
+      [
+        "carved",
+        "Carved",
+        "season",
+        "epic",
+        "pennant banner pin, a stone tablet with a chisel carving a star, inner glow — carved into the Hall of Fame"
+      ],
+      [
+        "season_champion",
+        "Season Champion",
+        "season",
+        "legendary",
+        "pennant banner pin with laurel, a trophy cup with a gem, gem inlays"
+      ],
+      [
+        "most_active_days",
+        "Most Active Days",
+        "season",
+        "epic",
+        "pennant banner pin, a calendar grid with most cells checked, inner glow"
+      ],
+      [
+        "season_regular",
+        "Season Regular",
+        "season",
+        "rare",
+        "pennant banner pin, three interlinked rings"
+      ],
+      [
+        "ritual_26",
+        "Weekly Ritual IV",
+        "ritual",
+        "legendary",
+        "circular pin framed by a laurel wreath, seven-dot week strip under a small crown, gem inlays"
+      ],
+      [
+        "season_podium",
+        "Season Podium",
+        "season",
+        "epic",
+        "pennant banner pin, a podium with confetti, inner glow"
+      ]
+    ]
+  }
+]

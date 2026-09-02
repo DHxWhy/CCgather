@@ -14,6 +14,8 @@ const isPublicRoute = createRouteMatcher([
   "/terms",
   "/privacy",
   "/stats",
+  // 배지 핀 정적 자산(WebP·Lottie JSON). matcher 가 .json 을 제외하지 않아 여기서 public 처리.
+  "/badges/(.*)",
   "/cli",
   "/cli/auth(.*)",
   "/sign-in(.*)",

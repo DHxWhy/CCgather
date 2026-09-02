@@ -134,7 +134,7 @@ export const BADGES: Badge[] = [
     praise: "Absolutely legendary! 10 billion tokens of pure mastery.",
     icon: "💎",
     category: "tokens",
-    rarity: "legendary",
+    rarity: "epic",
     condition: (ctx) => ctx.total_tokens >= 10_000_000_000,
   },
   {
@@ -145,7 +145,7 @@ export const BADGES: Badge[] = [
     praise: "Welcome to the Billion Club! You're among the elite.",
     icon: "💠",
     category: "tokens",
-    rarity: "epic",
+    rarity: "rare",
     condition: (ctx) => ctx.total_tokens >= 1_000_000_000,
   },
   {
@@ -167,7 +167,7 @@ export const BADGES: Badge[] = [
     praise: "One hundred million! You're getting serious.",
     icon: "💫",
     category: "tokens",
-    rarity: "rare",
+    rarity: "common",
     condition: (ctx) => ctx.total_tokens >= 100_000_000,
   },
   {
@@ -248,7 +248,7 @@ export const BADGES: Badge[] = [
     praise: "Top 50 worldwide! Elite competitor.",
     icon: "🏅",
     category: "rank",
-    rarity: "rare",
+    rarity: "common",
     condition: (ctx) => ctx.global_rank <= 50,
   },
   {

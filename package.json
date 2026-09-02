@@ -4,6 +4,8 @@
   "private": true,
   "description": "Proof of your Claude Code dedication - Real-time global leaderboard for Claude Code usage",
   "scripts": {
+    "build:badges": "bun scripts/build-badges.ts",
+    "build:badge-motion": "bun scripts/build-badge-motion.ts",
     "dev": "next dev --webpack",
     "build": "next build --webpack",
     "start": "next start",
@@ -62,6 +64,7 @@
     "framer-motion": "^12.23.27",
     "frimousse": "^0.3.0",
     "lite-youtube-embed": "^0.3.4",
+    "lottie-web": "5.13.0",
     "lucide-react": "^0.562.0",
     "next": "^16.1.1",
     "postcss": "^8.5.6",

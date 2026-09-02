@@ -4,6 +4,7 @@ import { OnboardingGuard } from "@/components/auth/OnboardingGuard";
 import { InstallBanner } from "@/components/pwa/InstallBanner";
 import { UpdateNotification } from "@/components/pwa/UpdateNotification";
 import { ProductHuntBadge } from "@/components/marketing/ProductHuntBadge";
+import { BadgeRevealTrigger } from "@/components/badges/BadgeRevealTrigger";
 import { Providers } from "../providers";
 
 export const dynamic = "force-dynamic";
@@ -19,6 +20,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
           <InstallBanner />
           <UpdateNotification />
           <ProductHuntBadge />
+          <BadgeRevealTrigger />
         </div>
       </OnboardingGuard>
     </Providers>
