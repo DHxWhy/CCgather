@@ -32,6 +32,8 @@ export interface Badge {
   description: string;
   praise: string;
   icon: string;
+  /** Static pin image base path (spike): `${image}-96.webp` / `${image}-192.webp` */
+  image?: string;
   category: "streak" | "tokens" | "rank" | "model" | "social";
   rarity: "common" | "rare" | "epic" | "legendary";
 
@@ -96,6 +98,7 @@ export const BADGES: Badge[] = [
   },
   {
     id: "streak_14",
+    image: "/badges/v1/streak_14",
     name: "Fortnight Fighter",
     description: "14 days consecutive usage",
     praise: "Two weeks of consistency! Great habits forming.",
@@ -106,6 +109,7 @@ export const BADGES: Badge[] = [
   },
   {
     id: "streak_7",
+    image: "/badges/v1/streak_7",
     name: "Week Starter",
     description: "7 days consecutive usage",
     praise: "First week done! The journey begins.",
@@ -120,6 +124,7 @@ export const BADGES: Badge[] = [
   // ═══════════════════════════════════════
   {
     id: "10b_club",
+    image: "/badges/v1/10b_club",
     name: "10B Club",
     description: "Reached 10B+ total tokens",
     praise: "Absolutely legendary! 10 billion tokens of pure mastery.",
@@ -130,6 +135,7 @@ export const BADGES: Badge[] = [
   },
   {
     id: "billion_club",
+    image: "/badges/v1/billion_club",
     name: "Billion Club",
     description: "Reached 1B+ total tokens",
     praise: "Welcome to the Billion Club! You're among the elite.",
@@ -150,6 +156,7 @@ export const BADGES: Badge[] = [
   },
   {
     id: "hundred_million",
+    image: "/badges/v1/hundred_million",
     name: "100M Club",
     description: "Reached 100M total tokens",
     praise: "One hundred million! You're getting serious.",
@@ -170,6 +177,7 @@ export const BADGES: Badge[] = [
   },
   {
     id: "first_million",
+    image: "/badges/v1/first_million",
     name: "First Million",
     description: "Reached 1M total tokens",
     praise: "Your first million! The journey begins.",
@@ -204,6 +212,7 @@ export const BADGES: Badge[] = [
   },
   {
     id: "trailblazer",
+    image: "/badges/v1/trailblazer",
     name: "Trailblazer",
     description: "Top 10 earliest users from your country",
     praise: "Pioneer of your nation! You opened the path for others.",
@@ -224,6 +233,7 @@ export const BADGES: Badge[] = [
   },
   {
     id: "top_50",
+    image: "/badges/v1/top_50",
     name: "Global 50",
     description: "Reached Global Top 50",
     praise: "Top 50 worldwide! Elite competitor.",
@@ -248,6 +258,7 @@ export const BADGES: Badge[] = [
   // ═══════════════════════════════════════
   {
     id: "opus_lover",
+    image: "/badges/v1/opus_lover",
     name: "Opus Connoisseur",
     description: "70%+ of tokens on Opus models",
     praise: "Only the finest for you! Opus is your weapon of choice.",

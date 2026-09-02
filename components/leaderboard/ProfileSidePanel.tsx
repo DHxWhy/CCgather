@@ -411,7 +411,16 @@ function BadgeItem({
       </div>
       <div className="flex items-center gap-2 mb-1.5">
         <span className="text-lg">
-          {badge.id === "country_first" && userCountry ? (
+          {badge.image ? (
+            // eslint-disable-next-line @next/next/no-img-element -- static immutable asset
+            <img
+              src={`${badge.image}-192.webp`}
+              width={48}
+              height={48}
+              alt=""
+              className={`h-12 w-12 object-contain ${!isEarned ? "grayscale opacity-50" : ""}`}
+            />
+          ) : badge.id === "country_first" && userCountry ? (
             <FlagIcon countryCode={userCountry} size="sm" />
           ) : (
             badge.icon
@@ -453,17 +462,30 @@ function BadgeItem({
             : "bg-[var(--color-badge-locked)]"
         }`}
       >
-        <div className={`text-lg ${!isEarned ? "grayscale opacity-40" : ""}`}>
-          {isEarned ? (
-            badge.id === "country_first" && userCountry ? (
-              <FlagIcon countryCode={userCountry} size="sm" />
+        {badge.image ? (
+          // eslint-disable-next-line @next/next/no-img-element -- static immutable asset, no optimizer round-trip
+          <img
+            src={`${badge.image}-96.webp`}
+            srcSet={`${badge.image}-96.webp 1x, ${badge.image}-192.webp 2x`}
+            width={40}
+            height={40}
+            alt={badge.name}
+            draggable={false}
+            className={`h-[84%] w-[84%] object-contain ${!isEarned ? "grayscale opacity-35" : ""}`}
+          />
+        ) : (
+          <div className={`text-lg ${!isEarned ? "grayscale opacity-40" : ""}`}>
+            {isEarned ? (
+              badge.id === "country_first" && userCountry ? (
+                <FlagIcon countryCode={userCountry} size="sm" />
+              ) : (
+                badge.icon
+              )
             ) : (
-              badge.icon
-            )
-          ) : (
-            "🔒"
-          )}
-        </div>
+              "🔒"
+            )}
+          </div>
+        )}
       </div>
 
       {/* Render popover in portal to escape overflow constraints */}
