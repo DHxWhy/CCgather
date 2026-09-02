@@ -161,7 +161,7 @@ export interface CountryMetric {
 
 // 모델 사용 분포 (primary_model 토큰 집계, 근사). family 단위.
 export interface ModelMetric {
-  model: string; // "Opus" | "Sonnet" | "Haiku" | "Other"
+  model: string; // "Fable" | "Opus" | "Sonnet" | "Haiku" | "Other"
   tokens: number;
   percentage: number; // % of total tokens
 }

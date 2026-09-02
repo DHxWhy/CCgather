@@ -35,16 +35,44 @@ describe("estimateCost fallback tier (no LiteLLM data)", () => {
     );
   });
 
-  describe("Fable 5 / Mythos 5 use the premium $10/$50 tier", () => {
-    it.each(["claude-fable-5", "claude-mythos-5"])("%s => $60", (model) => {
+  describe("Fable 5 / Mythos 5 / Mythos Preview: $10/$50, cache read $1 (0.1x)", () => {
+    it.each(["claude-fable-5", "claude-mythos-5", "claude-mythos-preview"])(
+      "%s => $60 in+out, $13.50 cache",
+      (model) => {
+        expect(estimateCost(model, M, M, 0, 0)).toBe(60);
+        expect(estimateCost(model, 0, 0, M, M)).toBe(13.5);
+      }
+    );
+  });
+
+  describe("Fable 5.1 / Mythos 5.1: same $10/$50 but cache read $0.25 (0.025x)", () => {
+    it.each([
+      "claude-fable-5-1",
+      "claude-mythos-5-1",
+      "anthropic.claude-fable-5-1",
+      "claude-fable-5-10",
+    ])("%s => $60 in+out, $12.75 cache", (model) => {
       expect(estimateCost(model, M, M, 0, 0)).toBe(60);
+      expect(estimateCost(model, 0, 0, M, M)).toBe(12.75);
     });
   });
 
-  describe("Non-Opus families are unaffected", () => {
-    it("claude-sonnet-5 => $18 ($3/$15)", () => {
-      expect(estimateCost("claude-sonnet-5", M, M, 0, 0)).toBe(18);
+  describe("Sonnet 5 is $2/$10; Sonnet 4.x / 3.x stay $3/$15", () => {
+    it("claude-sonnet-5 => $12 in+out, $2.70 cache", () => {
+      expect(estimateCost("claude-sonnet-5", M, M, 0, 0)).toBe(12);
+      expect(estimateCost("claude-sonnet-5", 0, 0, M, M)).toBe(2.7);
     });
+    it.each([
+      "claude-sonnet-4-6",
+      "claude-sonnet-4-5-20250929",
+      "claude-sonnet-4-20250514",
+      "claude-3-7-sonnet-20250219",
+    ])("%s => $18", (model) => {
+      expect(estimateCost(model, M, M, 0, 0)).toBe(18);
+    });
+  });
+
+  describe("Haiku", () => {
     it("claude-haiku-4-5 => $6 ($1/$5)", () => {
       expect(estimateCost("claude-haiku-4-5", M, M, 0, 0)).toBe(6);
     });

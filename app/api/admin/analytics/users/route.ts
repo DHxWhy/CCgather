@@ -139,7 +139,8 @@ export async function GET(request: Request) {
           modelDistErr.message
         );
       }
-      const families = { Opus: 0, Sonnet: 0, Haiku: 0, Other: 0 };
+      // get_model_distribution(mig 069)과 동일 분류 순서 — RPC/폴백 쌍둥이 경로 정합
+      const families = { Fable: 0, Opus: 0, Sonnet: 0, Haiku: 0, Other: 0 };
       let totalTok = 0;
       const PAGE = 1000;
       const MAX_PAGES = 200; // 200K행 안전 상한 (초과 시 부분 집계 경고)
@@ -168,7 +169,8 @@ export async function GET(request: Request) {
           const m = (row.primary_model || "").toLowerCase();
           const t = row.total_tokens || 0;
           totalTok += t;
-          if (m.includes("opus")) families.Opus += t;
+          if (m.includes("fable")) families.Fable += t;
+          else if (m.includes("opus")) families.Opus += t;
           else if (m.includes("sonnet")) families.Sonnet += t;
           else if (m.includes("haiku")) families.Haiku += t;
           else families.Other += t;

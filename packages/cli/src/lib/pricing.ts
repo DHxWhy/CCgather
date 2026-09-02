@@ -7,9 +7,9 @@ import * as os from "os";
 // Fetches Claude model pricing from LiteLLM's model_prices JSON,
 // caches locally with 24h TTL, falls back to hardcoded prices.
 //
-// Pricing sources (verified 2026-05):
+// Pricing sources (fallback table re-verified 2026-09-02):
 // - LiteLLM: https://github.com/BerriAI/litellm/blob/main/model_prices_and_context_window.json
-// - Anthropic official: https://claude.com/pricing
+// - Anthropic official: https://platform.claude.com/docs/en/about-claude/pricing
 // ═══════════════════════════════════════════════════════════════════════════
 
 const LITELLM_PRICING_URL =
@@ -29,16 +29,24 @@ interface PricingCache {
   models: Record<string, ModelPricing>;
 }
 
-// Fallback pricing — used ONLY when LiteLLM fetch fails AND disk cache is missing.
-// Per-million-token rates from Anthropic official pricing (claude.com/pricing).
+// Fallback pricing — used ONLY when LiteLLM fetch fails AND disk cache is missing,
+// or when the id has no LiteLLM entry. Per-million-token rates from the official
+// pricing page (platform.claude.com/docs/en/about-claude/pricing, verified 2026-09-02).
 // Opus 4 / 4.1 stayed at the legacy higher tier; Opus 4.5+ moved to a new lower tier.
 const FALLBACK_PRICING: Record<string, ModelPricing> = {
+  // Fable 5.1 / Mythos 5.1 — same $10/$50, but cache reads are 0.025x ($0.25);
+  // every other model uses the standard 0.1x (official pricing footnote).
+  "fable-5-1": { input: 10, output: 50, cacheWrite: 12.5, cacheRead: 0.25 },
+  // Fable 5 / Mythos 5 / Mythos Preview — standard 0.1x cache reads ($1)
   "fable-5": { input: 10, output: 50, cacheWrite: 12.5, cacheRead: 1 },
-  // Opus 4 / 4.1 (legacy higher tier)
+  // Opus 4 / 4.1 (legacy higher tier, retired on the first-party API)
   "opus-4": { input: 15, output: 75, cacheWrite: 18.75, cacheRead: 1.5 },
-  // Opus 4.5 / 4.6 / 4.7 (current generation lower tier)
+  // Opus 4.5 / 4.6 / 4.7 / 4.8 / 5 (current generation lower tier)
   "opus-4-5": { input: 5, output: 25, cacheWrite: 6.25, cacheRead: 0.5 },
-  // Sonnet 4 family (4 / 4.5 / 4.6 — same price)
+  // Sonnet 5 — $2/$10. The launch price is now standard: the increase to
+  // $3/$15 scheduled for 2026-09-01 was cancelled (official pricing page).
+  "sonnet-5": { input: 2, output: 10, cacheWrite: 2.5, cacheRead: 0.2 },
+  // Sonnet 4 family (4 / 4.5 / 4.6, and Sonnet 3.x) — $3/$15
   "sonnet-4": { input: 3, output: 15, cacheWrite: 3.75, cacheRead: 0.3 },
   // Haiku 4.5
   "haiku-4-5": { input: 1, output: 5, cacheWrite: 1.25, cacheRead: 0.1 },
@@ -258,6 +266,12 @@ export async function initPricing(): Promise<void> {
   pricingData = null;
 }
 
+// Fable/Mythos 5.1+ (5-1 … 5-19) and later majors (6+) take the 5.1 cache-read
+// rate; bare 5 / preview keep $1. Sonnet 5+ takes $2/$10; 4.x / 3.x stay $3/$15.
+// Like the opus regex below, these are stopgaps for ids LiteLLM has not listed.
+const FABLE_5_1_PLUS = /(fable|mythos)-?(5[-.]([1-9]|1\d)(?!\d)|[6-9]|1\d)/;
+const SONNET_5_PLUS = /sonnet-?([5-9]|1\d)(?!\d)/;
+
 /**
  * Resolve hardcoded fallback pricing for a model name.
  * Order matters — most specific match first.
@@ -265,7 +279,9 @@ export async function initPricing(): Promise<void> {
 function fallbackForModel(model: string): ModelPricing {
   const m = model.toLowerCase();
 
-  if (m.includes("fable") || m.includes("mythos")) return FALLBACK_PRICING["fable-5"];
+  if (m.includes("fable") || m.includes("mythos")) {
+    return FABLE_5_1_PLUS.test(m) ? FALLBACK_PRICING["fable-5-1"] : FALLBACK_PRICING["fable-5"];
+  }
 
   // Opus 4.5+ / Opus 5+ — current generation, lower tier ($5/$25)
   // Matches opus-4-5~4-19 minor (4-8 incl.) OR opus-5+ standalone (Opus 5, 6…).
@@ -280,8 +296,10 @@ function fallbackForModel(model: string): ModelPricing {
   // Haiku 3.x
   if (m.includes("haiku")) return FALLBACK_PRICING["haiku-3-5"];
 
-  // Sonnet (4 / 4.5 / 4.6 — same price)
-  if (m.includes("sonnet")) return FALLBACK_PRICING["sonnet-4"];
+  // Sonnet 5+ ($2/$10) vs Sonnet 4 / 4.5 / 4.6 / 3.x ($3/$15)
+  if (m.includes("sonnet")) {
+    return SONNET_5_PLUS.test(m) ? FALLBACK_PRICING["sonnet-5"] : FALLBACK_PRICING["sonnet-4"];
+  }
 
   return FALLBACK_PRICING["default"];
 }
@@ -310,10 +328,12 @@ function matchModel(model: string): ModelPricing {
     const withoutVersion = normalized.replace(/-v\d+:\d+$/, "").replace(/-\d{8}$/, "");
     if (pricingData[withoutVersion]) return pricingData[withoutVersion];
 
-    // Opus tier guard (mirrors lib/services/pricing.ts): stop the fuzzy loop
+    // Family tier guard (mirrors lib/services/pricing.ts): stop the fuzzy loop
     // below from matching a new minor (opus-4-8) to the synthetic legacy
-    // "claude-opus-4" key ($15/$75) → 3x overcharge. Unmatched opus → regex tier.
-    if (/opus/i.test(normalized)) {
+    // "claude-opus-4" key ($15/$75) → 3x overcharge, or an unlisted
+    // "claude-mythos-5-1" to "claude-mythos-5" ($1 cache read vs $0.25) → 4x.
+    // Unmatched opus/fable/mythos → version regex tier in fallbackForModel.
+    if (/opus|fable|mythos/i.test(normalized)) {
       return fallbackForModel(model);
     }
 

@@ -26,6 +26,13 @@ const LITELLM_PAYLOAD = {
     input_cost_per_token: 3e-6,
     output_cost_per_token: 15e-6,
   },
+  // Only the previous Mythos minor is listed — the 5.1 id must NOT inherit its $1 cache read.
+  "claude-mythos-5": {
+    input_cost_per_token: 10e-6,
+    output_cost_per_token: 50e-6,
+    cache_creation_input_token_cost: 12.5e-6,
+    cache_read_input_token_cost: 1e-6,
+  },
 };
 
 const M = 1_000_000;
@@ -38,7 +45,14 @@ beforeEach(() => {
   );
 });
 
-describe("estimateCost with LiteLLM data loaded (opus tier guard)", () => {
+describe("estimateCost with LiteLLM data loaded (family tier guard)", () => {
+  it("unlisted Fable/Mythos 5.1 minor gets the $0.25 cache read, not the listed Mythos 5 rate", async () => {
+    const { initPricing, estimateCost } = await import("../src/lib/pricing");
+    await initPricing();
+    expect(estimateCost("claude-mythos-5-1", 0, 0, 0, M)).toBe(0.25);
+    expect(estimateCost("claude-mythos-5", 0, 0, 0, M)).toBe(1);
+  });
+
   it("current-gen minor absent from the table resolves to $5/$25, not the synthetic legacy key", async () => {
     const { initPricing, estimateCost } = await import("../src/lib/pricing");
     await initPricing();

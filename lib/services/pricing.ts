@@ -7,9 +7,9 @@
 // the user is running — even an outdated CLI with stale fallback prices
 // gets corrected at the server boundary.
 //
-// Sources:
+// Sources (fallback table re-verified 2026-09-02):
 // - LiteLLM:        https://github.com/BerriAI/litellm
-// - Anthropic API:  https://claude.com/pricing
+// - Anthropic API:  https://platform.claude.com/docs/en/about-claude/pricing
 //
 // Cache strategy: in-process Map with 24h TTL. Each serverless instance
 // fetches once, then reuses for the cold-start lifetime. Refetch is
@@ -28,17 +28,25 @@ interface ModelPricing {
   cacheRead: number;
 }
 
-// Fallback pricing — used ONLY when the LiteLLM fetch fails.
-// Per-million-token rates from Anthropic official pricing (claude.com/pricing).
+// Fallback pricing — used ONLY when the LiteLLM fetch fails or the id has no
+// LiteLLM entry. Per-million-token rates from the official pricing page
+// (platform.claude.com/docs/en/about-claude/pricing, verified 2026-09-02).
 // `satisfies` keeps literal-key inference so indexing returns ModelPricing
 // (no `undefined`) under noUncheckedIndexedAccess.
 const FALLBACK_PRICING = {
+  // Fable 5.1 / Mythos 5.1 — same $10/$50, but cache reads are 0.025x ($0.25);
+  // every other model uses the standard 0.1x (official pricing footnote).
+  "fable-5-1": { input: 10, output: 50, cacheWrite: 12.5, cacheRead: 0.25 },
+  // Fable 5 / Mythos 5 / Mythos Preview — standard 0.1x cache reads ($1)
   "fable-5": { input: 10, output: 50, cacheWrite: 12.5, cacheRead: 1 },
-  // Opus 4 / 4.1 (legacy higher tier)
+  // Opus 4 / 4.1 (legacy higher tier, retired on the first-party API)
   "opus-4": { input: 15, output: 75, cacheWrite: 18.75, cacheRead: 1.5 },
-  // Opus 4.5 / 4.6 / 4.7 (current generation lower tier)
+  // Opus 4.5 / 4.6 / 4.7 / 4.8 / 5 (current generation lower tier)
   "opus-4-5": { input: 5, output: 25, cacheWrite: 6.25, cacheRead: 0.5 },
-  // Sonnet 4 family
+  // Sonnet 5 — $2/$10. The launch price is now standard: the increase to
+  // $3/$15 scheduled for 2026-09-01 was cancelled (official pricing page).
+  "sonnet-5": { input: 2, output: 10, cacheWrite: 2.5, cacheRead: 0.2 },
+  // Sonnet 4 / 4.5 / 4.6 (and Sonnet 3.x) — $3/$15
   "sonnet-4": { input: 3, output: 15, cacheWrite: 3.75, cacheRead: 0.3 },
   // Haiku 4.5
   "haiku-4-5": { input: 1, output: 5, cacheWrite: 1.25, cacheRead: 0.1 },
@@ -195,16 +203,26 @@ async function ensurePricingData(): Promise<Record<string, ModelPricing> | null>
   }
 }
 
+// Fable/Mythos 5.1+ (5-1 … 5-19) and later majors (6+) take the 5.1 cache-read
+// rate; bare 5 / preview keep $1. Sonnet 5+ takes $2/$10; 4.x / 3.x stay $3/$15.
+// Like the opus regex below, these are stopgaps for ids LiteLLM has not listed.
+const FABLE_5_1_PLUS = /(fable|mythos)-?(5[-.]([1-9]|1\d)(?!\d)|[6-9]|1\d)/;
+const SONNET_5_PLUS = /sonnet-?([5-9]|1\d)(?!\d)/;
+
 function fallbackForModel(model: string): ModelPricing {
   const m = model.toLowerCase();
-  if (m.includes("fable") || m.includes("mythos")) return FALLBACK_PRICING["fable-5"];
+  if (m.includes("fable") || m.includes("mythos")) {
+    return FABLE_5_1_PLUS.test(m) ? FALLBACK_PRICING["fable-5-1"] : FALLBACK_PRICING["fable-5"];
+  }
   // 현행 저tier($5/$25): opus-4-5~4-19 minor(4-8 포함) OR opus-5+(Opus 5,6…).
   // Opus 4/4.1/3 만 레거시 $15/$75. LiteLLM 미등재 신모델의 3배 과청구 방지용 stopgap.
   if (/opus-?(4[-.]?([5-9]|1\d)|[5-9]|1\d)/.test(m)) return FALLBACK_PRICING["opus-4-5"];
   if (m.includes("opus")) return FALLBACK_PRICING["opus-4"];
   if (/haiku-?4/.test(m)) return FALLBACK_PRICING["haiku-4-5"];
   if (m.includes("haiku")) return FALLBACK_PRICING["haiku-3-5"];
-  if (m.includes("sonnet")) return FALLBACK_PRICING["sonnet-4"];
+  if (m.includes("sonnet")) {
+    return SONNET_5_PLUS.test(m) ? FALLBACK_PRICING["sonnet-5"] : FALLBACK_PRICING["sonnet-4"];
+  }
   return FALLBACK_PRICING["default"];
 }
 
@@ -227,7 +245,10 @@ function matchModel(model: string, pricingData: Record<string, ModelPricing> | n
     // 건너뛰고 family-tier fallback(정확한 regex 분류)으로 직행한다.
     // opus-4-5/6/7 은 LiteLLM exact 키가 있어 위에서 이미 반환되므로 이 가드에
     // 걸리지 않음(LiteLLM 권위 유지). LiteLLM 미등재 신규 opus(4-8+)만 여기서 처리.
-    if (/opus/i.test(normalized)) {
+    // Fable/Mythos 도 동일 가드 (2026-09-02): 5.1 의 캐시읽기($0.25)가 5($1)와 달라
+    // fuzzy startsWith 가 미등재 "claude-mythos-5-1" 을 "claude-mythos-5" 로
+    // 오매칭 → 캐시읽기 4배 과청구. fallbackForModel 의 버전 regex 가 정확히 분류.
+    if (/opus|fable|mythos/i.test(normalized)) {
       return fallbackForModel(model);
     }
 
