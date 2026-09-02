@@ -467,11 +467,11 @@ function BadgeItem({
           <img
             src={`${badge.image}-96.webp`}
             srcSet={`${badge.image}-96.webp 1x, ${badge.image}-192.webp 2x`}
-            width={40}
-            height={40}
+            width={34}
+            height={34}
             alt={badge.name}
             draggable={false}
-            className={`h-[84%] w-[84%] object-contain ${!isEarned ? "grayscale opacity-35" : ""}`}
+            className={`h-[34px] w-[34px] object-contain ${!isEarned ? "grayscale opacity-35" : ""}`}
           />
         ) : (
           <div className={`text-lg ${!isEarned ? "grayscale opacity-40" : ""}`}>
