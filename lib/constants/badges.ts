@@ -131,7 +131,7 @@ export const BADGES: Badge[] = [
     image: "/badges/v1/10b_club",
     name: "10B Club",
     description: "Reached 10B+ total tokens",
-    praise: "Absolutely legendary! 10 billion tokens of pure mastery.",
+    praise: "10 billion tokens of pure mastery.",
     icon: "💎",
     category: "tokens",
     rarity: "epic",

@@ -347,8 +347,8 @@ function BadgeItem({
     if (!badgeRef.current) return;
 
     const rect = badgeRef.current.getBoundingClientRect();
-    const popoverWidth = 192;
-    const popoverHeight = 140;
+    const popoverWidth = 240;
+    const popoverHeight = 236;
     const gap = 8;
 
     let top = 0;
@@ -384,7 +384,7 @@ function BadgeItem({
 
   const popoverContent = isHovered && isMounted && (
     <div
-      className="fixed w-48 p-2.5 bg-[var(--color-bg-secondary)] border border-[var(--border-default)] rounded-lg shadow-xl"
+      className="fixed w-60 p-3 bg-[var(--color-bg-secondary)] border border-[var(--border-default)] rounded-lg shadow-xl"
       style={{
         top: popoverPosition.top,
         left: popoverPosition.left,
@@ -411,30 +411,30 @@ function BadgeItem({
           }`}
         />
       </div>
-      <div className="flex items-center gap-2 mb-1.5">
-        <span className="text-lg">
+      <div className="flex flex-col items-center gap-1.5 mb-2">
+        <span className="text-3xl leading-none">
           {badge.image ? (
-            <PinWithMotion image={badge.image} rarity={badge.rarity} earned={isEarned} size={48} />
+            <PinWithMotion image={badge.image} rarity={badge.rarity} earned={isEarned} size={80} />
           ) : badge.id === "country_first" && userCountry ? (
             <FlagIcon countryCode={userCountry} size="sm" />
           ) : (
             badge.icon
           )}
         </span>
-        <div>
-          <div className="text-xs font-medium text-[var(--color-text-primary)]">{badge.name}</div>
-          <span
-            className={`inline-block text-[9px] font-medium capitalize px-1.5 py-0.5 rounded ${RARITY_BG_COLORS[badge.rarity]} ${RARITY_TEXT_COLOR}`}
-          >
-            {badge.rarity}
-          </span>
+        <div className="text-sm font-semibold text-[var(--color-text-primary)] text-center">
+          {badge.name}
         </div>
+        <span
+          className={`inline-block text-[9px] font-medium capitalize px-1.5 py-0.5 rounded ${RARITY_BG_COLORS[badge.rarity]} ${RARITY_TEXT_COLOR}`}
+        >
+          {badge.rarity}
+        </span>
       </div>
-      <div className="text-[10px] text-[var(--color-text-secondary)] mb-1.5 bg-black/20 px-1.5 py-1 rounded">
+      <div className="text-[11px] text-[var(--color-text-secondary)] mb-1.5 bg-black/20 px-2 py-1 rounded text-center">
         {badge.description}
       </div>
       <div
-        className={`text-[10px] ${isEarned ? "text-[var(--color-text-secondary)]" : "text-[var(--color-text-muted)]"}`}
+        className={`text-[11px] text-center ${isEarned ? "text-[var(--color-text-secondary)]" : "text-[var(--color-text-muted)]"}`}
       >
         {isEarned ? `${badge.praise}` : "Not yet unlocked"}
       </div>
@@ -650,14 +650,13 @@ function SocialLinksQuickAccess({
 }
 
 // Category labels with icons
-const CATEGORY_LABELS: Record<Badge["category"], { icon: string; label: string; bgTint: string }> =
-  {
-    streak: { icon: "🔥", label: "Streak", bgTint: "bg-orange-500/5" },
-    tokens: { icon: "💎", label: "Tokens", bgTint: "bg-blue-500/5" },
-    rank: { icon: "🏆", label: "Rank", bgTint: "bg-yellow-500/5" },
-    model: { icon: "🎭", label: "Model", bgTint: "bg-purple-500/5" },
-    social: { icon: "🤝", label: "Social", bgTint: "bg-emerald-500/5" },
-  };
+const CATEGORY_LABELS: Record<Badge["category"], { label: string; bgTint: string }> = {
+  streak: { label: "Streak", bgTint: "bg-orange-500/5" },
+  tokens: { label: "Tokens", bgTint: "bg-blue-500/5" },
+  rank: { label: "Rank", bgTint: "bg-yellow-500/5" },
+  model: { label: "Model", bgTint: "bg-purple-500/5" },
+  social: { label: "Social", bgTint: "bg-emerald-500/5" },
+};
 
 // Rarity order for sorting
 const RARITY_ORDER: Record<Badge["rarity"], number> = {
@@ -694,11 +693,13 @@ function BadgeGrid({
   return (
     <div className="flex gap-1">
       {badgesByCategory.map(({ category, badges }, colIndex) => {
-        const { icon, bgTint } = CATEGORY_LABELS[category];
+        const { label, bgTint } = CATEGORY_LABELS[category];
 
         return (
           <div key={category} className={`flex-1 flex flex-col gap-1 p-1 rounded-lg ${bgTint}`}>
-            <div className="text-center text-[10px] pb-0.5">{icon}</div>
+            <div className="text-center text-[9px] font-medium uppercase tracking-[0.08em] text-[var(--color-text-muted)] pb-0.5">
+              {label}
+            </div>
             {badges.map((badge) => (
               <BadgeItem
                 key={badge.id}
