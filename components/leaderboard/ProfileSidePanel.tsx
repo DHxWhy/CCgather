@@ -655,7 +655,8 @@ const CATEGORY_LABELS: Record<Badge["category"], { label: string; bgTint: string
   tokens: { label: "Tokens", bgTint: "bg-blue-500/5" },
   rank: { label: "Rank", bgTint: "bg-yellow-500/5" },
   model: { label: "Model", bgTint: "bg-purple-500/5" },
-  social: { label: "Social", bgTint: "bg-emerald-500/5" },
+  journey: { label: "Journey", bgTint: "bg-emerald-500/5" },
+  community: { label: "Community", bgTint: "bg-sky-500/5" },
 };
 
 // Rarity order for sorting
@@ -667,7 +668,9 @@ const RARITY_ORDER: Record<Badge["rarity"], number> = {
 };
 
 // Badge categories (defined outside component for stable reference)
-const BADGE_CATEGORIES: Badge["category"][] = ["streak", "tokens", "rank", "model", "social"];
+// 그리드는 5열 · 커뮤니티 배지는 그 아래 별도 줄에 놓는다(열마다 7칸 규칙 유지)
+const BADGE_CATEGORIES: Badge["category"][] = ["streak", "tokens", "rank", "model", "journey"];
+const COMMUNITY_CATEGORY: Badge["category"] = "community";
 
 // Badge display component
 function BadgeGrid({
@@ -690,33 +693,57 @@ function BadgeGrid({
 
   const maxBadges = Math.max(...badgesByCategory.map((c) => c.badges.length));
 
-  return (
-    <div className="flex gap-1">
-      {badgesByCategory.map(({ category, badges }, colIndex) => {
-        const { label, bgTint } = CATEGORY_LABELS[category];
+  const communityBadges = BADGES.filter((b) => b.category === COMMUNITY_CATEGORY).sort(
+    (a, b) => RARITY_ORDER[b.rarity] - RARITY_ORDER[a.rarity]
+  );
 
-        return (
-          <div key={category} className={`flex-1 flex flex-col gap-1 p-1 rounded-lg ${bgTint}`}>
-            <div className="text-center text-[9px] font-medium uppercase tracking-[0.08em] text-[var(--color-text-muted)] pb-0.5">
-              {label}
+  return (
+    <div className="flex flex-col gap-1.5">
+      <div className="flex gap-1">
+        {badgesByCategory.map(({ category, badges }, colIndex) => {
+          const { label, bgTint } = CATEGORY_LABELS[category];
+
+          return (
+            <div key={category} className={`flex-1 flex flex-col gap-1 p-1 rounded-lg ${bgTint}`}>
+              <div className="text-center text-[9px] font-medium uppercase tracking-[0.08em] text-[var(--color-text-muted)] pb-0.5">
+                {label}
+              </div>
+              {badges.map((badge) => (
+                <BadgeItem
+                  key={badge.id}
+                  badge={badge}
+                  isEarned={badgeIds.includes(badge.id)}
+                  columnIndex={colIndex}
+                  totalInCategory={5}
+                  userCountry={userCountry}
+                  isMobile={isMobile}
+                />
+              ))}
+              {Array.from({ length: maxBadges - badges.length }).map((_, i) => (
+                <div key={`empty-${i}`} className="w-full aspect-square" />
+              ))}
             </div>
-            {badges.map((badge) => (
-              <BadgeItem
-                key={badge.id}
-                badge={badge}
-                isEarned={badgeIds.includes(badge.id)}
-                columnIndex={colIndex}
-                totalInCategory={5}
-                userCountry={userCountry}
-                isMobile={isMobile}
-              />
-            ))}
-            {Array.from({ length: maxBadges - badges.length }).map((_, i) => (
-              <div key={`empty-${i}`} className="w-full aspect-square" />
-            ))}
-          </div>
-        );
-      })}
+          );
+        })}
+      </div>
+      <div className="flex flex-col gap-1 p-1 rounded-lg bg-sky-500/5">
+        <div className="text-center text-[9px] font-medium uppercase tracking-[0.08em] text-[var(--color-text-muted)] pb-0.5">
+          {CATEGORY_LABELS[COMMUNITY_CATEGORY].label}
+        </div>
+        <div className="grid grid-cols-5 gap-1">
+          {communityBadges.map((badge) => (
+            <BadgeItem
+              key={badge.id}
+              badge={badge}
+              isEarned={badgeIds.includes(badge.id)}
+              columnIndex={2}
+              totalInCategory={communityBadges.length}
+              userCountry={userCountry}
+              isMobile={isMobile}
+            />
+          ))}
+        </div>
+      </div>
     </div>
   );
 }

@@ -1,0 +1,162 @@
+{
+  "100b_club": {
+    "grade": "epic",
+    "motif": "hexagonal crystal pin, a tall cluster of five cut gems rising from a shared base"
+  },
+  "10b_club": {
+    "grade": "rare",
+    "motif": "hexagonal crystal pin, a cluster of three cut gems"
+  },
+  "200b_club": {
+    "grade": "legendary",
+    "motif": "hexagonal pin with laurel, a gem comet with an orbit ring and sparkles"
+  },
+  "50b_club": {
+    "grade": "epic",
+    "motif": "hexagonal pin, an open geode half revealing crystals inside"
+  },
+  "autopilot": {
+    "grade": "common",
+    "motif": "rounded-diamond link pin, two circular sync arrows orbiting a small gear"
+  },
+  "big_spender": {
+    "grade": "common",
+    "motif": "hexagonal crystal pin, a neat stack of three coins"
+  },
+  "billion_club": {
+    "grade": "common",
+    "motif": "hexagonal crystal pin, two small cut gems side by side"
+  },
+  "century": {
+    "grade": "common",
+    "motif": "circular pin with a small check tab at the lower right, a single terminal window with a blinking cursor block"
+  },
+  "country_first": {
+    "grade": "rare",
+    "motif": "shield-shaped crest pin with a pointed bottom, a waving flag banner over a round medal"
+  },
+  "deep_pockets": {
+    "grade": "epic",
+    "motif": "circular pin with a small check tab at the lower right, a heavy vault door standing open with stacked coins inside"
+  },
+  "fable_master": {
+    "grade": "epic",
+    "motif": "rounded-square chip pin, a fox standing upright on an open storybook with a crescent moon behind it"
+  },
+  "fable_monster": {
+    "grade": "legendary",
+    "motif": "rounded-square chip pin, a great many-tailed fox curled protectively around a closed storybook"
+  },
+  "first_million": {
+    "grade": "common",
+    "motif": "hexagonal crystal-shaped pin, a single small rough crystal shard"
+  },
+  "global_10": {
+    "grade": "epic",
+    "motif": "shield-shaped crest pin with a pointed bottom, a globe lifted inside an upward chevron"
+  },
+  "global_first": {
+    "grade": "legendary",
+    "motif": "shield-shaped crest pin with laurel, a small globe topped by a crown, gem inlays"
+  },
+  "haiku_ninja": {
+    "grade": "epic",
+    "motif": "rounded-square chip pin, a cherry blossom branch with three brush-stroke petals"
+  },
+  "hundred_million": {
+    "grade": "common",
+    "motif": "hexagonal crystal pin, one cleanly cut gem"
+  },
+  "influencer": {
+    "grade": "rare",
+    "motif": "rounded-diamond link pin, a network graph of six connected dots"
+  },
+  "marathoner": {
+    "grade": "rare",
+    "motif": "circular pin with a small check tab at the lower right, three terminal windows overlapping in a row"
+  },
+  "model_explorer": {
+    "grade": "epic",
+    "motif": "rounded-square chip pin, a compass needle pointing at four small gems set at the corners"
+  },
+  "model_maestro": {
+    "grade": "epic",
+    "motif": "rounded-square chip pin, a conductor's baton crossing a quill pen above a small open music sheet"
+  },
+  "national_podium": {
+    "grade": "rare",
+    "motif": "shield-shaped crest pin with a pointed bottom, a small flag planted on the middle step of a three-step podium"
+  },
+  "networker": {
+    "grade": "rare",
+    "motif": "rounded-diamond link pin, three dots connected in a small triangle"
+  },
+  "opus_lover": {
+    "grade": "common",
+    "motif": "rounded-square chip pin, a conductor's baton over a sheet of music score"
+  },
+  "recruiter": {
+    "grade": "common",
+    "motif": "rounded-diamond link pin, a single sealed invitation envelope"
+  },
+  "session_machine": {
+    "grade": "epic",
+    "motif": "circular pin with a small check tab at the lower right, a compact tower of four stacked terminal windows"
+  },
+  "sonnet_master": {
+    "grade": "epic",
+    "motif": "rounded-square chip pin, a quill pen writing on a small unrolled scroll"
+  },
+  "stargazer": {
+    "grade": "common",
+    "motif": "rounded-diamond link pin, a small telescope aimed at one bright star"
+  },
+  "streak_14": {
+    "grade": "common",
+    "motif": "circular pin, tally ring one quarter lit, a small steady flame at the center"
+  },
+  "streak_150": {
+    "grade": "legendary",
+    "motif": "circular pin framed by a laurel wreath, a beacon tower flame with sparks, gem inlays on the ring"
+  },
+  "streak_3": {
+    "grade": "common",
+    "motif": "circular pin with a coarse 8-segment progress ring, no segment lit, a single bright ember spark at the top of the ring"
+  },
+  "streak_30": {
+    "grade": "rare",
+    "motif": "circular pin, tally ring half lit, a full flame with a second inner tongue"
+  },
+  "streak_60": {
+    "grade": "epic",
+    "motif": "circular pin with a coarse 8-segment progress ring, 6 of 8 segments lit, a handheld torch flame at the center"
+  },
+  "streak_7": {
+    "grade": "common",
+    "motif": "circular pin with a thin tally ring, one small ember spark at the center — the first week of daily Claude Code use"
+  },
+  "streak_90": {
+    "grade": "epic",
+    "motif": "circular pin, tally ring fully lit and glowing, a brazier bowl with a tall flame"
+  },
+  "top_3": {
+    "grade": "epic",
+    "motif": "shield-shaped crest pin with a pointed bottom, a three-step podium with a star above the tallest step"
+  },
+  "top_50": {
+    "grade": "common",
+    "motif": "shield-shaped crest pin with a pointed bottom, a small globe with a thin orbit ring"
+  },
+  "trailblazer": {
+    "grade": "legendary",
+    "motif": "shield crest pin with laurel, a compass rose over a winding path at sunrise"
+  },
+  "unstoppable": {
+    "grade": "legendary",
+    "motif": "circular pin with a small check tab at the lower right, a tall tower built of stacked terminal windows with a beacon flame burning at its top"
+  },
+  "whale": {
+    "grade": "rare",
+    "motif": "hexagonal crystal pin, a stylized whale with a water spout"
+  }
+}

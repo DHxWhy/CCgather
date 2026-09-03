@@ -1,10 +1,10 @@
 #!/usr/bin/env bun
-/** assets/badges/v4/<id>.webp (512 마스터) → public/badges/v1/<id>-{96,192,512}.webp. 96/192 = 34px 타일 1x/2x, 192 = 팝오버, 512 = 획득 모달. */
+/** assets/badges/masters/<id>.webp (512 마스터) → public/badges/v1/<id>-{96,192,512}.webp. 96/192 = 34px 타일 1x/2x, 192 = 팝오버, 512 = 획득 모달. */
 import { mkdir, readdir } from "node:fs/promises";
 import path from "node:path";
 import sharp from "sharp";
 
-const SRC_DIR = path.resolve("assets/badges/v4");
+const SRC_DIR = path.resolve("assets/badges/masters");
 const OUT_DIR = path.resolve("public/badges/v1");
 const MASTER_PX = 512;
 const SIZES = [

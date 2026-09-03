@@ -5,7 +5,7 @@ import { BADGES } from "@/lib/constants/badges";
 import { PIN_ASSET_SIZES } from "@/lib/badges/pin-motion";
 
 const PUBLIC_DIR = path.resolve(__dirname, "../../public/badges/v1");
-const MASTER_DIR = path.resolve(__dirname, "../../assets/badges/v4");
+const MASTER_DIR = path.resolve(__dirname, "../../assets/badges/masters");
 const SIZES = Array.from(new Set(Object.values(PIN_ASSET_SIZES)));
 
 describe("badge pin assets (build:badges 산출물 ↔ 카탈로그 SSOT)", () => {
