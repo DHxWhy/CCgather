@@ -303,14 +303,12 @@ function LevelProgressBar({
 function BadgeItem({
   badge,
   isEarned,
-  columnIndex,
   totalInCategory: _totalInCategory,
   userCountry,
   isMobile,
 }: {
   badge: Badge;
   isEarned: boolean;
-  columnIndex: number;
   totalInCategory: number;
   userCountry?: string;
   isMobile?: boolean;
@@ -329,14 +327,11 @@ function BadgeItem({
     legendary: "bg-[var(--color-claude-coral)]/30",
   };
 
-  // Mobile: 1-2열 우측, 3열 위, 4-5열 좌측 / Desktop: 항상 좌측
-  const popoverDirection = isMobile
-    ? columnIndex <= 1
-      ? "right"
-      : columnIndex === 2
-        ? "top"
-        : "left"
-    : "left";
+  // 좁은 화면에서는 옆에 띄우면 팝오버(240px)가 그리드 전체를 덮으므로 위/아래로만 띄운다.
+  // 방향은 실제 좌표를 잰 뒤 확정되므로 state 로 들고 있다.
+  const [popoverDirection, setPopoverDirection] = useState<"left" | "right" | "top" | "bottom">(
+    "left"
+  );
 
   // Ensure portal renders only on client side
   useEffect(() => {
@@ -350,30 +345,39 @@ function BadgeItem({
     const popoverWidth = 240;
     const popoverHeight = 236;
     const gap = 8;
+    const viewportWidth = window.innerWidth;
+    const viewportHeight = window.innerHeight;
 
-    let top = 0;
-    let left = 0;
+    // 배지 바로 옆이 아니라 배지 그리드 바깥으로 밀어야 그리드를 가리지 않는다.
+    const grid = badgeRef.current.closest("[data-badge-grid]")?.getBoundingClientRect() ?? rect;
+    const fitsLeft = grid.left - popoverWidth - gap >= 8;
+    const fitsRight = grid.right + popoverWidth + gap <= viewportWidth - 8;
+    const roomAbove = rect.top - gap - 8;
+    const direction: "left" | "right" | "top" | "bottom" = fitsLeft
+      ? "left"
+      : fitsRight
+        ? "right"
+        : roomAbove >= popoverHeight
+          ? "top"
+          : "bottom";
 
-    if (popoverDirection === "left") {
+    let top: number;
+    let left: number;
+    if (direction === "left" || direction === "right") {
       top = rect.top + rect.height / 2 - popoverHeight / 2;
-      left = rect.left - popoverWidth - gap;
-    } else if (popoverDirection === "right") {
-      top = rect.top + rect.height / 2 - popoverHeight / 2;
-      left = rect.right + gap;
+      left = direction === "left" ? grid.left - popoverWidth - gap : grid.right + gap;
     } else {
-      top = rect.top - popoverHeight - gap;
+      top = direction === "top" ? rect.top - popoverHeight - gap : rect.bottom + gap;
       left = rect.left + rect.width / 2 - popoverWidth / 2;
     }
 
     // Ensure popover stays within viewport bounds
-    const viewportWidth = window.innerWidth;
-    const viewportHeight = window.innerHeight;
-
     if (left < 8) left = 8;
     if (left + popoverWidth > viewportWidth - 8) left = viewportWidth - popoverWidth - 8;
     if (top < 8) top = 8;
     if (top + popoverHeight > viewportHeight - 8) top = viewportHeight - popoverHeight - 8;
 
+    setPopoverDirection(direction);
     setPopoverPosition({ top, left });
     setIsHovered(true);
   };
@@ -398,7 +402,9 @@ function BadgeItem({
             ? "top-1/2 -translate-y-1/2 -right-[15px]"
             : popoverDirection === "right"
               ? "top-1/2 -translate-y-1/2 -left-[15px]"
-              : "-bottom-[15px] left-1/2 -translate-x-1/2"
+              : popoverDirection === "top"
+                ? "-bottom-[15px] left-1/2 -translate-x-1/2"
+                : "-top-[15px] left-1/2 -translate-x-1/2"
         }`}
       >
         <div
@@ -407,7 +413,9 @@ function BadgeItem({
               ? "border-l-[var(--color-bg-secondary)]"
               : popoverDirection === "right"
                 ? "border-r-[var(--color-bg-secondary)]"
-                : "border-t-[var(--color-bg-secondary)]"
+                : popoverDirection === "top"
+                  ? "border-t-[var(--color-bg-secondary)]"
+                  : "border-b-[var(--color-bg-secondary)]"
           }`}
         />
       </div>
@@ -698,9 +706,9 @@ function BadgeGrid({
   );
 
   return (
-    <div className="flex flex-col gap-1.5">
+    <div className="flex flex-col gap-1.5" data-badge-grid>
       <div className="flex gap-1">
-        {badgesByCategory.map(({ category, badges }, colIndex) => {
+        {badgesByCategory.map(({ category, badges }) => {
           const { label, bgTint } = CATEGORY_LABELS[category];
 
           return (
@@ -713,7 +721,6 @@ function BadgeGrid({
                   key={badge.id}
                   badge={badge}
                   isEarned={badgeIds.includes(badge.id)}
-                  columnIndex={colIndex}
                   totalInCategory={5}
                   userCountry={userCountry}
                   isMobile={isMobile}
@@ -736,7 +743,6 @@ function BadgeGrid({
               key={badge.id}
               badge={badge}
               isEarned={badgeIds.includes(badge.id)}
-              columnIndex={2}
               totalInCategory={communityBadges.length}
               userCountry={userCountry}
               isMobile={isMobile}
