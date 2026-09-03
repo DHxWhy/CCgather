@@ -127,6 +127,17 @@ export const BADGES: Badge[] = [
   // 2. TOKENS BADGES (토큰/비용) - 6개
   // ═══════════════════════════════════════
   {
+    id: "100b_club",
+    image: "/badges/v1/100b_club",
+    name: "100B Club",
+    description: "Reached 100B+ total tokens",
+    praise: "One hundred billion tokens. Legendary.",
+    icon: "👑",
+    category: "tokens",
+    rarity: "legendary",
+    condition: (ctx) => ctx.total_tokens >= 100_000_000_000,
+  },
+  {
     id: "10b_club",
     image: "/badges/v1/10b_club",
     name: "10B Club",
