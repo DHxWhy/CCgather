@@ -21,6 +21,7 @@ import { Maximize2 } from "lucide-react";
 import { LEVELS, getLevelByTokens } from "@/lib/constants/levels";
 import { BADGES, type Badge } from "@/lib/constants/badges";
 import { PIN_ASSET_SIZES } from "@/lib/badges/pin-motion";
+import { RARITY, byRarityDesc } from "@/lib/badges/rarity";
 import { PinWithMotion } from "@/components/badges/PinWithMotion";
 import { ActivityHeatmap } from "@/components/profile/ActivityHeatmap";
 import { CCplanBadge } from "@/components/leaderboard/CCplanBadge";
@@ -318,15 +319,6 @@ function BadgeItem({
   const badgeRef = useRef<HTMLDivElement>(null);
   const [popoverPosition, setPopoverPosition] = useState({ top: 0, left: 0 });
 
-  const RARITY_TEXT_COLOR = "text-[var(--color-text-primary)]";
-
-  const RARITY_BG_COLORS: Record<Badge["rarity"], string> = {
-    common: "bg-gray-500/20",
-    rare: "bg-blue-500/20",
-    epic: "bg-purple-500/20",
-    legendary: "bg-[var(--color-claude-coral)]/30",
-  };
-
   // 좁은 화면에서는 옆에 띄우면 팝오버(240px)가 그리드 전체를 덮으므로 위/아래로만 띄운다.
   // 방향은 실제 좌표를 잰 뒤 확정되므로 state 로 들고 있다.
   const [popoverDirection, setPopoverDirection] = useState<"left" | "right" | "top" | "bottom">(
@@ -433,9 +425,9 @@ function BadgeItem({
           {badge.name}
         </div>
         <span
-          className={`inline-block text-[9px] font-medium capitalize px-1.5 py-0.5 rounded ${RARITY_BG_COLORS[badge.rarity]} ${RARITY_TEXT_COLOR}`}
+          className={`inline-block rounded px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.06em] ${RARITY[badge.rarity].chipBgClass} ${RARITY[badge.rarity].chipTextClass}`}
         >
-          {badge.rarity}
+          {RARITY[badge.rarity].label}
         </span>
       </div>
       <div className="text-[11px] text-[var(--color-text-secondary)] mb-1.5 bg-black/20 px-2 py-1 rounded text-center">
@@ -461,7 +453,7 @@ function BadgeItem({
       <div
         className={`w-full aspect-square flex items-center justify-center rounded text-center transition-colors cursor-default ${
           isEarned
-            ? `bg-[var(--color-section-bg)] hover:bg-[var(--color-section-bg-hover)]`
+            ? `${RARITY[badge.rarity].tileTintClass} hover:bg-[var(--color-section-bg-hover)]`
             : "bg-[var(--color-badge-locked)]"
         }`}
       >
@@ -667,14 +659,6 @@ const CATEGORY_LABELS: Record<Badge["category"], { label: string; bgTint: string
   community: { label: "Community", bgTint: "bg-sky-500/5" },
 };
 
-// Rarity order for sorting
-const RARITY_ORDER: Record<Badge["rarity"], number> = {
-  legendary: 4,
-  epic: 3,
-  rare: 2,
-  common: 1,
-};
-
 // Badge categories (defined outside component for stable reference)
 // 그리드는 5열 · 커뮤니티 배지는 그 아래 별도 줄에 놓는다(열마다 7칸 규칙 유지)
 const BADGE_CATEGORIES: Badge["category"][] = ["streak", "tokens", "rank", "model", "journey"];
@@ -693,16 +677,14 @@ function BadgeGrid({
   const badgesByCategory = useMemo(() => {
     return BADGE_CATEGORIES.map((category) => ({
       category,
-      badges: BADGES.filter((b) => b.category === category).sort(
-        (a, b) => RARITY_ORDER[b.rarity] - RARITY_ORDER[a.rarity]
-      ),
+      badges: BADGES.filter((b) => b.category === category).sort(byRarityDesc),
     }));
   }, []);
 
   const maxBadges = Math.max(...badgesByCategory.map((c) => c.badges.length));
 
   const communityBadges = BADGES.filter((b) => b.category === COMMUNITY_CATEGORY).sort(
-    (a, b) => RARITY_ORDER[b.rarity] - RARITY_ORDER[a.rarity]
+    byRarityDesc
   );
 
   return (

@@ -62,14 +62,6 @@ export interface Badge {
   condition: (ctx: BadgeContext) => boolean;
 }
 
-// Rarity order for sorting (higher = harder)
-export const RARITY_ORDER: Record<Badge["rarity"], number> = {
-  legendary: 4,
-  epic: 3,
-  rare: 2,
-  common: 1,
-};
-
 export const BADGES: Badge[] = [
   // ═══════════════════════════════════════
   // 1. STREAK BADGES (연속 사용) - 7개
@@ -152,8 +144,19 @@ export const BADGES: Badge[] = [
     condition: (ctx) => ctx.streak >= 3,
   },
   // ═══════════════════════════════════════
-  // 2. TOKEN BADGES (누적 토큰) - 7개
+  // 2. TOKEN BADGES (누적 토큰) - 8개
   // ═══════════════════════════════════════
+  {
+    id: "500b_club",
+    image: "/badges/v1/500b_club",
+    name: "500B Club",
+    description: "Reached 500B+ total tokens",
+    praise: "Five hundred billion tokens. Nobody has stood here before.",
+    icon: "👑",
+    category: "tokens",
+    rarity: "legendary",
+    condition: (ctx) => ctx.total_tokens >= 500_000_000_000,
+  },
   {
     id: "200b_club",
     image: "/badges/v1/200b_club",
@@ -199,6 +202,28 @@ export const BADGES: Badge[] = [
     condition: (ctx) => ctx.total_tokens >= 10_000_000_000,
   },
   {
+    id: "5b_club",
+    image: "/badges/v1/5b_club",
+    name: "5B Club",
+    description: "Reached 5B+ total tokens",
+    praise: "Five billion tokens.",
+    icon: "💎",
+    category: "tokens",
+    rarity: "common",
+    condition: (ctx) => ctx.total_tokens >= 5_000_000_000,
+  },
+  {
+    id: "3b_club",
+    image: "/badges/v1/3b_club",
+    name: "3B Club",
+    description: "Reached 3B+ total tokens",
+    praise: "Three billion tokens.",
+    icon: "💎",
+    category: "tokens",
+    rarity: "common",
+    condition: (ctx) => ctx.total_tokens >= 3_000_000_000,
+  },
+  {
     id: "billion_club",
     image: "/badges/v1/billion_club",
     name: "Billion Club",
@@ -208,28 +233,6 @@ export const BADGES: Badge[] = [
     category: "tokens",
     rarity: "common",
     condition: (ctx) => ctx.total_tokens >= 1_000_000_000,
-  },
-  {
-    id: "hundred_million",
-    image: "/badges/v1/hundred_million",
-    name: "100M Club",
-    description: "Reached 100M+ total tokens",
-    praise: "One hundred million! You're getting serious.",
-    icon: "💎",
-    category: "tokens",
-    rarity: "common",
-    condition: (ctx) => ctx.total_tokens >= 100_000_000,
-  },
-  {
-    id: "first_million",
-    image: "/badges/v1/first_million",
-    name: "First Million",
-    description: "Reached 1M+ total tokens",
-    praise: "Your first million tokens.",
-    icon: "💎",
-    category: "tokens",
-    rarity: "common",
-    condition: (ctx) => ctx.total_tokens >= 1_000_000,
   },
   // ═══════════════════════════════════════
   // 3. RANK BADGES (순위 · All-Time 누적, 찍어본 적) - 7개
@@ -546,10 +549,3 @@ export const BADGES: Badge[] = [
 export function getBadgeById(id: string): Badge | undefined {
   return BADGES.find((b) => b.id === id);
 }
-
-export const RARITY_COLORS: Record<Badge["rarity"], string> = {
-  common: "#A1A1AA",
-  rare: "#3B82F6",
-  epic: "#A855F7",
-  legendary: "#FFD700",
-};

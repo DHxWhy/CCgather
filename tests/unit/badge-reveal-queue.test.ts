@@ -6,12 +6,16 @@ import {
   selectUnseenBadgeIds,
   writeSeenAt,
 } from "@/lib/badges/reveal-queue";
+import { BADGES } from "@/lib/constants/badges";
+
+// 카탈로그에서 실제 id 를 가져온다 — 배지가 바뀌어도 픽스처가 썩지 않도록
+const [known1, known2, known3] = BADGES.map((b) => b.id);
 
 const rows = [
-  { badge_type: "streak_7", earned_at: "2026-09-01T10:00:00Z" },
-  { badge_type: "first_million", earned_at: "2026-09-02T10:00:00Z" },
+  { badge_type: known1!, earned_at: "2026-09-01T10:00:00Z" },
+  { badge_type: known2!, earned_at: "2026-09-02T10:00:00Z" },
   { badge_type: "unknown_badge", earned_at: "2026-09-03T10:00:00Z" },
-  { badge_type: "streak_14", earned_at: "2026-09-03T09:00:00Z" },
+  { badge_type: known3!, earned_at: "2026-09-03T09:00:00Z" },
 ];
 
 describe("selectUnseenBadgeIds", () => {
@@ -20,10 +24,7 @@ describe("selectUnseenBadgeIds", () => {
   });
 
   it("seenAt 이후에 얻은 알려진 배지만, 오래된 것부터 순서대로 돌려준다", () => {
-    expect(selectUnseenBadgeIds(rows, "2026-09-01T12:00:00Z")).toEqual([
-      "first_million",
-      "streak_14",
-    ]);
+    expect(selectUnseenBadgeIds(rows, "2026-09-01T12:00:00Z")).toEqual([known2, known3]);
   });
 
   it("카탈로그에 없는 badge_type 은 제외한다", () => {

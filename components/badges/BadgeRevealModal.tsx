@@ -4,16 +4,10 @@ import { useEffect } from "react";
 import { createPortal } from "react-dom";
 import { X } from "lucide-react";
 import type { Badge } from "@/lib/constants/badges";
+import { RARITY } from "@/lib/badges/rarity";
 import { BadgeMotionPlayer } from "@/components/badges/BadgeMotionPlayer";
 
 const REVEAL_SIZE = 168;
-
-const RARITY_CHIP: Record<Badge["rarity"], string> = {
-  common: "bg-gray-500/20",
-  rare: "bg-blue-500/20",
-  epic: "bg-purple-500/20",
-  legendary: "bg-[var(--color-claude-coral)]/30",
-};
 
 interface BadgeRevealModalProps {
   badge: Badge;
@@ -68,9 +62,9 @@ export function BadgeRevealModal({ badge, remaining, onNext }: BadgeRevealModalP
         </h2>
         <div className="mt-1.5 flex justify-center">
           <span
-            className={`inline-block rounded px-1.5 py-0.5 text-[10px] font-medium capitalize text-[var(--color-text-primary)] ${RARITY_CHIP[badge.rarity]}`}
+            className={`inline-block rounded px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em] ${RARITY[badge.rarity].chipBgClass} ${RARITY[badge.rarity].chipTextClass}`}
           >
-            {badge.rarity}
+            {RARITY[badge.rarity].label}
           </span>
         </div>
         <p className="mt-3 text-center text-xs text-[var(--color-text-secondary)]">

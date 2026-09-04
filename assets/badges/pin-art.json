@@ -11,9 +11,21 @@
     "grade": "legendary",
     "motif": "hexagonal pin with laurel, a gem comet with an orbit ring and sparkles"
   },
+  "3b_club": {
+    "grade": "common",
+    "motif": "hexagonal crystal pin, a single rough crystal shard with one chipped facet"
+  },
+  "500b_club": {
+    "grade": "legendary",
+    "motif": "hexagonal crystal pin, a single colossal faceted gem monolith rising from a cracked stone base, filling the plate"
+  },
   "50b_club": {
     "grade": "epic",
     "motif": "hexagonal pin, an open geode half revealing crystals inside"
+  },
+  "5b_club": {
+    "grade": "common",
+    "motif": "hexagonal crystal pin, two small rough crystal shards leaning together"
   },
   "autopilot": {
     "grade": "common",
@@ -47,10 +59,6 @@
     "grade": "legendary",
     "motif": "rounded-square chip pin, a great many-tailed fox curled protectively around a closed storybook"
   },
-  "first_million": {
-    "grade": "common",
-    "motif": "hexagonal crystal-shaped pin, a single small rough crystal shard"
-  },
   "global_10": {
     "grade": "epic",
     "motif": "shield-shaped crest pin with a pointed bottom, a globe lifted inside an upward chevron"
@@ -62,10 +70,6 @@
   "haiku_ninja": {
     "grade": "epic",
     "motif": "rounded-square chip pin, a cherry blossom branch with three brush-stroke petals"
-  },
-  "hundred_million": {
-    "grade": "common",
-    "motif": "hexagonal crystal pin, one cleanly cut gem"
   },
   "influencer": {
     "grade": "rare",

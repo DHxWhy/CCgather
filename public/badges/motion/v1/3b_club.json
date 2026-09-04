@@ -1,6 +1,6 @@
 {
   "v": "5.12.2",
-  "nm": "ccgather-badge-first_million",
+  "nm": "ccgather-badge-3b_club",
   "fr": 30,
   "ip": 0,
   "op": 114,
@@ -12,7 +12,7 @@
     { "cm": "idle", "tm": 24, "dr": 90 }
   ],
   "assets": [
-    { "id": "pin", "w": 512, "h": 512, "u": "/badges/v1/", "p": "first_million-512.webp", "e": 0 }
+    { "id": "pin", "w": 512, "h": 512, "u": "/badges/v1/", "p": "3b_club-512.webp", "e": 0 }
   ],
   "layers": [
     {
