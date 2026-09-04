@@ -2041,3 +2041,177 @@ lite-youtube.lyt-activated > .lty-playbtn {
   opacity: 0;
   animation-delay: calc(var(--stagger-index, 0) * 50ms);
 }
+
+/* ============================================
+   Badge pin motion — 팝오버·획득 모달 전용 (그리드는 정적)
+   클래스 매핑: lib/badges/pin-motion.ts
+   ============================================ */
+.pin {
+  position: relative;
+  display: inline-block;
+  line-height: 0;
+}
+.pin > img {
+  position: relative;
+  display: block;
+}
+.pin--pop {
+  animation: pin-pop 0.42s cubic-bezier(0.2, 0.9, 0.3, 1.2) both;
+}
+.pin--legendary > img {
+  animation: pin-float 3s ease-in-out 0.5s 3;
+}
+.pin__fx {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.pin__sheen {
+  opacity: 0;
+  background-image: linear-gradient(
+    115deg,
+    transparent 35%,
+    rgba(255, 255, 255, 0.55) 50%,
+    transparent 65%
+  );
+  background-size: 250% 100%;
+  background-repeat: no-repeat;
+  -webkit-mask: var(--pin-src) center / contain no-repeat;
+  mask: var(--pin-src) center / contain no-repeat;
+  animation: pin-sheen 3s ease-in-out 0.3s 3;
+}
+.pin--legendary .pin__sheen {
+  background-image: linear-gradient(
+    115deg,
+    transparent 35%,
+    rgba(255, 221, 130, 0.7) 50%,
+    transparent 65%
+  );
+}
+.pin__glow {
+  border-radius: 50%;
+  filter: blur(6px);
+  background: radial-gradient(circle, rgba(139, 92, 246, 0.55), transparent 70%);
+  animation: pin-glow 2.4s ease-in-out 3;
+}
+.pin__gem {
+  position: absolute;
+  left: 50%;
+  bottom: 5%;
+  width: 20%;
+  height: 20%;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle,
+    rgba(255, 255, 255, 0.95),
+    rgba(139, 92, 246, 0.6) 45%,
+    transparent 70%
+  );
+  transform: translateX(-50%);
+  animation: pin-gem 1.8s ease-in-out 3;
+}
+.pin__spark {
+  position: absolute;
+  width: 12%;
+  height: 12%;
+  border-radius: 50%;
+  opacity: 0;
+  background: radial-gradient(circle, #fff 0 28%, rgba(255, 210, 120, 0.9) 45%, transparent 70%);
+  animation: pin-spark 2.2s ease-in-out 3;
+}
+.pin__spark:nth-child(1) {
+  left: 12%;
+  top: 26%;
+}
+.pin__spark:nth-child(2) {
+  right: 10%;
+  top: 34%;
+  animation-delay: 0.7s;
+}
+.pin__spark:nth-child(3) {
+  left: 46%;
+  top: 4%;
+  animation-delay: 1.3s;
+}
+
+@keyframes pin-pop {
+  0% {
+    transform: scale(0.6);
+    opacity: 0;
+  }
+  60% {
+    transform: scale(1.08);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+@keyframes pin-sheen {
+  0% {
+    background-position: 120% 0;
+    opacity: 0;
+  }
+  10% {
+    opacity: 1;
+  }
+  45% {
+    background-position: -20% 0;
+    opacity: 1;
+  }
+  55%,
+  100% {
+    background-position: -20% 0;
+    opacity: 0;
+  }
+}
+@keyframes pin-glow {
+  0%,
+  100% {
+    opacity: 0.25;
+  }
+  50% {
+    opacity: 0.7;
+  }
+}
+@keyframes pin-gem {
+  0%,
+  100% {
+    opacity: 0.2;
+    transform: translateX(-50%) scale(0.8);
+  }
+  50% {
+    opacity: 1;
+    transform: translateX(-50%) scale(1.25);
+  }
+}
+@keyframes pin-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-2px);
+  }
+}
+@keyframes pin-spark {
+  0%,
+  100% {
+    opacity: 0;
+    transform: scale(0.4);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pin,
+  .pin > img,
+  .pin__fx {
+    animation: none !important;
+  }
+  .pin__fx {
+    display: none;
+  }
+}

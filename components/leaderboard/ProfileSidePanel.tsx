@@ -20,6 +20,9 @@ import {
 import { Maximize2 } from "lucide-react";
 import { LEVELS, getLevelByTokens } from "@/lib/constants/levels";
 import { BADGES, type Badge } from "@/lib/constants/badges";
+import { PIN_ASSET_SIZES } from "@/lib/badges/pin-motion";
+import { RARITY, byRarityDesc } from "@/lib/badges/rarity";
+import { PinWithMotion } from "@/components/badges/PinWithMotion";
 import { ActivityHeatmap } from "@/components/profile/ActivityHeatmap";
 import { CCplanBadge } from "@/components/leaderboard/CCplanBadge";
 import { UsageHistoryModal } from "@/components/leaderboard/UsageHistoryModal";
@@ -301,14 +304,12 @@ function LevelProgressBar({
 function BadgeItem({
   badge,
   isEarned,
-  columnIndex,
   totalInCategory: _totalInCategory,
   userCountry,
   isMobile,
 }: {
   badge: Badge;
   isEarned: boolean;
-  columnIndex: number;
   totalInCategory: number;
   userCountry?: string;
   isMobile?: boolean;
@@ -318,23 +319,11 @@ function BadgeItem({
   const badgeRef = useRef<HTMLDivElement>(null);
   const [popoverPosition, setPopoverPosition] = useState({ top: 0, left: 0 });
 
-  const RARITY_TEXT_COLOR = "text-[var(--color-text-primary)]";
-
-  const RARITY_BG_COLORS: Record<Badge["rarity"], string> = {
-    common: "bg-gray-500/20",
-    rare: "bg-blue-500/20",
-    epic: "bg-purple-500/20",
-    legendary: "bg-[var(--color-claude-coral)]/30",
-  };
-
-  // Mobile: 1-2열 우측, 3열 위, 4-5열 좌측 / Desktop: 항상 좌측
-  const popoverDirection = isMobile
-    ? columnIndex <= 1
-      ? "right"
-      : columnIndex === 2
-        ? "top"
-        : "left"
-    : "left";
+  // 좁은 화면에서는 옆에 띄우면 팝오버(240px)가 그리드 전체를 덮으므로 위/아래로만 띄운다.
+  // 방향은 실제 좌표를 잰 뒤 확정되므로 state 로 들고 있다.
+  const [popoverDirection, setPopoverDirection] = useState<"left" | "right" | "top" | "bottom">(
+    "left"
+  );
 
   // Ensure portal renders only on client side
   useEffect(() => {
@@ -345,33 +334,42 @@ function BadgeItem({
     if (!badgeRef.current) return;
 
     const rect = badgeRef.current.getBoundingClientRect();
-    const popoverWidth = 192;
-    const popoverHeight = 140;
+    const popoverWidth = 240;
+    const popoverHeight = 236;
     const gap = 8;
+    const viewportWidth = window.innerWidth;
+    const viewportHeight = window.innerHeight;
 
-    let top = 0;
-    let left = 0;
+    // 배지 바로 옆이 아니라 배지 그리드 바깥으로 밀어야 그리드를 가리지 않는다.
+    const grid = badgeRef.current.closest("[data-badge-grid]")?.getBoundingClientRect() ?? rect;
+    const fitsLeft = grid.left - popoverWidth - gap >= 8;
+    const fitsRight = grid.right + popoverWidth + gap <= viewportWidth - 8;
+    const roomAbove = rect.top - gap - 8;
+    const direction: "left" | "right" | "top" | "bottom" = fitsLeft
+      ? "left"
+      : fitsRight
+        ? "right"
+        : roomAbove >= popoverHeight
+          ? "top"
+          : "bottom";
 
-    if (popoverDirection === "left") {
+    let top: number;
+    let left: number;
+    if (direction === "left" || direction === "right") {
       top = rect.top + rect.height / 2 - popoverHeight / 2;
-      left = rect.left - popoverWidth - gap;
-    } else if (popoverDirection === "right") {
-      top = rect.top + rect.height / 2 - popoverHeight / 2;
-      left = rect.right + gap;
+      left = direction === "left" ? grid.left - popoverWidth - gap : grid.right + gap;
     } else {
-      top = rect.top - popoverHeight - gap;
+      top = direction === "top" ? rect.top - popoverHeight - gap : rect.bottom + gap;
       left = rect.left + rect.width / 2 - popoverWidth / 2;
     }
 
     // Ensure popover stays within viewport bounds
-    const viewportWidth = window.innerWidth;
-    const viewportHeight = window.innerHeight;
-
     if (left < 8) left = 8;
     if (left + popoverWidth > viewportWidth - 8) left = viewportWidth - popoverWidth - 8;
     if (top < 8) top = 8;
     if (top + popoverHeight > viewportHeight - 8) top = viewportHeight - popoverHeight - 8;
 
+    setPopoverDirection(direction);
     setPopoverPosition({ top, left });
     setIsHovered(true);
   };
@@ -382,7 +380,7 @@ function BadgeItem({
 
   const popoverContent = isHovered && isMounted && (
     <div
-      className="fixed w-48 p-2.5 bg-[var(--color-bg-secondary)] border border-[var(--border-default)] rounded-lg shadow-xl"
+      className="fixed w-60 p-3 bg-[var(--color-bg-secondary)] border border-[var(--border-default)] rounded-lg shadow-xl"
       style={{
         top: popoverPosition.top,
         left: popoverPosition.left,
@@ -396,7 +394,9 @@ function BadgeItem({
             ? "top-1/2 -translate-y-1/2 -right-[15px]"
             : popoverDirection === "right"
               ? "top-1/2 -translate-y-1/2 -left-[15px]"
-              : "-bottom-[15px] left-1/2 -translate-x-1/2"
+              : popoverDirection === "top"
+                ? "-bottom-[15px] left-1/2 -translate-x-1/2"
+                : "-top-[15px] left-1/2 -translate-x-1/2"
         }`}
       >
         <div
@@ -405,32 +405,36 @@ function BadgeItem({
               ? "border-l-[var(--color-bg-secondary)]"
               : popoverDirection === "right"
                 ? "border-r-[var(--color-bg-secondary)]"
-                : "border-t-[var(--color-bg-secondary)]"
+                : popoverDirection === "top"
+                  ? "border-t-[var(--color-bg-secondary)]"
+                  : "border-b-[var(--color-bg-secondary)]"
           }`}
         />
       </div>
-      <div className="flex items-center gap-2 mb-1.5">
-        <span className="text-lg">
-          {badge.id === "country_first" && userCountry ? (
+      <div className="flex flex-col items-center gap-1.5 mb-2">
+        <span className="text-3xl leading-none">
+          {badge.image ? (
+            <PinWithMotion image={badge.image} rarity={badge.rarity} earned={isEarned} size={80} />
+          ) : badge.id === "country_first" && userCountry ? (
             <FlagIcon countryCode={userCountry} size="sm" />
           ) : (
             badge.icon
           )}
         </span>
-        <div>
-          <div className="text-xs font-medium text-[var(--color-text-primary)]">{badge.name}</div>
-          <span
-            className={`inline-block text-[9px] font-medium capitalize px-1.5 py-0.5 rounded ${RARITY_BG_COLORS[badge.rarity]} ${RARITY_TEXT_COLOR}`}
-          >
-            {badge.rarity}
-          </span>
+        <div className="text-sm font-semibold text-[var(--color-text-primary)] text-center">
+          {badge.name}
         </div>
+        <span
+          className={`inline-block rounded px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.06em] ${RARITY[badge.rarity].chipBgClass} ${RARITY[badge.rarity].chipTextClass}`}
+        >
+          {RARITY[badge.rarity].label}
+        </span>
       </div>
-      <div className="text-[10px] text-[var(--color-text-secondary)] mb-1.5 bg-black/20 px-1.5 py-1 rounded">
+      <div className="text-[11px] text-[var(--color-text-secondary)] mb-1.5 bg-black/20 px-2 py-1 rounded text-center">
         {badge.description}
       </div>
       <div
-        className={`text-[10px] ${isEarned ? "text-[var(--color-text-secondary)]" : "text-[var(--color-text-muted)]"}`}
+        className={`text-[11px] text-center ${isEarned ? "text-[var(--color-text-secondary)]" : "text-[var(--color-text-muted)]"}`}
       >
         {isEarned ? `${badge.praise}` : "Not yet unlocked"}
       </div>
@@ -449,21 +453,34 @@ function BadgeItem({
       <div
         className={`w-full aspect-square flex items-center justify-center rounded text-center transition-colors cursor-default ${
           isEarned
-            ? `bg-[var(--color-section-bg)] hover:bg-[var(--color-section-bg-hover)]`
+            ? `${RARITY[badge.rarity].tileTintClass} hover:bg-[var(--color-section-bg-hover)]`
             : "bg-[var(--color-badge-locked)]"
         }`}
       >
-        <div className={`text-lg ${!isEarned ? "grayscale opacity-40" : ""}`}>
-          {isEarned ? (
-            badge.id === "country_first" && userCountry ? (
-              <FlagIcon countryCode={userCountry} size="sm" />
+        {badge.image ? (
+          // eslint-disable-next-line @next/next/no-img-element -- static immutable asset, no optimizer round-trip
+          <img
+            src={`${badge.image}-${PIN_ASSET_SIZES.tile}.webp`}
+            srcSet={`${badge.image}-${PIN_ASSET_SIZES.tile}.webp 1x, ${badge.image}-${PIN_ASSET_SIZES.tile2x}.webp 2x`}
+            width={34}
+            height={34}
+            alt={badge.name}
+            draggable={false}
+            className={`h-[34px] w-[34px] object-contain ${!isEarned ? "grayscale opacity-35" : ""}`}
+          />
+        ) : (
+          <div className={`text-lg ${!isEarned ? "grayscale opacity-40" : ""}`}>
+            {isEarned ? (
+              badge.id === "country_first" && userCountry ? (
+                <FlagIcon countryCode={userCountry} size="sm" />
+              ) : (
+                badge.icon
+              )
             ) : (
-              badge.icon
-            )
-          ) : (
-            "🔒"
-          )}
-        </div>
+              "🔒"
+            )}
+          </div>
+        )}
       </div>
 
       {/* Render popover in portal to escape overflow constraints */}
@@ -633,25 +650,19 @@ function SocialLinksQuickAccess({
 }
 
 // Category labels with icons
-const CATEGORY_LABELS: Record<Badge["category"], { icon: string; label: string; bgTint: string }> =
-  {
-    streak: { icon: "🔥", label: "Streak", bgTint: "bg-orange-500/5" },
-    tokens: { icon: "💎", label: "Tokens", bgTint: "bg-blue-500/5" },
-    rank: { icon: "🏆", label: "Rank", bgTint: "bg-yellow-500/5" },
-    model: { icon: "🎭", label: "Model", bgTint: "bg-purple-500/5" },
-    social: { icon: "🤝", label: "Social", bgTint: "bg-emerald-500/5" },
-  };
-
-// Rarity order for sorting
-const RARITY_ORDER: Record<Badge["rarity"], number> = {
-  legendary: 4,
-  epic: 3,
-  rare: 2,
-  common: 1,
+const CATEGORY_LABELS: Record<Badge["category"], { label: string; bgTint: string }> = {
+  streak: { label: "Streak", bgTint: "bg-orange-500/5" },
+  tokens: { label: "Tokens", bgTint: "bg-blue-500/5" },
+  rank: { label: "Rank", bgTint: "bg-yellow-500/5" },
+  model: { label: "Model", bgTint: "bg-purple-500/5" },
+  journey: { label: "Journey", bgTint: "bg-emerald-500/5" },
+  community: { label: "Community", bgTint: "bg-sky-500/5" },
 };
 
 // Badge categories (defined outside component for stable reference)
-const BADGE_CATEGORIES: Badge["category"][] = ["streak", "tokens", "rank", "model", "social"];
+// 그리드는 5열 · 커뮤니티 배지는 그 아래 별도 줄에 놓는다(열마다 7칸 규칙 유지)
+const BADGE_CATEGORIES: Badge["category"][] = ["streak", "tokens", "rank", "model", "journey"];
+const COMMUNITY_CATEGORY: Badge["category"] = "community";
 
 // Badge display component
 function BadgeGrid({
@@ -666,39 +677,61 @@ function BadgeGrid({
   const badgesByCategory = useMemo(() => {
     return BADGE_CATEGORIES.map((category) => ({
       category,
-      badges: BADGES.filter((b) => b.category === category).sort(
-        (a, b) => RARITY_ORDER[b.rarity] - RARITY_ORDER[a.rarity]
-      ),
+      badges: BADGES.filter((b) => b.category === category).sort(byRarityDesc),
     }));
   }, []);
 
   const maxBadges = Math.max(...badgesByCategory.map((c) => c.badges.length));
 
-  return (
-    <div className="flex gap-1">
-      {badgesByCategory.map(({ category, badges }, colIndex) => {
-        const { icon, bgTint } = CATEGORY_LABELS[category];
+  const communityBadges = BADGES.filter((b) => b.category === COMMUNITY_CATEGORY).sort(
+    byRarityDesc
+  );
 
-        return (
-          <div key={category} className={`flex-1 flex flex-col gap-1 p-1 rounded-lg ${bgTint}`}>
-            <div className="text-center text-[10px] pb-0.5">{icon}</div>
-            {badges.map((badge) => (
-              <BadgeItem
-                key={badge.id}
-                badge={badge}
-                isEarned={badgeIds.includes(badge.id)}
-                columnIndex={colIndex}
-                totalInCategory={5}
-                userCountry={userCountry}
-                isMobile={isMobile}
-              />
-            ))}
-            {Array.from({ length: maxBadges - badges.length }).map((_, i) => (
-              <div key={`empty-${i}`} className="w-full aspect-square" />
-            ))}
-          </div>
-        );
-      })}
+  return (
+    <div className="flex flex-col gap-1.5" data-badge-grid>
+      <div className="flex gap-1">
+        {badgesByCategory.map(({ category, badges }) => {
+          const { label, bgTint } = CATEGORY_LABELS[category];
+
+          return (
+            <div key={category} className={`flex-1 flex flex-col gap-1 p-1 rounded-lg ${bgTint}`}>
+              <div className="text-center text-[9px] font-medium uppercase tracking-[0.08em] text-[var(--color-text-muted)] pb-0.5">
+                {label}
+              </div>
+              {badges.map((badge) => (
+                <BadgeItem
+                  key={badge.id}
+                  badge={badge}
+                  isEarned={badgeIds.includes(badge.id)}
+                  totalInCategory={5}
+                  userCountry={userCountry}
+                  isMobile={isMobile}
+                />
+              ))}
+              {Array.from({ length: maxBadges - badges.length }).map((_, i) => (
+                <div key={`empty-${i}`} className="w-full aspect-square" />
+              ))}
+            </div>
+          );
+        })}
+      </div>
+      <div className="flex flex-col gap-1 p-1 rounded-lg bg-sky-500/5">
+        <div className="text-center text-[9px] font-medium uppercase tracking-[0.08em] text-[var(--color-text-muted)] pb-0.5">
+          {CATEGORY_LABELS[COMMUNITY_CATEGORY].label}
+        </div>
+        <div className="grid grid-cols-5 gap-1">
+          {communityBadges.map((badge) => (
+            <BadgeItem
+              key={badge.id}
+              badge={badge}
+              isEarned={badgeIds.includes(badge.id)}
+              totalInCategory={communityBadges.length}
+              userCountry={userCountry}
+              isMobile={isMobile}
+            />
+          ))}
+        </div>
+      </div>
     </div>
   );
 }

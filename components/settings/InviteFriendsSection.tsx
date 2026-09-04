@@ -19,14 +19,14 @@ interface InviteFriendsSectionProps {
 }
 
 // Get social badges sorted by requirement
-const SOCIAL_BADGES = BADGES.filter((b) => b.category === "social").sort((a, b) => {
+const SOCIAL_BADGES = BADGES.filter(
+  (b) => b.category === "community" && b.id !== "stargazer" && b.id !== "autopilot"
+).sort((a, b) => {
   // Extract number from condition string (hacky but works for our badges)
   const getThreshold = (badge: (typeof BADGES)[number]) => {
-    if (badge.id === "recruiter") return 5;
-    if (badge.id === "networker") return 10;
-    if (badge.id === "influencer") return 20;
-    if (badge.id === "social_star") return 30;
-    if (badge.id === "social_legend") return 50;
+    if (badge.id === "recruiter") return 1;
+    if (badge.id === "networker") return 3;
+    if (badge.id === "influencer") return 10;
     return 0;
   };
   return getThreshold(a) - getThreshold(b);
