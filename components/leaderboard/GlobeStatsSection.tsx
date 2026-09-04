@@ -80,6 +80,20 @@ function useResponsiveGlobeSize(sizeMode: "default" | "large") {
   return globeSize;
 }
 
+// 지구본(WebGL)은 첫 행이 그려진 뒤 브라우저가 한가할 때 올린다 — 표 렌더와 메인 스레드 경쟁 방지
+function useIdleMount(timeoutMs = 2000): boolean {
+  const [ready, setReady] = useState(false);
+  useEffect(() => {
+    if (typeof window.requestIdleCallback === "function") {
+      const id = window.requestIdleCallback(() => setReady(true), { timeout: timeoutMs });
+      return () => window.cancelIdleCallback(id);
+    }
+    const timer = setTimeout(() => setReady(true), 300);
+    return () => clearTimeout(timer);
+  }, [timeoutMs]);
+  return ready;
+}
+
 export function GlobeStatsSection({
   userCountryCode,
   onStatsLoaded,
@@ -98,6 +112,7 @@ export function GlobeStatsSection({
   const [loading, setLoading] = useState(true);
   const [initialLoadComplete, setInitialLoadComplete] = useState(false);
   const globeSize = useResponsiveGlobeSize(size);
+  const idle = useIdleMount();
 
   // Calculate user's country rank and stats
   const userCountryData = useMemo(() => {
@@ -157,7 +172,7 @@ export function GlobeStatsSection({
     <div className={`flex flex-col items-center ${className}`}>
       {/* Globe */}
       <div className="relative" style={{ width: globeSize, height: globeSize }}>
-        {!loading && (
+        {!loading && idle && (
           <div className={initialLoadComplete ? "" : "animate-fadeIn"}>
             {!hideParticles && <GlobeParticles size={globeSize} />}
             <Globe
