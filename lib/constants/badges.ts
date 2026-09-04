@@ -144,7 +144,7 @@ export const BADGES: Badge[] = [
     condition: (ctx) => ctx.streak >= 3,
   },
   // ═══════════════════════════════════════
-  // 2. TOKEN BADGES (누적 토큰) - 8개
+  // 2. TOKEN BADGES (누적 토큰) - 7개
   // ═══════════════════════════════════════
   {
     id: "500b_club",
@@ -211,17 +211,6 @@ export const BADGES: Badge[] = [
     category: "tokens",
     rarity: "common",
     condition: (ctx) => ctx.total_tokens >= 5_000_000_000,
-  },
-  {
-    id: "3b_club",
-    image: "/badges/v1/3b_club",
-    name: "3B Club",
-    description: "Reached 3B+ total tokens",
-    praise: "Three billion tokens.",
-    icon: "💎",
-    category: "tokens",
-    rarity: "common",
-    condition: (ctx) => ctx.total_tokens >= 3_000_000_000,
   },
   {
     id: "billion_club",
