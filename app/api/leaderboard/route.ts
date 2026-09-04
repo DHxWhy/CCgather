@@ -1,71 +1,88 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { formatInTimeZone } from "date-fns-tz";
-import { subDays } from "date-fns";
+import {
+  getPeriodDateRange,
+  type LeaderboardPeriod as Period,
+} from "@/lib/config/leaderboard-period";
 
-type Period = "1d" | "7d" | "30d" | "all" | "custom";
+// Supabase(PostgREST) db-max-rows 상한 — 무제한 select 는 여기서 조용히 잘린다
+const SUPABASE_MAX_ROWS = 1000;
+const MAX_AGGREGATE_ROWS = 200_000;
 
-/**
- * Get date range for period filter, respecting user's timezone
- * - Handles DST automatically via date-fns-tz
- * - Falls back to UTC if invalid timezone
- */
-function getPeriodDateRange(
-  period: Period,
-  customStart?: string | null,
-  customEnd?: string | null,
-  timezone?: string | null
-): { startDate: string; endDate: string } | null {
-  if (period === "all") return null;
+// 호출부는 결정적 정렬키(order)를 반드시 붙여야 한다 — 없으면 동시 쓰기 중 중복·누락
+async function fetchAllRows<T>(
+  label: string,
+  page: (
+    from: number,
+    to: number
+  ) => PromiseLike<{ data: T[] | null; error: { message: string } | null }>
+): Promise<T[]> {
+  const rows: T[] = [];
 
-  // Custom date range (already in user's intended dates)
-  if (period === "custom" && customStart && customEnd) {
-    return { startDate: customStart, endDate: customEnd };
+  for (let from = 0; from < MAX_AGGREGATE_ROWS; from += SUPABASE_MAX_ROWS) {
+    const { data, error } = await page(from, from + SUPABASE_MAX_ROWS - 1);
+    if (error) {
+      throw new Error(`${label} paginated fetch failed at offset ${from}: ${error.message}`);
+    }
+    const batch = data ?? [];
+    rows.push(...batch);
+    if (batch.length < SUPABASE_MAX_ROWS) return rows;
   }
 
-  // Validate and use timezone, fallback to UTC
-  const tz = timezone || "UTC";
-  const now = new Date();
+  console.error(
+    `[leaderboard] ${label} aggregate hit MAX_AGGREGATE_ROWS=${MAX_AGGREGATE_ROWS} — totals may be understated`
+  );
+  return rows;
+}
 
-  let endDate: string;
-  let startDate: string;
+interface AggregateTotals {
+  tokens: number;
+  cost: number;
+}
 
-  try {
-    // Get today's date in user's timezone (handles DST)
-    endDate = formatInTimeZone(now, tz, "yyyy-MM-dd");
+interface CountryAggregate {
+  country_code: string;
+  tokens: number;
+  cost: number;
+}
 
-    switch (period) {
-      case "1d":
-        startDate = endDate;
-        break;
-      case "7d":
-        startDate = formatInTimeZone(subDays(now, 7), tz, "yyyy-MM-dd");
-        break;
-      case "30d":
-        startDate = formatInTimeZone(subDays(now, 30), tz, "yyyy-MM-dd");
-        break;
-      default:
-        return null;
-    }
-  } catch {
-    // Invalid timezone - fall back to UTC
-    endDate = formatInTimeZone(now, "UTC", "yyyy-MM-dd");
-    switch (period) {
-      case "1d":
-        startDate = endDate;
-        break;
-      case "7d":
-        startDate = formatInTimeZone(subDays(now, 7), "UTC", "yyyy-MM-dd");
-        break;
-      case "30d":
-        startDate = formatInTimeZone(subDays(now, 30), "UTC", "yyyy-MM-dd");
-        break;
-      default:
-        return null;
-    }
+interface PeriodUserRow {
+  id: string;
+  username: string | null;
+  display_name: string | null;
+  display_avatar_url: string | null;
+  country_code: string | null;
+  current_level: number | null;
+  global_rank: number | null;
+  country_rank: number | null;
+  total_tokens: number | null;
+  total_cost: number | null;
+  total_sessions: number | null;
+  ccplan: string | null;
+  has_opus_usage: boolean | null;
+  social_links: Record<string, string> | null;
+}
+
+function aggregateByCountry(
+  rows: Array<{ country_code: string | null; tokens: number; cost: number }>
+): { totals: AggregateTotals; countries: CountryAggregate[] } {
+  const map = new Map<string, AggregateTotals>();
+  let tokens = 0;
+  let cost = 0;
+
+  for (const row of rows) {
+    const code = row.country_code || "XX";
+    const existing = map.get(code) || { tokens: 0, cost: 0 };
+    map.set(code, { tokens: existing.tokens + row.tokens, cost: existing.cost + row.cost });
+    tokens += row.tokens;
+    cost += row.cost;
   }
 
-  return { startDate, endDate };
+  const countries = Array.from(map.entries())
+    .map(([country_code, agg]) => ({ country_code, ...agg }))
+    .sort((a, b) => b.tokens - a.tokens);
+
+  return { totals: { tokens, cost }, countries };
 }
 
 // ============ TEST MOCK DATA FLAG ============
@@ -339,6 +356,40 @@ export async function GET(request: NextRequest) {
       avatar_url: user.display_avatar_url,
     }));
 
+    // 헤더 합계·국가 목록은 "로드된 페이지"가 아니라 전체 대상에서 집계해야 한다
+    let aggregate: { totals: AggregateTotals; countries: CountryAggregate[] } | null = null;
+    try {
+      const aggregateRows = await fetchAllRows<{
+        country_code: string | null;
+        total_tokens: number | null;
+        total_cost: number | null;
+      }>("users(all-time aggregate)", (from, to) => {
+        let aggregateQuery = supabase
+          .from("users")
+          .select("country_code, total_tokens, total_cost")
+          .eq("onboarding_completed", true)
+          .is("deleted_at", null)
+          .eq("shadow_banned", false)
+          .gt("total_tokens", 0);
+
+        if (country) {
+          aggregateQuery = aggregateQuery.eq("country_code", country.toUpperCase());
+        }
+
+        return aggregateQuery.order("id", { ascending: true }).range(from, to);
+      });
+
+      aggregate = aggregateByCountry(
+        aggregateRows.map((row) => ({
+          country_code: row.country_code,
+          tokens: row.total_tokens || 0,
+          cost: row.total_cost || 0,
+        }))
+      );
+    } catch (aggregateError) {
+      console.error("All-time aggregate failed:", aggregateError);
+    }
+
     return NextResponse.json(
       {
         users: usersWithDisplayAvatar,
@@ -348,6 +399,8 @@ export async function GET(request: NextRequest) {
           total: count || 0,
           totalPages: Math.ceil((count || 0) / limit),
         },
+        totals: aggregate?.totals ?? null,
+        countries: aggregate?.countries ?? null,
         period,
       },
       {
@@ -363,13 +416,23 @@ export async function GET(request: NextRequest) {
   const { startDate, endDate } = dateRange;
 
   // First, get aggregated usage for the period
-  const { data: periodStats, error: statsError } = await supabase
-    .from("usage_stats")
-    .select("user_id, total_tokens, cost_usd")
-    .gte("date", startDate)
-    .lte("date", endDate);
+  let periodStats: Array<{
+    user_id: string;
+    total_tokens: number | null;
+    cost_usd: number | null;
+  }>;
 
-  if (statsError) {
+  try {
+    periodStats = await fetchAllRows("usage_stats(period)", (from, to) =>
+      supabase
+        .from("usage_stats")
+        .select("user_id, total_tokens, cost_usd")
+        .gte("date", startDate)
+        .lte("date", endDate)
+        .order("id", { ascending: true })
+        .range(from, to)
+    );
+  } catch (statsError) {
     console.error("Usage stats query error:", statsError);
     return NextResponse.json({ error: "Failed to fetch usage stats" }, { status: 500 });
   }
@@ -496,44 +559,48 @@ export async function GET(request: NextRequest) {
   }
 
   // Fetch user details
-  let usersQuery = supabase
-    .from("users")
-    .select(
-      `
-      id,
-      username,
-      display_name,
-      display_avatar_url,
-      country_code,
-      current_level,
-      global_rank,
-      country_rank,
-      total_tokens,
-      total_cost,
-      total_sessions,
-      ccplan,
-      has_opus_usage,
-      social_links
-    `
-    )
-    .in("id", userIds)
-    .eq("onboarding_completed", true)
-    .is("deleted_at", null)
-    .eq("shadow_banned", false);
+  let usersData: PeriodUserRow[];
 
-  if (country) {
-    usersQuery = usersQuery.eq("country_code", country.toUpperCase());
-  }
+  try {
+    usersData = await fetchAllRows<PeriodUserRow>("users(period detail)", (from, to) => {
+      let usersQuery = supabase
+        .from("users")
+        .select(
+          `
+          id,
+          username,
+          display_name,
+          display_avatar_url,
+          country_code,
+          current_level,
+          global_rank,
+          country_rank,
+          total_tokens,
+          total_cost,
+          total_sessions,
+          ccplan,
+          has_opus_usage,
+          social_links
+        `
+        )
+        .in("id", userIds)
+        .eq("onboarding_completed", true)
+        .is("deleted_at", null)
+        .eq("shadow_banned", false);
 
-  const { data: usersData, error: usersError } = await usersQuery;
+      if (country) {
+        usersQuery = usersQuery.eq("country_code", country.toUpperCase());
+      }
 
-  if (usersError) {
+      return usersQuery.order("id", { ascending: true }).range(from, to);
+    });
+  } catch (usersError) {
     console.error("Users query error:", usersError);
     return NextResponse.json({ error: "Failed to fetch users" }, { status: 500 });
   }
 
   // Fetch post counts for users
-  const periodUserIds = (usersData || []).map((u) => u.id);
+  const periodUserIds = usersData.map((u) => u.id);
   const postCountMap = new Map<string, number>();
 
   if (periodUserIds.length > 0) {
@@ -551,7 +618,7 @@ export async function GET(request: NextRequest) {
   }
 
   // Combine user data with period aggregates and sort
-  const combinedUsers = (usersData || [])
+  const combinedUsers = usersData
     .map((user) => {
       const aggregate = userAggregates.get(user.id) || { tokens: 0, cost: 0 };
       return {
@@ -586,6 +653,15 @@ export async function GET(request: NextRequest) {
     }
   });
 
+  // 창(period) 전체 집계 — 페이지 슬라이스 전에 계산해야 헤더가 과소집계되지 않는다
+  const periodAggregate = aggregateByCountry(
+    rankedUsers.map((user) => ({
+      country_code: user.country_code,
+      tokens: user.period_tokens,
+      cost: user.period_cost,
+    }))
+  );
+
   // Paginate
   const total = rankedUsers.length;
   const paginatedUsers = rankedUsers.slice(offset, offset + limit);
@@ -605,6 +681,8 @@ export async function GET(request: NextRequest) {
         total,
         totalPages: Math.ceil(total / limit),
       },
+      totals: periodAggregate.totals,
+      countries: periodAggregate.countries,
       period,
     },
     {

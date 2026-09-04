@@ -284,6 +284,11 @@ interface DisplayUser extends LeaderboardUser {
   periodCost?: number;
 }
 
+interface ServerAggregate {
+  totals: { tokens: number; cost: number };
+  countries: Array<{ country_code: string; tokens: number; cost: number }>;
+}
+
 // Stable Virtuoso sub-components (no external state dependency → module-level)
 const VirtuosoTable = ({ style, ...props }: React.ComponentProps<"table">) => (
   <table {...props} className="w-full table-fixed" style={{ ...style, tableLayout: "fixed" }} />
@@ -451,6 +456,7 @@ export default function LeaderboardPage() {
   const [error, setError] = useState<string | null>(null);
   const [total, setTotal] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
+  const [serverAggregate, setServerAggregate] = useState<ServerAggregate | null>(null);
 
   // Derived flat users array from pagesData
   const users = useMemo(() => {
@@ -592,6 +598,22 @@ export default function LeaderboardPage() {
 
   // Calculate country stats from users data (respects period filter)
   useEffect(() => {
+    // 서버가 조회 대상 전체를 집계해 준 값이 있으면 우선 사용.
+    // 아래 fallback 은 "로드된 페이지"만 더하므로 2페이지 이상(All Time)에서 과소집계된다.
+    if (serverAggregate) {
+      setCountryStats(
+        serverAggregate.countries.map((c) => ({
+          code: c.country_code,
+          name: getCountryName(c.country_code),
+          tokens: c.tokens,
+          cost: c.cost,
+        }))
+      );
+      setTotalGlobalTokens(serverAggregate.totals.tokens);
+      setTotalGlobalCost(serverAggregate.totals.cost);
+      return;
+    }
+
     if (users.length === 0) {
       // Reset stats when no users (e.g., filtered period with no data)
       setCountryStats([]);
@@ -634,7 +656,7 @@ export default function LeaderboardPage() {
     setCountryStats(stats);
     setTotalGlobalTokens(totalTokens);
     setTotalGlobalCost(totalCost);
-  }, [users, periodFilter]);
+  }, [users, periodFilter, serverAggregate]);
 
   // Handle country stats loaded from GlobeStatsSection (no longer using mock data)
   const handleCountryStatsLoaded = useCallback(
@@ -774,6 +796,11 @@ export default function LeaderboardPage() {
       // Update pagination info
       setTotal(data.pagination?.total || 0);
       setTotalPages(data.pagination?.totalPages || 1);
+
+      // 응답에 집계가 없으면(구버전 배포) null 로 되돌려 클라이언트 fallback 을 쓴다
+      setServerAggregate(
+        data.totals && data.countries ? { totals: data.totals, countries: data.countries } : null
+      );
 
       return transformedUsers;
     },
