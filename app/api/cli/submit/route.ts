@@ -109,6 +109,8 @@ interface AuthenticatedUser {
   global_rank?: number | null;
   country_rank?: number | null;
   current_level?: number | null;
+  auto_sync_enabled?: boolean | null;
+  github_starred_at?: string | null;
 }
 
 // Rate limit settings: 2 submissions per hour
@@ -157,7 +159,7 @@ export async function POST(request: NextRequest) {
     const { data: user, error: tokenError } = await supabase
       .from("users")
       .select(
-        "id, username, github_id, total_tokens, total_cost, total_sessions, country_code, last_submission_at, global_rank, country_rank, current_level"
+        "id, username, github_id, total_tokens, total_cost, total_sessions, country_code, last_submission_at, global_rank, country_rank, current_level, auto_sync_enabled, github_starred_at"
       )
       .eq("api_key", token)
       .maybeSingle();
@@ -1132,9 +1134,12 @@ export async function POST(request: NextRequest) {
         id: authenticatedUser.id,
         total_tokens: finalTotalTokens,
         total_cost: finalTotalCost,
+        total_sessions: finalTotalSessions,
         global_rank: rank || 9999,
         country_rank: countryRank,
         country_code: authenticatedUser.country_code,
+        auto_sync_enabled: authenticatedUser.auto_sync_enabled ?? false,
+        github_starred: !!authenticatedUser.github_starred_at,
       },
       usageHistory
     );
