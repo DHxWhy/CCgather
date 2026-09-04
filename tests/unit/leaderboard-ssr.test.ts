@@ -76,3 +76,13 @@ describe("리더보드 SSR 배선", () => {
     expect(src).toMatch(/\{!loading && idle && \(/);
   });
 });
+
+describe("지구본은 부모 리렌더에 재생성되지 않는다", () => {
+  const src = readFileSync(path.resolve(__dirname, "../../components/globe/Globe.tsx"), "utf-8");
+  it("flagMarkers 는 useMemo 로 고정된다 (렌더마다 새 배열 → 재생성·회전 초기화 버그)", () => {
+    expect(src).toMatch(/const flagMarkers = useMemo\(/);
+  });
+  it("재생성 시 회전각(phiRef)을 초기값으로 되돌리지 않는다", () => {
+    expect(src).not.toMatch(/phiRef\.current = initialPhi;/);
+  });
+});

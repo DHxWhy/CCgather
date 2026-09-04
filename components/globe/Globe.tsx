@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useCallback, useState } from "react";
+import { useEffect, useRef, useCallback, useMemo, useState } from "react";
 import createGlobe, { COBEOptions } from "cobe";
 import { FlagIcon } from "@/components/ui/FlagIcon";
 import { flagSizeForRank, selectFlagMarkers } from "@/lib/globe/select-flag-markers";
@@ -365,15 +365,21 @@ export function Globe({
     [userCoords, size]
   );
 
-  const flagMarkers = flagOverlay
-    ? selectFlagMarkers({
-        markers,
-        hasCoordinates: (code) => Boolean(COUNTRY_COORDINATES[code]),
-        scopeFilter,
-        userCountryCode,
-        sortBy,
-      })
-    : [];
+  // 렌더마다 새 배열이면 updateOverlayDots → 지구본 생성 effect 가 연쇄 재실행돼
+  // 부모 리렌더(행 클릭 등)마다 WebGL 지구본이 파괴·재생성되고 회전이 초기화된다
+  const flagMarkers = useMemo(
+    () =>
+      flagOverlay
+        ? selectFlagMarkers({
+            markers,
+            hasCoordinates: (code) => Boolean(COUNTRY_COORDINATES[code]),
+            scopeFilter,
+            userCountryCode,
+            sortBy,
+          })
+        : [],
+    [flagOverlay, markers, scopeFilter, userCountryCode, sortBy]
+  );
 
   const updateOverlayDots = useCallback(
     (phi: number, theta: number) => {
@@ -438,7 +444,6 @@ export function Globe({
   }, [size, autoRotate, updateUserDot, updateOverlayDots]);
 
   useEffect(() => {
-    phiRef.current = initialPhi;
     const theta = 0.3;
 
     // Theme-aware globe settings
