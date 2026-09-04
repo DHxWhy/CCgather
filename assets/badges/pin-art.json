@@ -1,7 +1,7 @@
 {
   "100b_club": {
-    "grade": "epic",
-    "motif": "hexagonal crystal pin, a tall cluster of five cut gems rising from a shared base"
+    "grade": "legendary",
+    "motif": "hexagonal pin with laurel, a large gem topped by a small crown, gem inlays"
   },
   "10b_club": {
     "grade": "rare",
@@ -11,6 +11,10 @@
     "grade": "legendary",
     "motif": "hexagonal pin with laurel, a gem comet with an orbit ring and sparkles"
   },
+  "3b_club": {
+    "grade": "common",
+    "motif": "hexagonal crystal pin, a single rough crystal shard with one chipped facet"
+  },
   "500b_club": {
     "grade": "legendary",
     "motif": "hexagonal crystal pin, a single colossal faceted gem monolith rising from a cracked stone base, filling the plate"
@@ -18,10 +22,6 @@
   "50b_club": {
     "grade": "epic",
     "motif": "hexagonal pin, an open geode half revealing crystals inside"
-  },
-  "5b_club": {
-    "grade": "common",
-    "motif": "hexagonal crystal pin, two small rough crystal shards leaning together"
   },
   "autopilot": {
     "grade": "common",
