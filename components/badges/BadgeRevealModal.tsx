@@ -12,10 +12,16 @@ const REVEAL_SIZE = 168;
 interface BadgeRevealModalProps {
   badge: Badge;
   remaining: number;
+  alsoEarned?: number;
   onNext: () => void;
 }
 
-export function BadgeRevealModal({ badge, remaining, onNext }: BadgeRevealModalProps) {
+export function BadgeRevealModal({
+  badge,
+  remaining,
+  alsoEarned = 0,
+  onNext,
+}: BadgeRevealModalProps) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") onNext();
@@ -71,6 +77,11 @@ export function BadgeRevealModal({ badge, remaining, onNext }: BadgeRevealModalP
           {badge.description}
         </p>
         <p className="mt-1 text-center text-xs text-[var(--color-text-muted)]">{badge.praise}</p>
+        {alsoEarned > 0 && (
+          <p className="mt-3 text-center text-xs text-[var(--color-text-secondary)]">
+            {`You also earned ${alsoEarned} more badge${alsoEarned > 1 ? "s" : ""} — see them all in your profile.`}
+          </p>
+        )}
         <button
           type="button"
           onClick={onNext}

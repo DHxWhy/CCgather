@@ -225,7 +225,8 @@ export async function checkAndAwardBadges(
     auto_sync_enabled?: boolean;
     github_starred?: boolean;
   },
-  usageHistory?: UsageDay[]
+  usageHistory?: UsageDay[],
+  options?: { persist?: boolean }
 ): Promise<BadgeCheckResult> {
   const supabase = createServiceClient();
 
@@ -257,8 +258,9 @@ export async function checkAndAwardBadges(
     }
   }
 
-  // Insert newly earned badges into database
-  if (newlyEarnedBadges.length > 0) {
+  // Insert newly earned badges into database.
+  // persist:false 는 백필 드라이런 전용 — 판정만 하고 쓰지 않는다.
+  if (newlyEarnedBadges.length > 0 && options?.persist !== false) {
     const badgeRecords = newlyEarnedBadges.map((badge) => ({
       user_id: userId,
       badge_type: badge.id,

@@ -6,11 +6,13 @@ import { useMe } from "@/hooks/use-me";
 import { useUserBadgeRows } from "@/hooks/use-user-profile";
 import { BADGES } from "@/lib/constants/badges";
 import {
+  buildRevealQueue,
   latestEarnedAt,
   readSeenAt,
   selectUnseenBadgeIds,
   writeSeenAt,
 } from "@/lib/badges/reveal-queue";
+import { RARITY } from "@/lib/badges/rarity";
 import { BadgeRevealModal } from "@/components/badges/BadgeRevealModal";
 
 export function BadgeRevealTrigger() {
@@ -18,6 +20,7 @@ export function BadgeRevealTrigger() {
   const { data: me } = useMe({ enabled: isSignedIn === true });
   const { data: badges } = useUserBadgeRows(me?.id ?? null);
   const [queue, setQueue] = useState<string[]>([]);
+  const [hidden, setHidden] = useState(0);
   const [consumedFor, setConsumedFor] = useState<string | null>(null);
 
   useEffect(() => {
@@ -29,7 +32,13 @@ export function BadgeRevealTrigger() {
       return;
     }
     const unseen = selectUnseenBadgeIds(badges, seenAt);
-    if (unseen.length > 0) setQueue(unseen);
+    if (unseen.length === 0) return;
+    const { queue: next, hidden: rest } = buildRevealQueue(
+      unseen,
+      (id) => RARITY[BADGES.find((b) => b.id === id)?.rarity ?? "common"].order
+    );
+    setQueue(next);
+    setHidden(rest);
   }, [me?.id, badges, consumedFor]);
 
   const advance = useCallback(() => {
@@ -45,5 +54,12 @@ export function BadgeRevealTrigger() {
   const current = queue.length > 0 ? BADGES.find((b) => b.id === queue[0]) : undefined;
   if (!current) return null;
 
-  return <BadgeRevealModal badge={current} remaining={queue.length - 1} onNext={advance} />;
+  return (
+    <BadgeRevealModal
+      badge={current}
+      remaining={queue.length - 1}
+      alsoEarned={queue.length === 1 ? hidden : 0}
+      onNext={advance}
+    />
+  );
 }

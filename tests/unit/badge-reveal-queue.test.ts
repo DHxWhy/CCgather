@@ -5,6 +5,8 @@ import {
   REVEAL_SEEN_KEY,
   selectUnseenBadgeIds,
   writeSeenAt,
+  buildRevealQueue,
+  REVEAL_MAX,
 } from "@/lib/badges/reveal-queue";
 import { BADGES } from "@/lib/constants/badges";
 
@@ -59,5 +61,27 @@ describe("seenAt storage", () => {
         },
       })
     ).toBeNull();
+  });
+});
+
+describe("buildRevealQueue", () => {
+  const order: Record<string, number> = { a: 4, b: 3, c: 2, d: 1, e: 1 };
+  const rank = (id: string) => order[id] ?? 0;
+
+  it("희귀한 것부터 최대 3개만 띄우고 나머지는 개수로 넘긴다 — 백필 직후 모달 연쇄 방지", () => {
+    const { queue, hidden } = buildRevealQueue(["d", "a", "e", "c", "b"], rank);
+    expect(queue).toEqual(["a", "b", "c"]);
+    expect(hidden).toBe(2);
+    expect(queue.length).toBeLessThanOrEqual(REVEAL_MAX);
+  });
+
+  it("상한 이하이면 전부 띄우고 숨김은 0", () => {
+    const { queue, hidden } = buildRevealQueue(["c", "a"], rank);
+    expect(queue).toEqual(["a", "c"]);
+    expect(hidden).toBe(0);
+  });
+
+  it("빈 목록은 빈 큐", () => {
+    expect(buildRevealQueue([], rank)).toEqual({ queue: [], hidden: 0 });
   });
 });
