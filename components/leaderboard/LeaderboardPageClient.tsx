@@ -469,6 +469,7 @@ export function LeaderboardPageClient({ initialLeaderboard }: LeaderboardPageCli
   );
   // SSR 데이터를 썼으면 마운트 직후 재요청을 건너뛴다 (시간대가 서버 추정과 다르면 다시 받음)
   const skipMountFetchRef = useRef(ssr !== null);
+  const skipMountResetRef = useRef(ssr !== null);
   const ssrTimeZoneRef = useRef(ssr?.tz ?? null);
 
   // Derived flat users array from pagesData
@@ -1262,6 +1263,11 @@ export function LeaderboardPageClient({ initialLeaderboard }: LeaderboardPageCli
   // Reset pagination state on filter change
   // Note: sortBy is UI-only (highlight styling), not a data filter, so excluded from deps
   useEffect(() => {
+    // 마운트 시 SSR 행을 지우면 안 된다 — 마운트 fetch 도 건너뛰므로 빈 표가 된다 (2026-09-05 실사고)
+    if (skipMountResetRef.current) {
+      skipMountResetRef.current = false;
+      return;
+    }
     setPagesData(new Map());
     setLoadedPageRange({ start: 1, end: 1 });
     setTotalPages(1);

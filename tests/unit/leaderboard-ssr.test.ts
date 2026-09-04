@@ -57,6 +57,9 @@ describe("리더보드 SSR 배선", () => {
     const src = read("components/leaderboard/LeaderboardPageClient.tsx");
     expect(src).toMatch(/useState\(!ssr\)/);
     expect(src).toMatch(/skipMountFetchRef/);
+    expect(src).toMatch(
+      /skipMountResetRef\.current\) \{\s*skipMountResetRef\.current = false;\s*return;/
+    );
     expect(src).toMatch(/initialItemCount=\{Math\.min\(users\.length, SSR_ROW_COUNT\)\}/);
     expect(SSR_ROW_COUNT).toBeLessThanOrEqual(LEADERBOARD_PAGE_SIZE);
     expect(LEADERBOARD_DEFAULT_PERIOD).toBe("30d");
