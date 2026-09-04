@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { edgeCacheHeaders, EDGE_TTL_USER_SEC, userCacheTag } from "@/lib/cache/edge-cache";
 
 export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -31,13 +32,6 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     .eq("id", id)
     .single();
 
-  // Count user's posts
-  const { count: postCount } = await supabase
-    .from("posts")
-    .select("*", { count: "exact", head: true })
-    .eq("author_id", id)
-    .is("deleted_at", null);
-
   if (userError || !user) {
     console.error("User profile query error:", userError);
     return NextResponse.json({ error: "User not found" }, { status: 404 });
@@ -65,23 +59,28 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
   }
 
   // Return user profile in LeaderboardUser-compatible format
-  return NextResponse.json({
-    user: {
-      id: user.id,
-      username: user.username,
-      display_name: user.display_name,
-      avatar_url: user.display_avatar_url,
-      country_code: user.country_code,
-      current_level: user.current_level || 1,
-      global_rank: user.global_rank,
-      country_rank: user.country_rank,
-      total_tokens: user.total_tokens || 0,
-      total_cost: user.total_cost || 0,
-      total_sessions: user.total_sessions || 0,
-      social_links: user.social_links,
-      ccplan: user.ccplan,
-      has_opus_usage: user.has_opus_usage || false,
-      post_count: postCount || 0,
+  return NextResponse.json(
+    {
+      user: {
+        id: user.id,
+        username: user.username,
+        display_name: user.display_name,
+        avatar_url: user.display_avatar_url,
+        country_code: user.country_code,
+        current_level: user.current_level || 1,
+        global_rank: user.global_rank,
+        country_rank: user.country_rank,
+        total_tokens: user.total_tokens || 0,
+        total_cost: user.total_cost || 0,
+        total_sessions: user.total_sessions || 0,
+        social_links: user.social_links,
+        ccplan: user.ccplan,
+        has_opus_usage: user.has_opus_usage || false,
+        // 커뮤니티 피드가 숨겨져 있어(COMMUNITY_FEED_ENABLED=false) posts 카운트 조회를
+        // 하지 않는다 — 패널이 미국 왕복을 한 번 덜 한다. 피드 복원 시 되살릴 것.
+        post_count: 0,
+      },
     },
-  });
+    { headers: edgeCacheHeaders(EDGE_TTL_USER_SEC, [userCacheTag(user.id)]) }
+  );
 }

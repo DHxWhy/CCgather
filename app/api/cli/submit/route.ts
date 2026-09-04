@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { NextRequest, NextResponse, after } from "next/server";
 import { revalidatePath } from "next/cache";
+import { CACHE_TAG_LEADERBOARD, invalidateEdgeCache, userCacheTag } from "@/lib/cache/edge-cache";
 import { createServiceClient } from "@/lib/supabase/server";
 import { checkAndAwardBadges } from "@/lib/services/badgeService";
 import { calculateLevel, getLevelInfo } from "@/lib/types/leaderboard";
@@ -1156,6 +1157,8 @@ export async function POST(request: NextRequest) {
       revalidatePath("/api/stats/global");
       // Invalidate this user's profile cache
       revalidatePath(`/api/profile/${authenticatedUser.username}`);
+      // 엣지(CDN) 복사본: 순위표 전체 + 이 사용자의 프로필·배지·사용량
+      await invalidateEdgeCache([CACHE_TAG_LEADERBOARD, userCacheTag(authenticatedUser.id)]);
 
       console.log(`[CLI Submit] Cache invalidated for user ${authenticatedUser.username}`);
     } catch (cacheError) {

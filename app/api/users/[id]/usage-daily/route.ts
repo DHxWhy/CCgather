@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
+import { edgeCacheHeaders, EDGE_TTL_USER_SEC, userCacheTag } from "@/lib/cache/edge-cache";
 import { createClient } from "@/lib/supabase/server";
 import { aggregateByDate } from "@/lib/utils/usage-aggregation";
 
-const CACHE_HEADERS = {
-  "Cache-Control": "public, s-maxage=300, stale-while-revalidate=60",
-};
+const cacheHeaders = (userId: string) =>
+  edgeCacheHeaders(EDGE_TTL_USER_SEC, [userCacheTag(userId)]);
 
 export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -19,7 +19,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
       tokens: Number(r.tokens) || 0,
       cost: Number(r.cost) || 0,
     }));
-    return NextResponse.json({ daily }, { headers: CACHE_HEADERS });
+    return NextResponse.json({ daily }, { headers: cacheHeaders(id) });
   }
 
   const { data: rows, error } = await supabase
@@ -40,5 +40,5 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     (r) => r.cost_usd || 0
   );
 
-  return NextResponse.json({ daily }, { headers: CACHE_HEADERS });
+  return NextResponse.json({ daily }, { headers: cacheHeaders(id) });
 }

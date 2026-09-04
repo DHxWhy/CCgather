@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import {
+  CACHE_TAG_LEADERBOARD,
+  edgeCacheHeaders,
+  EDGE_TTL_LEADERBOARD_SEC,
+} from "@/lib/cache/edge-cache";
+import {
   getPeriodDateRange,
   type LeaderboardPeriod as Period,
 } from "@/lib/config/leaderboard-period";
@@ -320,6 +325,29 @@ export async function GET(request: NextRequest) {
 
     query = query.range(offset, offset + limit - 1);
 
+    const aggregatePromise = fetchAllRows<{
+      country_code: string | null;
+      total_tokens: number | null;
+      total_cost: number | null;
+    }>("users(all-time aggregate)", (from, to) => {
+      let aggregateQuery = supabase
+        .from("users")
+        .select("country_code, total_tokens, total_cost")
+        .eq("onboarding_completed", true)
+        .is("deleted_at", null)
+        .eq("shadow_banned", false)
+        .gt("total_tokens", 0);
+
+      if (country) {
+        aggregateQuery = aggregateQuery.eq("country_code", country.toUpperCase());
+      }
+
+      return aggregateQuery.order("id", { ascending: true }).range(from, to);
+    }).catch((aggregateError: unknown) => {
+      console.error("All-time aggregate failed:", aggregateError);
+      return null;
+    });
+
     const { data: users, error, count } = await query;
 
     if (error) {
@@ -357,38 +385,17 @@ export async function GET(request: NextRequest) {
     }));
 
     // 헤더 합계·국가 목록은 "로드된 페이지"가 아니라 전체 대상에서 집계해야 한다
-    let aggregate: { totals: AggregateTotals; countries: CountryAggregate[] } | null = null;
-    try {
-      const aggregateRows = await fetchAllRows<{
-        country_code: string | null;
-        total_tokens: number | null;
-        total_cost: number | null;
-      }>("users(all-time aggregate)", (from, to) => {
-        let aggregateQuery = supabase
-          .from("users")
-          .select("country_code, total_tokens, total_cost")
-          .eq("onboarding_completed", true)
-          .is("deleted_at", null)
-          .eq("shadow_banned", false)
-          .gt("total_tokens", 0);
-
-        if (country) {
-          aggregateQuery = aggregateQuery.eq("country_code", country.toUpperCase());
-        }
-
-        return aggregateQuery.order("id", { ascending: true }).range(from, to);
-      });
-
-      aggregate = aggregateByCountry(
-        aggregateRows.map((row) => ({
-          country_code: row.country_code,
-          tokens: row.total_tokens || 0,
-          cost: row.total_cost || 0,
-        }))
-      );
-    } catch (aggregateError) {
-      console.error("All-time aggregate failed:", aggregateError);
-    }
+    const aggregateRows = await aggregatePromise;
+    const aggregate: { totals: AggregateTotals; countries: CountryAggregate[] } | null =
+      aggregateRows
+        ? aggregateByCountry(
+            aggregateRows.map((row) => ({
+              country_code: row.country_code,
+              tokens: row.total_tokens || 0,
+              cost: row.total_cost || 0,
+            }))
+          )
+        : null;
 
     return NextResponse.json(
       {
@@ -405,8 +412,7 @@ export async function GET(request: NextRequest) {
       },
       {
         headers: {
-          // CDN 캐싱: 60초 캐시, 30초 stale 허용 (리더보드는 1분 지연 허용)
-          "Cache-Control": "public, s-maxage=60, stale-while-revalidate=30",
+          ...edgeCacheHeaders(EDGE_TTL_LEADERBOARD_SEC, [CACHE_TAG_LEADERBOARD]),
         },
       }
     );
@@ -558,6 +564,12 @@ export async function GET(request: NextRequest) {
     });
   }
 
+  // PostgREST 빌더는 await 전엔 요청을 보내지 않으므로 Promise.resolve 로 즉시 출발시켜
+  // 아래 users 상세 조회와 왕복을 겹친다
+  const postCountsPromise = Promise.resolve(
+    supabase.from("posts").select("author_id").in("author_id", userIds).is("deleted_at", null)
+  );
+
   // Fetch user details
   let usersData: PeriodUserRow[];
 
@@ -599,21 +611,11 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Failed to fetch users" }, { status: 500 });
   }
 
-  // Fetch post counts for users
-  const periodUserIds = usersData.map((u) => u.id);
   const postCountMap = new Map<string, number>();
-
-  if (periodUserIds.length > 0) {
-    const { data: postCounts } = await supabase
-      .from("posts")
-      .select("author_id")
-      .in("author_id", periodUserIds)
-      .is("deleted_at", null);
-
-    if (postCounts) {
-      for (const post of postCounts) {
-        postCountMap.set(post.author_id, (postCountMap.get(post.author_id) || 0) + 1);
-      }
+  const { data: postCounts } = await postCountsPromise;
+  if (postCounts) {
+    for (const post of postCounts) {
+      postCountMap.set(post.author_id, (postCountMap.get(post.author_id) || 0) + 1);
     }
   }
 
@@ -687,8 +689,7 @@ export async function GET(request: NextRequest) {
     },
     {
       headers: {
-        // CDN 캐싱: 60초 캐시, 30초 stale 허용 (리더보드는 1분 지연 허용)
-        "Cache-Control": "public, s-maxage=60, stale-while-revalidate=30",
+        ...edgeCacheHeaders(EDGE_TTL_LEADERBOARD_SEC, [CACHE_TAG_LEADERBOARD]),
       },
     }
   );

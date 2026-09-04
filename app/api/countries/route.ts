@@ -1,4 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
+import {
+  CACHE_TAG_LEADERBOARD,
+  edgeCacheHeaders,
+  EDGE_TTL_LEADERBOARD_SEC,
+} from "@/lib/cache/edge-cache";
 import { createClient } from "@/lib/supabase/server";
 
 export async function GET(request: NextRequest) {
@@ -23,7 +28,7 @@ export async function GET(request: NextRequest) {
       { countries: stats || [] },
       {
         headers: {
-          "Cache-Control": "public, s-maxage=300, stale-while-revalidate=60",
+          ...edgeCacheHeaders(EDGE_TTL_LEADERBOARD_SEC, [CACHE_TAG_LEADERBOARD]),
         },
       }
     );
@@ -58,7 +63,7 @@ export async function GET(request: NextRequest) {
     { countries: countryList },
     {
       headers: {
-        "Cache-Control": "public, s-maxage=300, stale-while-revalidate=60",
+        ...edgeCacheHeaders(EDGE_TTL_LEADERBOARD_SEC, [CACHE_TAG_LEADERBOARD]),
       },
     }
   );

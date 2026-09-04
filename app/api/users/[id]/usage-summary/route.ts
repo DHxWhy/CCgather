@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { edgeCacheHeaders, EDGE_TTL_USER_SEC, userCacheTag } from "@/lib/cache/edge-cache";
 import { createClient } from "@/lib/supabase/server";
 import { aggregateByDate } from "@/lib/utils/usage-aggregation";
 
@@ -166,7 +167,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   // Return with cache headers (5 minutes)
   return NextResponse.json(summary, {
     headers: {
-      "Cache-Control": "public, s-maxage=300, stale-while-revalidate=60",
+      ...edgeCacheHeaders(EDGE_TTL_USER_SEC, [userCacheTag(id)]),
     },
   });
 }

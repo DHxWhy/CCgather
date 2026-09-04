@@ -1,4 +1,9 @@
 import { NextResponse } from "next/server";
+import {
+  CACHE_TAG_COMMUNITY,
+  edgeCacheHeaders,
+  EDGE_TTL_LEADERBOARD_SEC,
+} from "@/lib/cache/edge-cache";
 import { createServiceClient } from "@/lib/supabase/server";
 
 // =====================================================
@@ -37,11 +42,14 @@ export async function GET() {
 
     if (!error && stats) {
       const typedStats = stats as CommunityStatsRow;
-      return NextResponse.json({
-        totalCountries: typedStats.total_countries,
-        totalPosts: typedStats.total_posts,
-        totalLikes: typedStats.total_likes,
-      });
+      return NextResponse.json(
+        {
+          totalCountries: typedStats.total_countries,
+          totalPosts: typedStats.total_posts,
+          totalLikes: typedStats.total_likes,
+        },
+        { headers: edgeCacheHeaders(EDGE_TTL_LEADERBOARD_SEC, [CACHE_TAG_COMMUNITY]) }
+      );
     }
 
     // Fallback: 테이블 조회 실패 시 기존 방식으로 계산

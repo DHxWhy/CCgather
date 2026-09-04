@@ -1,6 +1,8 @@
 "use client";
 
 import React, { useState, useMemo, useEffect, useLayoutEffect, useCallback, useRef } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import { prefetchUserProfilePanel } from "@/hooks/use-user-profile";
 import { useSearchParams, usePathname } from "next/navigation";
 import dynamic from "next/dynamic";
 import Image from "next/image";
@@ -308,6 +310,7 @@ const VirtuosoTableHead = React.forwardRef<HTMLTableSectionElement, React.Compon
 );
 
 export default function LeaderboardPage() {
+  const queryClient = useQueryClient();
   const { user: clerkUser } = useUser();
   const searchParams = useSearchParams();
   const pathname = usePathname();
@@ -1318,6 +1321,7 @@ export default function LeaderboardPage() {
             ref={user.isCurrentUser ? currentUserRowRef : undefined}
             data-user-id={user.id}
             onClick={() => handleRowClick(user)}
+            onMouseEnter={() => prefetchUserProfilePanel(queryClient, user.id)}
             className={`h-10 transition-colors cursor-pointer hover:!bg-[var(--color-table-row-hover)] border-b border-[var(--border-default)]/30 ${
               user.isCurrentUser ? "bg-[var(--user-country-bg)]" : ""
             } ${selectedUserId === user.id && isPanelOpen ? "!bg-[var(--color-table-row-hover)]" : ""} ${
@@ -1342,7 +1346,7 @@ export default function LeaderboardPage() {
         );
       }) as TableComponents<DisplayUser>["TableRow"],
     }),
-    [selectedUserId, isPanelOpen, highlightMyRank, highlightedUsername, handleRowClick]
+    [selectedUserId, isPanelOpen, highlightMyRank, highlightedUsername, handleRowClick, queryClient]
   );
 
   // Open profile for a user by ID (ProfileSidePanel fetches data internally)

@@ -1,6 +1,6 @@
 "use client";
 
-import { useQuery, useQueries } from "@tanstack/react-query";
+import { useQuery, useQueries, type QueryClient } from "@tanstack/react-query";
 import type { SocialLinks, UsageHistoryPoint } from "@/lib/types";
 import type { CCPlanFilter } from "@/lib/types/leaderboard";
 
@@ -160,6 +160,28 @@ export function useUserBadgeRows(userId: string | null) {
     enabled: !!userId,
     staleTime: 10 * 60 * 1000,
     gcTime: 30 * 60 * 1000,
+  });
+}
+
+// ===========================================
+// Prefetch (row hover) — 패널이 여는 3개 쿼리를 같은 키·staleTime 으로 미리 받아둔다
+// ===========================================
+
+export function prefetchUserProfilePanel(queryClient: QueryClient, userId: string): void {
+  void queryClient.prefetchQuery({
+    queryKey: userProfileKeys.profile(userId),
+    queryFn: () => fetchUserProfile(userId),
+    staleTime: 5 * 60 * 1000,
+  });
+  void queryClient.prefetchQuery({
+    queryKey: userProfileKeys.usage(userId, 365),
+    queryFn: () => fetchUsageSummary(userId, 365),
+    staleTime: 3 * 60 * 1000,
+  });
+  void queryClient.prefetchQuery({
+    queryKey: userProfileKeys.badges(userId),
+    queryFn: () => fetchUserBadges(userId),
+    staleTime: 10 * 60 * 1000,
   });
 }
 

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { edgeCacheHeaders, EDGE_TTL_USER_SEC, userCacheTag } from "@/lib/cache/edge-cache";
 
 export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -18,5 +19,8 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     return NextResponse.json({ error: "Failed to fetch badges" }, { status: 500 });
   }
 
-  return NextResponse.json({ badges: badges || [] });
+  return NextResponse.json(
+    { badges: badges || [] },
+    { headers: edgeCacheHeaders(EDGE_TTL_USER_SEC, [userCacheTag(id)]) }
+  );
 }

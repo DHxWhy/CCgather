@@ -1,4 +1,9 @@
 import { NextResponse } from "next/server";
+import {
+  CACHE_TAG_LEADERBOARD,
+  edgeCacheHeaders,
+  EDGE_TTL_LEADERBOARD_SEC,
+} from "@/lib/cache/edge-cache";
 import { GLOBAL_STATS_THRESHOLDS, getGlobalStats } from "@/lib/data/global-stats";
 
 // 집계는 getGlobalStats 하나만 쓴다. 예전에는 이 라우트가 같은 쿼리를 따로
@@ -11,7 +16,7 @@ export async function GET() {
     { ...stats, thresholds: GLOBAL_STATS_THRESHOLDS },
     {
       headers: {
-        "Cache-Control": "public, s-maxage=300, stale-while-revalidate=60",
+        ...edgeCacheHeaders(EDGE_TTL_LEADERBOARD_SEC, [CACHE_TAG_LEADERBOARD]),
       },
     }
   );
