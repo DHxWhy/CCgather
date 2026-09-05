@@ -378,10 +378,7 @@ export function StatsCharts({ stats }: { stats: PublicStats }) {
                       wrapperStyle={{ zIndex: 20 }}
                       position={{ y: -8 }}
                       offset={12}
-                      formatter={(value: number | undefined, name: string | undefined) => [
-                        `${value ?? 0}%`,
-                        name,
-                      ]}
+                      formatter={(value, name) => [`${value ?? 0}%`, name]}
                     />
                     <Pie
                       data={models}

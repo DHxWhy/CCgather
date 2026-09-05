@@ -54,14 +54,15 @@
   },
   "pnpm": {
     "overrides": {
-      "fast-uri": "3.1.5",
+      "fast-uri": "3.1.6",
       "vite": "7.3.6",
       "picomatch": "4.0.4",
       "rollup": "4.60.4",
       "postcss": "8.5.26",
       "ajv": "8.18.0",
       "tsup>esbuild": "0.27.2",
-      "bundle-require>esbuild": "0.27.2"
+      "bundle-require>esbuild": "0.27.2",
+      "nanoid": "3.3.18"
     }
   }
 }
