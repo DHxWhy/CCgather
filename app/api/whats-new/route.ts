@@ -5,6 +5,7 @@ import { CACHE_TAG_LEADERBOARD, edgeCacheHeaders, EDGE_TTL_LIVE_SEC } from "@/li
 export interface WhatsNewLive {
   deployedAt: string | null;
   commit: string | null;
+  ref: string | null;
   syncedToday: number;
 }
 
@@ -27,6 +28,7 @@ export async function GET() {
   const body: WhatsNewLive = {
     deployedAt: process.env.NEXT_PUBLIC_BUILD_TIME ?? null,
     commit: process.env.NEXT_PUBLIC_BUILD_SHA ?? null,
+    ref: process.env.NEXT_PUBLIC_BUILD_REF || null,
     syncedToday: count ?? 0,
   };
 

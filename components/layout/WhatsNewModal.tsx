@@ -19,6 +19,7 @@ interface WhatsNewModalProps {
 interface LiveState {
   deployedAt: string | null;
   commit: string | null;
+  ref: string | null;
   syncedToday: number;
 }
 
@@ -235,7 +236,10 @@ export function WhatsNewModal({ isOpen, onClose, onReportBug }: WhatsNewModalPro
               {live?.commit && (
                 <>
                   <span aria-hidden>·</span>
-                  <span className="text-[var(--color-text-secondary)]">main@{live.commit}</span>
+                  <span className="text-[var(--color-text-secondary)]">
+                    {live.ref ? `${live.ref}@` : ""}
+                    {live.commit}
+                  </span>
                 </>
               )}
               {deployed && (

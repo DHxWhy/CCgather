@@ -87,6 +87,13 @@ describe("헤더 배선", () => {
     expect(header).toMatch(/variant="menu"/);
   });
 
+  it("LIVE 줄의 브랜치는 하드코딩이 아니라 배포 ref 를 쓴다 (프리뷰에서 main@ 오표기)", () => {
+    const modal = read("components/layout/WhatsNewModal.tsx");
+    expect(modal).not.toContain("main@");
+    expect(modal).toContain("live.ref");
+    expect(read("next.config.ts")).toContain("VERCEL_GIT_COMMIT_REF");
+  });
+
   it("LIVE API 는 public 라우트다 (비로그인은 307 HTML 을 받아 JSON parse 실패)", () => {
     expect(read("middleware.ts")).toContain('"/api/whats-new"');
   });
