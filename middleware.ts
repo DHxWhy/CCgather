@@ -43,6 +43,8 @@ const isPublicRoute = createRouteMatcher([
   // public 안 두면 middleware 가 307 HTML redirect → 클라이언트 JSON parse fail
   // → console error (무한 루프 아니지만 노이즈).
   "/api/community/stats",
+  // What's new 모달의 LIVE 줄(배포 시각·오늘 동기화 인원) — 로그인 여부 무관 노출이라 public
+  "/api/whats-new",
 ]);
 
 export default clerkMiddleware(async (auth, req) => {

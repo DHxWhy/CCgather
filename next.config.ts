@@ -82,6 +82,11 @@ const withPWA = withPWAInit({
 const nextConfig: NextConfig = {
   // Turbopack 설정 (Next.js 16 기본 번들러)
   turbopack: {},
+  // 빌드 시각·커밋을 번들에 고정 — What's new 의 "마지막 배포" 표시용(런타임엔 알 수 없음)
+  env: {
+    NEXT_PUBLIC_BUILD_TIME: new Date().toISOString(),
+    NEXT_PUBLIC_BUILD_SHA: (process.env.VERCEL_GIT_COMMIT_SHA ?? "").slice(0, 7),
+  },
   async redirects() {
     return [
       { source: "/u/:username", destination: "/leaderboard?u=:username", permanent: false },

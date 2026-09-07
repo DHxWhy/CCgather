@@ -6,6 +6,7 @@ export {
   CACHE_TAG_LEADERBOARD,
   EDGE_SWR_SEC,
   EDGE_TTL_LEADERBOARD_SEC,
+  EDGE_TTL_LIVE_SEC,
   EDGE_TTL_USER_SEC,
   edgeCacheHeaders,
   userCacheTag,

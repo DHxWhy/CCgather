@@ -16,6 +16,7 @@ const READ_ROUTES = [
   "app/api/countries/route.ts",
   "app/api/stats/global/route.ts",
   "app/api/community/stats/route.ts",
+  "app/api/whats-new/route.ts",
   "app/api/users/[id]/profile/route.ts",
   "app/api/users/[id]/badges/route.ts",
   "app/api/users/[id]/usage-summary/route.ts",

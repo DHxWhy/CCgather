@@ -5,6 +5,8 @@ import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@clerk/nextjs";
 import { Menu, Settings, Github, Bug, HelpCircle } from "lucide-react";
+import { SettingsMenu } from "./SettingsMenu";
+import { WhatsNewButton } from "./WhatsNewButton";
 import { useState, useEffect, lazy, Suspense } from "react";
 import { cn } from "@/lib/utils";
 import { ThemeSwitcher } from "@/components/ui/theme-switcher";
@@ -256,25 +258,11 @@ export function Header() {
               </div>
             )}
 
-            <ThemeSwitcher size="sm" />
+            <WhatsNewButton
+              onReportBug={isOnboardingDone ? () => setFeedbackModalOpen(true) : undefined}
+            />
 
-            {/* Feedback Button - 온보딩 완료 사용자만 */}
-            {isOnboardingDone && (
-              <button
-                onClick={() => setFeedbackModalOpen(true)}
-                className={cn(
-                  "flex items-center justify-center w-8 h-8 rounded-full border transition-all group",
-                  isLoaded ? "opacity-100" : "opacity-0",
-                  "border-[var(--border-default)] hover:border-[var(--color-text-muted)]"
-                )}
-                aria-label="Send Feedback"
-              >
-                <Bug
-                  size={14}
-                  className="text-[var(--color-text-muted)] group-hover:text-[var(--color-text-secondary)] transition-colors"
-                />
-              </button>
-            )}
+            <ThemeSwitcher size="sm" />
 
             {/* GitHub Link */}
             <a
@@ -293,29 +281,14 @@ export function Header() {
               />
             </a>
 
-            {/* 온보딩 완료 후: Settings */}
+            {/* 온보딩 완료 후: Settings 드롭다운(설정 + 버그 신고) */}
             {isOnboardingDone && (
-              <Link
-                href="/settings"
-                className={cn(
-                  "flex items-center justify-center w-8 h-8 rounded-full border transition-all group",
-                  isLoaded ? "opacity-100" : "opacity-0",
-                  pathname.startsWith("/settings")
-                    ? "border-[var(--color-claude-coral)] bg-[var(--color-claude-coral)]/10"
-                    : "border-[var(--border-default)] hover:border-[var(--color-text-muted)]"
-                )}
-                aria-label="Settings"
-              >
-                <Settings
-                  size={14}
-                  className={cn(
-                    "transition-colors",
-                    pathname.startsWith("/settings")
-                      ? "text-[var(--color-claude-coral)]"
-                      : "text-[var(--color-text-muted)] group-hover:text-[var(--color-text-secondary)]"
-                  )}
+              <div className={cn("transition-opacity", isLoaded ? "opacity-100" : "opacity-0")}>
+                <SettingsMenu
+                  isActive={pathname.startsWith("/settings")}
+                  onReportBug={() => setFeedbackModalOpen(true)}
                 />
-              </Link>
+              </div>
             )}
           </div>
 
@@ -381,6 +354,13 @@ export function Header() {
             <span className="text-sm text-[var(--color-text-secondary)]">Theme</span>
             <ThemeSwitcher size="sm" />
           </div>
+
+          {/* What's new */}
+          <WhatsNewButton
+            variant="menu"
+            onOpen={closeMobileMenu}
+            onReportBug={isOnboardingDone ? () => setFeedbackModalOpen(true) : undefined}
+          />
 
           {/* FAQ Button */}
           <button

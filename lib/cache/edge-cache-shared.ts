@@ -12,6 +12,7 @@ export const userCacheTag = (userId: string) => `user-${userId}`;
 
 export const EDGE_TTL_LEADERBOARD_SEC = 300;
 export const EDGE_TTL_USER_SEC = 300;
+export const EDGE_TTL_LIVE_SEC = 60;
 export const EDGE_SWR_SEC = 60;
 
 export function edgeCacheHeaders(ttlSec: number, tags: readonly string[]): Record<string, string> {
