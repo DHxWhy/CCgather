@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { GitBranch, GitCommitVertical, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -146,17 +146,27 @@ export function WhatsNewModal({ isOpen, onClose, onReportBug }: WhatsNewModalPro
     };
   }, [isOpen]);
 
-  // 6번째 항목의 절반이 걸치도록 스크롤 높이를 실측한다 — 항목 높이가 문구 길이에 따라 달라져 고정값으로는 맞출 수 없다
+  // 6번째 항목의 절반이 걸치도록 스크롤 높이를 실측한다 — 행 높이가 문구 길이·웹폰트에 따라
+  // 달라져 고정값으로 맞출 수 없다. getBoundingClientRect 는 등장 애니메이션(zoom-in-95)의
+  // scale 이 곱해져 5% 작게 나오므로 변형에 영향받지 않는 offsetTop/offsetHeight 로 잰다
   useLayoutEffect(() => {
     if (!isOpen) return;
-    const list = listRef.current;
-    if (!list) return;
-    const entries = list.querySelectorAll<HTMLElement>("[data-entry]");
-    const sixth = entries[5];
-    if (!sixth) return;
-    const listTop = list.getBoundingClientRect().top;
-    const rect = sixth.getBoundingClientRect();
-    setMaxHeight(Math.round(rect.top - listTop + rect.height / 2));
+    let cancelled = false;
+    const measure = () => {
+      const list = listRef.current;
+      if (cancelled || !list) return;
+      const sixth = list.querySelectorAll<HTMLElement>("[data-entry]")[5];
+      if (!sixth) return;
+      const target = sixth.offsetTop + Math.round(sixth.offsetHeight / 2);
+      setMaxHeight((prev) => (prev === target ? prev : target));
+    };
+    measure();
+    document.fonts?.ready.then(measure).catch(() => undefined);
+    window.addEventListener("resize", measure);
+    return () => {
+      cancelled = true;
+      window.removeEventListener("resize", measure);
+    };
   }, [isOpen]);
 
   if (!isOpen) return null;
@@ -178,7 +188,7 @@ export function WhatsNewModal({ isOpen, onClose, onReportBug }: WhatsNewModalPro
             "border border-[var(--border-default)] bg-[var(--color-bg-secondary)]",
             "rounded-xl shadow-2xl sm:rounded-2xl",
             "animate-in fade-in zoom-in-95 duration-200",
-            "max-h-[85vh]"
+            "max-h-[90vh]"
           )}
           onClick={(e) => e.stopPropagation()}
         >
@@ -248,7 +258,7 @@ export function WhatsNewModal({ isOpen, onClose, onReportBug }: WhatsNewModalPro
 
           <ol
             ref={listRef}
-            className="min-h-0 overflow-y-auto px-4 pt-4 scrollbar-hide"
+            className="relative min-h-0 overflow-y-auto px-4 pt-4 scrollbar-hide"
             style={maxHeight ? { maxHeight } : undefined}
           >
             {CHANGELOG.map((entry, index) => {
@@ -256,7 +266,7 @@ export function WhatsNewModal({ isOpen, onClose, onReportBug }: WhatsNewModalPro
               const showMonth = key !== lastMonth;
               lastMonth = key;
               return (
-                <div key={entry.id}>
+                <Fragment key={entry.id}>
                   {showMonth && (
                     <li className="flex gap-3 pb-2">
                       <CommitRail isLast={false} />
@@ -269,7 +279,7 @@ export function WhatsNewModal({ isOpen, onClose, onReportBug }: WhatsNewModalPro
                     </li>
                   )}
                   <EntryRow entry={entry} isLast={index === CHANGELOG.length - 1} />
-                </div>
+                </Fragment>
               );
             })}
           </ol>
