@@ -28,6 +28,9 @@ const AuthModal = lazy(() =>
 const FeedbackModal = lazy(() =>
   import("@/components/feedback/FeedbackModal").then((mod) => ({ default: mod.FeedbackModal }))
 );
+const WhatsNewModal = lazy(() =>
+  import("@/components/layout/WhatsNewModal").then((mod) => ({ default: mod.WhatsNewModal }))
+);
 
 // ============================================
 // Navigation Links
@@ -112,6 +115,7 @@ export function Header() {
   const [faqModalOpen, setFaqModalOpen] = useState(false);
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const [feedbackModalOpen, setFeedbackModalOpen] = useState(false);
+  const [whatsNewOpen, setWhatsNewOpen] = useState(false);
   const [clerkFailed, setClerkFailed] = useState(false);
 
   // Clerk 로드 상태 체크
@@ -258,9 +262,7 @@ export function Header() {
               </div>
             )}
 
-            <WhatsNewButton
-              onReportBug={isOnboardingDone ? () => setFeedbackModalOpen(true) : undefined}
-            />
+            <WhatsNewButton onOpen={() => setWhatsNewOpen(true)} />
 
             <ThemeSwitcher size="sm" />
 
@@ -358,8 +360,10 @@ export function Header() {
           {/* What's new */}
           <WhatsNewButton
             variant="menu"
-            onOpen={closeMobileMenu}
-            onReportBug={isOnboardingDone ? () => setFeedbackModalOpen(true) : undefined}
+            onOpen={() => {
+              closeMobileMenu();
+              setWhatsNewOpen(true);
+            }}
           />
 
           {/* FAQ Button */}
@@ -458,6 +462,17 @@ export function Header() {
       {authModalOpen && (
         <Suspense fallback={null}>
           <AuthModal isOpen={authModalOpen} onClose={() => setAuthModalOpen(false)} />
+        </Suspense>
+      )}
+
+      {/* What's new Modal - 헤더 소유(모바일 드로어 언마운트와 무관하게 유지) */}
+      {whatsNewOpen && (
+        <Suspense fallback={null}>
+          <WhatsNewModal
+            isOpen={whatsNewOpen}
+            onClose={() => setWhatsNewOpen(false)}
+            onReportBug={isOnboardingDone ? () => setFeedbackModalOpen(true) : undefined}
+          />
         </Suspense>
       )}
 

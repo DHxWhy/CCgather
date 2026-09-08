@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, lazy, useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { GitCommitVertical } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -10,18 +10,14 @@ import {
   WHATS_NEW_SEEN_KEY,
 } from "@/lib/constants/changelog";
 
-const WhatsNewModal = lazy(() =>
-  import("@/components/layout/WhatsNewModal").then((mod) => ({ default: mod.WhatsNewModal }))
-);
-
 interface WhatsNewButtonProps {
   variant?: "icon" | "menu";
-  onReportBug?: () => void;
-  onOpen?: () => void;
+  onOpen: () => void;
 }
 
-export function WhatsNewButton({ variant = "icon", onReportBug, onOpen }: WhatsNewButtonProps) {
-  const [isOpen, setIsOpen] = useState(false);
+// 모달은 헤더가 소유한다 — 모바일 드로어는 닫힐 때 자식을 언마운트해서(MobileDrawer
+// `if (!open) return null`) 이 버튼이 모달을 직접 렌더하면 열리자마자 사라진다
+export function WhatsNewButton({ variant = "icon", onOpen }: WhatsNewButtonProps) {
   const [unseen, setUnseen] = useState(false);
 
   useEffect(() => {
@@ -35,8 +31,7 @@ export function WhatsNewButton({ variant = "icon", onReportBug, onOpen }: WhatsN
     } catch {
       /* 시크릿 모드·저장 차단 브라우저에서도 모달은 열려야 한다 */
     }
-    onOpen?.();
-    setIsOpen(true);
+    onOpen();
   }, [onOpen]);
 
   return (
@@ -78,16 +73,6 @@ export function WhatsNewButton({ variant = "icon", onReportBug, onOpen }: WhatsN
             <span aria-hidden className="h-2 w-2 rounded-full bg-[var(--color-claude-coral)]" />
           )}
         </button>
-      )}
-
-      {isOpen && (
-        <Suspense fallback={null}>
-          <WhatsNewModal
-            isOpen={isOpen}
-            onClose={() => setIsOpen(false)}
-            onReportBug={onReportBug}
-          />
-        </Suspense>
       )}
     </>
   );

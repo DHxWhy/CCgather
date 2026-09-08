@@ -83,8 +83,13 @@ describe("헤더 배선", () => {
   });
 
   it("What's new 버튼이 데스크톱·모바일 양쪽에 있다", () => {
-    expect(header).toMatch(/<WhatsNewButton\s*\n\s*onReportBug=/);
+    expect(header).toMatch(/<WhatsNewButton onOpen=/);
     expect(header).toMatch(/variant="menu"/);
+  });
+
+  it("모달은 헤더가 소유한다 — 버튼 안에서 렌더하면 모바일 드로어가 닫힐 때 같이 사라진다", () => {
+    expect(header).toContain("<WhatsNewModal");
+    expect(read("components/layout/WhatsNewButton.tsx")).not.toContain("<WhatsNewModal");
   });
 
   it("LIVE 줄의 브랜치는 하드코딩이 아니라 배포 ref 를 쓴다 (프리뷰에서 main@ 오표기)", () => {
