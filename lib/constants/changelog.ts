@@ -24,12 +24,26 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
       "Rankings now arrive with the page itself and the globe waits its turn — first row in about a second instead of two.",
   },
   {
+    id: "2026-09-05-security",
+    date: "2026-09-05",
+    category: "improved",
+    title: "Security and dependency refresh",
+    summary: "Sign-in, database and framework libraries moved to their latest patched releases.",
+  },
+  {
     id: "2026-09-04-badges",
     date: "2026-09-04",
     category: "new",
     title: "40 enamel-pin badges with rarity tiers",
     summary:
       "A redrawn board of pins — common, rare, epic and legendary — with a reveal the moment you earn one.",
+  },
+  {
+    id: "2026-09-04-badge-award",
+    date: "2026-09-04",
+    category: "fixed",
+    title: "Session and streak badges now unlock",
+    summary: "Four badges could never award because the submit route left their inputs empty.",
   },
   {
     id: "2026-09-02-fable-pricing",
@@ -53,6 +67,13 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
     summary: "Every participating country shows its flag, sized by rank.",
   },
   {
+    id: "2026-07-27-cost-accuracy",
+    date: "2026-07-27",
+    category: "improved",
+    title: "Sharper daily cost calculation",
+    summary: "Prices are resolved per model per day instead of once per submission.",
+  },
+  {
     id: "2026-07-24-sprint",
     date: "2026-07-24",
     category: "new",
@@ -73,6 +94,14 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
     title: "Public growth dashboard",
     summary:
       "The numbers we watch — developers, countries, sessions and live syncs — opened at /stats.",
+  },
+  {
+    id: "2026-07-08-token-precision",
+    date: "2026-07-08",
+    category: "fixed",
+    title: "Token counting precision restored",
+    summary:
+      "A CLI aggregation bug could overstate daily totals. Fixed in the CLI and guarded on the server.",
   },
   {
     id: "2026-06-30-profile-link",
@@ -119,6 +148,13 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
       "Costs are recomputed on the server from current published rates instead of fixed tables.",
   },
   {
+    id: "2026-02-06-faq",
+    date: "2026-02-06",
+    category: "new",
+    title: "FAQ in the header",
+    summary: "What we collect, what never leaves your machine, and how submissions work.",
+  },
+  {
     id: "2026-02-03-avatar",
     date: "2026-02-03",
     category: "new",
@@ -152,6 +188,21 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
     category: "new",
     title: "The globe, and level-based leagues",
     summary: "A 3D globe on the leaderboard, and CLI v2.0 placing you in a league by level.",
+  },
+  {
+    id: "2026-01-19-cache-tokens",
+    date: "2026-01-19",
+    category: "improved",
+    title: "Cache tokens counted in your daily stats",
+    summary: "Input, output, cache read and cache write are each stored per day.",
+  },
+  {
+    id: "2026-01-14-fingerprint",
+    date: "2026-01-14",
+    category: "improved",
+    title: "Session fingerprints keep the board fair",
+    summary:
+      "A hash per session stops the same work counting twice. It carries no code and no conversation.",
   },
   {
     id: "2026-01-09-badges",
