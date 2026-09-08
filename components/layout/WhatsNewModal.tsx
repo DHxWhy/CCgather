@@ -20,7 +20,7 @@ interface LiveState {
   deployedAt: string | null;
   commit: string | null;
   ref: string | null;
-  syncedToday: number;
+  syncedLast24h: number;
 }
 
 const CATEGORY_STYLE: Record<ChangelogCategory, { chip: string; dot: string }> = {
@@ -252,8 +252,8 @@ export function WhatsNewModal({ isOpen, onClose, onReportBug }: WhatsNewModalPro
                 <>
                   <span aria-hidden>·</span>
                   <span>
-                    <span className="text-[var(--color-text-secondary)]">{live.syncedToday}</span>{" "}
-                    {live.syncedToday === 1 ? "dev" : "devs"} synced today
+                    <span className="text-[var(--color-text-secondary)]">{live.syncedLast24h}</span>{" "}
+                    {live.syncedLast24h === 1 ? "dev" : "devs"} synced in the last 24h
                   </span>
                 </>
               )}

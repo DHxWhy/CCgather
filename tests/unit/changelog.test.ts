@@ -92,6 +92,13 @@ describe("헤더 배선", () => {
     expect(read("components/layout/WhatsNewButton.tsx")).not.toContain("<WhatsNewModal");
   });
 
+  it("동기화 인원은 UTC '오늘' 이 아니라 최근 24시간 (KST 09시 리셋 뒤 0명 표시 방지)", () => {
+    const api = read("app/api/whats-new/route.ts");
+    expect(api).toContain("syncedLast24h");
+    expect(api).not.toContain("setUTCHours");
+    expect(read("components/layout/WhatsNewModal.tsx")).toContain("last 24h");
+  });
+
   it("LIVE 줄의 브랜치는 하드코딩이 아니라 배포 ref 를 쓴다 (프리뷰에서 main@ 오표기)", () => {
     const modal = read("components/layout/WhatsNewModal.tsx");
     expect(modal).not.toContain("main@");
