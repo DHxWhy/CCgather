@@ -7,7 +7,8 @@
 // the user is running — even an outdated CLI with stale fallback prices
 // gets corrected at the server boundary.
 //
-// Sources (fallback table re-verified 2026-09-02):
+// Sources, in lookup order (fallback table re-verified 2026-09-24):
+// - Official snapshot: lib/constants/claude-pricing.json (auto-synced)
 // - LiteLLM:        https://github.com/BerriAI/litellm
 // - Anthropic API:  https://platform.claude.com/docs/en/about-claude/pricing
 //
@@ -15,6 +16,9 @@
 // fetches once, then reuses for the cold-start lifetime. Refetch is
 // triggered automatically once the TTL expires.
 // ═══════════════════════════════════════════════════════════════════════════
+
+import officialSnapshot from "@/lib/constants/claude-pricing.json";
+import type { PricingSnapshot } from "@/lib/services/official-pricing";
 
 const LITELLM_PRICING_URL =
   "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json";
@@ -30,7 +34,7 @@ interface ModelPricing {
 
 // Fallback pricing — used ONLY when the LiteLLM fetch fails or the id has no
 // LiteLLM entry. Per-million-token rates from the official pricing page
-// (platform.claude.com/docs/en/about-claude/pricing, verified 2026-09-02).
+// (platform.claude.com/docs/en/about-claude/pricing, verified 2026-09-24).
 // `satisfies` keeps literal-key inference so indexing returns ModelPricing
 // (no `undefined`) under noUncheckedIndexedAccess.
 const FALLBACK_PRICING = {
@@ -39,6 +43,9 @@ const FALLBACK_PRICING = {
   "fable-5-1": { input: 10, output: 50, cacheWrite: 12.5, cacheRead: 0.25 },
   // Fable 5 / Mythos 5 / Mythos Preview — standard 0.1x cache reads ($1)
   "fable-5": { input: 10, output: 50, cacheWrite: 12.5, cacheRead: 1 },
+  // Opus 5.5 — $4/$20, cache write $5, cache read $0.20 (0.05x, official
+  // pricing footnote). Cheaper than Opus 5, so it must not fall into "opus-4-5".
+  "opus-5-5": { input: 4, output: 20, cacheWrite: 5, cacheRead: 0.2 },
   // Opus 4 / 4.1 (legacy higher tier, retired on the first-party API)
   "opus-4": { input: 15, output: 75, cacheWrite: 18.75, cacheRead: 1.5 },
   // Opus 4.5 / 4.6 / 4.7 / 4.8 / 5 (current generation lower tier)
@@ -208,6 +215,9 @@ async function ensurePricingData(): Promise<Record<string, ModelPricing> | null>
 // Like the opus regex below, these are stopgaps for ids LiteLLM has not listed.
 const FABLE_5_1_PLUS = /(fable|mythos)-?(5[-.]([1-9]|1\d)(?!\d)|[6-9]|1\d)/;
 const SONNET_5_PLUS = /sonnet-?([5-9]|1\d)(?!\d)/;
+// Opus 5.5 … 5.19 take the Opus 5.5 rate; bare Opus 5 (incl. date-suffixed ids)
+// and later majors stay on $5/$25 until their price is published.
+const OPUS_5_5_PLUS = /opus-?5[-.]([5-9]|1\d)(?!\d)/;
 
 function fallbackForModel(model: string): ModelPricing {
   const m = model.toLowerCase();
@@ -216,6 +226,7 @@ function fallbackForModel(model: string): ModelPricing {
   }
   // 현행 저tier($5/$25): opus-4-5~4-19 minor(4-8 포함) OR opus-5+(Opus 5,6…).
   // Opus 4/4.1/3 만 레거시 $15/$75. LiteLLM 미등재 신모델의 3배 과청구 방지용 stopgap.
+  if (OPUS_5_5_PLUS.test(m)) return FALLBACK_PRICING["opus-5-5"];
   if (/opus-?(4[-.]?([5-9]|1\d)|[5-9]|1\d)/.test(m)) return FALLBACK_PRICING["opus-4-5"];
   if (m.includes("opus")) return FALLBACK_PRICING["opus-4"];
   if (/haiku-?4/.test(m)) return FALLBACK_PRICING["haiku-4-5"];
@@ -226,7 +237,24 @@ function fallbackForModel(model: string): ModelPricing {
   return FALLBACK_PRICING["default"];
 }
 
+// Official pricing table, refreshed by .github/workflows/pricing-sync.yml. Checked
+// before LiteLLM: it is the vendor's own number, and LiteLLM can lag a launch.
+const OFFICIAL_PRICING: Record<string, ModelPricing> = (officialSnapshot as PricingSnapshot).models;
+
+function officialPricing(model: string): ModelPricing | null {
+  const normalized = stripProviderPrefix(model);
+  const withoutVersion = normalized.replace(/-v\d+:\d+$/, "").replace(/-\d{8}$/, "");
+  return OFFICIAL_PRICING[normalized] ?? OFFICIAL_PRICING[withoutVersion] ?? null;
+}
+
+export function hasOfficialPricing(model: string): boolean {
+  return officialPricing(model) !== null;
+}
+
 function matchModel(model: string, pricingData: Record<string, ModelPricing> | null): ModelPricing {
+  const official = officialPricing(model);
+  if (official) return official;
+
   if (pricingData) {
     const normalized = stripProviderPrefix(model);
 

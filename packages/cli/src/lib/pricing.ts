@@ -7,7 +7,7 @@ import * as os from "os";
 // Fetches Claude model pricing from LiteLLM's model_prices JSON,
 // caches locally with 24h TTL, falls back to hardcoded prices.
 //
-// Pricing sources (fallback table re-verified 2026-09-02):
+// Pricing sources (fallback table re-verified 2026-09-24):
 // - LiteLLM: https://github.com/BerriAI/litellm/blob/main/model_prices_and_context_window.json
 // - Anthropic official: https://platform.claude.com/docs/en/about-claude/pricing
 // ═══════════════════════════════════════════════════════════════════════════
@@ -31,7 +31,7 @@ interface PricingCache {
 
 // Fallback pricing — used ONLY when LiteLLM fetch fails AND disk cache is missing,
 // or when the id has no LiteLLM entry. Per-million-token rates from the official
-// pricing page (platform.claude.com/docs/en/about-claude/pricing, verified 2026-09-02).
+// pricing page (platform.claude.com/docs/en/about-claude/pricing, verified 2026-09-24).
 // Opus 4 / 4.1 stayed at the legacy higher tier; Opus 4.5+ moved to a new lower tier.
 const FALLBACK_PRICING: Record<string, ModelPricing> = {
   // Fable 5.1 / Mythos 5.1 — same $10/$50, but cache reads are 0.025x ($0.25);
@@ -39,6 +39,9 @@ const FALLBACK_PRICING: Record<string, ModelPricing> = {
   "fable-5-1": { input: 10, output: 50, cacheWrite: 12.5, cacheRead: 0.25 },
   // Fable 5 / Mythos 5 / Mythos Preview — standard 0.1x cache reads ($1)
   "fable-5": { input: 10, output: 50, cacheWrite: 12.5, cacheRead: 1 },
+  // Opus 5.5 — $4/$20, cache write $5, cache read $0.20 (0.05x, official
+  // pricing footnote). Cheaper than Opus 5, so it must not fall into "opus-4-5".
+  "opus-5-5": { input: 4, output: 20, cacheWrite: 5, cacheRead: 0.2 },
   // Opus 4 / 4.1 (legacy higher tier, retired on the first-party API)
   "opus-4": { input: 15, output: 75, cacheWrite: 18.75, cacheRead: 1.5 },
   // Opus 4.5 / 4.6 / 4.7 / 4.8 / 5 (current generation lower tier)
@@ -271,6 +274,9 @@ export async function initPricing(): Promise<void> {
 // Like the opus regex below, these are stopgaps for ids LiteLLM has not listed.
 const FABLE_5_1_PLUS = /(fable|mythos)-?(5[-.]([1-9]|1\d)(?!\d)|[6-9]|1\d)/;
 const SONNET_5_PLUS = /sonnet-?([5-9]|1\d)(?!\d)/;
+// Opus 5.5 … 5.19 take the Opus 5.5 rate; bare Opus 5 (incl. date-suffixed ids)
+// and later majors stay on $5/$25 until their price is published.
+const OPUS_5_5_PLUS = /opus-?5[-.]([5-9]|1\d)(?!\d)/;
 
 /**
  * Resolve hardcoded fallback pricing for a model name.
@@ -282,6 +288,9 @@ function fallbackForModel(model: string): ModelPricing {
   if (m.includes("fable") || m.includes("mythos")) {
     return FABLE_5_1_PLUS.test(m) ? FALLBACK_PRICING["fable-5-1"] : FALLBACK_PRICING["fable-5"];
   }
+
+  // Opus 5.5+ minor — $4/$20 (checked before the broader Opus 5 regex below)
+  if (OPUS_5_5_PLUS.test(m)) return FALLBACK_PRICING["opus-5-5"];
 
   // Opus 4.5+ / Opus 5+ — current generation, lower tier ($5/$25)
   // Matches opus-4-5~4-19 minor (4-8 incl.) OR opus-5+ standalone (Opus 5, 6…).

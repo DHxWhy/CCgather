@@ -20,6 +20,16 @@ describe("estimateCost fallback tier (no LiteLLM data)", () => {
     });
   });
 
+  describe("Opus 5.5: $4/$20, cache write $5 / read $0.20 (0.05x)", () => {
+    it.each(["claude-opus-5-5", "anthropic.claude-opus-5-5", "claude-opus-5-5-20261001"])(
+      "%s => $24 in+out, $5.20 cache",
+      (model) => {
+        expect(estimateCost(model, M, M, 0, 0)).toBe(24);
+        expect(estimateCost(model, 0, 0, M, M)).toBe(5.2);
+      }
+    );
+  });
+
   describe("Opus 4.5–4.19 stay on the $5/$25 tier", () => {
     it.each(["claude-opus-4-5", "claude-opus-4-8", "claude-opus-4-10"])("%s => $30", (model) => {
       expect(estimateCost(model, M, M, 0, 0)).toBe(30);

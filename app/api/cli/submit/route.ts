@@ -11,6 +11,7 @@ import {
 } from "@/lib/push/send-notification";
 import { aggregateByDate } from "@/lib/utils/usage-aggregation";
 import { computeDayCost, getPricingData, resolveDayCost } from "@/lib/services/pricing";
+import { requestPricingCheck, unpricedClaudeModels } from "@/lib/services/pricing-dispatch";
 import type { PriceCache } from "@/lib/services/pricing";
 import { parseValidationMode } from "@/lib/config/validation-thresholds";
 import {
@@ -233,8 +234,7 @@ export async function POST(request: NextRequest) {
       cost_usd: number;
     }>(
       previousDailyData as
-        | { date: string; total_tokens: number; cost_usd: number; device_id: string | null }[]
-        | null,
+        { date: string; total_tokens: number; cost_usd: number; device_id: string | null }[] | null,
       (d) => d.date,
       (d) => d.total_tokens ?? 0,
       (d) => d.cost_usd ?? 0
@@ -545,6 +545,13 @@ export async function POST(request: NextRequest) {
     const pricingData = await getPricingData();
     // One lookup cache for the whole request: model ids repeat across days.
     const priceCache: PriceCache = new Map();
+
+    const unpriced = unpricedClaudeModels(
+      (body.dailyUsage ?? []).flatMap((day) => Object.keys(day.models ?? {}))
+    );
+    if (unpriced.length > 0) {
+      after(() => requestPricingCheck(unpriced).then(() => undefined));
+    }
 
     if (body.dailyUsage && body.dailyUsage.length > 0) {
       // Bulk insert daily usage data (upsert - replace existing records for same date)
@@ -906,8 +913,8 @@ export async function POST(request: NextRequest) {
     // fallback query omits device_id to survive missing-column scenarios.
     // ═══════════════════════════════════════════════════════════════════════════
     let allDailyUsage:
-      | { total_tokens: number; cost_usd: number; sessions: number; device_id?: string }[]
-      | null = null;
+      { total_tokens: number; cost_usd: number; sessions: number; device_id?: string }[] | null =
+      null;
     let sumError: { message: string } | null = null;
 
     // Primary query: includes device_id for per-device breakdown

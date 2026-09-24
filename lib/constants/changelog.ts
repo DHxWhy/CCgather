@@ -16,6 +16,14 @@ export const CHANGELOG_CATEGORY = {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    id: "2026-09-24-opus-5-5-pricing",
+    date: "2026-09-24",
+    category: "improved",
+    title: "Claude Opus 5.5 costs, synced from Anthropic",
+    summary:
+      "Opus 5.5 is priced at $4/$20 with $0.20/MTok cache reads, and new models now follow Anthropic's official price list within the hour.",
+  },
+  {
     id: "2026-09-05-speed",
     date: "2026-09-05",
     category: "improved",

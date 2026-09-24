@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { computeDayCost } from "@/lib/services/pricing";
 
 // Expected values are the official per-MTok rates
-// (platform.claude.com/docs/en/about-claude/pricing, verified 2026-09-02),
+// (platform.claude.com/docs/en/about-claude/pricing, verified 2026-09-24),
 // evaluated with 1M tokens of each type — not copied from the fallback table.
 const M = 1_000_000;
 const inOut = (model: string) => ({
@@ -59,6 +59,17 @@ describe("fallback pricing (no LiteLLM data)", () => {
     });
   });
 
+  describe("Opus 5.5: $4/$20, cache write $5, cache read $0.20 (0.05x)", () => {
+    // 5-6 / 5-7 are absent from the official snapshot, so these exercise the version regex.
+    it.each(["claude-opus-5-5", "anthropic.claude-opus-5-6", "claude-opus-5-7-20261001"])(
+      "%s",
+      (model) => {
+        expect(computeDayCost(null, inOut(model))).toBe(24);
+        expect(computeDayCost(null, cache(model))).toBe(5.2);
+      }
+    );
+  });
+
   describe("Opus tiers unchanged", () => {
     it.each(["claude-opus-5", "claude-opus-4-8", "claude-opus-4-5-20251101"])(
       "%s => $5/$25",
@@ -88,6 +99,15 @@ describe("LiteLLM table present but id unlisted — family guard beats fuzzy pre
 
   it("claude-mythos-5-1 gets the 5.1 cache-read rate, not Mythos 5's", () => {
     expect(computeDayCost(table, cache("claude-mythos-5-1"))).toBe(12.75);
+  });
+
+  it("claude-opus-5-6 unlisted gets the Opus 5.5+ rate, not a fuzzy Opus 5 match", () => {
+    const withOpus5 = {
+      ...table,
+      "claude-opus-5": { input: 5, output: 25, cacheWrite: 6.25, cacheRead: 0.5 },
+    };
+    expect(computeDayCost(withOpus5, inOut("claude-opus-5-6"))).toBe(24);
+    expect(computeDayCost(withOpus5, cache("claude-opus-5-6"))).toBe(5.2);
   });
 
   it("claude-fable-5 with an exact entry still uses the table", () => {
