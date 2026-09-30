@@ -16,6 +16,14 @@ export const CHANGELOG_CATEGORY = {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    id: "2026-09-29-sonnet-5-5-pricing",
+    date: "2026-09-29",
+    category: "improved",
+    title: "Claude Sonnet 5.5 costs, synced from Anthropic",
+    summary:
+      "Sonnet 5.5 is priced at $2/$10 with $0.20/MTok cache reads, the same rate as Sonnet 5, picked up automatically from Anthropic's price list. It counts toward the Sonnet family in the model mix.",
+  },
+  {
     id: "2026-09-24-opus-5-5-pricing",
     date: "2026-09-24",
     category: "improved",

@@ -67,10 +67,15 @@ describe("estimateCost fallback tier (no LiteLLM data)", () => {
     });
   });
 
-  describe("Sonnet 5 is $2/$10; Sonnet 4.x / 3.x stay $3/$15", () => {
-    it("claude-sonnet-5 => $12 in+out, $2.70 cache", () => {
-      expect(estimateCost("claude-sonnet-5", M, M, 0, 0)).toBe(12);
-      expect(estimateCost("claude-sonnet-5", 0, 0, M, M)).toBe(2.7);
+  describe("Sonnet 5 / 5.5 are $2/$10; Sonnet 4.x / 3.x stay $3/$15", () => {
+    it.each([
+      "claude-sonnet-5",
+      "claude-sonnet-5-5",
+      "anthropic.claude-sonnet-5-5",
+      "claude-sonnet-5-5-20261001",
+    ])("%s => 12 USD in+out, 2.70 USD cache", (model) => {
+      expect(estimateCost(model, M, M, 0, 0)).toBe(12);
+      expect(estimateCost(model, 0, 0, M, M)).toBe(2.7);
     });
     it.each([
       "claude-sonnet-4-6",
