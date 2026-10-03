@@ -13,7 +13,13 @@ import {
   getSessionPathDebugInfo,
 } from "../lib/ccgather-json.js";
 import { initPricing } from "../lib/pricing.js";
-import { shouldPromptStar, promptStarNudge, REPO_URL } from "../lib/star-nudge.js";
+import {
+  shouldPromptStar,
+  shouldRequestStarStatus,
+  takeStarPromptTurn,
+  promptStarNudge,
+  REPO_URL,
+} from "../lib/star-nudge.js";
 import {
   colors,
   formatNumber,
@@ -373,7 +379,10 @@ export async function submit(options: SubmitOptions): Promise<void> {
     hasSubmittedBefore: Boolean(config.get("lastSync")),
   };
   const starPromptCandidate = shouldPromptStar({ ...starState, hasStarred: null });
-  const requestStarStatus = starState.hasSubmittedBefore && !starState.starConfirmed;
+  const requestStarStatus = shouldRequestStarStatus({
+    hasSubmittedBefore: starState.hasSubmittedBefore,
+    starServerConfirmed: config.get("starServerConfirmed") === true,
+  });
 
   // Verify token with server FIRST (before any scanning)
   const verifySpinner = ora({
@@ -419,9 +428,11 @@ export async function submit(options: SubmitOptions): Promise<void> {
 
   if (tokenCheck.hasStarred === true) {
     config.set("starConfirmed", true);
+    config.set("starServerConfirmed", true);
   } else if (
     starPromptCandidate &&
-    shouldPromptStar({ ...starState, hasStarred: tokenCheck.hasStarred })
+    shouldPromptStar({ ...starState, hasStarred: tokenCheck.hasStarred }) &&
+    takeStarPromptTurn(config)
   ) {
     await promptStarNudge(config);
   }
@@ -475,6 +486,10 @@ export async function submit(options: SubmitOptions): Promise<void> {
     onProgress: (current, total) => {
       progressBar(current, total, "Scanning");
       lastProgress = current;
+      // The bar is full but the scan has not returned yet — never leave a blank line
+      if (current >= total) {
+        process.stdout.write(`  ${colors.muted("Processing...")}`);
+      }
     },
   });
 

@@ -11,6 +11,9 @@ export interface CliConfig {
   username?: string;
   deviceId?: string;
   starConfirmed?: boolean;
+  starServerConfirmed?: boolean;
+  starDeclineCount?: number;
+  starPromptSnooze?: number; // submits left to stay quiet after a decline
 }
 
 const defaults: CliConfig = {
