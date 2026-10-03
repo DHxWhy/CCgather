@@ -398,16 +398,25 @@ function deduplicateJsonlFiles(files: string[]): string[] {
 function generateSessionHash(filePath: string, maxLines: number = 50): string | null {
   try {
     const content = fs.readFileSync(filePath, "utf-8");
-    const lines = content.split("\n").slice(0, maxLines).join("\n");
-
-    // Create hash from file content + filename (for uniqueness)
-    const fileName = path.basename(filePath);
-    const hashInput = `${fileName}:${lines}`;
-
-    return crypto.createHash("sha256").update(hashInput).digest("hex");
+    return hashSessionLines(filePath, content.split("\n"), maxLines);
   } catch {
     return null;
   }
+}
+
+/**
+ * Hash a session from its raw (unfiltered) lines.
+ * The server stores these hashes for duplicate prevention — the input must
+ * stay byte-identical across CLI versions.
+ */
+function hashSessionLines(filePath: string, rawLines: string[], maxLines: number = 50): string {
+  const lines = rawLines.slice(0, maxLines).join("\n");
+
+  // Create hash from file content + filename (for uniqueness)
+  const fileName = path.basename(filePath);
+  const hashInput = `${fileName}:${lines}`;
+
+  return crypto.createHash("sha256").update(hashInput).digest("hex");
 }
 
 /**
@@ -423,6 +432,13 @@ function generateSessionFingerprint(sessionFiles: string[]): SessionFingerprint 
     }
   }
 
+  return buildSessionFingerprint(sessionHashes);
+}
+
+/**
+ * Combine per-session hashes into a fingerprint
+ */
+function buildSessionFingerprint(sessionHashes: string[]): SessionFingerprint {
   // Sort hashes for consistent combined hash
   sessionHashes.sort();
 
@@ -1253,6 +1269,7 @@ export function scanAllProjects(options: ScanOptions = {}): CCGatherData | null 
   }
   const allJsonlFiles = deduplicateJsonlFiles(rawJsonlFiles);
   const seenUsageEvents = new Set<string>();
+  const sessionHashes: string[] = [];
 
   if (allJsonlFiles.length === 0) {
     return null;
@@ -1277,7 +1294,11 @@ export function scanAllProjects(options: ScanOptions = {}): CCGatherData | null 
 
     try {
       const content = fs.readFileSync(filePath, "utf-8");
-      const lines = content.split("\n").filter((line) => line.trim());
+      const rawLines = content.split("\n");
+      // Hash while the file is in memory — re-reading every session after the
+      // progress bar hit 100% left the CLI silent for a long time.
+      sessionHashes.push(hashSessionLines(filePath, rawLines));
+      const lines = rawLines.filter((line) => line.trim());
 
       for (const line of lines) {
         try {
@@ -1413,7 +1434,7 @@ export function scanAllProjects(options: ScanOptions = {}): CCGatherData | null 
     .sort((a, b) => a.date.localeCompare(b.date));
 
   const credentials = readCredentials();
-  const sessionFingerprint = generateSessionFingerprint(allJsonlFiles);
+  const sessionFingerprint = buildSessionFingerprint(sessionHashes);
 
   return {
     version: CCGATHER_JSON_VERSION,
