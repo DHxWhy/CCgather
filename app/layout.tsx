@@ -3,6 +3,7 @@ import { Inter, JetBrains_Mono, Space_Grotesk } from "next/font/google";
 import Script from "next/script";
 import { ClerkProviderWrapper } from "@/components/providers/ClerkProviderWrapper";
 import { PwaMigration } from "@/components/pwa/PwaMigration";
+import { deployBuildId } from "@/lib/config/build-id";
 import "./globals.css";
 
 const inter = Inter({
@@ -300,17 +301,17 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <link rel="dns-prefetch" href="https://zrkrrvfoaoeodaovzqfs.supabase.co" />
         <GlobalJsonLd />
         {/* PWA stale SW kill-switch — head inline, hydration 전 실행.
-            전략: SW 가 등록되어 있고 + localStorage 의 build_id 가 현재 build 와
-            다르면 무조건 청소. 매 deploy 마다 일회성 자동 회수.
-            - 신규 사용자: SW 없음 → skip
-            - 새 사용자가 첫 install: build_id 첫 저장 → skip
-            - 옛 사용자: build_id mismatch → 청소 + reload 1회
+            전략: localStorage 의 build_id 가 현재 build 와 다르면 SW·캐시를 청소하고
+            reload 1회. SW 등록 여부는 보지 않는다(서비스워커 미지원 브라우저만 skip)
+            → 재방문자 전원이 대상이라 build_id 는 빌드마다 고정이어야 한다(deployBuildId).
+            - 첫 방문: build_id 첫 저장 → skip
+            - 재방문 + 새 배포: build_id mismatch → 청소 + reload 1회
             - critical path (OAuth/sign-*): reload 보류 (가입 흐름 보호) */}
         <Script id="ccg-sw-kill" strategy="beforeInteractive">
           {`(function(){try{
             if(typeof window==='undefined')return;
             if(!('serviceWorker' in navigator))return;
-            var BUILD_ID='${process.env.VERCEL_GIT_COMMIT_SHA || process.env.NEXT_PUBLIC_BUILD_ID || Date.now().toString()}';
+            var BUILD_ID='${deployBuildId()}';
             var LS_KEY='ccg_build_id';
             var stored=null;
             try{stored=localStorage.getItem(LS_KEY);}catch(_){}
