@@ -82,6 +82,9 @@ const withPWA = withPWAInit({
 const nextConfig: NextConfig = {
   // Turbopack 설정 (Next.js 16 기본 번들러)
   turbopack: {},
+  // AI 에이전트가 next dev 를 띄우면 루트에 AGENTS.md·CLAUDE.md 를 자동 생성한다 —
+  // 모든 Claude 세션에 의도치 않은 지시가 섞이고 동시 세션이 실수로 커밋할 수 있어 끈다
+  agentRules: false,
   // 빌드 시각·커밋을 번들에 고정 — What's new 의 "마지막 배포" 표시용(런타임엔 알 수 없음)
   env: {
     NEXT_PUBLIC_BUILD_TIME: new Date().toISOString(),
