@@ -16,6 +16,14 @@ export const CHANGELOG_CATEGORY = {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    id: "2026-10-04-smooth-scroll",
+    date: "2026-10-04",
+    category: "improved",
+    title: "Smoother scrolling across the Claude Code leaderboard",
+    summary:
+      "Mouse-wheel and trackpad scrolling now glides instead of jumping a notch at a time in the developer rankings, top countries, profile panels and the stats page. Touch screens and reduced-motion settings keep native scrolling.",
+  },
+  {
     id: "2026-10-04-cli-submit-speed",
     date: "2026-10-04",
     category: "improved",
