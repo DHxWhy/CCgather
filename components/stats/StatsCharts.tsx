@@ -11,6 +11,7 @@ import { TopDevelopers } from "@/components/stats/TopDevelopers";
 import { SeasonChampions } from "@/components/stats/SeasonChampions";
 import { SeasonSprint } from "@/components/stats/SeasonSprint";
 import { formatCompact } from "@/lib/utils/format";
+import { useSmoothWheelScroll } from "@/hooks/use-smooth-wheel-scroll";
 import type { PublicStats } from "@/lib/services/publicStats";
 import {
   SEASON_TAGLINES,
@@ -125,6 +126,7 @@ function SectionTitle({ title, caption }: { title: string; caption?: React.React
 }
 
 export function StatsCharts({ stats }: { stats: PublicStats }) {
+  useSmoothWheelScroll("window");
   const reducedMotion = useReducedMotion() ?? false;
   const tagline = useRotatingCopy(SEASON_TAGLINES);
   const subline = useRotatingCopy(SEASON_SUBLINES);

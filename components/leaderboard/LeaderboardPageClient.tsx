@@ -47,6 +47,7 @@ import {
   type FeedPostForTranslation,
 } from "@/hooks/useLazyTranslation";
 import { useMe } from "@/hooks/use-me";
+import { jumpToTop, useSmoothWheelScroll } from "@/hooks/use-smooth-wheel-scroll";
 
 // View mode type for tab switching
 type ViewMode = "leaderboard" | "community";
@@ -504,6 +505,11 @@ export function LeaderboardPageClient({ initialLeaderboard }: LeaderboardPageCli
   // Ref for table container
   const tableContainerRef = useRef<HTMLDivElement>(null);
   const virtuosoRef = useRef<TableVirtuosoHandle>(null);
+  const [tableScrollerEl, setTableScrollerEl] = useState<HTMLElement | null>(null);
+  const handleTableScrollerRef = useCallback((node: HTMLElement | Window | null) => {
+    setTableScrollerEl(node instanceof HTMLElement ? node : null);
+  }, []);
+  useSmoothWheelScroll(tableScrollerEl);
   const scrolledHighlightRef = useRef<string | null>(null);
   // Track scroll position for prepend restoration
   const scrollHeightBeforePrepend = useRef<number>(0);
@@ -518,6 +524,12 @@ export function LeaderboardPageClient({ initialLeaderboard }: LeaderboardPageCli
 
   // Left column scroll state for Globe fade effect
   const leftColumnRef = useRef<HTMLDivElement>(null);
+  const [leftColumnEl, setLeftColumnEl] = useState<HTMLDivElement | null>(null);
+  const setLeftColumnNode = useCallback((node: HTMLDivElement | null) => {
+    leftColumnRef.current = node;
+    setLeftColumnEl(node);
+  }, []);
+  const leftColumnLenisRef = useSmoothWheelScroll(leftColumnEl);
   const [leftColumnScrollProgress, setLeftColumnScrollProgress] = useState(0);
   // Hybrid sticky: auto-lock when scrolling down, manual unlock via button
   const [stickyLocked, setStickyLocked] = useState(false);
@@ -571,14 +583,12 @@ export function LeaderboardPageClient({ initialLeaderboard }: LeaderboardPageCli
     setStickyLocked(false);
     setLeftColumnScrollProgress(0);
     // Instant scroll to top (no animation to avoid scroll events)
-    if (leftColumnRef.current) {
-      leftColumnRef.current.scrollTop = 0;
-    }
+    jumpToTop(leftColumnRef.current, leftColumnLenisRef.current);
     // Keep flag active longer to prevent re-lock from any residual events
     setTimeout(() => {
       isExpandingRef.current = false;
     }, 100);
-  }, []);
+  }, [leftColumnLenisRef]);
 
   // Cleanup RAF on unmount
   useEffect(() => {
@@ -2165,7 +2175,7 @@ export function LeaderboardPageClient({ initialLeaderboard }: LeaderboardPageCli
 
               {/* Scrollable container - flex column to fill height */}
               <div
-                ref={leftColumnRef}
+                ref={setLeftColumnNode}
                 onScroll={handleLeftColumnScroll}
                 onWheel={handleLeftColumnWheel}
                 className="overflow-y-auto overflow-x-hidden scrollbar-hide relative flex flex-col"
@@ -3007,6 +3017,7 @@ export function LeaderboardPageClient({ initialLeaderboard }: LeaderboardPageCli
                       {users.length > 0 && (
                         <TableVirtuoso
                           ref={virtuosoRef}
+                          scrollerRef={handleTableScrollerRef}
                           style={{ height: "100%" }}
                           data={users}
                           initialItemCount={Math.min(users.length, SSR_ROW_COUNT)}

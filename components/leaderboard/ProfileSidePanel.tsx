@@ -27,6 +27,7 @@ import { ActivityHeatmap } from "@/components/profile/ActivityHeatmap";
 import { CCplanBadge } from "@/components/leaderboard/CCplanBadge";
 import { UsageHistoryModal } from "@/components/leaderboard/UsageHistoryModal";
 import { useUserProfilePanel, useUserUsageAllTime } from "@/hooks/use-user-profile";
+import { jumpToTop, useSmoothWheelScroll } from "@/hooks/use-smooth-wheel-scroll";
 import type {
   LeaderboardUser,
   UsageHistoryPoint,
@@ -770,6 +771,12 @@ export function ProfileSidePanel({
   const panelRef = useRef<HTMLDivElement>(null);
   const statsRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const [scrollContainerEl, setScrollContainerEl] = useState<HTMLDivElement | null>(null);
+  const setScrollContainerNode = useCallback((node: HTMLDivElement | null) => {
+    scrollContainerRef.current = node;
+    setScrollContainerEl(node);
+  }, []);
+  const scrollLenisRef = useSmoothWheelScroll(scrollContainerEl);
   const [isMobile, setIsMobile] = useState(false);
   const [isTabletPortrait, setIsTabletPortrait] = useState(false);
   const [isNarrow, setIsNarrow] = useState(false);
@@ -890,11 +897,9 @@ export function ProfileSidePanel({
     if (userId) {
       setShowCompactStats(false);
       setShowUsageModal(false);
-      if (scrollContainerRef.current) {
-        scrollContainerRef.current.scrollTop = 0;
-      }
+      jumpToTop(scrollContainerRef.current, scrollLenisRef.current);
     }
-  }, [userId]);
+  }, [userId, scrollLenisRef]);
 
   // Note: Panel data clearing is now handled by React Query
   // When userId changes, useMemo recalculates displayedUser from fresh profile
@@ -1182,7 +1187,7 @@ export function ProfileSidePanel({
         </div>
 
         {/* Scrollable Content */}
-        <div ref={scrollContainerRef} className="p-4 overflow-y-auto flex-1">
+        <div ref={setScrollContainerNode} className="p-4 overflow-y-auto flex-1">
           {/* Level Progress */}
           <LevelProgressBar
             currentTokens={currentUser.total_tokens}
