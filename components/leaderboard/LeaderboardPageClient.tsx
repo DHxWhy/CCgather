@@ -32,9 +32,12 @@ import { format } from "date-fns";
 import type { PeriodFilter, ScopeFilter, SortByFilter } from "@/lib/types";
 import {
   LEADERBOARD_DEFAULT_PERIOD,
+  LEADERBOARD_DEFAULT_SCOPE,
   LEADERBOARD_PAGE_SIZE,
   SSR_ROW_COUNT,
   browserTimeZone,
+  createFilterGate,
+  leaderboardFilterKey,
   toDisplayUsers,
   type DisplayUser,
   type InitialLeaderboard,
@@ -434,7 +437,7 @@ export function LeaderboardPageClient({ initialLeaderboard }: LeaderboardPageCli
   const closePanelTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [isGlobePanelOpen, setIsGlobePanelOpen] = useState(false);
   const [periodFilter, setPeriodFilter] = useState<PeriodFilter>(LEADERBOARD_DEFAULT_PERIOD);
-  const [scopeFilter, setScopeFilter] = useState<ScopeFilter>("global");
+  const [scopeFilter, setScopeFilter] = useState<ScopeFilter>(LEADERBOARD_DEFAULT_SCOPE);
   const [globePulse, setGlobePulse] = useState(false);
   const [sortBy, setSortBy] = useState<SortByFilter>("tokens");
   const [showLevelInfo, setShowLevelInfo] = useState(false);
@@ -468,10 +471,14 @@ export function LeaderboardPageClient({ initialLeaderboard }: LeaderboardPageCli
   const [serverAggregate, setServerAggregate] = useState<ServerAggregate | null>(
     ssr?.aggregate ?? null
   );
-  // SSR 데이터를 썼으면 마운트 직후 재요청을 건너뛴다 (시간대가 서버 추정과 다르면 다시 받음)
-  const skipMountFetchRef = useRef(ssr !== null);
-  const skipMountResetRef = useRef(ssr !== null);
-  const ssrTimeZoneRef = useRef(ssr?.tz ?? null);
+  // SSR 데이터를 썼으면 같은 필터로는 초기화·재요청하지 않는다 (시간대가 서버 추정과 다르면 다시 받음)
+  const ssrFilterKey = ssr
+    ? leaderboardFilterKey(LEADERBOARD_DEFAULT_PERIOD, LEADERBOARD_DEFAULT_SCOPE, null)
+    : null;
+  const [shouldResetFor] = useState(() => createFilterGate(ssrFilterKey));
+  const [shouldFetchFor] = useState(() =>
+    createFilterGate(ssr && browserTimeZone() === ssr.tz ? ssrFilterKey : null)
+  );
 
   // Derived flat users array from pagesData
   const users = useMemo(() => {
@@ -956,12 +963,9 @@ export function LeaderboardPageClient({ initialLeaderboard }: LeaderboardPageCli
   // Fetch data on filter/page change
   // Using ref to avoid infinite loop from fetchLeaderboard dependency
   useEffect(() => {
-    if (skipMountFetchRef.current) {
-      skipMountFetchRef.current = false;
-      if (browserTimeZone() === ssrTimeZoneRef.current) return;
-    }
+    if (!shouldFetchFor(leaderboardFilterKey(periodFilter, scopeFilter, customDateRange))) return;
     fetchLeaderboardRef.current?.();
-  }, [periodFilter, scopeFilter, customDateRange]);
+  }, [periodFilter, scopeFilter, customDateRange, shouldFetchFor]);
 
   // Refetch leaderboard after user info is loaded (to get updated social_links from OAuth)
   useEffect(() => {
@@ -1274,16 +1278,13 @@ export function LeaderboardPageClient({ initialLeaderboard }: LeaderboardPageCli
   // Note: sortBy is UI-only (highlight styling), not a data filter, so excluded from deps
   useEffect(() => {
     // 마운트 시 SSR 행을 지우면 안 된다 — 마운트 fetch 도 건너뛰므로 빈 표가 된다 (2026-09-05 실사고)
-    if (skipMountResetRef.current) {
-      skipMountResetRef.current = false;
-      return;
-    }
+    if (!shouldResetFor(leaderboardFilterKey(periodFilter, scopeFilter, null))) return;
     setPagesData(new Map());
     setLoadedPageRange({ start: 1, end: 1 });
     setTotalPages(1);
     setHighlightMyRank(false);
     setUserTargetPage(null);
-  }, [scopeFilter, periodFilter]);
+  }, [scopeFilter, periodFilter, shouldResetFor]);
 
   // Track Globe position for full-screen particles
   // Only update on resize (not scroll) - particles don't need to follow scroll

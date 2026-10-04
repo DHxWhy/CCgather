@@ -3,8 +3,11 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   LEADERBOARD_DEFAULT_PERIOD,
+  LEADERBOARD_DEFAULT_SCOPE,
   LEADERBOARD_PAGE_SIZE,
   SSR_ROW_COUNT,
+  createFilterGate,
+  leaderboardFilterKey,
   toDisplayUsers,
 } from "@/lib/leaderboard/initial-shared";
 import type { LeaderboardUser } from "@/lib/types";
@@ -56,13 +59,53 @@ describe("리더보드 SSR 배선", () => {
   it("클라이언트는 SSR 데이터로 초기 상태를 만들고 가상 테이블에 SSR 행 수를 준다", () => {
     const src = read("components/leaderboard/LeaderboardPageClient.tsx");
     expect(src).toMatch(/useState\(!ssr\)/);
-    expect(src).toMatch(/skipMountFetchRef/);
     expect(src).toMatch(
-      /skipMountResetRef\.current\) \{\s*skipMountResetRef\.current = false;\s*return;/
+      /if \(!shouldResetFor\(leaderboardFilterKey\(periodFilter, scopeFilter, null\)\)\) return;/
     );
+    expect(src).toMatch(
+      /if \(!shouldFetchFor\(leaderboardFilterKey\(periodFilter, scopeFilter, customDateRange\)\)\) return;/
+    );
+    expect(src).not.toMatch(/skipMount(Fetch|Reset)Ref/);
     expect(src).toMatch(/initialItemCount=\{Math\.min\(users\.length, SSR_ROW_COUNT\)\}/);
     expect(SSR_ROW_COUNT).toBeLessThanOrEqual(LEADERBOARD_PAGE_SIZE);
     expect(LEADERBOARD_DEFAULT_PERIOD).toBe("30d");
+  });
+
+  it("필터 관문: SSR 필터는 이펙트가 몇 번 다시 돌아도(StrictMode 재마운트) 막는다", () => {
+    const ssrKey = leaderboardFilterKey(
+      LEADERBOARD_DEFAULT_PERIOD,
+      LEADERBOARD_DEFAULT_SCOPE,
+      null
+    );
+    const gate = createFilterGate(ssrKey);
+    expect(gate(ssrKey)).toBe(false);
+    expect(gate(ssrKey)).toBe(false);
+  });
+
+  it("필터 관문: 바뀐 필터는 한 번만 통과시키고, 원래 필터로 돌아오면 다시 통과시킨다", () => {
+    const ssrKey = leaderboardFilterKey("30d", "global", null);
+    const allKey = leaderboardFilterKey("all", "global", null);
+    const gate = createFilterGate(ssrKey);
+    expect(gate(allKey)).toBe(true);
+    expect(gate(allKey)).toBe(false);
+    expect(gate(ssrKey)).toBe(true);
+  });
+
+  it("필터 관문: SSR 이 없으면 첫 실행만 통과한다", () => {
+    const gate = createFilterGate(null);
+    const key = leaderboardFilterKey("7d", "country", null);
+    expect(gate(key)).toBe(true);
+    expect(gate(key)).toBe(false);
+  });
+
+  it("필터 키는 기간·범위·사용자 지정 날짜를 모두 구분한다", () => {
+    const range = { start: "2026-09-01", end: "2026-09-30" };
+    expect(leaderboardFilterKey("30d", "global", null)).not.toBe(
+      leaderboardFilterKey("30d", "country", null)
+    );
+    expect(leaderboardFilterKey("custom", "global", range)).not.toBe(
+      leaderboardFilterKey("custom", "global", { ...range, end: "2026-10-01" })
+    );
   });
 
   it("initial-shared 는 런타임 import 가 없다", () => {
