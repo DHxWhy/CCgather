@@ -16,6 +16,14 @@ export const CHANGELOG_CATEGORY = {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    id: "2026-10-04-cli-submit-speed",
+    date: "2026-10-04",
+    category: "improved",
+    title: "Faster Claude Code usage submits, no stall at 100%",
+    summary:
+      "The scan bar used to sit at 100% while the CLI re-read every Claude Code session file for its duplicate-submission check. That check now runs during the scan itself, cutting scan time by 30–50% in our tests. Shipped in CLI v2.1.1.",
+  },
+  {
     id: "2026-09-29-sonnet-5-5-pricing",
     date: "2026-09-29",
     category: "improved",
