@@ -49,6 +49,8 @@ export function smoothWheelOptions(wrapper: HTMLElement | Window): LenisOptions 
     wrapper,
     eventsTarget: wrapper,
     autoRaf: true,
+    // 기본 0.1 은 휠 한 칸이 멈추기까지 0.88s 라 "느려졌다"는 체감이 났다 — 0.2 면 0.45s (2026-10-05 실측)
+    lerp: 0.2,
     // 가상 스크롤·무한 로딩·지구본 접힘으로 높이가 수시로 바뀐다 — 캐시 대신 휠마다 실측
     naiveDimensions: true,
     autoResize: false,
