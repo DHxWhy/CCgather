@@ -70,7 +70,7 @@ vi.mock("readline", async (importOriginal) => {
 
 vi.mock("../src/commands/auth", () => ({ auth: mocked.auth }));
 
-import { submit } from "../src/commands/submit";
+import { submit, SubmitOptions } from "../src/commands/submit";
 
 class ExitCalled extends Error {
   constructor(readonly code: number | string | null | undefined) {
@@ -143,7 +143,7 @@ describe("submit({ nonInteractive: true })", () => {
   let stdoutTTY: PropertyDescriptor | undefined;
   let stdinTTY: PropertyDescriptor | undefined;
 
-  async function runSubmit(options = { nonInteractive: true }): Promise<number> {
+  async function runSubmit(options: SubmitOptions = { nonInteractive: true }): Promise<number> {
     try {
       await submit(options);
       return 0;
@@ -520,5 +520,71 @@ describe("submit({ nonInteractive: true })", () => {
     expect(code).toBe(0);
     expect(mocked.readline).toHaveBeenCalledTimes(1);
     expect(mocked.store.get("starDeclineCount")).toBe(1);
+  });
+
+  // `ccgather submit --scheduled`: the job `ccgather autosubmit` registers
+  describe("scheduled", () => {
+    const HOUR = 60 * 60 * 1000;
+
+    it("skips without calling the server when the last submit is under 20 hours old", async () => {
+      const recent = new Date(Date.now() - 19 * HOUR - 59 * 60 * 1000).toISOString();
+      mocked.store.set("lastSync", recent);
+
+      const code = await runSubmit({ scheduled: true });
+
+      expect(code).toBe(0);
+      expect(fetchCalls).toEqual([]);
+      expect(errors).toEqual([]);
+      expect(logs).toHaveLength(1);
+      expect(logs[0]).toMatch(LOG_LINE);
+      expect(logs[0]).toMatch(new RegExp(`ccgather: Skipped: already submitted at ${recent}\\.$`));
+      expect(mocked.store.get("lastSync")).toBe(recent);
+      expect(mocked.prompt).not.toHaveBeenCalled();
+      expectNoStreamWrites();
+    });
+
+    it("submits once 20 hours have passed, without an autoSync field", async () => {
+      mocked.store.set("lastSync", new Date(Date.now() - 20 * HOUR - 1000).toISOString());
+
+      const code = await runSubmit({ scheduled: true });
+
+      expect(code).toBe(0);
+      expect(mocked.prompt).not.toHaveBeenCalled();
+      expect(mocked.ora).not.toHaveBeenCalled();
+      expectNoStreamWrites();
+      expect(logs).toHaveLength(1);
+      expect(logs[0]).toMatch(/ccgather: Submitted 3\.00K tokens/);
+      const [submitCall] = callsTo("/cli/submit");
+      const body = JSON.parse(String(submitCall.init?.body));
+      // The server decides the Autopilot badge; the CLI does not claim it
+      expect(body).not.toHaveProperty("autoSync");
+      expect(body.totalTokens).toBe(3000);
+    });
+
+    it("submits when there is no lastSync, or it lies in the future", async () => {
+      mocked.store.delete("lastSync");
+      expect(await runSubmit({ scheduled: true })).toBe(0);
+      expect(callsTo("/cli/submit")).toHaveLength(1);
+
+      mocked.store.set("lastSync", new Date(Date.now() + 2 * HOUR).toISOString());
+      expect(await runSubmit({ scheduled: true })).toBe(0);
+      expect(callsTo("/cli/submit")).toHaveLength(2);
+    });
+
+    it("fails like the plain non-interactive submit, with exit 1", async () => {
+      routes.submit = () => json(503, { error: "Service unavailable" });
+      expect(await runSubmit({ scheduled: true })).toBe(1);
+      expectSingleError("Failed to submit: Service unavailable.");
+    });
+
+    // Control: the manual `ccgather submit` ignores the guard
+    it("plain non-interactive submit ignores the guard", async () => {
+      mocked.store.set("lastSync", new Date(Date.now() - HOUR).toISOString());
+
+      expect(await runSubmit()).toBe(0);
+
+      const [submitCall] = callsTo("/cli/submit");
+      expect(JSON.parse(String(submitCall.init?.body))).not.toHaveProperty("autoSync");
+    });
   });
 });

@@ -6,6 +6,12 @@ import chalk from "chalk";
 import { execSync } from "child_process";
 import { submit, logResult } from "./commands/submit.js";
 import {
+  autosubmitEnable,
+  autosubmitOff,
+  autosubmitStatus,
+  AutosubmitOptions,
+} from "./commands/autosubmit.js";
+import {
   printAnimatedHeader,
   printAnimatedWelcomeBox,
   colors,
@@ -281,14 +287,58 @@ async function showSettingsMenu(): Promise<void> {
 program
   .command("submit")
   .description("Submit usage without prompts (log in first with `npx ccgather`)")
-  .action(async () => {
+  .option("--scheduled", "run as the autosubmit job: skip if submitted in the last 20 hours")
+  .action(async (opts: { scheduled?: boolean }) => {
     try {
-      await submit({ nonInteractive: true });
+      await submit(
+        opts.scheduled ? { nonInteractive: true, scheduled: true } : { nonInteractive: true }
+      );
     } catch (err) {
       // Keep an unexpected failure to one timestamped line in the scheduler log
       logResult(`Unexpected error: ${err instanceof Error ? err.message : String(err)}`, true);
       process.exitCode = 1;
     }
+  });
+
+// One plain line on stderr and exit code 1 for any autosubmit failure
+async function runAutosubmit(action: () => Promise<void>): Promise<void> {
+  try {
+    await action();
+  } catch (err) {
+    console.error(`ccgather autosubmit: ${err instanceof Error ? err.message : String(err)}`);
+    process.exitCode = 1;
+  }
+}
+
+// Daily submission through the OS scheduler (Task Scheduler, launchd, systemd or cron)
+const autosubmit = program
+  .command("autosubmit")
+  .description(
+    "Submit automatically once a day through your OS scheduler (re-run to update or repair)"
+  )
+  // A mistyped word (`autosubmit disable`) must fail, not turn autosubmit on
+  .allowExcessArguments(false)
+  .option("--time <HH:MM>", "daily time, 24-hour local (default: a random time 09:00-20:59)")
+  .option(
+    "--auto-update",
+    "run ccgather@latest each day instead of this version: whatever release is newest that day runs with access to your token"
+  )
+  .action(async (opts: AutosubmitOptions) => {
+    await runAutosubmit(() => autosubmitEnable(opts));
+  });
+
+autosubmit
+  .command("off")
+  .description("Remove the daily job")
+  .action(async () => {
+    await runAutosubmit(() => autosubmitOff());
+  });
+
+autosubmit
+  .command("status")
+  .description("Show the daily job as the OS scheduler has it")
+  .action(async () => {
+    await runAutosubmit(() => autosubmitStatus());
   });
 
 // Default action - show main menu

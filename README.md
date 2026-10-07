@@ -221,6 +221,30 @@ schtasks /create /tn "CCgather submit" /sc daily /st 21:17 /tr "cmd /c npx --yes
 
 Pick a minute of your own rather than copying 21:17: everyone who keeps the example would reach the server in the same second. Task Scheduler skips a run on battery power by default, and both schedulers skip a run while the machine is asleep or off, so pick a time the machine is usually awake and plugged in.
 
+### Autosubmit
+
+Or let the CLI set up the daily job for you, using your operating system's own scheduler:
+
+```bash
+npx ccgather autosubmit          # turn it on, or update/repair it; add --time 21:30 to pick the time
+npx ccgather autosubmit status   # what the scheduler has, the last run and its result
+npx ccgather autosubmit off      # remove it
+```
+
+Without `--time` it picks a random time between 09:00 and 20:59, so not everyone submits at once. If the machine was off at that time, the job catches up later (except with the Linux cron fallback, which skips that day); a second run within 20 hours is skipped.
+
+<table>
+<tr><th width="100">OS</th><th>What it creates</th><th>Log</th></tr>
+<tr><td>Windows</td><td>Task Scheduler task <code>ccgather-autosubmit</code>, daily and at sign-in, also on battery, with no console window</td><td><code>%LOCALAPPDATA%\ccgather\autosubmit.log</code></td></tr>
+<tr><td>macOS</td><td>LaunchAgent <code>com.ccgather.autosubmit</code>, daily and at login</td><td><code>~/Library/Logs/ccgather/autosubmit.log</code></td></tr>
+<tr><td>Linux</td><td>systemd user timer <code>ccgather-autosubmit.timer</code>, or a marked crontab line where systemd user sessions are not available</td><td><code>journalctl --user -u ccgather-autosubmit</code>, or <code>~/.local/state/ccgather/autosubmit.log</code> with cron</td></tr>
+</table>
+
+The job runs the ccgather version you set it up with (or your global install, if you ran that). To move it to a newer release, run `npx ccgather@latest autosubmit`. With `--auto-update` it runs `ccgather@latest` instead, so whatever release is newest that day runs with access to your token.
+
+- **macOS** may show a "Background Items Added" notification once.
+- **Linux (systemd)** runs the job only while you are signed in and catches up at your next login. To run it while signed out, run `loginctl enable-linger $USER` yourself.
+
 ---
 
 ## The Name

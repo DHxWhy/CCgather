@@ -60,7 +60,14 @@ export interface SubmitOptions {
   // Scheduler mode (`ccgather submit`): never prompt or animate, print one result
   // line, and exit non-zero on any failure
   nonInteractive?: boolean;
+  // The job `ccgather autosubmit` registers (`ccgather submit --scheduled`):
+  // non-interactive, and skips a run within SCHEDULED_MIN_INTERVAL_MS of the
+  // last submission
+  scheduled?: boolean;
 }
+
+// The daily trigger and the catch-up or logon trigger can both fire on one day
+export const SCHEDULED_MIN_INTERVAL_MS = 20 * 60 * 60 * 1000;
 
 interface BadgeInfo {
   id: string;
@@ -424,13 +431,24 @@ function getPlanColor(plan: string): (text: string) => string {
  * header, spinner or progress bar, and every failure exits with code 1.
  */
 export async function submit(options: SubmitOptions = {}): Promise<void> {
-  const nonInteractive = options.nonInteractive === true;
+  const scheduled = options.scheduled === true;
+  const nonInteractive = options.nonInteractive === true || scheduled;
 
   if (!nonInteractive) {
     console.log(header("Submit Usage Data", "📤"));
   }
 
   const config = getConfig();
+
+  if (scheduled) {
+    const lastSync = config.get("lastSync");
+    const age = lastSync ? Date.now() - Date.parse(lastSync) : Number.NaN;
+    // A lastSync in the future (clock moved back) does not count as recent
+    if (age >= 0 && age < SCHEDULED_MIN_INTERVAL_MS) {
+      logResult(`Skipped: already submitted at ${lastSync}.`);
+      return;
+    }
+  }
 
   const isInteractive = !nonInteractive && Boolean(process.stdout.isTTY && process.stdin.isTTY);
   const starState = {
