@@ -103,6 +103,12 @@
       "cacheWrite": 3.75,
       "cacheRead": 0.3
     },
+    "claude-haiku-5-5": {
+      "input": 0.5,
+      "output": 2.5,
+      "cacheWrite": 0.625,
+      "cacheRead": 0.05
+    },
     "claude-haiku-4-5": {
       "input": 1,
       "output": 5,
