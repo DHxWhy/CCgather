@@ -66,6 +66,10 @@ export function parseOfficialPricing(markdown: string): PricingTable {
     const [modelCell, inputCell, write5mCell, , readCell, outputCell] = cells;
     const id = modelNameToId(modelCell ?? "");
     if (!id) continue;
+    // A model split by prompt length (Haiku 5.5: "up to" / "over 100,000 tokens") appears
+    // twice under one id. Keep the first row — the standard tier LiteLLM/ccusage use —
+    // so the long-prompt surcharge row cannot overwrite it.
+    if (models[id]) continue;
     const input = parseDollars(inputCell ?? "");
     const cacheWrite = parseDollars(write5mCell ?? "");
     const cacheRead = parseDollars(readCell ?? "");

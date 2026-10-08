@@ -20,6 +20,8 @@ const PAGE = `
 | Claude Opus 5.5 | $4 / MTok | $5 / MTok | $8 / MTok | $0.20 / MTok<sup>2</sup> | $20 / MTok |
 | Claude Opus 4.1 ([retired, except on Bedrock and Google Cloud](https://x/y)) | $15 / MTok | $18.75 / MTok | $30 / MTok | $1.50 / MTok | $75 / MTok |
 | Claude Sonnet 5 | $2 / MTok<sup>3</sup> | $2.50 / MTok | $4 / MTok | $0.20 / MTok | $10 / MTok<sup>3</sup> |
+| Claude Haiku 5.5 (for prompts up to 100,000 tokens) | $0.10 / MTok | $0.125 / MTok | $0.20 / MTok | $0.01 / MTok | $0.50 / MTok |
+| Claude Haiku 5.5 (for prompts over 100,000 tokens) | $0.50 / MTok | $0.625 / MTok | $1 / MTok | $0.05 / MTok | $2.50 / MTok |
 | Claude Haiku 3.5 ([retired](https://x)) | $0.80 / MTok | $1 / MTok | $1.60 / MTok | $0.08 / MTok | $4 / MTok |
 
 ## Cloud platform pricing
@@ -37,6 +39,7 @@ describe("parseOfficialPricing", () => {
       "claude-opus-5-5",
       "claude-opus-4-1",
       "claude-sonnet-5",
+      "claude-haiku-5-5",
       "claude-haiku-3-5",
     ]);
   });
@@ -49,6 +52,17 @@ describe("parseOfficialPricing", () => {
       output: 4,
       cacheWrite: 1,
       cacheRead: 0.08,
+    });
+  });
+
+  it("keeps the first row when a model is split by prompt length (Haiku 5.5 tiers)", () => {
+    // The page lists Haiku 5.5 twice (≤100K and >100K tokens). The first row is the
+    // standard tier and matches LiteLLM/ccusage; the later row must not overwrite it.
+    expect(t["claude-haiku-5-5"]).toEqual({
+      input: 0.1,
+      output: 0.5,
+      cacheWrite: 0.125,
+      cacheRead: 0.01,
     });
   });
 

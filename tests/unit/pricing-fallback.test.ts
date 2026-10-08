@@ -40,16 +40,22 @@ describe("fallback pricing (no LiteLLM data)", () => {
     });
   });
 
-  describe("Sonnet 5 / 5.5: $2/$10, cache write $2.50, cache read $0.20", () => {
-    // 5-6 / 5-7 are absent from the official snapshot, so those exercise the version regex.
-    it.each([
-      "claude-sonnet-5",
-      "claude-sonnet-5-5",
-      "anthropic.claude-sonnet-5-6",
-      "claude-sonnet-5-7-20261001",
-    ])("%s", (model) => {
-      expect(computeDayCost(null, inOut(model))).toBe(12);
-      expect(computeDayCost(null, cache(model))).toBe(2.7);
+  describe("Sonnet 5: $2/$10, cache write $2.50, cache read $0.20 (0.1x)", () => {
+    // 5-6 / 5-7 are absent from the official snapshot, so those exercise the version regex
+    // and land on the sonnet-5 fallback row.
+    it.each(["claude-sonnet-5", "anthropic.claude-sonnet-5-6", "claude-sonnet-5-7-20261001"])(
+      "%s",
+      (model) => {
+        expect(computeDayCost(null, inOut(model))).toBe(12);
+        expect(computeDayCost(null, cache(model))).toBe(2.7);
+      }
+    );
+  });
+
+  describe("Sonnet 5.5: $2/$10, cache write $2.50, cache read $0.10 (0.05x, official 2026-10-08)", () => {
+    it("claude-sonnet-5-5", () => {
+      expect(computeDayCost(null, inOut("claude-sonnet-5-5"))).toBe(12);
+      expect(computeDayCost(null, cache("claude-sonnet-5-5"))).toBe(2.6);
     });
   });
 
