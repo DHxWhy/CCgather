@@ -327,28 +327,39 @@ function findJsonlFiles(dir: string): string[] {
   return files;
 }
 
+/** Longest first line read when identifying a transcript. */
+const MAX_FIRST_LINE_BYTES = 1024 * 1024;
+
 /**
- * Extract sessionId from the first line of a jsonl file.
- * Falls back to content hash when sessionId field is absent.
- * Returns null for empty/unreadable files (won't be deduplicated).
+ * Read the first line of a file without reading the rest of it.
+ * Subagent transcripts open with the full task prompt, so the first line is
+ * often longer than any fixed-size buffer; read until the first newline.
+ * Returns null for unreadable files and first lines over MAX_FIRST_LINE_BYTES.
  */
-function extractSessionId(filePath: string): string | null {
+function readFirstLine(filePath: string): string | null {
   let fd: number | null = null;
   try {
     fd = fs.openSync(filePath, "r");
-    const buf = Buffer.alloc(4096);
-    const bytesRead = fs.readSync(fd, buf, 0, 4096, 0);
+    const chunk = Buffer.allocUnsafe(64 * 1024);
+    const parts: Buffer[] = [];
+    let offset = 0;
 
-    if (bytesRead === 0) return null;
+    while (offset < MAX_FIRST_LINE_BYTES) {
+      const length = Math.min(chunk.length, MAX_FIRST_LINE_BYTES - offset);
+      const bytesRead = fs.readSync(fd, chunk, 0, length, offset);
+      if (bytesRead === 0) break; // EOF: the whole file is one line
 
-    const firstLine = buf.toString("utf-8", 0, bytesRead).split("\n")[0];
-    if (!firstLine.trim()) return null;
+      const read = chunk.subarray(0, bytesRead);
+      const newline = read.indexOf(0x0a);
+      if (newline !== -1) {
+        parts.push(Buffer.from(read.subarray(0, newline)));
+        return Buffer.concat(parts).toString("utf-8");
+      }
+      parts.push(Buffer.from(read));
+      offset += bytesRead;
+    }
 
-    const event = JSON.parse(firstLine);
-    if (event.sessionId) return event.sessionId;
-
-    // No sessionId — use content hash as stable identifier
-    return crypto.createHash("sha256").update(firstLine).digest("hex");
+    return offset < MAX_FIRST_LINE_BYTES ? Buffer.concat(parts).toString("utf-8") : null;
   } catch {
     return null;
   } finally {
@@ -356,22 +367,62 @@ function extractSessionId(filePath: string): string | null {
   }
 }
 
+interface TranscriptIdentity {
+  /** Identifies one transcript; copies of the same transcript share it. */
+  key: string;
+  /** The Claude Code session the transcript belongs to, when recorded. */
+  sessionId: string | null;
+}
+
 /**
- * Deduplicate jsonl files by sessionId.
+ * Identify the transcript a jsonl file holds, from its first line.
+ *
+ * A main transcript is identified by its sessionId. Subagent transcripts,
+ * stored under <session>/subagents/, carry their parent session's sessionId,
+ * and their agentId can repeat within a session (a workflow's subagents may
+ * reuse one), so they are identified by a hash of their opening line, which
+ * copies share and distinct transcripts do not. Files without a sessionId are
+ * identified the same way.
+ * Returns null for empty/unreadable files (won't be deduplicated).
+ */
+function identifyTranscript(filePath: string): TranscriptIdentity | null {
+  const firstLine = readFirstLine(filePath);
+  if (!firstLine?.trim()) return null;
+
+  try {
+    const event = JSON.parse(firstLine);
+    const sessionId: string | null = event.sessionId || null;
+    const isSubagent = Boolean(event.agentId || event.isSidechain);
+
+    if (sessionId && !isSubagent) return { key: sessionId, sessionId };
+
+    return { key: crypto.createHash("sha256").update(firstLine).digest("hex"), sessionId };
+  } catch {
+    return null;
+  }
+}
+
+interface TranscriptFile {
+  filePath: string;
+  sessionId: string | null;
+}
+
+/**
+ * Deduplicate jsonl files that hold the same transcript.
  * Handles cases where the same project was accessed from different OS paths
  * (e.g., Windows WSL /mnt/c/... → Ubuntu /home/...) and session files
  * were copied between directories (possibly with filename changes like
  * abc.de.jsonl → abc-de.jsonl).
  */
-function deduplicateJsonlFiles(files: string[]): string[] {
-  // Map sessionId → { filePath, mtime } keeping the most recently modified file
-  const sessionMap = new Map<string, { filePath: string; mtimeMs: number }>();
-  const noIdFiles: string[] = [];
+function deduplicateJsonlFiles(files: string[]): TranscriptFile[] {
+  // Map transcript key → file, keeping the most recently modified copy
+  const transcriptMap = new Map<string, TranscriptFile & { mtimeMs: number }>();
+  const noIdFiles: TranscriptFile[] = [];
 
   for (const filePath of files) {
-    const sessionId = extractSessionId(filePath);
-    if (!sessionId) {
-      noIdFiles.push(filePath);
+    const identity = identifyTranscript(filePath);
+    if (!identity) {
+      noIdFiles.push({ filePath, sessionId: null });
       continue;
     }
 
@@ -382,13 +433,16 @@ function deduplicateJsonlFiles(files: string[]): string[] {
       // If stat fails, treat as oldest (0)
     }
 
-    const existing = sessionMap.get(sessionId);
+    const existing = transcriptMap.get(identity.key);
     if (!existing || mtimeMs > existing.mtimeMs) {
-      sessionMap.set(sessionId, { filePath, mtimeMs });
+      transcriptMap.set(identity.key, { filePath, sessionId: identity.sessionId, mtimeMs });
     }
   }
 
-  return [...Array.from(sessionMap.values()).map((v) => v.filePath), ...noIdFiles];
+  return [
+    ...Array.from(transcriptMap.values(), ({ filePath, sessionId }) => ({ filePath, sessionId })),
+    ...noIdFiles,
+  ];
 }
 
 /**
@@ -1248,9 +1302,10 @@ export function scanAllProjects(options: ScanOptions = {}): CCGatherData | null 
   let firstTimestamp: string | null = null;
   let lastTimestamp: string | null = null;
 
-  // Collect all JSONL files from all project directories, deduplicating by sessionId.
-  // This handles cases where the same project was accessed from different OS paths
-  // (e.g., Windows WSL /mnt/c/... → Ubuntu /home/...) and session files were copied.
+  // Collect all JSONL files from all project directories, deduplicating copies of the
+  // same transcript. This handles cases where the same project was accessed from
+  // different OS paths (e.g., Windows WSL /mnt/c/... → Ubuntu /home/...) and session
+  // files were copied.
   const rawJsonlFiles: string[] = [];
   for (const projectsDir of projectsDirs) {
     try {
@@ -1275,11 +1330,16 @@ export function scanAllProjects(options: ScanOptions = {}): CCGatherData | null 
     return null;
   }
 
-  sessionsCount = allJsonlFiles.length;
+  // A session's main transcript and its subagent transcripts are separate files,
+  // so sessions are counted by sessionId rather than by file.
+  const sessionKeyOf = (file: TranscriptFile): string => file.sessionId ?? file.filePath;
+  sessionsCount = new Set(allJsonlFiles.map(sessionKeyOf)).size;
+  const projectSessions: Record<string, Set<string>> = {};
   const { onProgress } = options;
 
   for (let i = 0; i < allJsonlFiles.length; i++) {
-    const filePath = allJsonlFiles[i];
+    const { filePath } = allJsonlFiles[i];
+    const sessionKey = sessionKeyOf(allJsonlFiles[i]);
     const projectName = extractProjectName(filePath);
 
     if (!projects[projectName]) {
@@ -1289,8 +1349,9 @@ export function scanAllProjects(options: ScanOptions = {}): CCGatherData | null 
         sessions: 0,
         models: {},
       };
+      projectSessions[projectName] = new Set();
     }
-    projects[projectName].sessions++;
+    projectSessions[projectName].add(sessionKey);
 
     try {
       const content = fs.readFileSync(filePath, "utf-8");
@@ -1371,7 +1432,7 @@ export function scanAllProjects(options: ScanOptions = {}): CCGatherData | null 
               dailyData[date].outputTokens += outputTokens;
               dailyData[date].cacheWriteTokens += cacheWrite;
               dailyData[date].cacheReadTokens += cacheRead;
-              dailyData[date].sessions.add(filePath);
+              dailyData[date].sessions.add(sessionKey);
               dailyData[date].models[model] =
                 (dailyData[date].models[model] || 0) + totalModelTokens;
 
@@ -1416,6 +1477,7 @@ export function scanAllProjects(options: ScanOptions = {}): CCGatherData | null 
 
   for (const projectName of Object.keys(projects)) {
     projects[projectName].cost = Math.round(projects[projectName].cost * 100) / 100;
+    projects[projectName].sessions = projectSessions[projectName].size;
   }
 
   const dailyUsage: DailyUsage[] = Object.entries(dailyData)
