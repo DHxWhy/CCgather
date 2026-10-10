@@ -33,7 +33,7 @@
   "author": "CCgather Team",
   "license": "Apache-2.0",
   "engines": {
-    "node": ">=18.17.0"
+    "node": ">=22.0.0"
   },
   "workspaces": [
     "packages/*"

@@ -35,8 +35,9 @@ jobs:
       - name: Server unit tests
         run: bun run test
 
-      # CLI 의존성은 pnpm.overrides 보안핀(6건)을 따라야 하므로 pnpm 9 로 설치한다.
-      # bun 으로 설치하면 핀이 무시되어 CI 트리가 배포본과 달라진다.
+      # CLI 의존성은 packages/cli/package.json 의 pnpm.overrides 보안 고정값을 따라야 하므로
+      # pnpm 9 로 설치한다(pnpm 10 이상은 이 필드를 읽지 않는다). bun 으로 설치하면 고정값이
+      # 무시돼 CLI 잠금 파일과 다른 트리로 검사하게 된다. 이 고정값은 npm 사용자 설치에는 적용되지 않는다.
       - uses: pnpm/action-setup@v6
         with:
           version: 9
