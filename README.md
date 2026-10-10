@@ -195,6 +195,32 @@ npx ccgather
 <tr><td align="center">⚙️</td><td>Settings</td><td>Re-authenticate or change account</td></tr>
 </table>
 
+### Scheduled Submit
+
+```bash
+npx ccgather submit
+```
+
+Submits your usage without any prompt, so it can run from a scheduler. Log in once with `npx ccgather` first; `submit` never opens the login flow. It prints one timestamped result line and exits with:
+
+<table>
+<tr><th width="80">Code</th><th>Meaning</th></tr>
+<tr><td align="center">0</td><td>Submitted</td></tr>
+<tr><td align="center">1</td><td>Not logged in, no usage data, rate limited, or a network/server error</td></tr>
+</table>
+
+Claude Code keeps about 30 days of local data, so once a day is plenty:
+
+```bash
+# cron (macOS/Linux), every day at 21:00 — Node must be on cron's PATH
+0 21 * * * npx --yes ccgather@latest submit >> ~/ccgather.log 2>&1
+
+# Windows Task Scheduler (run in Command Prompt), every day at 21:00; a console window shows while it runs
+schtasks /create /tn "CCgather submit" /sc daily /st 21:00 /tr "cmd /c npx --yes ccgather@latest submit >> \"%USERPROFILE%\ccgather.log\" 2>&1"
+```
+
+Task Scheduler skips a run on battery power by default, and both schedulers skip a run while the machine is asleep or off, so pick a time the machine is usually awake and plugged in.
+
 ---
 
 ## The Name
