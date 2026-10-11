@@ -1,6 +1,8 @@
 import ora from "ora";
 import inquirer from "inquirer";
+import type Conf from "conf";
 import { getApiUrl, getConfig } from "../lib/config.js";
+import type { CliConfig } from "../lib/config.js";
 import { getDeviceId } from "../lib/device.js";
 import {
   scanAllProjects,
@@ -13,6 +15,7 @@ import {
   getSessionPathDebugInfo,
 } from "../lib/ccgather-json.js";
 import { initPricing } from "../lib/pricing.js";
+import { SCHEDULED_MIN_INTERVAL_MS } from "../lib/autosubmit/shared.js";
 import {
   shouldPromptStar,
   shouldRequestStarStatus,
@@ -67,7 +70,7 @@ export interface SubmitOptions {
 }
 
 // The daily trigger and the catch-up or logon trigger can both fire on one day
-export const SCHEDULED_MIN_INTERVAL_MS = 20 * 60 * 60 * 1000;
+export { SCHEDULED_MIN_INTERVAL_MS };
 
 interface BadgeInfo {
   id: string;
@@ -399,6 +402,34 @@ export function logResult(message: string, isError: boolean = false): void {
 }
 
 /**
+ * How long ago something happened, rounded down: "less than a minute ago",
+ * "5 minutes ago", "3 hours ago"
+ */
+export function formatAgo(elapsedMs: number): string {
+  const minutes = Math.floor(elapsedMs / 60_000);
+  if (minutes < 1) return "less than a minute ago";
+  if (minutes < 60) return minutes === 1 ? "1 minute ago" : `${minutes} minutes ago`;
+  const hours = Math.floor(minutes / 60);
+  return hours === 1 ? "1 hour ago" : `${hours} hours ago`;
+}
+
+/**
+ * Keep a scheduled run's result line for `autosubmit status`. Writing it is
+ * best effort: it must never change the run's output or exit code.
+ */
+function recordScheduledRun(config: Conf<CliConfig>, message: string, isError: boolean): void {
+  try {
+    config.set("lastScheduledRun", {
+      at: new Date().toISOString(),
+      ok: !isError,
+      message,
+    });
+  } catch {
+    // The run's own log line is the record of last resort
+  }
+}
+
+/**
  * Get plan display color
  */
 function getPlanColor(plan: string): (text: string) => string {
@@ -440,12 +471,18 @@ export async function submit(options: SubmitOptions = {}): Promise<void> {
 
   const config = getConfig();
 
+  // The one result line of a non-interactive run; a scheduled run also keeps it
+  const report = (message: string, isError: boolean = false): void => {
+    logResult(message, isError);
+    if (scheduled) recordScheduledRun(config, message, isError);
+  };
+
   if (scheduled) {
     const lastSync = config.get("lastSync");
     const age = lastSync ? Date.now() - Date.parse(lastSync) : Number.NaN;
     // A lastSync in the future (clock moved back) does not count as recent
     if (age >= 0 && age < SCHEDULED_MIN_INTERVAL_MS) {
-      logResult(`Skipped: already submitted at ${lastSync}.`);
+      report(`Skipped: submitted ${formatAgo(age)}.`);
       return;
     }
   }
@@ -476,14 +513,14 @@ export async function submit(options: SubmitOptions = {}): Promise<void> {
     // Keep the saved token: a scheduled run cannot log in again, and a server
     // or network error must not wipe a token that is still valid
     if (tokenCheck.failure === "missing") {
-      logResult("Not logged in. Run `npx ccgather` to log in.", true);
+      report("Not logged in. Run `npx ccgather` to log in.", true);
     } else if (tokenCheck.failure === "rejected") {
-      logResult(
+      report(
         `Authentication refused by server (${tokenCheck.error}). If this keeps happening, run \`npx ccgather\` to log in again.`,
         true
       );
     } else {
-      logResult(`Could not verify authentication (${tokenCheck.error}). Try again later.`, true);
+      report(`Could not verify authentication (${tokenCheck.error}). Try again later.`, true);
     }
     process.exit(1);
   }
@@ -546,7 +583,7 @@ export async function submit(options: SubmitOptions = {}): Promise<void> {
     if (nonInteractive) {
       const debugInfo = getSessionPathDebugInfo();
       const searched = debugInfo.searchedPaths.map((pathInfo) => pathInfo.path).join(", ");
-      logResult(`No Claude Code sessions found (searched: ${searched}).`, true);
+      report(`No Claude Code sessions found (searched: ${searched}).`, true);
       await reportSubmitAttempt("no_sessions", debugInfo, true);
       process.exit(1);
     }
@@ -610,7 +647,7 @@ export async function submit(options: SubmitOptions = {}): Promise<void> {
 
   if (!scannedData) {
     if (nonInteractive) {
-      logResult("No usage data found in Claude Code sessions.", true);
+      report("No usage data found in Claude Code sessions.", true);
       await reportSubmitAttempt("no_data", undefined, true);
       process.exit(1);
     }
@@ -645,19 +682,16 @@ export async function submit(options: SubmitOptions = {}): Promise<void> {
     if (result.success) {
       config.set("lastSync", new Date().toISOString());
       const rank = result.rank ? `, global rank #${result.rank}` : "";
-      logResult(
+      report(
         `Submitted ${formatNumber(usageData.totalTokens)} tokens (${formatCost(usageData.totalCost)}) as ${username || "unknown"}${rank}.`
       );
       return;
     }
 
     if (result.retryAfterMinutes) {
-      logResult(
-        `Submission limit reached. Try again in ${result.retryAfterMinutes} minute(s).`,
-        true
-      );
+      report(`Submission limit reached. Try again in ${result.retryAfterMinutes} minute(s).`, true);
     } else {
-      logResult(`Failed to submit: ${result.error || "Unknown error"}.`, true);
+      report(`Failed to submit: ${result.error || "Unknown error"}.`, true);
     }
     process.exit(1);
   }

@@ -2,12 +2,16 @@ import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
 import { getConfig, isAuthenticated } from "../lib/config.js";
+import type { CliConfig } from "../lib/config.js";
+import type Conf from "conf";
+import { promptStarNudge, shouldPromptStar } from "../lib/star-nudge.js";
 import {
   AutosubmitStatus,
   Backend,
   DailyTime,
   JobCommand,
   ResolveDeps,
+  SCHEDULED_MIN_INTERVAL_HOURS,
   defaultResolveDeps,
   formatDailyTime,
   defaultDailyTime,
@@ -29,13 +33,20 @@ export interface AutosubmitOptions {
   autoUpdate?: boolean;
 }
 
-// Test seams: the backend, the argv inputs, the clock and the platform default
-// to the real system
+// The result of the last `submit --scheduled` run, as `submit` keeps it in config
+export type LastScheduledRun = NonNullable<CliConfig["lastScheduledRun"]>;
+
+// Test seams: the backend, the argv inputs, the clock, the platform, the
+// terminal check, the star prompt and the recorded last run default to the real
+// system
 export interface AutosubmitContext {
   backend?: Backend;
   resolveDeps?: ResolveDeps;
   now?: () => Date;
   platform?: NodeJS.Platform;
+  isTTY?: boolean;
+  promptStar?: (config: Conf<CliConfig>) => Promise<void>;
+  lastScheduledRun?: LastScheduledRun;
 }
 
 export function getBackend(platform: NodeJS.Platform = process.platform): Backend {
@@ -56,7 +67,7 @@ export function getBackend(platform: NodeJS.Platform = process.platform): Backen
 function describeCommand(command: JobCommand): string {
   if (command.kind === "global") return "your global install of ccgather";
   if (command.spec === "ccgather@latest") return "the newest ccgather release each day, via npx";
-  return `${command.spec} via npx; to move to a newer release, run \`npx ccgather@latest autosubmit on\``;
+  return `${command.spec} via npx and stays on that version. To have it follow upgrades, install ccgather globally (\`npm install -g ccgather\`) and run \`ccgather autosubmit on\` again`;
 }
 
 function backendFor(context: AutosubmitContext): Backend {
@@ -101,7 +112,9 @@ export async function autosubmitEnable(
   });
   getConfig().set("autoSync", true);
 
-  console.log(`Autosubmit is on. Runs every day at ${formatDailyTime(time)}, your local time.`);
+  console.log(
+    `Autosubmit is on. Runs every day at ${formatDailyTime(time)}, your local time. A run is skipped if you submitted in the ${SCHEDULED_MIN_INTERVAL_HOURS} hours before it, so the first one may be.`
+  );
   console.log(`It uses ${describeCommand(command)}.`);
   console.log(
     `Log: ${result.log}. Turn it off with \`npx ccgather autosubmit off\`; check it with \`npx ccgather autosubmit status\`.`
@@ -112,6 +125,29 @@ export async function autosubmitEnable(
     );
   }
   for (const note of result.notes) console.log(note);
+
+  await offerStarPrompt(context);
+}
+
+/**
+ * Scheduled runs never show the star prompt, so offer it once when autosubmit is
+ * turned on, under the same rule and config flags as a submit. A failure here
+ * never fails the command.
+ */
+async function offerStarPrompt(context: AutosubmitContext): Promise<void> {
+  try {
+    const config = getConfig();
+    const isTTY = context.isTTY ?? Boolean(process.stdout.isTTY && process.stdin.isTTY);
+    const ask = shouldPromptStar({
+      isTTY,
+      hasSubmittedBefore: Boolean(config.get("lastSync")),
+      starConfirmed: config.get("starConfirmed") === true,
+      hasStarred: null,
+    });
+    if (ask) await (context.promptStar ?? promptStarNudge)(config);
+  } catch {
+    // The prompt is a courtesy; autosubmit is already on
+  }
 }
 
 export async function autosubmitOff(context: AutosubmitContext = {}): Promise<void> {
@@ -129,10 +165,22 @@ function quoteForDisplay(value: string): string {
   return /\s/.test(value) ? `"${value}"` : value;
 }
 
-/** Status lines, read from the OS rather than from config */
+function pad2(value: number): string {
+  return String(value).padStart(2, "0");
+}
+
+// The run's local date and time to the minute: 2026-10-11 14:23
+function formatLocalMinute(iso: string): string {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return iso;
+  return `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())} ${pad2(date.getHours())}:${pad2(date.getMinutes())}`;
+}
+
+/** Status lines, read from the OS, plus the last scheduled run's own record */
 export function formatStatus(
   status: AutosubmitStatus,
-  exists: (file: string) => boolean = fs.existsSync
+  exists: (file: string) => boolean = fs.existsSync,
+  lastScheduledRun?: LastScheduledRun
 ): string[] {
   const lines: string[] = [];
   if (!status.registered) {
@@ -159,15 +207,30 @@ export function formatStatus(
   if (status.state) lines.push(`State: ${status.state}`);
   if (status.lastRun) lines.push(`Last run: ${status.lastRun}`);
   if (status.lastResult) lines.push(`Last result: ${status.lastResult}`);
+  if (lastScheduledRun) {
+    lines.push(
+      `Last outcome (${formatLocalMinute(lastScheduledRun.at)}): ${lastScheduledRun.message}`
+    );
+  }
   if (status.nextRun) lines.push(`Next run: ${status.nextRun}`);
   lines.push(`Log: ${status.log}`);
-  if (status.lastLogLine) lines.push(`Last log line: ${status.lastLogLine}`);
+  // The outcome above is the log's last line when the run got as far as the CLI;
+  // a crash before that shows only here
+  if (
+    status.lastLogLine &&
+    !(lastScheduledRun && status.lastLogLine.endsWith(lastScheduledRun.message))
+  ) {
+    lines.push(`Last log line: ${status.lastLogLine}`);
+  }
   return lines;
 }
 
 export async function autosubmitStatus(context: AutosubmitContext = {}): Promise<void> {
   const backend = backendFor(context);
-  for (const line of formatStatus(await backend.status())) console.log(line);
+  const lastScheduledRun = context.lastScheduledRun ?? getConfig().get("lastScheduledRun");
+  for (const line of formatStatus(await backend.status(), fs.existsSync, lastScheduledRun)) {
+    console.log(line);
+  }
 }
 
 export interface AutosubmitSettingsState {

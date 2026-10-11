@@ -1,13 +1,24 @@
 /**
  * `ccgather autosubmit` command handlers, against a fake backend and a fake
- * conf store: login refusal, time choice, messages, and the autoSync flag.
+ * conf store: login refusal, time choice, messages, the autoSync flag, the last
+ * scheduled outcome in `status` and the star prompt offered when it is turned on.
+ *
+ * The real star prompt would run `gh api --method PUT /user/starred/...` under
+ * the machine's GitHub login, so that module's prompt is mocked and every test
+ * that reaches it injects its own fake through the context.
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 const mocked = vi.hoisted(() => ({
   store: new Map<string, unknown>(),
+  realPrompt: vi.fn(async () => undefined),
 }));
+
+vi.mock("../src/lib/star-nudge", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../src/lib/star-nudge")>();
+  return { ...actual, promptStarNudge: mocked.realPrompt };
+});
 
 vi.mock("../src/lib/config", () => ({
   getConfig: () => ({
@@ -111,8 +122,8 @@ describe("autosubmit commands", () => {
     );
     expect(mocked.store.get("autoSync")).toBe(true);
     expect(logs).toEqual([
-      "Autosubmit is on. Runs every day at 14:23, your local time.",
-      "It uses ccgather@2.1.1 via npx; to move to a newer release, run `npx ccgather@latest autosubmit on`.",
+      "Autosubmit is on. Runs every day at 14:23, your local time. A run is skipped if you submitted in the 20 hours before it, so the first one may be.",
+      "It uses ccgather@2.1.1 via npx and stays on that version. To have it follow upgrades, install ccgather globally (`npm install -g ccgather`) and run `ccgather autosubmit on` again.",
       "Log: /home/alice/autosubmit.log. Turn it off with `npx ccgather autosubmit off`; check it with `npx ccgather autosubmit status`.",
       "A note.",
     ]);
@@ -135,7 +146,9 @@ describe("autosubmit commands", () => {
     expect(backend.enable).toHaveBeenCalledWith(
       expect.objectContaining({ time: { hour: 7, minute: 5 } })
     );
-    expect(logs[0]).toBe("Autosubmit is on. Runs every day at 07:05, your local time.");
+    expect(logs[0]).toBe(
+      "Autosubmit is on. Runs every day at 07:05, your local time. A run is skipped if you submitted in the 20 hours before it, so the first one may be."
+    );
     expect(logs[1]).toBe("It uses the newest ccgather release each day, via npx.");
     expect(logs).toContain(
       "--auto-update: each day it runs whatever ccgather release is newest that day, with access to your token."
@@ -296,7 +309,7 @@ describe("Settings menu entry", () => {
       expect.objectContaining({ time: { hour: 14, minute: 23 } })
     );
     expect(mocked.store.get("autoSync")).toBe(true);
-    expect(logs[0]).toBe("Autosubmit is on. Runs every day at 14:23, your local time.");
+    expect(logs[0]).toMatch(/^Autosubmit is on\. Runs every day at 14:23, your local time\. /);
   });
 
   it("turns autosubmit off exactly as `autosubmit off` when it is on", async () => {
@@ -318,5 +331,299 @@ describe("Settings menu entry", () => {
     expect(ok).toBe(false);
     expect(errors).toEqual(["ccgather autosubmit: crontab is not available"]);
     expect(exit).not.toHaveBeenCalled();
+  });
+});
+
+describe("autosubmit on: wording and the star prompt", () => {
+  const ELIGIBLE = "2026-10-10T08:00:00.000Z";
+  let logs: string[];
+  let errors: string[];
+
+  function globalDeps(): ResolveDeps {
+    const pkg = "/usr/lib/node_modules/ccgather";
+    const entry = `${pkg}/dist/index.js`;
+    const files = new Set([NODE, NPX, pkg, entry]);
+    return {
+      ...fakeDeps(),
+      packageRoot: pkg,
+      globalRoot: async () => "/usr/lib/node_modules",
+      exists: (file) => files.has(file),
+      realpath: (file) => (files.has(file) ? file : null),
+    };
+  }
+
+  // A prompt that remembers what had been printed when it was called
+  function fakePrompt() {
+    const seen: string[][] = [];
+    const prompt = vi.fn(async () => {
+      seen.push([...logs]);
+    });
+    return { prompt, seen };
+  }
+
+  beforeEach(() => {
+    mocked.store.clear();
+    mocked.store.set("apiToken", "test-token");
+    mocked.store.set("autoSync", false);
+    mocked.realPrompt.mockClear();
+    logs = [];
+    errors = [];
+    vi.spyOn(console, "log").mockImplementation((...args: unknown[]) => {
+      logs.push(args.join(" "));
+    });
+    vi.spyOn(console, "error").mockImplementation((...args: unknown[]) => {
+      errors.push(args.join(" "));
+    });
+  });
+
+  afterEach(() => {
+    expect(mocked.realPrompt).not.toHaveBeenCalled();
+    vi.restoreAllMocks();
+  });
+
+  it("says a run is skipped within 20 hours of a submit, in the first line", async () => {
+    await autosubmitEnable(
+      {},
+      {
+        backend: fakeBackend(),
+        resolveDeps: fakeDeps(),
+        now: () => new Date(2026, 9, 11, 14, 17, 42),
+        isTTY: false,
+      }
+    );
+    expect(logs[0]).toBe(
+      "Autosubmit is on. Runs every day at 14:23, your local time. A run is skipped if you submitted in the 20 hours before it, so the first one may be."
+    );
+  });
+
+  it("suggests a global install when the job is pinned to a version through npx", async () => {
+    await autosubmitEnable(
+      {},
+      { backend: fakeBackend(), resolveDeps: { ...fakeDeps(), version: "2.2.0" }, isTTY: false }
+    );
+    expect(logs[1]).toBe(
+      "It uses ccgather@2.2.0 via npx and stays on that version. To have it follow upgrades, install ccgather globally (`npm install -g ccgather`) and run `ccgather autosubmit on` again."
+    );
+  });
+
+  it("leaves the lines for a global install and for ccgather@latest as they were", async () => {
+    await autosubmitEnable({}, { backend: fakeBackend(), resolveDeps: globalDeps(), isTTY: false });
+    expect(logs[1]).toBe("It uses your global install of ccgather.");
+
+    logs.length = 0;
+    await autosubmitEnable(
+      { autoUpdate: true },
+      { backend: fakeBackend(), resolveDeps: fakeDeps(), isTTY: false }
+    );
+    expect(logs[1]).toBe("It uses the newest ccgather release each day, via npx.");
+  });
+
+  it("offers the star prompt after the last output line when eligible", async () => {
+    mocked.store.set("lastSync", ELIGIBLE);
+    const { prompt, seen } = fakePrompt();
+    await autosubmitEnable(
+      {},
+      { backend: fakeBackend(), resolveDeps: fakeDeps(), isTTY: true, promptStar: prompt }
+    );
+    expect(prompt).toHaveBeenCalledTimes(1);
+    expect(seen[0]).toEqual(logs);
+    expect(logs.at(-1)).toBe("A note.");
+  });
+
+  it("does not offer it once the star is confirmed", async () => {
+    mocked.store.set("lastSync", ELIGIBLE);
+    mocked.store.set("starConfirmed", true);
+    const { prompt } = fakePrompt();
+    await autosubmitEnable(
+      {},
+      { backend: fakeBackend(), resolveDeps: fakeDeps(), isTTY: true, promptStar: prompt }
+    );
+    expect(prompt).not.toHaveBeenCalled();
+  });
+
+  it("does not offer it before the first submit", async () => {
+    const { prompt } = fakePrompt();
+    await autosubmitEnable(
+      {},
+      { backend: fakeBackend(), resolveDeps: fakeDeps(), isTTY: true, promptStar: prompt }
+    );
+    expect(prompt).not.toHaveBeenCalled();
+  });
+
+  it("does not offer it without a terminal", async () => {
+    mocked.store.set("lastSync", ELIGIBLE);
+    const { prompt } = fakePrompt();
+    await autosubmitEnable(
+      {},
+      { backend: fakeBackend(), resolveDeps: fakeDeps(), isTTY: false, promptStar: prompt }
+    );
+    expect(prompt).not.toHaveBeenCalled();
+  });
+
+  it("never offers it on off or on status", async () => {
+    mocked.store.set("lastSync", ELIGIBLE);
+    const { prompt } = fakePrompt();
+    const backend = fakeBackend({ registered: true, time: { hour: 14, minute: 23 } });
+    await autosubmitOff({ backend, isTTY: true, promptStar: prompt });
+    await autosubmitStatus({ backend, isTTY: true, promptStar: prompt });
+    expect(prompt).not.toHaveBeenCalled();
+  });
+
+  it("does not offer it when enabling fails", async () => {
+    mocked.store.set("lastSync", ELIGIBLE);
+    const { prompt } = fakePrompt();
+    const backend = fakeBackend();
+    backend.enable.mockRejectedValue(new Error("crontab is not available"));
+    await expect(
+      autosubmitEnable({}, { backend, resolveDeps: fakeDeps(), isTTY: true, promptStar: prompt })
+    ).rejects.toThrow("crontab is not available");
+    expect(prompt).not.toHaveBeenCalled();
+  });
+
+  it("does not fail the command when the prompt throws", async () => {
+    mocked.store.set("lastSync", ELIGIBLE);
+    const prompt = vi.fn(async () => {
+      throw new Error("prompt blew up");
+    });
+    const context = {
+      backend: fakeBackend(),
+      resolveDeps: fakeDeps(),
+      isTTY: true,
+      promptStar: prompt,
+    };
+    await expect(autosubmitEnable({}, context)).resolves.toBeUndefined();
+    expect(prompt).toHaveBeenCalledTimes(1);
+    expect(mocked.store.get("autoSync")).toBe(true);
+
+    expect(await toggleAutosubmit(false, context)).toBe(true);
+    expect(errors).toEqual([]);
+  });
+
+  it("asks when the Settings toggle turns it on, not when it turns it off", async () => {
+    mocked.store.set("lastSync", ELIGIBLE);
+    const { prompt } = fakePrompt();
+    await toggleAutosubmit(false, {
+      backend: fakeBackend(),
+      resolveDeps: fakeDeps(),
+      isTTY: true,
+      promptStar: prompt,
+    });
+    expect(prompt).toHaveBeenCalledTimes(1);
+
+    await toggleAutosubmit(true, {
+      backend: fakeBackend({ registered: true, time: { hour: 14, minute: 23 } }),
+      resolveDeps: fakeDeps(),
+      isTTY: true,
+      promptStar: prompt,
+    });
+    expect(prompt).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("status: last outcome", () => {
+  const base: AutosubmitStatus = {
+    registered: true,
+    mechanism: "crontab entry",
+    time: { hour: 14, minute: 7 },
+    argv: [
+      "/usr/bin/node",
+      "/usr/lib/npx-cli.js",
+      "--yes",
+      "ccgather@2.2.0",
+      "submit",
+      "--scheduled",
+    ],
+    nextRun: "Thu 2026-10-08 14:07:00 EDT",
+    log: "/home/alice/.local/state/ccgather/autosubmit.log",
+  };
+  const outcome = {
+    at: new Date(2026, 9, 11, 14, 23, 5).toISOString(),
+    ok: true,
+    message: "Skipped: submitted 10 minutes ago.",
+  };
+  const OUTCOME_LINE = "Last outcome (2026-10-11 14:23): Skipped: submitted 10 minutes ago.";
+  const exists = () => true;
+
+  it("names the scheduler in the first line, for the systemd timer and for cron", () => {
+    expect(
+      formatStatus(
+        { ...base, mechanism: "systemd user timer ccgather-autosubmit.timer" },
+        exists
+      )[0]
+    ).toBe("Autosubmit is on: systemd user timer ccgather-autosubmit.timer every day at 14:07.");
+    expect(formatStatus(base, exists)[0]).toBe(
+      "Autosubmit is on: crontab entry every day at 14:07."
+    );
+  });
+
+  it("shows the outcome after the last result and before the next run", () => {
+    const lines = formatStatus({ ...base, lastResult: "0 (success)" }, exists, outcome);
+    expect(lines).toContain(OUTCOME_LINE);
+    expect(lines.indexOf(OUTCOME_LINE)).toBe(lines.indexOf("Last result: 0 (success)") + 1);
+    expect(lines.indexOf(OUTCOME_LINE)).toBe(
+      lines.indexOf("Next run: Thu 2026-10-08 14:07:00 EDT") - 1
+    );
+  });
+
+  it("leaves the last log line out when it ends with the same message", () => {
+    const lines = formatStatus(
+      {
+        ...base,
+        lastLogLine: "[2026-10-11T18:23:05.000Z] ccgather: Skipped: submitted 10 minutes ago.",
+      },
+      exists,
+      outcome
+    );
+    expect(lines).toContain(OUTCOME_LINE);
+    expect(lines.some((line) => line.startsWith("Last log line:"))).toBe(false);
+  });
+
+  it("keeps the last log line when it says something else, such as a crash", () => {
+    const lines = formatStatus(
+      { ...base, lastLogLine: "node: command not found" },
+      exists,
+      outcome
+    );
+    expect(lines).toContain(OUTCOME_LINE);
+    expect(lines).toContain("Last log line: node: command not found");
+  });
+
+  it("shows no outcome when the job is off or nothing was recorded", () => {
+    expect(
+      formatStatus(
+        { registered: false, mechanism: "crontab entry", log: "x" },
+        exists,
+        outcome
+      ).some((line) => line.startsWith("Last outcome"))
+    ).toBe(false);
+    expect(formatStatus(base, exists).some((line) => line.startsWith("Last outcome"))).toBe(false);
+  });
+
+  describe("autosubmitStatus", () => {
+    let logs: string[];
+
+    beforeEach(() => {
+      mocked.store.clear();
+      logs = [];
+      vi.spyOn(console, "log").mockImplementation((...args: unknown[]) => {
+        logs.push(args.join(" "));
+      });
+    });
+
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    it("takes the record from the context", async () => {
+      mocked.store.set("lastScheduledRun", { ...outcome, message: "from config" });
+      await autosubmitStatus({ backend: fakeBackend(base), lastScheduledRun: outcome });
+      expect(logs).toContain(OUTCOME_LINE);
+    });
+
+    it("reads it from config when the context has none", async () => {
+      mocked.store.set("lastScheduledRun", outcome);
+      await autosubmitStatus({ backend: fakeBackend(base) });
+      expect(logs).toContain(OUTCOME_LINE);
+    });
   });
 });

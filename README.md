@@ -227,12 +227,12 @@ Let the CLI set up the daily job for you, using your operating system's own sche
 
 ```bash
 npx ccgather autosubmit on             # turn it on, or update/repair it
-npx ccgather autosubmit status         # what the scheduler has, the last run and its result
+npx ccgather autosubmit status         # what the scheduler has, and what the last run did
 npx ccgather autosubmit off            # remove it
 npx ccgather autosubmit on --at 21:30  # pick the time yourself
 ```
 
-Without `--at` it runs every day at the time you turned it on plus five minutes (turn it on at 14:17 and it runs at 14:22), in your local time. People turn it on at different moments, so not everyone submits at once, and your machine is usually awake at that time. Settings > Autosubmit in the menu does the same as `on` and `off`. If the machine was off at that time, the job catches up later (except with the Linux cron fallback, which skips that day); a second run within 20 hours is skipped.
+Without `--at` it runs every day at the time you turned it on plus five minutes (turn it on at 14:17 and it runs at 14:22), in your local time. People turn it on at different moments, so not everyone submits at once, and your machine is usually awake at that time. Settings > Autosubmit in the menu does the same as `on` and `off`. If the machine was off at that time, the job catches up later (except with the Linux cron fallback, which skips that day); a run is skipped if you submitted in the 20 hours before it, so the first one may be. `status` shows what the last run did, for example `Last outcome (2026-10-11 14:23): Skipped: submitted 10 minutes ago.`
 
 <table>
 <tr><th width="100">OS</th><th>What it creates</th><th>Log</th></tr>
@@ -241,7 +241,9 @@ Without `--at` it runs every day at the time you turned it on plus five minutes 
 <tr><td>Linux</td><td>systemd user timer <code>ccgather-autosubmit.timer</code>, or a marked crontab line where systemd user sessions are not available</td><td><code>journalctl --user -u ccgather-autosubmit</code>, or <code>~/.local/state/ccgather/autosubmit.log</code> with cron</td></tr>
 </table>
 
-The job runs the ccgather version you set it up with (or your global install, if you ran that). To move it to a newer release, run `npx ccgather@latest autosubmit on`. With `--auto-update` it runs `ccgather@latest` instead, so whatever release is newest that day runs with access to your token.
+The macOS and Linux setups are covered by tests but have not yet been run on a real machine. If the job misbehaves, `npx ccgather autosubmit off` removes it.
+
+The job runs the ccgather version you set it up with (or your global install, if you ran that). Set up through `npx`, it stays on that version; to have it follow upgrades, install ccgather globally (`npm install -g ccgather`) and run `ccgather autosubmit on` again. With `--auto-update` it runs `ccgather@latest` instead, so whatever release is newest that day runs with access to your token.
 
 - **macOS** may show a "Background Items Added" notification once.
 - **Linux (systemd)** runs the job only while you are signed in and catches up at your next login. To run it while signed out, run `loginctl enable-linger $USER` yourself.

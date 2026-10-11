@@ -14,6 +14,11 @@ import { VERSION } from "../ui.js";
 
 export const JOB_NAME = "ccgather-autosubmit";
 
+// A scheduled run is skipped when the last submit was less than this long ago.
+// Lives here so `autosubmit on` can state the same number the skip uses.
+export const SCHEDULED_MIN_INTERVAL_HOURS = 20;
+export const SCHEDULED_MIN_INTERVAL_MS = SCHEDULED_MIN_INTERVAL_HOURS * 60 * 60 * 1000;
+
 export interface DailyTime {
   hour: number;
   minute: number;

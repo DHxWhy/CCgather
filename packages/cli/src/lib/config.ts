@@ -14,6 +14,8 @@ export interface CliConfig {
   starServerConfirmed?: boolean;
   starDeclineCount?: number;
   starPromptSnooze?: number; // submits left to stay quiet after a decline
+  // The result line of the last `submit --scheduled` run, shown by `autosubmit status`
+  lastScheduledRun?: { at: string; ok: boolean; message: string };
 }
 
 const defaults: CliConfig = {
