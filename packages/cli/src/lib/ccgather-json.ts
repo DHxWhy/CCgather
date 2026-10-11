@@ -1333,9 +1333,10 @@ export function scanAllProjects(options: ScanOptions = {}): CCGatherData | null 
   }
 
   // A session's main transcript and its subagent transcripts are separate files,
-  // so sessions are counted by sessionId rather than by file.
+  // so sessions are counted by sessionId rather than by file. A file that names
+  // no session (a workflow journal, say) counts only if it holds usage.
   const sessionKeyOf = (file: TranscriptFile): string => file.sessionId ?? file.filePath;
-  sessionsCount = new Set(allJsonlFiles.map(sessionKeyOf)).size;
+  const countedSessions = new Set<string>();
   const projectSessions: Record<string, Set<string>> = {};
   const { onProgress } = options;
 
@@ -1353,7 +1354,7 @@ export function scanAllProjects(options: ScanOptions = {}): CCGatherData | null 
       };
       projectSessions[projectName] = new Set();
     }
-    projectSessions[projectName].add(sessionKey);
+    let hasUsage = false;
 
     try {
       const content = fs.readFileSync(filePath, "utf-8");
@@ -1368,6 +1369,7 @@ export function scanAllProjects(options: ScanOptions = {}): CCGatherData | null 
           const event = JSON.parse(line);
 
           if (event.type === "assistant" && event.message?.usage) {
+            hasUsage = true;
             // Streaming writes one line per content block, each repeating the
             // message's full usage — count each message once.
             const eventKey = event.message.id
@@ -1465,6 +1467,11 @@ export function scanAllProjects(options: ScanOptions = {}): CCGatherData | null 
       // Skip unreadable files
     }
 
+    if (allJsonlFiles[i].sessionId || hasUsage) {
+      countedSessions.add(sessionKey);
+      projectSessions[projectName].add(sessionKey);
+    }
+
     // Progress callback after file processing (not before)
     if (onProgress) {
       onProgress(i + 1, allJsonlFiles.length);
@@ -1476,6 +1483,8 @@ export function scanAllProjects(options: ScanOptions = {}): CCGatherData | null 
   if (totalTokens === 0) {
     return null;
   }
+
+  sessionsCount = countedSessions.size;
 
   for (const projectName of Object.keys(projects)) {
     projects[projectName].cost = Math.round(projects[projectName].cost * 100) / 100;
