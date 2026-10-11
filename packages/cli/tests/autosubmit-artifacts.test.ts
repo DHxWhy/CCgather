@@ -285,31 +285,44 @@ describe("Windows status parsing", () => {
   it("reads PowerShell's JSON, including localised states and a UTF-8 BOM", () => {
     const json = JSON.stringify({
       State: "Bereit",
-      LastRunTime: "2026-10-07T14:07:01.0000000+02:00",
       NextRunTime: "2026-10-08T14:07:00.0000000+02:00",
       LastTaskResult: 0,
       StartBoundaries: ["2026-10-07T14:07:00", ""],
     });
     expect(parsePowerShellStatus(String.fromCharCode(0xfeff) + json + "\r\n")).toEqual({
       state: "Bereit",
-      lastRun: "2026-10-07T14:07:01.0000000+02:00",
       nextRun: "2026-10-08T14:07:00.0000000+02:00",
-      lastResult: "0 (success)",
       time: { hour: 14, minute: 7 },
     });
   });
 
-  it("drops the placeholder last run time of a task that has not run", () => {
+  it.each([
+    ["has not run", 0x41303],
+    ["is running", 0x41301],
+    ["was stopped", 0x41306],
+    ["succeeded", 0],
+  ])("sets no last failure for a task that %s", (_name, code) => {
     const json = JSON.stringify({
       State: "Ready",
-      LastRunTime: "1999-11-30T00:00:00.0000000",
       NextRunTime: null,
-      LastTaskResult: 0x41303,
+      LastTaskResult: code,
       StartBoundaries: "2026-10-07T09:05:00",
     });
     expect(parsePowerShellStatus(json)).toEqual({
       state: "Ready",
-      lastResult: "has not run yet",
+      time: { hour: 9, minute: 5 },
+    });
+  });
+
+  it("sets the last failure for a result code that is not success or a state", () => {
+    const json = JSON.stringify({
+      State: "Ready",
+      LastTaskResult: 1,
+      StartBoundaries: "2026-10-07T09:05:00",
+    });
+    expect(parsePowerShellStatus(json)).toEqual({
+      state: "Ready",
+      lastFailure: "the job exited with code 1 (0x1); see the log",
       time: { hour: 9, minute: 5 },
     });
   });
@@ -440,12 +453,14 @@ describe("macOS LaunchAgent plist", () => {
     ].join("\n");
     expect(parseLaunchctlPrint(printed)).toEqual({
       state: "not running",
-      lastResult: "1 (failed; see the log)",
-      runs: 2,
+      lastFailure: "exit code 1",
     });
+    // Control: 0 and a value that is not a number are not failures
     expect(parseLaunchctlPrint("\tstate = running\n\tlast exit code = (never exited)\n")).toEqual({
       state: "running",
-      lastResult: "(never exited)",
+    });
+    expect(parseLaunchctlPrint("\tstate = waiting\n\tlast exit code = 0\n")).toEqual({
+      state: "waiting",
     });
   });
 });

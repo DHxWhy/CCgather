@@ -34,6 +34,9 @@ import { createLinuxBackend } from "../lib/autosubmit/linux.js";
 export interface AutosubmitOptions {
   at?: string;
   autoUpdate?: boolean;
+  // Internal, not a CLI flag: false keeps the star prompt away from a turn-on
+  // that comes from the on-state menu (default true)
+  starPrompt?: boolean;
 }
 
 // The result of the last `submit --scheduled` run, as `submit` keeps it in config
@@ -201,7 +204,7 @@ export async function autosubmitEnable(
   }
   for (const line of lines) console.log(line);
 
-  if (!wasOn) await offerStarPrompt(context);
+  if (!wasOn && options.starPrompt !== false) await offerStarPrompt(context);
 }
 
 /**
@@ -312,6 +315,16 @@ export function formatStatus(
         : "none yet"
     )
   );
+  // A run that died before the CLI started records nothing; the scheduler knows.
+  // When the record already says the run failed, the user has been told.
+  if (status.lastFailure && (!lastScheduledRun || lastScheduledRun.ok)) {
+    lines.push(
+      row(
+        "Problem",
+        `the scheduler reports the last run failed: ${status.lastFailure}. See the log.`
+      )
+    );
+  }
   if (status.nextRun) {
     const next = new Date(status.nextRun);
     lines.push(row("Next run", Number.isNaN(next.getTime()) ? status.nextRun : formatMinute(next)));
@@ -385,7 +398,10 @@ export async function autosubmitMenuChoose(context: AutosubmitContext = {}): Pro
           parseDailyTime(value) ? true : "Use HH:MM, 24-hour, for example 21:30.",
       },
     ]);
-    await runFromMenu(() => autosubmitEnable({ at: newTime }, context), REGISTER_FAILED);
+    await runFromMenu(
+      () => autosubmitEnable({ at: newTime, starPrompt: false }, context),
+      REGISTER_FAILED
+    );
   } else if (autosubmitAction === "off") {
     await runFromMenu(() => autosubmitOff(context), TURN_OFF_FAILED);
   }

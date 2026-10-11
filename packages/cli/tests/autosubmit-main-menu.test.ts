@@ -399,6 +399,40 @@ describe("main menu: auto-submit item", () => {
     expect(autosubmitName(1)).toBe("🔁  Auto-submit: OFF");
   });
 
+  // The scheduler has lost the job although config says on: Change time then
+  // registers it afresh, which is still not the moment the star prompt is for
+  describe("when config says on but the scheduler has no job", () => {
+    beforeEach(() => {
+      setTTY(process.stdout);
+      setTTY(process.stdin);
+      storeOn("14:23");
+    });
+
+    it("Change time registers the job and does not offer the star prompt", async () => {
+      mainPicks = ["autosubmit"];
+      listPicks = ["time"];
+      timeInputs = ["21:30"];
+      await runCli();
+      await untilMenu(2);
+
+      expect(mocked.backend.enable).toHaveBeenCalledTimes(1);
+      expect(job.registered).toBe(true);
+      expect(logs).toContain("✔ Auto-submit is on.");
+    });
+
+    // Control: the same setup through the OFF item does offer it
+    it("the OFF item, on the same setup, does offer it", async () => {
+      starExpected = 1;
+      mocked.store.set("autoSync", false);
+      mainPicks = ["autosubmit"];
+      await runCli();
+      await untilMenu(2);
+
+      expect(mocked.backend.enable).toHaveBeenCalledTimes(1);
+      expect(starAsked).toBe(1);
+    });
+  });
+
   it("is left out on a platform auto-submit does not support", async () => {
     Object.defineProperty(process, "platform", { value: "freebsd", configurable: true });
     await runCli();

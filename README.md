@@ -244,6 +244,8 @@ Auto-submit: ON
   Log:       /home/alice/.local/state/ccgather/autosubmit.log
 ```
 
+When the scheduler reports a run that failed before the CLI could record it (for example npx could not fetch the package), `status` shows a `Problem:` line.
+
 When turning it on, you are offered the GitHub star prompt unless you have already starred.
 
 <table>

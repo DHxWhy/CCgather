@@ -258,6 +258,20 @@ export function parseTaskResultCsv(text: string): number | undefined {
   return Number.isFinite(code) ? code : undefined;
 }
 
+/** The failure a Last Result code stands for; undefined for success and for the states */
+function taskFailure(code: number): string | undefined {
+  const unsigned = code >>> 0;
+  if (
+    unsigned === 0 ||
+    unsigned === TASK_HAS_NOT_RUN ||
+    unsigned === TASK_RUNNING ||
+    unsigned === TASK_TERMINATED
+  ) {
+    return undefined;
+  }
+  return describeTaskResult(code);
+}
+
 export function describeTaskResult(code: number): string {
   const unsigned = code >>> 0;
   const hex = `0x${unsigned.toString(16).toUpperCase()}`;
@@ -284,7 +298,6 @@ export const POWERSHELL_STATUS_SCRIPT = [
   `$t=Get-ScheduledTask -TaskName '${JOB_NAME}' -TaskPath '\\'`,
   "$i=$t|Get-ScheduledTaskInfo",
   "[pscustomobject]@{State=[string]$t.State;" +
-    "LastRunTime=$(if($i.LastRunTime){$i.LastRunTime.ToString('o')}else{$null});" +
     "NextRunTime=$(if($i.NextRunTime){$i.NextRunTime.ToString('o')}else{$null});" +
     "LastTaskResult=$i.LastTaskResult;" +
     "StartBoundaries=@($t.Triggers|ForEach-Object{[string]$_.StartBoundary})}|ConvertTo-Json -Compress",
@@ -292,9 +305,8 @@ export const POWERSHELL_STATUS_SCRIPT = [
 
 export interface TaskInfo {
   state?: string;
-  lastRun?: string;
   nextRun?: string;
-  lastResult?: string;
+  lastFailure?: string;
   time?: DailyTime;
 }
 
@@ -302,7 +314,6 @@ export interface TaskInfo {
 export function parsePowerShellStatus(text: string): TaskInfo | null {
   let data: {
     State?: unknown;
-    LastRunTime?: unknown;
     NextRunTime?: unknown;
     LastTaskResult?: unknown;
     StartBoundaries?: unknown;
@@ -319,10 +330,8 @@ export function parsePowerShellStatus(text: string): TaskInfo | null {
   if (typeof data.NextRunTime === "string" && data.NextRunTime) info.nextRun = data.NextRunTime;
   const code = typeof data.LastTaskResult === "number" ? data.LastTaskResult : undefined;
   if (code !== undefined) {
-    info.lastResult = describeTaskResult(code);
-    if (code >>> 0 !== TASK_HAS_NOT_RUN && typeof data.LastRunTime === "string") {
-      info.lastRun = data.LastRunTime;
-    }
+    const failure = taskFailure(code);
+    if (failure) info.lastFailure = failure;
   }
   const boundaries = Array.isArray(data.StartBoundaries)
     ? data.StartBoundaries
@@ -450,7 +459,8 @@ export function createWindowsBackend(options: WindowsBackendOptions = {}): Backe
         if (query.code !== 0) return status;
         status.registered = true;
         const code = parseTaskResultCsv(query.stdout);
-        if (code !== undefined) status.lastResult = describeTaskResult(code);
+        const failure = code === undefined ? undefined : taskFailure(code);
+        if (failure) status.lastFailure = failure;
 
         const xml = await run("schtasks", ["/Query", "/TN", JOB_NAME, "/XML"]);
         if (xml.code === 0) status.time = parseTaskXmlTime(xml.stdout);

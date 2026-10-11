@@ -259,7 +259,6 @@ describe("Windows backend", () => {
     const log = await enableAndWriteLog(b);
     const json = JSON.stringify({
       State: "Bereit",
-      LastRunTime: "2026-10-07T14:07:01.0000000+02:00",
       NextRunTime: "2026-10-08T14:07:00.0000000+02:00",
       LastTaskResult: 1,
       StartBoundaries: ["2026-10-07T14:07:00", ""],
@@ -286,8 +285,7 @@ describe("Windows backend", () => {
       argv,
       state: "Bereit",
       nextRun: "2026-10-08T14:07:00.0000000+02:00",
-      lastRun: "2026-10-07T14:07:01.0000000+02:00",
-      lastResult: "the job exited with code 1 (0x1); see the log",
+      lastFailure: "the job exited with code 1 (0x1); see the log",
       log,
       lastLogLine: "[2026-10-07T18:07:01.000Z] ccgather: Failed to submit: boom.",
     });
@@ -324,7 +322,7 @@ describe("Windows backend", () => {
       scheduler: "Task Scheduler",
       time: { hour: 14, minute: 7 },
       argv,
-      lastResult:
+      lastFailure:
         "0x80070002 (failed to start; if Windows Script Host is disabled by policy, wscript.exe cannot run the launcher)",
       log,
       lastLogLine: "[2026-10-07T18:07:01.000Z] ccgather: Failed to submit: boom.",
@@ -482,9 +480,16 @@ describe("macOS backend", () => {
       time: { hour: 14, minute: 7 },
       argv,
       state: "not running",
-      lastResult: "0 (success)",
-      lastRun: "1 run(s) since it was loaded",
     });
+    expect(status.lastFailure).toBeUndefined();
+  });
+
+  it("status reports a non-zero last exit code as the last failure", async () => {
+    await backend().enable(plan(argv, temp));
+    mocked.handler = () => ({
+      stdout: `${service} = {\n\tstate = not running\n\tlast exit code = 78\n}\n`,
+    });
+    expect((await backend().status()).lastFailure).toBe("exit code 78");
   });
 
   it("status says installed but not loaded when launchctl does not know it", async () => {
@@ -711,7 +716,7 @@ describe("Linux backend", () => {
       if (call.args[2] === "ccgather-autosubmit.timer") {
         return {
           stdout:
-            "UnitFileState=enabled\nActiveState=active\nNextElapseUSecRealtime=Thu 2026-10-08 14:07:00 EDT\nLastTriggerUSec=Wed 2026-10-07 14:09:12 EDT\n",
+            "UnitFileState=enabled\nActiveState=active\nNextElapseUSecRealtime=Thu 2026-10-08 14:07:00 EDT\n",
         };
       }
       return {
@@ -727,7 +732,7 @@ describe("Linux backend", () => {
         "--user",
         "show",
         "ccgather-autosubmit.timer",
-        "--property=UnitFileState,ActiveState,NextElapseUSecRealtime,LastTriggerUSec",
+        "--property=UnitFileState,ActiveState,NextElapseUSecRealtime",
       ],
       [
         "--user",
@@ -743,10 +748,28 @@ describe("Linux backend", () => {
       argv,
       state: "active",
       nextRun: "Thu 2026-10-08 14:07:00 EDT",
-      lastRun: "Wed 2026-10-07 14:09:12 EDT",
-      lastResult: "exit-code (exit 1)",
+      lastFailure: "exit-code (exit 1)",
       log: "journalctl --user -u ccgather-autosubmit",
     });
+  });
+
+  it.each([
+    [
+      "a successful run",
+      "Result=success\nExecMainStatus=0\nExecMainExitTimestamp=Wed 2026-10-07 14:09:20 EDT\n",
+    ],
+    ["a service that never ran", "Result=success\nExecMainStatus=0\nExecMainExitTimestamp=n/a\n"],
+    [
+      "a failure with no exit timestamp yet",
+      "Result=exit-code\nExecMainStatus=1\nExecMainExitTimestamp=n/a\n",
+    ],
+  ])("status sets no last failure for %s", async (_name, service) => {
+    await backend().enable(plan(argv, temp));
+    mocked.handler = (call) =>
+      call.args[2] === "ccgather-autosubmit.timer"
+        ? { stdout: "UnitFileState=enabled\nActiveState=active\n" }
+        : { stdout: service };
+    expect((await backend().status()).lastFailure).toBeUndefined();
   });
 
   it("status reads the cron block", async () => {

@@ -70,8 +70,9 @@ export interface AutosubmitStatus {
   time?: DailyTime;
   argv?: string[];
   state?: string;
-  lastRun?: string;
-  lastResult?: string;
+  // Set only when the scheduler reports that its last run failed, so a run that
+  // died before the CLI could record anything still shows up
+  lastFailure?: string;
   nextRun?: string;
   log: string;
   // The last line the job wrote to its log file, when it has one

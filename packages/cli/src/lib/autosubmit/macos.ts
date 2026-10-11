@@ -104,21 +104,16 @@ export function parsePlist(source: string): { argv?: string[]; time?: DailyTime 
 /** The job's state from `launchctl print gui/<uid>/<label>` */
 export function parseLaunchctlPrint(text: string): {
   state?: string;
-  lastResult?: string;
-  runs?: number;
+  lastFailure?: string;
 } {
   const state = /^\s*state = (.+)$/m.exec(text);
   const exit = /^\s*last exit code = (.+)$/m.exec(text);
-  const runs = /^\s*runs = (\d+)$/m.exec(text);
-  const info: { state?: string; lastResult?: string; runs?: number } = {};
+  const info: { state?: string; lastFailure?: string } = {};
   if (state) info.state = state[1].trim();
-  if (exit) {
-    const value = exit[1].trim();
-    if (value === "0") info.lastResult = "0 (success)";
-    else if (/^\d+$/.test(value)) info.lastResult = `${value} (failed; see the log)`;
-    else info.lastResult = value;
+  // Anything but a number ("(never exited)") is not a failure
+  if (exit && /^-?\d+$/.test(exit[1].trim()) && Number(exit[1].trim()) !== 0) {
+    info.lastFailure = `exit code ${exit[1].trim()}`;
   }
-  if (runs) info.runs = Number(runs[1]);
   return info;
 }
 
@@ -224,8 +219,7 @@ export function createMacosBackend(options: MacosBackendOptions = {}): Backend {
       status.registered = true;
       const info = parseLaunchctlPrint(printed.stdout);
       status.state = info.state;
-      status.lastResult = info.lastResult;
-      if (info.runs !== undefined) status.lastRun = `${info.runs} run(s) since it was loaded`;
+      status.lastFailure = info.lastFailure;
       return status;
     },
   };

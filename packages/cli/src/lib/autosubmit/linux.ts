@@ -481,7 +481,7 @@ export function createLinuxBackend(options: LinuxBackendOptions = {}): Backend {
       "--user",
       "show",
       TIMER_UNIT,
-      "--property=UnitFileState,ActiveState,NextElapseUSecRealtime,LastTriggerUSec",
+      "--property=UnitFileState,ActiveState,NextElapseUSecRealtime",
     ]);
     if (timer.code !== 0) {
       status.state = `systemctl failed: ${describeFailure(timer)}`;
@@ -491,7 +491,6 @@ export function createLinuxBackend(options: LinuxBackendOptions = {}): Backend {
     status.registered = timerInfo.UnitFileState === "enabled" && fs.existsSync(paths.timer);
     status.state = timerInfo.ActiveState;
     status.nextRun = present(timerInfo.NextElapseUSecRealtime);
-    status.lastRun = present(timerInfo.LastTriggerUSec);
 
     const service = await run("systemctl", [
       "--user",
@@ -501,8 +500,12 @@ export function createLinuxBackend(options: LinuxBackendOptions = {}): Backend {
     ]);
     if (service.code === 0) {
       const serviceInfo = parseSystemctlShow(service.stdout);
-      if (present(serviceInfo.ExecMainExitTimestamp)) {
-        status.lastResult = `${serviceInfo.Result} (exit ${serviceInfo.ExecMainStatus})`;
+      if (
+        present(serviceInfo.ExecMainExitTimestamp) &&
+        serviceInfo.Result &&
+        serviceInfo.Result !== "success"
+      ) {
+        status.lastFailure = `${serviceInfo.Result} (exit ${serviceInfo.ExecMainStatus})`;
       }
     }
     return status;

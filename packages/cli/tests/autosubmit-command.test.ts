@@ -670,6 +670,35 @@ describe("formatStatus", () => {
     );
   });
 
+  describe("a run the scheduler reports failed", () => {
+    const failed = { ...base, lastFailure: "exit-code (exit 203)" };
+    const PROBLEM =
+      "  Problem:   the scheduler reports the last run failed: exit-code (exit 203). See the log.";
+
+    it("shows a Problem row right after Last run when nothing was recorded", () => {
+      const lines = formatStatus(failed, exists);
+      expect(lines).toContain(PROBLEM);
+      expect(lines.indexOf(PROBLEM)).toBe(lines.indexOf("  Last run:  none yet") + 1);
+    });
+
+    it("shows it beside a recorded run that succeeded or was skipped", () => {
+      expect(formatStatus(failed, exists, run)).toContain(PROBLEM);
+      expect(formatStatus(failed, exists, { ...run, summary: "submitted 3 days" })).toContain(
+        PROBLEM
+      );
+    });
+
+    it("does not say it twice when the recorded run already failed", () => {
+      const record = { ...run, ok: false, summary: "failed: not logged in" };
+      expect(formatStatus(failed, exists, record).some((l) => l.includes("Problem:"))).toBe(false);
+    });
+
+    it("shows nothing when the scheduler reports no failure", () => {
+      expect(formatStatus(base, exists, run).some((l) => l.includes("Problem:"))).toBe(false);
+      expect(formatStatus(base, exists).some((l) => l.includes("Problem:"))).toBe(false);
+    });
+  });
+
   it("gives the next run as the scheduler wrote it when it does not parse", () => {
     expect(formatStatus({ ...base, nextRun: "soon" }, exists)).toContain("  Next run:  soon");
     const { nextRun: _next, ...without } = base;
