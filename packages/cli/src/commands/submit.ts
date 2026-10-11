@@ -21,6 +21,7 @@ import {
   REPO_URL,
 } from "../lib/star-nudge.js";
 import {
+  VERSION,
   colors,
   formatNumber,
   formatCost,
@@ -237,6 +238,8 @@ async function submitToServer(data: UsageData, nonInteractive: boolean): Promise
         opusModels: data.opusModels,
         // Multi-device support
         deviceId: getDeviceId(),
+        // Lets the server tell CLI generations apart (e.g. the 2.2 session definition)
+        cliVersion: VERSION,
       }),
     });
 

@@ -212,14 +212,14 @@ Submits your usage without any prompt, so it can run from a scheduler. Log in on
 Claude Code keeps about 30 days of local data, so once a day is plenty:
 
 ```bash
-# cron (macOS/Linux), every day at 21:00 — Node must be on cron's PATH
-0 21 * * * npx --yes ccgather@latest submit >> ~/ccgather.log 2>&1
+# cron (macOS/Linux), every day at 21:17 — Node must be on cron's PATH
+17 21 * * * npx --yes ccgather@latest submit >> ~/ccgather.log 2>&1
 
-# Windows Task Scheduler (run in Command Prompt), every day at 21:00; a console window shows while it runs
-schtasks /create /tn "CCgather submit" /sc daily /st 21:00 /tr "cmd /c npx --yes ccgather@latest submit >> \"%USERPROFILE%\ccgather.log\" 2>&1"
+# Windows Task Scheduler (run in Command Prompt), every day at 21:17; a console window shows while it runs
+schtasks /create /tn "CCgather submit" /sc daily /st 21:17 /tr "cmd /c npx --yes ccgather@latest submit >> \"%USERPROFILE%\ccgather.log\" 2>&1"
 ```
 
-Task Scheduler skips a run on battery power by default, and both schedulers skip a run while the machine is asleep or off, so pick a time the machine is usually awake and plugged in.
+Pick a minute of your own rather than copying 21:17: everyone who keeps the example would reach the server in the same second. Task Scheduler skips a run on battery power by default, and both schedulers skip a run while the machine is asleep or off, so pick a time the machine is usually awake and plugged in.
 
 ---
 

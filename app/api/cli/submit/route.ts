@@ -95,6 +95,8 @@ interface SubmitPayload {
   opusModels?: string[];
   // Multi-device support
   deviceId?: string;
+  // CLI version that produced the payload (2.2.0+); absent on older CLIs
+  cliVersion?: string;
 }
 
 // Known CCplan values
@@ -308,6 +310,8 @@ export async function POST(request: NextRequest) {
     // STEP 0.5: Validate deviceId input (before session hash storage)
     // ═══════════════════════════════════════════════════════════════════════════
     const rawDeviceId = body.deviceId || "legacy";
+    const cliVersion =
+      typeof body.cliVersion === "string" ? body.cliVersion.slice(0, 32) : "pre-2.2.0";
     const validatedDeviceId =
       rawDeviceId === "legacy" || /^[a-f0-9]{8,16}$/.test(rawDeviceId) ? rawDeviceId : "legacy";
 
@@ -1016,7 +1020,7 @@ export async function POST(request: NextRequest) {
     }
 
     console.log(
-      `[CLI Submit] Cumulative totals for ${authenticatedUser.username}: ${finalTotalTokens} tokens, $${finalTotalCost.toFixed(2)}, ${finalTotalSessions} sessions`
+      `[CLI Submit] Cumulative totals for ${authenticatedUser.username}: ${finalTotalTokens} tokens, $${finalTotalCost.toFixed(2)}, ${finalTotalSessions} sessions (cli ${cliVersion})`
     );
 
     // Calculate per-device breakdown for multi-device display
