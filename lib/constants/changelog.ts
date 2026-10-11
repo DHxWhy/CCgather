@@ -16,6 +16,22 @@ export const CHANGELOG_CATEGORY = {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    id: "2026-10-11-cli-subagent-usage-counted",
+    date: "2026-10-11",
+    category: "fixed",
+    title: "Claude Code subagent usage now counts toward your totals",
+    summary:
+      "The CLI treated subagent transcripts as duplicate sessions and dropped them, so anyone using subagents or workflows was under-counted: by about 7% on a typical machine in our tests, and by more than half for heavy subagent users. CLI v2.2.0 counts every transcript once, so your next submit may raise your totals. A session and its subagents now count as one session. Reported and fixed by michael-huffaker.",
+  },
+  {
+    id: "2026-10-11-cli-scheduled-submit",
+    date: "2026-10-11",
+    category: "new",
+    title: "Scheduled submits: ccgather submit runs without prompts",
+    summary:
+      "ccgather submit sends your Claude Code usage with no menu, spinner or login prompt, prints one result line and exits non-zero on failure, so cron or Task Scheduler can keep your profile current. Requests time out after 120 seconds so a stalled run never hangs. Contributed by michael-huffaker; a one-command auto-submit toggle is next.",
+  },
+  {
     id: "2026-10-04-smooth-scroll",
     date: "2026-10-04",
     category: "improved",
