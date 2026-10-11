@@ -10,6 +10,7 @@ import {
   createSubmissionSummaryNotification,
 } from "@/lib/push/send-notification";
 import { aggregateByDate } from "@/lib/utils/usage-aggregation";
+import { floorSessionsToStored } from "@/lib/utils/submit-merge-policy";
 import { computeDayCost, getPricingData, resolveDayCost } from "@/lib/services/pricing";
 import { requestPricingCheck, unpricedClaudeModels } from "@/lib/services/pricing-dispatch";
 import type { PriceCache } from "@/lib/services/pricing";
@@ -222,19 +223,22 @@ export async function POST(request: NextRequest) {
     }
 
     // Get previous daily usage dates for comparison (before upsert)
+    type StoredDailyRow = {
+      date: string;
+      total_tokens: number | null;
+      cost_usd: number | null;
+      sessions: number | null;
+      device_id: string | null;
+    };
     const { data: previousDailyData } = await supabase
       .from("usage_stats")
-      .select("date, total_tokens, cost_usd, device_id")
+      .select("date, total_tokens, cost_usd, sessions, device_id")
       .eq("user_id", authenticatedUser.id)
       .order("date", { ascending: true });
+    const storedRows = (previousDailyData ?? []) as StoredDailyRow[];
 
-    const previousDailyAggregated = aggregateByDate<{
-      date: string;
-      total_tokens: number;
-      cost_usd: number;
-    }>(
-      previousDailyData as
-        { date: string; total_tokens: number; cost_usd: number; device_id: string | null }[] | null,
+    const previousDailyAggregated = aggregateByDate<StoredDailyRow>(
+      storedRows,
       (d) => d.date,
       (d) => d.total_tokens ?? 0,
       (d) => d.cost_usd ?? 0
@@ -249,18 +253,28 @@ export async function POST(request: NextRequest) {
     // be partial — in that case the previously recorded total must win.
     const prevTokensByDateDevice = new Map<string, number>();
     const prevMaxTokensByDate = new Map<string, number>();
-    for (const row of (previousDailyData ?? []) as {
-      date: string;
-      total_tokens: number | null;
-      device_id: string | null;
-    }[]) {
+    // Stored session counts, tracked separately from tokens: the CLI's session
+    // definition changed (PR #33 — subagent transcripts no longer count as
+    // sessions), so a resubmitted date may carry a lower sessions value while
+    // its tokens stay the same or rise. Such rows are still written for the
+    // tokens, but their sessions are floored to the stored count below.
+    const prevSessionsByDateDevice = new Map<string, number>();
+    const prevMaxSessionsByDate = new Map<string, number>();
+    for (const row of storedRows) {
       const tokens = row.total_tokens ?? 0;
+      const sessions = row.sessions ?? 0;
       const deviceKey = `${row.date}|${row.device_id ?? "legacy"}`;
       if (tokens > (prevTokensByDateDevice.get(deviceKey) ?? -1)) {
         prevTokensByDateDevice.set(deviceKey, tokens);
       }
       if (tokens > (prevMaxTokensByDate.get(row.date) ?? -1)) {
         prevMaxTokensByDate.set(row.date, tokens);
+      }
+      if (sessions > (prevSessionsByDateDevice.get(deviceKey) ?? -1)) {
+        prevSessionsByDateDevice.set(deviceKey, sessions);
+      }
+      if (sessions > (prevMaxSessionsByDate.get(row.date) ?? -1)) {
+        prevMaxSessionsByDate.set(row.date, sessions);
       }
     }
 
@@ -669,8 +683,16 @@ export async function POST(request: NextRequest) {
           (max, device) => Math.max(max, prevTokensByDateDevice.get(`${date}|${device}`) ?? 0),
           0
         );
-      const guardedRecords = usageRecords.filter(
-        (r) => (r.total_tokens ?? 0) >= effectivePrevTokens(r.date)
+      const effectivePrevSessions = (date: string): number =>
+        devicesWhoseRowsCanSurviveThisWrite.reduce(
+          (max, device) => Math.max(max, prevSessionsByDateDevice.get(`${date}|${device}`) ?? 0),
+          0
+        );
+      // A day that passes the token guard must not shrink its stored session
+      // count (see prevSessionsByDateDevice above).
+      const guardedRecords = floorSessionsToStored(
+        usageRecords.filter((r) => (r.total_tokens ?? 0) >= effectivePrevTokens(r.date)),
+        effectivePrevSessions
       );
       const keptExisting = usageRecords.length - guardedRecords.length;
       if (keptExisting > 0) {
@@ -696,9 +718,12 @@ export async function POST(request: NextRequest) {
           // The legacy conflict target is (user_id, date) across all devices, so
           // the merge comparison must use the per-date max.
           console.warn("[CLI Submit] Primary upsert failed, trying fallback:", statsError.message);
-          const legacyRecords = guardedRecords
-            .filter((r) => (r.total_tokens ?? 0) >= (prevMaxTokensByDate.get(r.date) ?? 0))
-            .map(({ device_id: _d, ...rest }) => rest);
+          const legacyRecords = floorSessionsToStored(
+            guardedRecords.filter(
+              (r) => (r.total_tokens ?? 0) >= (prevMaxTokensByDate.get(r.date) ?? 0)
+            ),
+            (date) => prevMaxSessionsByDate.get(date) ?? 0
+          ).map(({ device_id: _d, ...rest }) => rest);
           const { error: fallbackError } =
             legacyRecords.length === 0
               ? { error: null }
