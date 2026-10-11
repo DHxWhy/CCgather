@@ -10,7 +10,7 @@ import {
   createSubmissionSummaryNotification,
 } from "@/lib/push/send-notification";
 import { aggregateByDate } from "@/lib/utils/usage-aggregation";
-import { floorSessionsToStored } from "@/lib/utils/submit-merge-policy";
+import { earliestSubmittedDate, floorSessionsToStored } from "@/lib/utils/submit-merge-policy";
 import { computeDayCost, getPricingData, resolveDayCost } from "@/lib/services/pricing";
 import { requestPricingCheck, unpricedClaudeModels } from "@/lib/services/pricing-dispatch";
 import type { PriceCache } from "@/lib/services/pricing";
@@ -222,7 +222,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Get previous daily usage dates for comparison (before upsert)
+    // Stored rows for the dates this submission can touch (the submitted range,
+    // or today for the legacy single-day path), paged in a deterministic order.
+    // PostgREST caps one response at 1000 rows; the old unbounded per-user read
+    // silently dropped the newest dates for heavy multi-device users, so the
+    // merge guards below compared against 0 exactly where it mattered most.
     type StoredDailyRow = {
       date: string;
       total_tokens: number | null;
@@ -230,12 +234,34 @@ export async function POST(request: NextRequest) {
       sessions: number | null;
       device_id: string | null;
     };
-    const { data: previousDailyData } = await supabase
-      .from("usage_stats")
-      .select("date, total_tokens, cost_usd, sessions, device_id")
-      .eq("user_id", authenticatedUser.id)
-      .order("date", { ascending: true });
-    const storedRows = (previousDailyData ?? []) as StoredDailyRow[];
+    const prefetchFromDate = earliestSubmittedDate(
+      (body.dailyUsage ?? []).map((d) => (d as DailyUsage | null | undefined)?.date),
+      new Date().toISOString().slice(0, 10)
+    );
+    const storedRows: StoredDailyRow[] = [];
+    const STORED_PAGE = 1000;
+    for (let from = 0; ; from += STORED_PAGE) {
+      const { data: storedPage, error: storedError } = await supabase
+        .from("usage_stats")
+        .select("date, total_tokens, cost_usd, sessions, device_id")
+        .eq("user_id", authenticatedUser.id)
+        .gte("date", prefetchFromDate)
+        .order("date", { ascending: true })
+        .order("device_id", { ascending: true, nullsFirst: true })
+        .range(from, from + STORED_PAGE - 1);
+      if (storedError) {
+        // Fail closed: without the stored rows the merge guards below would let
+        // a partial re-scan overwrite history. Ask the client to retry instead.
+        console.error("[CLI Submit] Failed to read stored daily rows:", storedError.message);
+        return NextResponse.json(
+          { error: "Could not read your stored usage history. Please try again in a minute." },
+          { status: 503 }
+        );
+      }
+      const page = (storedPage ?? []) as StoredDailyRow[];
+      storedRows.push(...page);
+      if (page.length < STORED_PAGE) break;
+    }
 
     const previousDailyAggregated = aggregateByDate<StoredDailyRow>(
       storedRows,

@@ -23,3 +23,20 @@ export function floorSessionsToStored<T extends { date: string; sessions: number
     return stored > record.sessions ? { ...record, sessions: stored } : record;
   });
 }
+
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+
+/**
+ * Earliest well-formed `YYYY-MM-DD` among the submitted dates, or `fallback`
+ * when none is usable. Used to bound the stored-row prefetch to the dates a
+ * submission can touch; malformed entries are rejected later by the route's
+ * own validation and must not widen or break the query here.
+ */
+export function earliestSubmittedDate(dates: readonly unknown[], fallback: string): string {
+  let earliest: string | null = null;
+  for (const d of dates) {
+    if (typeof d !== "string" || !ISO_DATE.test(d)) continue;
+    if (earliest === null || d < earliest) earliest = d;
+  }
+  return earliest ?? fallback;
+}
