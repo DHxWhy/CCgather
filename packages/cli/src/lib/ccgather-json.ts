@@ -383,6 +383,8 @@ interface TranscriptIdentity {
  * reuse one), so they are identified by a hash of their opening line, which
  * copies share and distinct transcripts do not. Files without a sessionId are
  * identified the same way.
+ * A forked subagent's transcript opens with a fork-context-ref line that
+ * names its session as parentSessionId, so that is read as the sessionId.
  * Returns null for empty/unreadable files (won't be deduplicated).
  */
 function identifyTranscript(filePath: string): TranscriptIdentity | null {
@@ -391,7 +393,7 @@ function identifyTranscript(filePath: string): TranscriptIdentity | null {
 
   try {
     const event = JSON.parse(firstLine);
-    const sessionId: string | null = event.sessionId || null;
+    const sessionId: string | null = event.sessionId || event.parentSessionId || null;
     const isSubagent = Boolean(event.agentId || event.isSidechain);
 
     if (sessionId && !isSubagent) return { key: sessionId, sessionId };

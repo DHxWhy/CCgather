@@ -68,6 +68,19 @@ function promptLine(agentId: string, prompt: string): string {
   });
 }
 
+// A forked subagent's transcript opens with a reference to its parent's
+// context. That line names the session as parentSessionId; sessionId only
+// appears from the second line on.
+function forkContextRefLine(agentId: string): string {
+  return JSON.stringify({
+    type: "fork-context-ref",
+    agentId,
+    parentSessionId: SESSION,
+    parentLastUuid: "5c1d9e7a-3b42-4f6a-8d05-9e2f7c1a4b68",
+    contextLength: 48213,
+  });
+}
+
 const MAIN = `${SESSION}.jsonl`;
 const transcripts: Record<string, string> = {
   [MAIN]: [usageLine("msg_main_1"), usageLine("msg_main_2")].join("\n") + "\n",
@@ -152,5 +165,25 @@ describe("scanAllProjects: subagent transcripts", () => {
     expect(data?.sessionFingerprint?.sessionCount).toBe(TRANSCRIPT_FILES);
     expect(data?.stats.sessionsCount).toBe(1);
     expect(Object.keys(data?.projects ?? {})).toEqual(["-home-user-demo"]);
+  });
+
+  it("counts a forked subagent under its parent session", () => {
+    writeProject(
+      projectsDir,
+      "-home-user-demo",
+      {
+        [`${SESSION}/subagents/agent-f3.jsonl`]:
+          [forkContextRefLine("f3"), usageLine("msg_f3_1", "f3")].join("\n") + "\n",
+      },
+      new Date("2026-09-01T11:00:00.000Z")
+    );
+
+    const data = scanAllProjects();
+
+    expect(data?.usage.totalTokens).toBe(EXPECTED_TOKENS + TOKENS_PER_MESSAGE);
+    expect(data?.sessionFingerprint?.sessionCount).toBe(TRANSCRIPT_FILES + 1);
+    expect(data?.stats.sessionsCount).toBe(1);
+    expect(data?.dailyUsage.map((day) => day.sessions)).toEqual([1]);
+    expect(data?.projects["-home-user-demo"].sessions).toBe(1);
   });
 });
