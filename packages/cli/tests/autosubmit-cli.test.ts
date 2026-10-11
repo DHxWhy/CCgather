@@ -1,5 +1,5 @@
 /**
- * Commander wiring for `ccgather autosubmit [off|status]` and
+ * Commander wiring for `ccgather autosubmit [on|off|status]` and
  * `ccgather submit --scheduled`. The command handlers are mocked, so nothing
  * here reaches a scheduler, a server or the real conf store.
  */
@@ -26,6 +26,8 @@ vi.mock("../src/commands/autosubmit", () => ({
   autosubmitEnable: mocked.enable,
   autosubmitOff: mocked.off,
   autosubmitStatus: mocked.status,
+  autosubmitSettingsState: vi.fn(async () => null),
+  toggleAutosubmit: vi.fn(async () => true),
 }));
 
 vi.mock("../src/lib/ui", async (importOriginal) => {
@@ -87,19 +89,49 @@ describe("ccgather autosubmit routing", () => {
     expect(mocked.prompt).not.toHaveBeenCalled();
   }
 
-  it("`autosubmit` enables with no options", async () => {
-    await runCli(["autosubmit"]);
+  class Exit extends Error {
+    constructor(readonly code: number | string | null | undefined) {
+      super(`process.exit(${code})`);
+    }
+  }
+
+  it("`autosubmit on` enables with no options", async () => {
+    await runCli(["autosubmit", "on"]);
     await vi.waitFor(() => expect(mocked.enable).toHaveBeenCalledWith({}));
     expect(mocked.off).not.toHaveBeenCalled();
     expect(mocked.status).not.toHaveBeenCalled();
     expectNoMenu();
   });
 
-  it("`autosubmit --time 21:30 --auto-update` passes both options", async () => {
-    await runCli(["autosubmit", "--time", "21:30", "--auto-update"]);
+  it("`autosubmit on --at 21:30 --auto-update` passes both options", async () => {
+    await runCli(["autosubmit", "on", "--at", "21:30", "--auto-update"]);
     await vi.waitFor(() =>
-      expect(mocked.enable).toHaveBeenCalledWith({ time: "21:30", autoUpdate: true })
+      expect(mocked.enable).toHaveBeenCalledWith({ at: "21:30", autoUpdate: true })
     );
+  });
+
+  it("a bare `autosubmit` shows its help with exit code 1 and registers nothing", async () => {
+    const exit = vi.spyOn(process, "exit").mockImplementation((code) => {
+      throw new Exit(code);
+    });
+    const stderr: string[] = [];
+    vi.spyOn(process.stderr, "write").mockImplementation((chunk: string | Uint8Array) => {
+      stderr.push(String(chunk));
+      return true;
+    });
+
+    await expect(runCli(["autosubmit"])).rejects.toThrow(Exit);
+
+    expect(exit).toHaveBeenCalledWith(1);
+    const help = stderr.join("");
+    expect(help).toMatch(/Usage: ccgather autosubmit \[options\] \[command\]/);
+    expect(help).toMatch(/^\s+on \[options\]/m);
+    expect(help).toMatch(/^\s+off\s/m);
+    expect(help).toMatch(/^\s+status\s/m);
+    expect(mocked.enable).not.toHaveBeenCalled();
+    expect(mocked.off).not.toHaveBeenCalled();
+    expect(mocked.status).not.toHaveBeenCalled();
+    expectNoMenu();
   });
 
   it("`autosubmit off` removes the job", async () => {
@@ -116,37 +148,34 @@ describe("ccgather autosubmit routing", () => {
     expectNoMenu();
   });
 
-  it.each([["disable"], ["of"], ["on", "--time", "21:30"]])(
-    "`autosubmit %s` is refused with exit code 1 and changes nothing",
-    async (...words) => {
-      class Exit extends Error {
-        constructor(readonly code: number | string | null | undefined) {
-          super(`process.exit(${code})`);
-        }
-      }
-      const exit = vi.spyOn(process, "exit").mockImplementation((code) => {
-        throw new Exit(code);
-      });
-      const stderr: string[] = [];
-      vi.spyOn(process.stderr, "write").mockImplementation((chunk: string | Uint8Array) => {
-        stderr.push(String(chunk));
-        return true;
-      });
+  it.each([
+    [["disable"], /unknown command 'disable'/],
+    [["of"], /unknown command 'of'/],
+    [["on", "--time", "21:30"], /unknown option '--time'/],
+    [["on", "extra"], /too many arguments for 'on'/],
+  ])("`autosubmit %s` is refused with exit code 1 and changes nothing", async (words, message) => {
+    const exit = vi.spyOn(process, "exit").mockImplementation((code) => {
+      throw new Exit(code);
+    });
+    const stderr: string[] = [];
+    vi.spyOn(process.stderr, "write").mockImplementation((chunk: string | Uint8Array) => {
+      stderr.push(String(chunk));
+      return true;
+    });
 
-      await expect(runCli(["autosubmit", ...words])).rejects.toThrow(Exit);
+    await expect(runCli(["autosubmit", ...words])).rejects.toThrow(Exit);
 
-      expect(exit).toHaveBeenCalledWith(1);
-      expect(stderr.join("")).toMatch(/too many arguments for 'autosubmit'/);
-      expect(mocked.enable).not.toHaveBeenCalled();
-      expect(mocked.off).not.toHaveBeenCalled();
-      expect(mocked.status).not.toHaveBeenCalled();
-      expectNoMenu();
-    }
-  );
+    expect(exit).toHaveBeenCalledWith(1);
+    expect(stderr.join("")).toMatch(message);
+    expect(mocked.enable).not.toHaveBeenCalled();
+    expect(mocked.off).not.toHaveBeenCalled();
+    expect(mocked.status).not.toHaveBeenCalled();
+    expectNoMenu();
+  });
 
   it("an autosubmit failure is one stderr line and exit code 1", async () => {
     mocked.enable.mockRejectedValue(new Error("Log in first with `npx ccgather`."));
-    await runCli(["autosubmit"]);
+    await runCli(["autosubmit", "on"]);
     await vi.waitFor(() => expect(process.exitCode).toBe(1));
     expect(errors).toEqual(["ccgather autosubmit: Log in first with `npx ccgather`."]);
   });

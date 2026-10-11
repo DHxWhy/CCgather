@@ -10,8 +10,8 @@ import {
   ResolveDeps,
   defaultResolveDeps,
   formatDailyTime,
+  defaultDailyTime,
   parseDailyTime,
-  randomDailyTime,
   resolveJobCommand,
 } from "../lib/autosubmit/shared.js";
 import { createWindowsBackend } from "../lib/autosubmit/windows.js";
@@ -25,15 +25,17 @@ import { createLinuxBackend } from "../lib/autosubmit/linux.js";
  */
 
 export interface AutosubmitOptions {
-  time?: string;
+  at?: string;
   autoUpdate?: boolean;
 }
 
-// Test seams: the backend and the argv inputs default to the real system
+// Test seams: the backend, the argv inputs, the clock and the platform default
+// to the real system
 export interface AutosubmitContext {
   backend?: Backend;
   resolveDeps?: ResolveDeps;
-  random?: () => number;
+  now?: () => Date;
+  platform?: NodeJS.Platform;
 }
 
 export function getBackend(platform: NodeJS.Platform = process.platform): Backend {
@@ -54,7 +56,11 @@ export function getBackend(platform: NodeJS.Platform = process.platform): Backen
 function describeCommand(command: JobCommand): string {
   if (command.kind === "global") return "your global install of ccgather";
   if (command.spec === "ccgather@latest") return "the newest ccgather release each day, via npx";
-  return `${command.spec} via npx; to move to a newer release, run \`npx ccgather@latest autosubmit\``;
+  return `${command.spec} via npx; to move to a newer release, run \`npx ccgather@latest autosubmit on\``;
+}
+
+function backendFor(context: AutosubmitContext): Backend {
+  return context.backend ?? getBackend(context.platform);
 }
 
 export async function autosubmitEnable(
@@ -66,22 +72,25 @@ export async function autosubmitEnable(
   }
 
   let time: DailyTime | null = null;
-  if (options.time !== undefined) {
-    time = parseDailyTime(options.time);
-    if (!time) throw new Error(`--time must be HH:MM (24-hour), for example 21:30.`);
+  if (options.at !== undefined) {
+    time = parseDailyTime(options.at);
+    if (!time) throw new Error(`--at must be HH:MM (24-hour), for example 21:30.`);
   }
 
-  const backend = context.backend ?? getBackend();
+  const backend = backendFor(context);
   const command = await resolveJobCommand(
     { autoUpdate: options.autoUpdate === true },
     context.resolveDeps ?? defaultResolveDeps()
   );
 
   if (!time) {
-    // Re-running without --time keeps the registered time (a repair should
-    // not move the schedule); a first run picks a random minute
+    // Re-running without --at keeps the registered time (a repair should not
+    // move the schedule); a first run picks five minutes from now
     const current = await backend.status();
-    time = current.registered && current.time ? current.time : randomDailyTime(context.random);
+    time =
+      current.registered && current.time
+        ? current.time
+        : defaultDailyTime((context.now ?? (() => new Date()))());
   }
 
   const result = await backend.enable({
@@ -92,9 +101,8 @@ export async function autosubmitEnable(
   });
   getConfig().set("autoSync", true);
 
-  console.log(
-    `Autosubmit is on: it submits your usage every day at ${formatDailyTime(time)} with ${describeCommand(command)}.`
-  );
+  console.log(`Autosubmit is on. Runs every day at ${formatDailyTime(time)}, your local time.`);
+  console.log(`It uses ${describeCommand(command)}.`);
   console.log(
     `Log: ${result.log}. Turn it off with \`npx ccgather autosubmit off\`; check it with \`npx ccgather autosubmit status\`.`
   );
@@ -107,7 +115,7 @@ export async function autosubmitEnable(
 }
 
 export async function autosubmitOff(context: AutosubmitContext = {}): Promise<void> {
-  const backend = context.backend ?? getBackend();
+  const backend = backendFor(context);
   const removed = await backend.disable();
   getConfig().set("autoSync", false);
   console.log(removed ? "Autosubmit is off; the scheduled job was removed." : "Autosubmit is off.");
@@ -130,7 +138,7 @@ export function formatStatus(
   if (!status.registered) {
     lines.push(`Autosubmit is off (no ${status.mechanism} found).`);
     if (status.state) lines.push(`State: ${status.state}`);
-    lines.push("Turn it on with `npx ccgather autosubmit`.");
+    lines.push("Turn it on with `npx ccgather autosubmit on`.");
     return lines;
   }
 
@@ -141,10 +149,10 @@ export function formatStatus(
     lines.push(`Runs: ${status.argv.map(quoteForDisplay).join(" ")}`);
     const missing = status.argv.filter((arg) => isAbsolutePath(arg) && !exists(arg));
     for (const file of missing) lines.push(`Missing: ${file}`);
-    if (missing.length > 0) lines.push("Run `npx ccgather autosubmit` again to repair.");
+    if (missing.length > 0) lines.push("Run `npx ccgather autosubmit on` again to repair.");
   } else {
     lines.push(
-      "Could not read the command it runs. Run `npx ccgather autosubmit` again to repair."
+      "Could not read the command it runs. Run `npx ccgather autosubmit on` again to repair."
     );
   }
 
@@ -158,6 +166,59 @@ export function formatStatus(
 }
 
 export async function autosubmitStatus(context: AutosubmitContext = {}): Promise<void> {
-  const backend = context.backend ?? getBackend();
+  const backend = backendFor(context);
   for (const line of formatStatus(await backend.status())) console.log(line);
+}
+
+export interface AutosubmitSettingsState {
+  // What the Settings menu entry shows
+  label: string;
+  // True when the job is registered; choosing the entry then turns it off
+  on: boolean;
+}
+
+/**
+ * The Settings menu entry for autosubmit, read from the OS scheduler. Null on a
+ * platform autosubmit does not support, so the menu leaves the entry out.
+ */
+export async function autosubmitSettingsState(
+  context: AutosubmitContext = {}
+): Promise<AutosubmitSettingsState | null> {
+  let backend: Backend;
+  try {
+    backend = backendFor(context);
+  } catch {
+    return null;
+  }
+
+  try {
+    const status = await backend.status();
+    if (!status.registered) return { label: "Autosubmit: off", on: false };
+    const when = status.time ? `, every day at ${formatDailyTime(status.time)}` : "";
+    return { label: `Autosubmit: on${when}`, on: true };
+  } catch {
+    return { label: "Autosubmit: could not read the OS scheduler", on: false };
+  }
+}
+
+/**
+ * Choosing the Settings entry: turn autosubmit off when it is on, otherwise on
+ * (exactly `autosubmit on` / `autosubmit off`). A failure prints one line and
+ * never throws, so the menu carries on.
+ */
+export async function toggleAutosubmit(
+  on: boolean,
+  context: AutosubmitContext = {}
+): Promise<boolean> {
+  try {
+    if (on) {
+      await autosubmitOff(context);
+    } else {
+      await autosubmitEnable({}, context);
+    }
+    return true;
+  } catch (err) {
+    console.error(`ccgather autosubmit: ${err instanceof Error ? err.message : String(err)}`);
+    return false;
+  }
 }

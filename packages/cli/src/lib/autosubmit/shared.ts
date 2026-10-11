@@ -70,14 +70,13 @@ export interface Backend {
 // ═══════════════════════════════════════════════════════════════════════════
 
 /**
- * A random minute between 09:00 and 20:59 local, so every user does not
- * submit in the same second
+ * The local time five minutes after `now`, rounded to the nearest minute. People
+ * turn autosubmit on at different moments, so the load spreads itself, and the
+ * machine is usually awake at the time they picked.
  */
-export function randomDailyTime(random: () => number = Math.random): DailyTime {
-  return {
-    hour: 9 + Math.min(11, Math.floor(random() * 12)),
-    minute: Math.min(59, Math.floor(random() * 60)),
-  };
+export function defaultDailyTime(now: Date): DailyTime {
+  const later = new Date(Math.round((now.getTime() + 5 * 60 * 1000) / 60000) * 60000);
+  return { hour: later.getHours(), minute: later.getMinutes() };
 }
 
 /** Parse `HH:MM` (24-hour); returns null for anything else */
@@ -350,7 +349,7 @@ export async function resolveJobCommand(
   const npxCli = findNpxCli(nodePath, deps);
   if (!npxCli) {
     throw new Error(
-      `Could not find npm's npx-cli.js for ${nodePath}. Install ccgather globally (\`npm install -g ccgather\`) and run \`ccgather autosubmit\` again.`
+      `Could not find npm's npx-cli.js for ${nodePath}. Install ccgather globally (\`npm install -g ccgather\`) and run \`ccgather autosubmit on\` again.`
     );
   }
   const spec = options.autoUpdate ? "ccgather@latest" : `ccgather@${deps.version}`;

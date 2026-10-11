@@ -36,7 +36,7 @@ import {
   CRON_BEGIN,
   CRON_END,
 } from "../src/lib/autosubmit/linux";
-import { decodeOutput, parseDailyTime, randomDailyTime } from "../src/lib/autosubmit/shared";
+import { decodeOutput, defaultDailyTime, parseDailyTime } from "../src/lib/autosubmit/shared";
 
 // Built from char codes so no editor or tool rewrites the escapes in this file
 const E_ACUTE = String.fromCharCode(0xe9);
@@ -153,7 +153,7 @@ describe("Windows launcher and cmd line", () => {
       [
         "// ccgather autosubmit launcher, written by `ccgather autosubmit`.",
         "// The ccgather-autosubmit scheduled task runs it with wscript.exe so the job starts",
-        "// without a console window. Run `npx ccgather autosubmit` again to rewrite it.",
+        "// without a console window. Run `npx ccgather autosubmit on` again to rewrite it.",
         String.raw`// ccgather-argv: ["C:\\Program Files\\nodejs\\node.exe","C:\\Program Files\\nodejs\\node_modules\\npm\\bin\\npx-cli.js","--yes","ccgather@2.1.1","submit","--scheduled"]`,
         "var shell = new ActiveXObject('WScript.Shell');",
         "// Task Scheduler builds PATH from the registry, which fnm and profile-only",
@@ -610,9 +610,9 @@ describe("daily time", () => {
     }
   });
 
-  it("picks a random minute between 09:00 and 20:59", () => {
-    expect(randomDailyTime(() => 0)).toEqual({ hour: 9, minute: 0 });
-    expect(randomDailyTime(() => 0.999999)).toEqual({ hour: 20, minute: 59 });
-    expect(randomDailyTime(() => 0.5)).toEqual({ hour: 15, minute: 30 });
+  it("defaults to the local time five minutes from now, rounded to the minute", () => {
+    expect(defaultDailyTime(new Date(2026, 9, 11, 14, 17, 42))).toEqual({ hour: 14, minute: 23 });
+    expect(defaultDailyTime(new Date(2026, 9, 11, 14, 17, 20))).toEqual({ hour: 14, minute: 22 });
+    expect(defaultDailyTime(new Date(2026, 9, 11, 23, 57, 40))).toEqual({ hour: 0, minute: 3 });
   });
 });

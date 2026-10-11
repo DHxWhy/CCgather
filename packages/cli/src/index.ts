@@ -9,6 +9,8 @@ import {
   autosubmitEnable,
   autosubmitOff,
   autosubmitStatus,
+  autosubmitSettingsState,
+  toggleAutosubmit,
   AutosubmitOptions,
 } from "./commands/autosubmit.js";
 import {
@@ -255,6 +257,9 @@ async function showMenuOnly(): Promise<void> {
 
 // Settings submenu
 async function showSettingsMenu(): Promise<void> {
+  // Read from the OS scheduler; null on a platform autosubmit does not support
+  const autosubmitState = await autosubmitSettingsState();
+
   const { settingsAction } = await inquirer.prompt([
     {
       type: "list",
@@ -265,6 +270,14 @@ async function showSettingsMenu(): Promise<void> {
           name: `🔐  ${colors.white("Re-authenticate")}  ${colors.dim("– switch account or fix login issues")}`,
           value: "auth",
         },
+        ...(autosubmitState
+          ? [
+              {
+                name: `⏰  ${colors.white(autosubmitState.label)}  ${colors.dim(autosubmitState.on ? "– select to turn it off" : "– select to turn it on")}`,
+                value: "autosubmit",
+              },
+            ]
+          : []),
         { name: `⬅️   ${chalk.gray("Back")}`, value: "back" },
       ],
       loop: false,
@@ -277,6 +290,10 @@ async function showSettingsMenu(): Promise<void> {
       await auth({});
       break;
     }
+    case "autosubmit":
+      await toggleAutosubmit(autosubmitState?.on === true);
+      await showSettingsMenu();
+      break;
     case "back":
       await showMenuOnly();
       break;
@@ -310,15 +327,18 @@ async function runAutosubmit(action: () => Promise<void>): Promise<void> {
   }
 }
 
-// Daily submission through the OS scheduler (Task Scheduler, launchd, systemd or cron)
+// Daily submission through the OS scheduler (Task Scheduler, launchd, systemd or cron).
+// The command has no action of its own: bare `autosubmit` shows its help, and an
+// unknown word (`autosubmit disable`) is an error, so neither turns anything on.
 const autosubmit = program
   .command("autosubmit")
-  .description(
-    "Submit automatically once a day through your OS scheduler (re-run to update or repair)"
-  )
-  // A mistyped word (`autosubmit disable`) must fail, not turn autosubmit on
+  .description("Submit automatically once a day through your OS scheduler");
+
+autosubmit
+  .command("on")
+  .description("Turn on the daily job (re-run to update or repair)")
   .allowExcessArguments(false)
-  .option("--time <HH:MM>", "daily time, 24-hour local (default: a random time 09:00-20:59)")
+  .option("--at <HH:MM>", "daily time, 24-hour local (default: five minutes from now)")
   .option(
     "--auto-update",
     "run ccgather@latest each day instead of this version: whatever release is newest that day runs with access to your token"
