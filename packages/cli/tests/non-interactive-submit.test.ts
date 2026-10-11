@@ -138,6 +138,8 @@ describe("submit({ nonInteractive: true })", () => {
   let exitSpy: ReturnType<typeof vi.spyOn>;
   let stdoutWrite: ReturnType<typeof vi.spyOn>;
   let stderrWrite: ReturnType<typeof vi.spyOn>;
+  let timeoutSpy: ReturnType<typeof vi.spyOn>;
+  let timeoutControllers: Map<AbortSignal, AbortController>;
   let stdoutTTY: PropertyDescriptor | undefined;
   let stdinTTY: PropertyDescriptor | undefined;
 
@@ -153,6 +155,17 @@ describe("submit({ nonInteractive: true })", () => {
 
   function callsTo(suffix: string): FetchCall[] {
     return fetchCalls.filter((call) => call.url.split("?")[0].endsWith(suffix));
+  }
+
+  // What real fetch does when the request's AbortSignal.timeout fires: the signal
+  // aborts with a TimeoutError and the pending fetch rejects with that reason
+  function stall(call: FetchCall): never {
+    const signal = call.init?.signal;
+    if (!signal) throw new Error(`${call.url} carries no timeout signal`);
+    timeoutControllers
+      .get(signal)
+      ?.abort(new DOMException("The operation was aborted due to timeout", "TimeoutError"));
+    throw signal.reason;
   }
 
   // Progress bars and '\r' clear-line writes go straight to the streams
@@ -225,6 +238,15 @@ describe("submit({ nonInteractive: true })", () => {
         return new Response("blocked in tests", { status: 503 });
       })
     );
+
+    // AbortSignal.timeout runs on Node's own timer, which fake timers do not
+    // advance, so hand out signals the test fires itself
+    timeoutControllers = new Map();
+    timeoutSpy = vi.spyOn(AbortSignal, "timeout").mockImplementation(() => {
+      const controller = new AbortController();
+      timeoutControllers.set(controller.signal, controller);
+      return controller.signal;
+    });
 
     logs = [];
     errors = [];
@@ -371,6 +393,58 @@ describe("submit({ nonInteractive: true })", () => {
     expect(mocked.store.get("lastSync")).toBe(INITIAL_LAST_SYNC);
   });
 
+  it("exits 1 with a timeout message when the submission never gets a response", async () => {
+    routes.submit = stall;
+
+    const code = await runSubmit();
+
+    expect(code).toBe(1);
+    expectNoStreamWrites();
+    expectSingleError("Failed to submit: no response from the server within 120 seconds.");
+    expect(errors[0]).toMatch(
+      /^\[[^\]]+\] ccgather: Failed to submit: no response from the server within 120 seconds\.$/
+    );
+    expect(mocked.store.get("apiToken")).toBe("test-token");
+    expect(mocked.store.get("lastSync")).toBe(INITIAL_LAST_SYNC);
+  });
+
+  it("exits 1 with a timeout message when verification never gets a response", async () => {
+    routes.verify = stall;
+
+    const code = await runSubmit();
+
+    expect(code).toBe(1);
+    expect(callsTo("/cli/submit")).toHaveLength(0);
+    expectNoStreamWrites();
+    expectSingleError(
+      "Could not verify authentication (no response from the server within 120 seconds). Try again later."
+    );
+    expect(errors[0]).toMatch(
+      /^\[[^\]]+\] ccgather: Could not verify authentication \(no response from the server within 120 seconds\)\. Try again later\.$/
+    );
+    expect(mocked.store.get("apiToken")).toBe("test-token");
+  });
+
+  it("gives every request a 120 second time limit", async () => {
+    expect(await runSubmit()).toBe(0);
+    expect(callsTo("/cli/verify")).toHaveLength(1);
+    expect(callsTo("/cli/submit")).toHaveLength(1);
+
+    fs.rmSync(path.join(mocked.home, ".claude"), { recursive: true, force: true });
+    expect(await runSubmit()).toBe(1);
+    expect(callsTo("/cli/submit-attempt")).toHaveLength(1);
+
+    for (const suffix of ["/cli/verify", "/cli/submit", "/cli/submit-attempt"]) {
+      for (const call of callsTo(suffix)) {
+        expect(call.init?.signal, suffix).toBeInstanceOf(AbortSignal);
+      }
+    }
+    expect(timeoutSpy).toHaveBeenCalledTimes(4);
+    for (const [ms] of timeoutSpy.mock.calls) {
+      expect(ms).toBe(120000);
+    }
+  });
+
   it("exits 1 when there are no Claude Code sessions", async () => {
     fs.rmSync(path.join(mocked.home, ".claude"), { recursive: true, force: true });
 
@@ -414,6 +488,24 @@ describe("submit({ nonInteractive: true })", () => {
     expect(mocked.prompt).toHaveBeenCalledTimes(1);
     expect(mocked.ora).toHaveBeenCalled();
     expect(mocked.store.has("apiToken")).toBe(false);
+  });
+
+  it("interactive mode puts no time limit on its requests", async () => {
+    mocked.readline.mockImplementationOnce(() => ({
+      on: () => {},
+      close: () => {},
+      question: (_question: string, callback: (answer: string) => void) => callback("n"),
+    }));
+
+    const code = await runSubmit({ nonInteractive: false });
+
+    expect(code).toBe(0);
+    expect(callsTo("/cli/verify")).toHaveLength(1);
+    expect(callsTo("/cli/submit")).toHaveLength(1);
+    for (const call of [...callsTo("/cli/verify"), ...callsTo("/cli/submit")]) {
+      expect(call.init?.signal).toBeUndefined();
+    }
+    expect(timeoutSpy).not.toHaveBeenCalled();
   });
 
   it("interactive mode still reaches the star nudge", async () => {

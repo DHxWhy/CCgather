@@ -118,13 +118,30 @@ interface SubmitResponse {
   accumulatedCost?: number;
 }
 
+/** How long a non-interactive request may wait for the server before it is abandoned */
+const NON_INTERACTIVE_TIMEOUT_MS = 120_000;
+
+/** Time limit for a request: only a scheduler run gets one, interactive runs have none */
+function requestSignal(nonInteractive: boolean): AbortSignal | undefined {
+  return nonInteractive ? AbortSignal.timeout(NON_INTERACTIVE_TIMEOUT_MS) : undefined;
+}
+
+/** Error text for a failed request, with a clear message when the time limit was hit */
+function describeRequestError(err: unknown): string {
+  if (err instanceof Error && err.name === "TimeoutError") {
+    return `no response from the server within ${NON_INTERACTIVE_TIMEOUT_MS / 1000} seconds`;
+  }
+  return err instanceof Error ? err.message : "Unknown error";
+}
+
 /**
  * Report submit attempt to server for debugging
  * This helps track users who try to submit but fail before data is sent
  */
 async function reportSubmitAttempt(
   reason: "no_sessions" | "no_data" | "scan_failed",
-  debugInfo?: { searchedPaths?: { path: string; exists: boolean }[]; projectsFound?: number }
+  debugInfo?: { searchedPaths?: { path: string; exists: boolean }[]; projectsFound?: number },
+  nonInteractive: boolean = false
 ): Promise<void> {
   try {
     const config = getConfig();
@@ -132,6 +149,7 @@ async function reportSubmitAttempt(
     const token = config.get("apiToken");
 
     await fetch(`${apiUrl}/cli/submit-attempt`, {
+      signal: requestSignal(nonInteractive),
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -180,7 +198,7 @@ function ccgatherToUsageData(data: CCGatherData): UsageData {
 /**
  * Submit data to CCgather API with token authentication
  */
-async function submitToServer(data: UsageData): Promise<SubmitResponse> {
+async function submitToServer(data: UsageData, nonInteractive: boolean): Promise<SubmitResponse> {
   const apiUrl = getApiUrl();
   const config = getConfig();
   const apiToken = config.get("apiToken");
@@ -191,6 +209,7 @@ async function submitToServer(data: UsageData): Promise<SubmitResponse> {
 
   try {
     const response = await fetch(`${apiUrl}/cli/submit`, {
+      signal: requestSignal(nonInteractive),
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -243,7 +262,7 @@ async function submitToServer(data: UsageData): Promise<SubmitResponse> {
     const result = (await response.json()) as SubmitResponse;
     return { ...result, success: true };
   } catch (err) {
-    return { success: false, error: err instanceof Error ? err.message : "Unknown error" };
+    return { success: false, error: describeRequestError(err) };
   }
 }
 
@@ -301,7 +320,10 @@ function displayNewBadges(badges: BadgeInfo[]): void {
 /**
  * Verify token validity with server
  */
-async function verifyToken(requestStarStatus: boolean): Promise<{
+async function verifyToken(
+  requestStarStatus: boolean,
+  nonInteractive: boolean
+): Promise<{
   valid: boolean;
   username?: string;
   hasStarred?: boolean | null;
@@ -321,6 +343,7 @@ async function verifyToken(requestStarStatus: boolean): Promise<{
     const response = await fetch(
       `${apiUrl}/cli/verify${requestStarStatus ? "?star_status=1" : ""}`,
       {
+        signal: requestSignal(nonInteractive),
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -348,7 +371,7 @@ async function verifyToken(requestStarStatus: boolean): Promise<{
     return {
       valid: false,
       failure: "unavailable",
-      error: err instanceof Error ? err.message : "Unknown error",
+      error: describeRequestError(err),
     };
   }
 }
@@ -426,7 +449,7 @@ export async function submit(options: SubmitOptions = {}): Promise<void> {
         color: "cyan",
       }).start();
 
-  const tokenCheck = await verifyToken(requestStarStatus);
+  const tokenCheck = await verifyToken(requestStarStatus, nonInteractive);
 
   if (!tokenCheck.valid && nonInteractive) {
     // Keep the saved token: a scheduled run cannot log in again, and a server
@@ -503,7 +526,7 @@ export async function submit(options: SubmitOptions = {}): Promise<void> {
       const debugInfo = getSessionPathDebugInfo();
       const searched = debugInfo.searchedPaths.map((pathInfo) => pathInfo.path).join(", ");
       logResult(`No Claude Code sessions found (searched: ${searched}).`, true);
-      await reportSubmitAttempt("no_sessions", debugInfo);
+      await reportSubmitAttempt("no_sessions", debugInfo, true);
       process.exit(1);
     }
 
@@ -567,7 +590,7 @@ export async function submit(options: SubmitOptions = {}): Promise<void> {
   if (!scannedData) {
     if (nonInteractive) {
       logResult("No usage data found in Claude Code sessions.", true);
-      await reportSubmitAttempt("no_data");
+      await reportSubmitAttempt("no_data", undefined, true);
       process.exit(1);
     }
 
@@ -595,7 +618,7 @@ export async function submit(options: SubmitOptions = {}): Promise<void> {
         color: "cyan",
       }).start();
 
-  const result = await submitToServer(usageData);
+  const result = await submitToServer(usageData, nonInteractive);
 
   if (nonInteractive) {
     if (result.success) {
