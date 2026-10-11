@@ -25,7 +25,6 @@ import {
   formatNumber,
   formatCost,
   header,
-  success,
   error,
   link,
   progressBar,
@@ -56,8 +55,10 @@ interface UsageData {
   opusModels?: string[];
 }
 
-interface SubmitOptions {
-  // Reserved for future use
+export interface SubmitOptions {
+  // Scheduler mode (`ccgather submit`): never prompt or animate, print one result
+  // line, and exit non-zero on any failure
+  nonInteractive?: boolean;
 }
 
 interface BadgeInfo {
@@ -117,13 +118,30 @@ interface SubmitResponse {
   accumulatedCost?: number;
 }
 
+/** How long a non-interactive request may wait for the server before it is abandoned */
+const NON_INTERACTIVE_TIMEOUT_MS = 120_000;
+
+/** Time limit for a request: only a scheduler run gets one, interactive runs have none */
+function requestSignal(nonInteractive: boolean): AbortSignal | undefined {
+  return nonInteractive ? AbortSignal.timeout(NON_INTERACTIVE_TIMEOUT_MS) : undefined;
+}
+
+/** Error text for a failed request, with a clear message when the time limit was hit */
+function describeRequestError(err: unknown): string {
+  if (err instanceof Error && err.name === "TimeoutError") {
+    return `no response from the server within ${NON_INTERACTIVE_TIMEOUT_MS / 1000} seconds`;
+  }
+  return err instanceof Error ? err.message : "Unknown error";
+}
+
 /**
  * Report submit attempt to server for debugging
  * This helps track users who try to submit but fail before data is sent
  */
 async function reportSubmitAttempt(
   reason: "no_sessions" | "no_data" | "scan_failed",
-  debugInfo?: { searchedPaths?: { path: string; exists: boolean }[]; projectsFound?: number }
+  debugInfo?: { searchedPaths?: { path: string; exists: boolean }[]; projectsFound?: number },
+  nonInteractive: boolean = false
 ): Promise<void> {
   try {
     const config = getConfig();
@@ -131,6 +149,7 @@ async function reportSubmitAttempt(
     const token = config.get("apiToken");
 
     await fetch(`${apiUrl}/cli/submit-attempt`, {
+      signal: requestSignal(nonInteractive),
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -179,7 +198,7 @@ function ccgatherToUsageData(data: CCGatherData): UsageData {
 /**
  * Submit data to CCgather API with token authentication
  */
-async function submitToServer(data: UsageData): Promise<SubmitResponse> {
+async function submitToServer(data: UsageData, nonInteractive: boolean): Promise<SubmitResponse> {
   const apiUrl = getApiUrl();
   const config = getConfig();
   const apiToken = config.get("apiToken");
@@ -190,6 +209,7 @@ async function submitToServer(data: UsageData): Promise<SubmitResponse> {
 
   try {
     const response = await fetch(`${apiUrl}/cli/submit`, {
+      signal: requestSignal(nonInteractive),
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -242,7 +262,7 @@ async function submitToServer(data: UsageData): Promise<SubmitResponse> {
     const result = (await response.json()) as SubmitResponse;
     return { ...result, success: true };
   } catch (err) {
-    return { success: false, error: err instanceof Error ? err.message : "Unknown error" };
+    return { success: false, error: describeRequestError(err) };
   }
 }
 
@@ -301,20 +321,29 @@ function displayNewBadges(badges: BadgeInfo[]): void {
  * Verify token validity with server
  */
 async function verifyToken(
-  requestStarStatus: boolean
-): Promise<{ valid: boolean; username?: string; hasStarred?: boolean | null }> {
+  requestStarStatus: boolean,
+  nonInteractive: boolean
+): Promise<{
+  valid: boolean;
+  username?: string;
+  hasStarred?: boolean | null;
+  // Why verification failed: no saved token, token refused, or server not reachable
+  failure?: "missing" | "rejected" | "unavailable";
+  error?: string;
+}> {
   const apiUrl = getApiUrl();
   const config = getConfig();
   const apiToken = config.get("apiToken");
 
   if (!apiToken) {
-    return { valid: false };
+    return { valid: false, failure: "missing" };
   }
 
   try {
     const response = await fetch(
       `${apiUrl}/cli/verify${requestStarStatus ? "?star_status=1" : ""}`,
       {
+        signal: requestSignal(nonInteractive),
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -324,7 +353,12 @@ async function verifyToken(
     );
 
     if (!response.ok) {
-      return { valid: false };
+      const rejected = response.status === 401 || response.status === 403;
+      return {
+        valid: false,
+        failure: rejected ? "rejected" : "unavailable",
+        error: `HTTP ${response.status}`,
+      };
     }
 
     const data = (await response.json()) as {
@@ -333,8 +367,24 @@ async function verifyToken(
       hasStarred?: boolean | null;
     };
     return { valid: true, username: data.username, hasStarred: data.hasStarred };
-  } catch {
-    return { valid: false };
+  } catch (err) {
+    return {
+      valid: false,
+      failure: "unavailable",
+      error: describeRequestError(err),
+    };
+  }
+}
+
+/**
+ * Print one plain, timestamped line for scheduler logs (no colour, spinner or link)
+ */
+export function logResult(message: string, isError: boolean = false): void {
+  const line = `[${new Date().toISOString()}] ccgather: ${message}`;
+  if (isError) {
+    console.error(line);
+  } else {
+    console.log(line);
   }
 }
 
@@ -366,13 +416,20 @@ function getPlanColor(plan: string): (text: string) => string {
  * 4. Submit to leaderboard
  *
  * Ranking is now based purely on token usage (level-based leagues)
+ *
+ * With options.nonInteractive the same pipeline runs without any prompt,
+ * header, spinner or progress bar, and every failure exits with code 1.
  */
-export async function submit(options: SubmitOptions): Promise<void> {
-  console.log(header("Submit Usage Data", "📤"));
+export async function submit(options: SubmitOptions = {}): Promise<void> {
+  const nonInteractive = options.nonInteractive === true;
+
+  if (!nonInteractive) {
+    console.log(header("Submit Usage Data", "📤"));
+  }
 
   const config = getConfig();
 
-  const isInteractive = Boolean(process.stdout.isTTY && process.stdin.isTTY);
+  const isInteractive = !nonInteractive && Boolean(process.stdout.isTTY && process.stdin.isTTY);
   const starState = {
     isTTY: isInteractive,
     starConfirmed: config.get("starConfirmed") === true,
@@ -385,15 +442,33 @@ export async function submit(options: SubmitOptions): Promise<void> {
   });
 
   // Verify token with server FIRST (before any scanning)
-  const verifySpinner = ora({
-    text: "Verifying authentication...",
-    color: "cyan",
-  }).start();
+  const verifySpinner = nonInteractive
+    ? null
+    : ora({
+        text: "Verifying authentication...",
+        color: "cyan",
+      }).start();
 
-  const tokenCheck = await verifyToken(requestStarStatus);
+  const tokenCheck = await verifyToken(requestStarStatus, nonInteractive);
+
+  if (!tokenCheck.valid && nonInteractive) {
+    // Keep the saved token: a scheduled run cannot log in again, and a server
+    // or network error must not wipe a token that is still valid
+    if (tokenCheck.failure === "missing") {
+      logResult("Not logged in. Run `npx ccgather` to log in.", true);
+    } else if (tokenCheck.failure === "rejected") {
+      logResult(
+        `Authentication refused by server (${tokenCheck.error}). If this keeps happening, run \`npx ccgather\` to log in again.`,
+        true
+      );
+    } else {
+      logResult(`Could not verify authentication (${tokenCheck.error}). Try again later.`, true);
+    }
+    process.exit(1);
+  }
 
   if (!tokenCheck.valid) {
-    verifySpinner.stop();
+    verifySpinner?.stop();
 
     // Clear invalid token from local config
     config.delete("apiToken");
@@ -424,7 +499,7 @@ export async function submit(options: SubmitOptions): Promise<void> {
   }
 
   const username = tokenCheck.username || config.get("username");
-  verifySpinner.succeed(colors.success(`Authenticated as ${colors.white(username || "unknown")}`));
+  verifySpinner?.succeed(colors.success(`Authenticated as ${colors.white(username || "unknown")}`));
 
   if (tokenCheck.hasStarred === true) {
     config.set("starConfirmed", true);
@@ -447,6 +522,14 @@ export async function submit(options: SubmitOptions): Promise<void> {
 
   // Check if any sessions exist
   if (!hasAnySessions()) {
+    if (nonInteractive) {
+      const debugInfo = getSessionPathDebugInfo();
+      const searched = debugInfo.searchedPaths.map((pathInfo) => pathInfo.path).join(", ");
+      logResult(`No Claude Code sessions found (searched: ${searched}).`, true);
+      await reportSubmitAttempt("no_sessions", debugInfo, true);
+      process.exit(1);
+    }
+
     console.log(`\n  ${error("No Claude Code sessions found.")}`);
     console.log();
     console.log(`  ${colors.muted("This usually means:")}`);
@@ -476,30 +559,41 @@ export async function submit(options: SubmitOptions): Promise<void> {
   }
 
   // Scan ALL projects
-  console.log(`\n  ${colors.muted("Scanning all Claude Code sessions...")}`);
+  let scannedData: CCGatherData | null;
+  if (nonInteractive) {
+    scannedData = scanAllProjects();
+  } else {
+    console.log(`\n  ${colors.muted("Scanning all Claude Code sessions...")}`);
 
-  const totalSessions = getAllSessionsCount();
-  console.log(`  ${colors.dim(`Found ${totalSessions} session file(s)`)}`);
+    const totalSessions = getAllSessionsCount();
+    console.log(`  ${colors.dim(`Found ${totalSessions} session file(s)`)}`);
 
-  let lastProgress = 0;
-  const scannedData = scanAllProjects({
-    onProgress: (current, total) => {
-      progressBar(current, total, "Scanning");
-      lastProgress = current;
-      // The bar is full but the scan has not returned yet — never leave a blank line
-      if (current >= total) {
-        process.stdout.write(`  ${colors.muted("Processing...")}`);
-      }
-    },
-  });
+    let lastProgress = 0;
+    scannedData = scanAllProjects({
+      onProgress: (current, total) => {
+        progressBar(current, total, "Scanning");
+        lastProgress = current;
+        // The bar is full but the scan has not returned yet — never leave a blank line
+        if (current >= total) {
+          process.stdout.write(`  ${colors.muted("Processing...")}`);
+        }
+      },
+    });
 
-  // Clear progress bar line and show processing message
-  if (lastProgress > 0) {
-    process.stdout.write("\r" + " ".repeat(60) + "\r");
+    // Clear progress bar line and show processing message
+    if (lastProgress > 0) {
+      process.stdout.write("\r" + " ".repeat(60) + "\r");
+    }
+    process.stdout.write(`  ${colors.muted("Processing...")}`);
   }
-  process.stdout.write(`  ${colors.muted("Processing...")}`);
 
   if (!scannedData) {
+    if (nonInteractive) {
+      logResult("No usage data found in Claude Code sessions.", true);
+      await reportSubmitAttempt("no_data", undefined, true);
+      process.exit(1);
+    }
+
     process.stdout.write("\r" + " ".repeat(40) + "\r");
     console.log(`  ${colors.error("✗")} ${colors.error("No usage data found.")}`);
     console.log(`  ${colors.muted("Make sure you have used Claude Code at least once.")}\n`);
@@ -514,13 +608,38 @@ export async function submit(options: SubmitOptions): Promise<void> {
   const usageData = ccgatherToUsageData(scannedData);
 
   // Clear processing message and start submit spinner
-  process.stdout.write("\r" + " ".repeat(40) + "\r");
-  const submitSpinner = ora({
-    text: "Submitting to CCgather...",
-    color: "cyan",
-  }).start();
+  if (!nonInteractive) {
+    process.stdout.write("\r" + " ".repeat(40) + "\r");
+  }
+  const submitSpinner = nonInteractive
+    ? null
+    : ora({
+        text: "Submitting to CCgather...",
+        color: "cyan",
+      }).start();
 
-  const result = await submitToServer(usageData);
+  const result = await submitToServer(usageData, nonInteractive);
+
+  if (nonInteractive) {
+    if (result.success) {
+      config.set("lastSync", new Date().toISOString());
+      const rank = result.rank ? `, global rank #${result.rank}` : "";
+      logResult(
+        `Submitted ${formatNumber(usageData.totalTokens)} tokens (${formatCost(usageData.totalCost)}) as ${username || "unknown"}${rank}.`
+      );
+      return;
+    }
+
+    if (result.retryAfterMinutes) {
+      logResult(
+        `Submission limit reached. Try again in ${result.retryAfterMinutes} minute(s).`,
+        true
+      );
+    } else {
+      logResult(`Failed to submit: ${result.error || "Unknown error"}.`, true);
+    }
+    process.exit(1);
+  }
 
   // ═══════════════════════════════════════════════════════════════════════════
   // DISPLAY SUMMARY (after submission)
@@ -571,7 +690,7 @@ export async function submit(options: SubmitOptions): Promise<void> {
   const projectCount = Object.keys(scannedData.projects).length;
 
   if (result.success) {
-    submitSpinner.succeed(colors.success("Successfully submitted!"));
+    submitSpinner?.succeed(colors.success("Successfully submitted!"));
     config.set("lastSync", new Date().toISOString());
     console.log();
 
@@ -741,7 +860,7 @@ export async function submit(options: SubmitOptions): Promise<void> {
   } else {
     // Handle rate limit error with friendly message
     if (result.retryAfterMinutes) {
-      submitSpinner.fail(colors.warning("Submission limit reached"));
+      submitSpinner?.fail(colors.warning("Submission limit reached"));
       console.log();
       console.log(
         `  ${colors.muted("To keep our service stable, you can submit up to 2 times per hour.")}`
@@ -754,7 +873,7 @@ export async function submit(options: SubmitOptions): Promise<void> {
         `  ${colors.warning("⏳")} ${colors.white("Ready to submit again in")} ${colors.primary(`${result.retryAfterMinutes} minute${result.retryAfterMinutes !== 1 ? "s" : ""}`)}`
       );
     } else {
-      submitSpinner.fail(colors.error("Failed to submit"));
+      submitSpinner?.fail(colors.error("Failed to submit"));
       console.log(`\n  ${error(result.error || "Unknown error")}`);
     }
     console.log();

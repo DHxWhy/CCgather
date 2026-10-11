@@ -4,7 +4,7 @@ import { Command } from "commander";
 import inquirer from "inquirer";
 import chalk from "chalk";
 import { execSync } from "child_process";
-import { submit } from "./commands/submit.js";
+import { submit, logResult } from "./commands/submit.js";
 import {
   printAnimatedHeader,
   printAnimatedWelcomeBox,
@@ -276,6 +276,20 @@ async function showSettingsMenu(): Promise<void> {
       break;
   }
 }
+
+// Non-interactive submit for schedulers (cron, Task Scheduler) - never prompts
+program
+  .command("submit")
+  .description("Submit usage without prompts (log in first with `npx ccgather`)")
+  .action(async () => {
+    try {
+      await submit({ nonInteractive: true });
+    } catch (err) {
+      // Keep an unexpected failure to one timestamped line in the scheduler log
+      logResult(`Unexpected error: ${err instanceof Error ? err.message : String(err)}`, true);
+      process.exitCode = 1;
+    }
+  });
 
 // Default action - show main menu
 program.action(async () => {
