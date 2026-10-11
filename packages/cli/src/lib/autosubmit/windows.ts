@@ -24,7 +24,7 @@ import {
  * WScript.Shell.Run(command, 0, true) starts the console child hidden.
  */
 
-const MECHANISM = `Task Scheduler task "${JOB_NAME}"`;
+const SCHEDULER = "Task Scheduler";
 
 // Task Scheduler result codes that are states, not failures
 const TASK_HAS_NOT_RUN = 0x41303;
@@ -403,7 +403,7 @@ export function createWindowsBackend(options: WindowsBackendOptions = {}): Backe
       }
 
       return {
-        log: paths.log,
+        scheduler: SCHEDULER,
         notes: [
           "If the computer is off or asleep at that time, it runs when it can, and at each sign-in; a second run within 20 hours is skipped.",
         ],
@@ -429,7 +429,7 @@ export function createWindowsBackend(options: WindowsBackendOptions = {}): Backe
     async status(): Promise<AutosubmitStatus> {
       const status: AutosubmitStatus = {
         registered: false,
-        mechanism: MECHANISM,
+        scheduler: SCHEDULER,
         log: paths.log,
         lastLogLine: readLastLogLine(paths.log),
       };

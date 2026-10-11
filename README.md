@@ -191,8 +191,9 @@ npx ccgather
 <th>Description</th>
 </tr>
 <tr><td align="center">📤</td><td>Submit Usage Data</td><td>Scan and submit Claude Code usage</td></tr>
+<tr><td align="center">🔁</td><td>Auto-submit</td><td>Turn the daily automatic submit on or off, or change its time</td></tr>
 <tr><td align="center">🌐</td><td>Open Leaderboard</td><td>Check rankings in browser</td></tr>
-<tr><td align="center">⚙️</td><td>Settings</td><td>Re-authenticate or change account, turn autosubmit on or off</td></tr>
+<tr><td align="center">⚙️</td><td>Settings</td><td>Re-authenticate or change account</td></tr>
 </table>
 
 ### Scheduled Submit
@@ -209,7 +210,7 @@ Submits your usage without any prompt, so it can run from a scheduler. Log in on
 <tr><td align="center">1</td><td>Not logged in, no usage data, rate limited, or a network/server error</td></tr>
 </table>
 
-Claude Code keeps about 30 days of local data, so once a day is plenty. [Autosubmit](#autosubmit) (`npx ccgather autosubmit on`) sets that up for you. To schedule it yourself instead:
+Claude Code keeps about 30 days of local data, so once a day is plenty. [Auto-submit](#auto-submit) (`npx ccgather autosubmit on`) sets that up for you. To schedule it yourself instead:
 
 ```bash
 # cron (macOS/Linux), every day at 21:17 — Node must be on cron's PATH
@@ -221,7 +222,7 @@ schtasks /create /tn "CCgather submit" /sc daily /st 21:17 /tr "cmd /c npx --yes
 
 Pick a minute of your own rather than copying 21:17: everyone who keeps the example would reach the server in the same second. Task Scheduler skips a run on battery power by default, and both schedulers skip a run while the machine is asleep or off, so pick a time the machine is usually awake and plugged in.
 
-### Autosubmit
+### Auto-submit
 
 Let the CLI set up the daily job for you, using your operating system's own scheduler:
 
@@ -232,7 +233,18 @@ npx ccgather autosubmit off            # remove it
 npx ccgather autosubmit on --at 21:30  # pick the time yourself
 ```
 
-Without `--at` it runs every day at the time you turned it on plus five minutes (turn it on at 14:17 and it runs at 14:22), in your local time. People turn it on at different moments, so not everyone submits at once, and your machine is usually awake at that time. Settings > Autosubmit in the menu does the same as `on` and `off`. If the machine was off at that time, the job catches up later (except with the Linux cron fallback, which skips that day); a run is skipped if you submitted in the 20 hours before it, so the first one may be. `status` shows what the last run did, for example `Last outcome (2026-10-11 14:23): Skipped: submitted 10 minutes ago.`
+Without `--at` it runs every day at the time you turned it on plus five minutes (turn it on at 14:17 and it runs at 14:22), in your local time. People turn it on at different moments, so not everyone submits at once, and your machine is usually awake at that time. The main menu has the same thing as its second item, right under Submit usage data: `🔁  Auto-submit: OFF` turns it on, and `Auto-submit: ON · daily 14:23` offers Change time, Turn off and Back. If the machine was off at that time, the job catches up later (except with the Linux cron fallback, which skips that day); a run is skipped if you submitted in the 20 hours before it, so the first one may be. Running `on` again when it is already on refreshes the job and keeps its time. `status` shows what the scheduler has and what the last run did:
+
+```
+Auto-submit: ON
+  Schedule:  daily at 14:23 (systemd user timer)
+  Runs:      ccgather@2.2.0 via npx
+  Last run:  2026-10-12 14:23 · skipped: submitted 10 minutes ago
+  Next run:  2026-10-13 14:23
+  Log:       /home/alice/.local/state/ccgather/autosubmit.log
+```
+
+When turning it on, you are offered the GitHub star prompt unless you have already starred.
 
 <table>
 <tr><th width="100">OS</th><th>What it creates</th><th>Log</th></tr>

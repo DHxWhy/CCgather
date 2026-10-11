@@ -23,7 +23,7 @@ import {
 
 export const LAUNCH_AGENT_LABEL = "com.ccgather.autosubmit";
 
-const MECHANISM = `LaunchAgent ${LAUNCH_AGENT_LABEL}`;
+const SCHEDULER = "launchd";
 
 export interface MacosPaths {
   plist: string;
@@ -182,7 +182,7 @@ export function createMacosBackend(options: MacosBackendOptions = {}): Backend {
       }
 
       return {
-        log: paths.log,
+        scheduler: SCHEDULER,
         notes: [
           "launchd also runs it now and at each login, which catches up a missed day; a second run within 20 hours is skipped.",
           'macOS may show a "Background Items Added" notification once.',
@@ -203,7 +203,7 @@ export function createMacosBackend(options: MacosBackendOptions = {}): Backend {
     async status(): Promise<AutosubmitStatus> {
       const status: AutosubmitStatus = {
         registered: false,
-        mechanism: MECHANISM,
+        scheduler: SCHEDULER,
         log: paths.log,
         lastLogLine: readLastLogLine(paths.log),
       };

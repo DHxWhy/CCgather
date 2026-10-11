@@ -19,6 +19,21 @@ export const JOB_NAME = "ccgather-autosubmit";
 export const SCHEDULED_MIN_INTERVAL_HOURS = 20;
 export const SCHEDULED_MIN_INTERVAL_MS = SCHEDULED_MIN_INTERVAL_HOURS * 60 * 60 * 1000;
 
+/**
+ * A failure the user can act on: one line of cause and, when there is one, the
+ * next step. `bare` leaves out the "Could not ..." prefix the command adds.
+ */
+export class AutosubmitError extends Error {
+  constructor(
+    readonly cause: string,
+    readonly action?: string,
+    readonly bare: boolean = false
+  ) {
+    super(cause);
+    this.name = "AutosubmitError";
+  }
+}
+
 export interface DailyTime {
   hour: number;
   minute: number;
@@ -42,16 +57,16 @@ export interface EnablePlan {
 }
 
 export interface EnableResult {
-  // Where the job's output goes (a file, or a journalctl command)
-  log: string;
+  // The scheduler in a few words: "Task Scheduler", "launchd", "systemd user timer", "cron"
+  scheduler: string;
   // Extra lines for this OS (catch-up behaviour, notifications, linger)
   notes: string[];
 }
 
 export interface AutosubmitStatus {
   registered: boolean;
-  // e.g. "Task Scheduler task ccgather-autosubmit"
-  mechanism: string;
+  // The scheduler in a few words, as EnableResult.scheduler
+  scheduler: string;
   time?: DailyTime;
   argv?: string[];
   state?: string;
@@ -353,8 +368,9 @@ export async function resolveJobCommand(
 
   const npxCli = findNpxCli(nodePath, deps);
   if (!npxCli) {
-    throw new Error(
-      `Could not find npm's npx-cli.js for ${nodePath}. Install ccgather globally (\`npm install -g ccgather\`) and run \`ccgather autosubmit on\` again.`
+    throw new AutosubmitError(
+      `npm's npx-cli.js was not found for ${nodePath}.`,
+      "Install ccgather globally (npm i -g ccgather) and run `ccgather autosubmit on` again."
     );
   }
   const spec = options.autoUpdate ? "ccgather@latest" : `ccgather@${deps.version}`;

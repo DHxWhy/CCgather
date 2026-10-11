@@ -9,8 +9,12 @@ import {
   autosubmitEnable,
   autosubmitOff,
   autosubmitStatus,
-  autosubmitSettingsState,
-  toggleAutosubmit,
+  autosubmitMenuLabel,
+  autosubmitMenuChoose,
+  printFailure,
+  REGISTER_FAILED,
+  TURN_OFF_FAILED,
+  READ_FAILED,
   AutosubmitOptions,
 } from "./commands/autosubmit.js";
 import {
@@ -216,7 +220,10 @@ async function showMainMenu(): Promise<void> {
 
 // Show menu only (without header animation)
 async function showMenuOnly(): Promise<void> {
-  // Main menu - 3 options only
+  // Config only: drawing the menu never asks the OS scheduler. Null on a
+  // platform auto-submit does not support.
+  const autosubmitLabel = autosubmitMenuLabel();
+
   const { action } = await inquirer.prompt([
     {
       type: "list",
@@ -224,6 +231,9 @@ async function showMenuOnly(): Promise<void> {
       message: "What would you like to do?",
       choices: [
         { name: `📤  ${colors.white("Submit usage data")}`, value: "submit" },
+        ...(autosubmitLabel
+          ? [{ name: `🔁  ${colors.white(autosubmitLabel)}`, value: "autosubmit" }]
+          : []),
         { name: `🌐  ${colors.white("Open leaderboard")}`, value: "leaderboard" },
         { name: `⚙️   ${colors.white("Settings")}`, value: "settings" },
       ],
@@ -237,6 +247,10 @@ async function showMenuOnly(): Promise<void> {
     case "submit":
       await dotAnimation("Preparing", 400);
       await submit({});
+      break;
+    case "autosubmit":
+      await autosubmitMenuChoose();
+      await showMenuOnly();
       break;
     case "leaderboard": {
       const cfg = getConfig();
@@ -257,9 +271,6 @@ async function showMenuOnly(): Promise<void> {
 
 // Settings submenu
 async function showSettingsMenu(): Promise<void> {
-  // Read from the OS scheduler; null on a platform autosubmit does not support
-  const autosubmitState = await autosubmitSettingsState();
-
   const { settingsAction } = await inquirer.prompt([
     {
       type: "list",
@@ -270,14 +281,6 @@ async function showSettingsMenu(): Promise<void> {
           name: `🔐  ${colors.white("Re-authenticate")}  ${colors.dim("– switch account or fix login issues")}`,
           value: "auth",
         },
-        ...(autosubmitState
-          ? [
-              {
-                name: `⏰  ${colors.white(autosubmitState.label)}  ${colors.dim(autosubmitState.on ? "– select to turn it off" : "– select to turn it on")}`,
-                value: "autosubmit",
-              },
-            ]
-          : []),
         { name: `⬅️   ${chalk.gray("Back")}`, value: "back" },
       ],
       loop: false,
@@ -290,10 +293,6 @@ async function showSettingsMenu(): Promise<void> {
       await auth({});
       break;
     }
-    case "autosubmit":
-      await toggleAutosubmit(autosubmitState?.on === true);
-      await showSettingsMenu();
-      break;
     case "back":
       await showMenuOnly();
       break;
@@ -317,12 +316,12 @@ program
     }
   });
 
-// One plain line on stderr and exit code 1 for any autosubmit failure
-async function runAutosubmit(action: () => Promise<void>): Promise<void> {
+// A failure is its cause and the next step on stderr, with exit code 1
+async function runAutosubmit(action: () => Promise<void>, failed: string): Promise<void> {
   try {
     await action();
   } catch (err) {
-    console.error(`ccgather autosubmit: ${err instanceof Error ? err.message : String(err)}`);
+    printFailure(err, failed);
     process.exitCode = 1;
   }
 }
@@ -344,21 +343,21 @@ autosubmit
     "run ccgather@latest each day instead of this version: whatever release is newest that day runs with access to your token"
   )
   .action(async (opts: AutosubmitOptions) => {
-    await runAutosubmit(() => autosubmitEnable(opts));
+    await runAutosubmit(() => autosubmitEnable(opts), REGISTER_FAILED);
   });
 
 autosubmit
   .command("off")
   .description("Remove the daily job")
   .action(async () => {
-    await runAutosubmit(() => autosubmitOff());
+    await runAutosubmit(() => autosubmitOff(), TURN_OFF_FAILED);
   });
 
 autosubmit
   .command("status")
   .description("Show the daily job as the OS scheduler has it")
   .action(async () => {
-    await runAutosubmit(() => autosubmitStatus());
+    await runAutosubmit(() => autosubmitStatus(), READ_FAILED);
   });
 
 // Default action - show main menu

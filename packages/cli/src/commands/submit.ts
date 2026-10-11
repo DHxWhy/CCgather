@@ -417,12 +417,18 @@ export function formatAgo(elapsedMs: number): string {
  * Keep a scheduled run's result line for `autosubmit status`. Writing it is
  * best effort: it must never change the run's output or exit code.
  */
-function recordScheduledRun(config: Conf<CliConfig>, message: string, isError: boolean): void {
+function recordScheduledRun(
+  config: Conf<CliConfig>,
+  message: string,
+  summary: string,
+  isError: boolean
+): void {
   try {
     config.set("lastScheduledRun", {
       at: new Date().toISOString(),
       ok: !isError,
       message,
+      summary,
     });
   } catch {
     // The run's own log line is the record of last resort
@@ -471,10 +477,11 @@ export async function submit(options: SubmitOptions = {}): Promise<void> {
 
   const config = getConfig();
 
-  // The one result line of a non-interactive run; a scheduled run also keeps it
-  const report = (message: string, isError: boolean = false): void => {
+  // The one result line of a non-interactive run; a scheduled run also keeps it,
+  // with a short summary for `autosubmit status`
+  const report = (message: string, summary: string, isError: boolean = false): void => {
     logResult(message, isError);
-    if (scheduled) recordScheduledRun(config, message, isError);
+    if (scheduled) recordScheduledRun(config, message, summary, isError);
   };
 
   if (scheduled) {
@@ -482,7 +489,7 @@ export async function submit(options: SubmitOptions = {}): Promise<void> {
     const age = lastSync ? Date.now() - Date.parse(lastSync) : Number.NaN;
     // A lastSync in the future (clock moved back) does not count as recent
     if (age >= 0 && age < SCHEDULED_MIN_INTERVAL_MS) {
-      report(`Skipped: submitted ${formatAgo(age)}.`);
+      report(`Skipped: submitted ${formatAgo(age)}.`, `skipped: submitted ${formatAgo(age)}`);
       return;
     }
   }
@@ -513,14 +520,19 @@ export async function submit(options: SubmitOptions = {}): Promise<void> {
     // Keep the saved token: a scheduled run cannot log in again, and a server
     // or network error must not wipe a token that is still valid
     if (tokenCheck.failure === "missing") {
-      report("Not logged in. Run `npx ccgather` to log in.", true);
+      report("Not logged in. Run `npx ccgather` to log in.", "failed: not logged in", true);
     } else if (tokenCheck.failure === "rejected") {
       report(
         `Authentication refused by server (${tokenCheck.error}). If this keeps happening, run \`npx ccgather\` to log in again.`,
+        `failed: authentication refused by server (${tokenCheck.error})`,
         true
       );
     } else {
-      report(`Could not verify authentication (${tokenCheck.error}). Try again later.`, true);
+      report(
+        `Could not verify authentication (${tokenCheck.error}). Try again later.`,
+        `failed: could not verify authentication (${tokenCheck.error})`,
+        true
+      );
     }
     process.exit(1);
   }
@@ -583,7 +595,11 @@ export async function submit(options: SubmitOptions = {}): Promise<void> {
     if (nonInteractive) {
       const debugInfo = getSessionPathDebugInfo();
       const searched = debugInfo.searchedPaths.map((pathInfo) => pathInfo.path).join(", ");
-      report(`No Claude Code sessions found (searched: ${searched}).`, true);
+      report(
+        `No Claude Code sessions found (searched: ${searched}).`,
+        "failed: no Claude Code sessions found",
+        true
+      );
       await reportSubmitAttempt("no_sessions", debugInfo, true);
       process.exit(1);
     }
@@ -647,7 +663,7 @@ export async function submit(options: SubmitOptions = {}): Promise<void> {
 
   if (!scannedData) {
     if (nonInteractive) {
-      report("No usage data found in Claude Code sessions.", true);
+      report("No usage data found in Claude Code sessions.", "failed: no usage data found", true);
       await reportSubmitAttempt("no_data", undefined, true);
       process.exit(1);
     }
@@ -682,16 +698,26 @@ export async function submit(options: SubmitOptions = {}): Promise<void> {
     if (result.success) {
       config.set("lastSync", new Date().toISOString());
       const rank = result.rank ? `, global rank #${result.rank}` : "";
+      const days = usageData.daysTracked;
       report(
-        `Submitted ${formatNumber(usageData.totalTokens)} tokens (${formatCost(usageData.totalCost)}) as ${username || "unknown"}${rank}.`
+        `Submitted ${formatNumber(usageData.totalTokens)} tokens (${formatCost(usageData.totalCost)}) as ${username || "unknown"}${rank}.`,
+        `submitted ${days} ${days === 1 ? "day" : "days"}`
       );
       return;
     }
 
     if (result.retryAfterMinutes) {
-      report(`Submission limit reached. Try again in ${result.retryAfterMinutes} minute(s).`, true);
+      report(
+        `Submission limit reached. Try again in ${result.retryAfterMinutes} minute(s).`,
+        `failed: submission limit reached, try again in ${result.retryAfterMinutes} minute(s)`,
+        true
+      );
     } else {
-      report(`Failed to submit: ${result.error || "Unknown error"}.`, true);
+      report(
+        `Failed to submit: ${result.error || "Unknown error"}.`,
+        `failed: ${result.error || "unknown error"}`,
+        true
+      );
     }
     process.exit(1);
   }

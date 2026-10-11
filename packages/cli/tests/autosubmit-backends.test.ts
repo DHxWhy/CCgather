@@ -154,7 +154,7 @@ describe("Windows backend", () => {
     expect(xml).toContain("<DisallowStartIfOnBatteries>false</DisallowStartIfOnBatteries>");
 
     expect(fs.readFileSync(launcher, "utf8")).toContain("WScript.Quit(code);");
-    expect(result.log).toBe(path.join(temp, "Local", "ccgather", "autosubmit.log"));
+    expect(result.scheduler).toBe("Task Scheduler");
   });
 
   it("takes DOMAIN\\user from the environment when whoami fails", async () => {
@@ -281,7 +281,7 @@ describe("Windows backend", () => {
     expect(POWERSHELL_STATUS_SCRIPT).not.toContain('"');
     expect(status).toEqual({
       registered: true,
-      mechanism: 'Task Scheduler task "ccgather-autosubmit"',
+      scheduler: "Task Scheduler",
       time: { hour: 14, minute: 7 },
       argv,
       state: "Bereit",
@@ -321,7 +321,7 @@ describe("Windows backend", () => {
     ]);
     expect(status).toEqual({
       registered: true,
-      mechanism: 'Task Scheduler task "ccgather-autosubmit"',
+      scheduler: "Task Scheduler",
       time: { hour: 14, minute: 7 },
       argv,
       lastResult:
@@ -381,7 +381,7 @@ describe("macOS backend", () => {
     if (process.platform !== "win32") {
       expect(fs.statSync(plistPath()).mode & 0o777).toBe(0o644);
     }
-    expect(result.log).toBe(path.join(logDir(), "autosubmit.log"));
+    expect(result.scheduler).toBe("launchd");
     expect(result.notes.join("\n")).toContain('"Background Items Added"');
   });
 
@@ -603,7 +603,7 @@ describe("Linux backend", () => {
     expect(fs.readFileSync(path.join(unitDir(), "ccgather-autosubmit.timer"), "utf8")).toContain(
       "OnCalendar=*-*-* 14:07:00"
     );
-    expect(result.log).toBe("journalctl --user -u ccgather-autosubmit");
+    expect(result.scheduler).toBe("systemd user timer");
     expect(result.notes.join("\n")).toContain("loginctl enable-linger $USER");
   });
 
@@ -635,7 +635,7 @@ describe("Linux backend", () => {
     const block = buildCronBlock({ argv, time: { hour: 14, minute: 7 }, log: cronLog() });
     expect(crontab).toBe(`${foreign}${block}\n`);
     expect(fs.statSync(path.dirname(cronLog())).isDirectory()).toBe(true);
-    expect(result.log).toBe(cronLog());
+    expect(result.scheduler).toBe("cron");
   });
 
   it("re-enabling cron replaces the block instead of adding a second one", async () => {
@@ -738,7 +738,7 @@ describe("Linux backend", () => {
     ]);
     expect(status).toEqual({
       registered: true,
-      mechanism: "systemd user timer ccgather-autosubmit.timer",
+      scheduler: "systemd user timer",
       time: { hour: 14, minute: 7 },
       argv,
       state: "active",
@@ -759,7 +759,7 @@ describe("Linux backend", () => {
 
     expect(status).toEqual({
       registered: true,
-      mechanism: "crontab entry",
+      scheduler: "cron",
       time: { hour: 14, minute: 7 },
       argv,
       log: cronLog(),
@@ -888,13 +888,23 @@ describe("Linux backend", () => {
       systemdState = { stdout: "offline\n", code: 1 };
     });
 
-    it("adds a note on enable and says so in status", async () => {
+    it("refuses to write the crontab line, and says what to do", async () => {
       procRoot = makeProc([{ comm: "bash" }, { comm: "node" }]);
+      crontab = foreign;
 
-      const result = await backend().enable(plan(argv, temp));
-      expect(result.notes).toContain(
-        "No cron daemon is running, so it will not run until one starts. On WSL, add `[boot]` `systemd=true` to /etc/wsl.conf and run `wsl --shutdown`, or run `sudo service cron start`."
-      );
+      await expect(backend().enable(plan(argv, temp))).rejects.toMatchObject({
+        cause: "no cron daemon is running.",
+        action:
+          "On WSL, enable systemd or start cron (sudo service cron start), then run this again.",
+      });
+      expect(written).toEqual([]);
+      expect(crontab).toBe(foreign);
+    });
+
+    it("says in status that a registered line has no daemon to run it", async () => {
+      await backend().enable(plan(argv, temp));
+      expect(written).toHaveLength(1);
+      procRoot = makeProc([{ comm: "bash" }, { comm: "node" }]);
       expect((await backend().status()).state).toBe("registered, but no cron daemon is running");
     });
 
@@ -908,20 +918,24 @@ describe("Linux backend", () => {
     ])("finds a running daemon: %j", async (processes) => {
       procRoot = makeProc(processes);
       const result = await backend().enable(plan(argv, temp));
-      expect(result.notes.join("\n")).not.toContain("No cron daemon");
+      expect(result.scheduler).toBe("cron");
+      expect(written).toHaveLength(1);
       expect((await backend().status()).state).toBeUndefined();
     });
 
     it("does not count a busybox that is not crond", async () => {
       procRoot = makeProc([{ comm: "busybox", cmdline: ["/bin/busybox", "sh"] }]);
-      const result = await backend().enable(plan(argv, temp));
-      expect(result.notes.join("\n")).toContain("No cron daemon");
+      await expect(backend().enable(plan(argv, temp))).rejects.toMatchObject({
+        cause: "no cron daemon is running.",
+      });
+      expect(written).toEqual([]);
     });
 
-    it("claims nothing when /proc cannot be read", async () => {
+    it("registers anyway when /proc cannot be read, because it cannot tell", async () => {
       procRoot = path.join(temp, "no-proc-here");
       const result = await backend().enable(plan(argv, temp));
-      expect(result.notes.join("\n")).not.toContain("No cron daemon");
+      expect(result.scheduler).toBe("cron");
+      expect(written).toHaveLength(1);
       expect((await backend().status()).state).toBeUndefined();
     });
   });

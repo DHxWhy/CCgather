@@ -7,6 +7,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 const mocked = vi.hoisted(() => ({
+  AutosubmitError:
+    undefined as unknown as typeof import("../src/lib/autosubmit/shared").AutosubmitError,
   submit: vi.fn(async (_options?: unknown): Promise<void> => undefined),
   enable: vi.fn(async (_options?: unknown): Promise<void> => undefined),
   off: vi.fn(async (): Promise<void> => undefined),
@@ -22,13 +24,20 @@ vi.mock("../src/commands/submit", async (importOriginal) => {
   return { ...actual, submit: mocked.submit };
 });
 
-vi.mock("../src/commands/autosubmit", () => ({
-  autosubmitEnable: mocked.enable,
-  autosubmitOff: mocked.off,
-  autosubmitStatus: mocked.status,
-  autosubmitSettingsState: vi.fn(async () => null),
-  toggleAutosubmit: vi.fn(async () => true),
-}));
+// The handlers are fakes; how a failure is printed is the real thing
+vi.mock("../src/commands/autosubmit", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../src/commands/autosubmit")>();
+  // printFailure tells an AutosubmitError by its class, so hand the test the one
+  // this module graph uses
+  const shared = await import("../src/lib/autosubmit/shared");
+  mocked.AutosubmitError = shared.AutosubmitError;
+  return {
+    ...actual,
+    autosubmitEnable: mocked.enable,
+    autosubmitOff: mocked.off,
+    autosubmitStatus: mocked.status,
+  };
+});
 
 vi.mock("../src/lib/ui", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../src/lib/ui")>();
@@ -72,7 +81,7 @@ describe("ccgather autosubmit routing", () => {
     errors = [];
     vi.spyOn(console, "log").mockImplementation(() => {});
     vi.spyOn(console, "error").mockImplementation((...args: unknown[]) => {
-      errors.push(args.join(" "));
+      errors.push(args.join(" ").replace(/\u001B\[[0-9;]*m/g, ""));
     });
     vi.spyOn(process, "exit").mockImplementation((() => undefined) as never);
   });
@@ -173,11 +182,58 @@ describe("ccgather autosubmit routing", () => {
     expectNoMenu();
   });
 
-  it("an autosubmit failure is one stderr line and exit code 1", async () => {
-    mocked.enable.mockRejectedValue(new Error("Log in first with `npx ccgather`."));
+  it("a failure with a next step is two stderr lines and exit code 1", async () => {
+    mocked.enable.mockImplementation(async () => {
+      throw new mocked.AutosubmitError(
+        "no cron daemon is running.",
+        "On WSL, enable systemd or start cron (sudo service cron start), then run this again."
+      );
+    });
     await runCli(["autosubmit", "on"]);
     await vi.waitFor(() => expect(process.exitCode).toBe(1));
-    expect(errors).toEqual(["ccgather autosubmit: Log in first with `npx ccgather`."]);
+    expect(errors).toEqual([
+      "✖ Could not register: no cron daemon is running.",
+      "  On WSL, enable systemd or start cron (sudo service cron start), then run this again.",
+    ]);
+  });
+
+  it("a plain error from a backend is one stderr line and exit code 1", async () => {
+    mocked.enable.mockRejectedValue(new Error("crontab refused the new table: bad time"));
+    await runCli(["autosubmit", "on"]);
+    await vi.waitFor(() => expect(process.exitCode).toBe(1));
+    expect(errors).toEqual(["✖ Could not register: crontab refused the new table: bad time"]);
+  });
+
+  it("a bad --at is not prefixed with what was attempted", async () => {
+    mocked.enable.mockImplementation(async () => {
+      throw new mocked.AutosubmitError(
+        "--at must be HH:MM (24-hour), for example 21:30.",
+        undefined,
+        true
+      );
+    });
+    await runCli(["autosubmit", "on", "--at", "9pm"]);
+    await vi.waitFor(() => expect(process.exitCode).toBe(1));
+    expect(errors).toEqual(["✖ --at must be HH:MM (24-hour), for example 21:30."]);
+  });
+
+  it("`off` and `status` failures say what they were doing, with exit code 1", async () => {
+    mocked.off.mockRejectedValue(
+      new Error("Could not remove the scheduled task: Access is denied")
+    );
+    await runCli(["autosubmit", "off"]);
+    await vi.waitFor(() => expect(process.exitCode).toBe(1));
+    expect(errors).toEqual([
+      "✖ Could not turn auto-submit off: Could not remove the scheduled task: Access is denied",
+    ]);
+
+    errors.length = 0;
+    process.exitCode = undefined;
+    vi.resetModules();
+    mocked.status.mockRejectedValue(new Error("systemctl failed"));
+    await runCli(["autosubmit", "status"]);
+    await vi.waitFor(() => expect(process.exitCode).toBe(1));
+    expect(errors).toEqual(["✖ Could not read the scheduler: systemctl failed"]);
   });
 
   it("`submit --scheduled` runs the scheduled submit", async () => {

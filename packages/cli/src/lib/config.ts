@@ -4,6 +4,7 @@ export interface CliConfig {
   apiToken?: string;
   apiUrl: string;
   autoSync: boolean;
+  autoSyncTime?: string; // daily time of the auto-submit job, "14:23"
   syncInterval: number; // in minutes
   verbose: boolean;
   lastSync?: string;
@@ -14,8 +15,9 @@ export interface CliConfig {
   starServerConfirmed?: boolean;
   starDeclineCount?: number;
   starPromptSnooze?: number; // submits left to stay quiet after a decline
-  // The result line of the last `submit --scheduled` run, shown by `autosubmit status`
-  lastScheduledRun?: { at: string; ok: boolean; message: string };
+  // The last `submit --scheduled` run, shown by `autosubmit status`: its full log
+  // line and a short summary of the outcome
+  lastScheduledRun?: { at: string; ok: boolean; message: string; summary: string };
 }
 
 const defaults: CliConfig = {

@@ -3,6 +3,7 @@ import * as os from "os";
 import * as path from "path";
 import {
   AutosubmitStatus,
+  AutosubmitError,
   Backend,
   DailyTime,
   EnablePlan,
@@ -25,6 +26,8 @@ export const TIMER_UNIT = `${JOB_NAME}.timer`;
 export const CRON_BEGIN = "# ccgather autosubmit begin";
 export const CRON_END = "# ccgather autosubmit end";
 export const JOURNAL_HINT = `journalctl --user -u ${JOB_NAME}`;
+const SYSTEMD_SCHEDULER = "systemd user timer";
+const CRON_SCHEDULER = "cron";
 export const LINGER_HINT = "loginctl enable-linger $USER";
 
 export interface LinuxPaths {
@@ -313,9 +316,6 @@ export function cronDaemonRunning(procRoot: string): boolean | null {
   return false;
 }
 
-export const NO_CRON_DAEMON_NOTE =
-  "No cron daemon is running, so it will not run until one starts. On WSL, add `[boot]` `systemd=true` to /etc/wsl.conf and run `wsl --shutdown`, or run `sudo service cron start`.";
-
 export async function writeCrontab(content: string, tmpdir: string): Promise<void> {
   const dir = fs.mkdtempSync(path.join(tmpdir, "ccgather-cron-"));
   const file = path.join(dir, "crontab");
@@ -422,7 +422,7 @@ export function createLinuxBackend(options: LinuxBackendOptions = {}): Backend {
     await removeCron({ strict: false });
 
     return {
-      log: JOURNAL_HINT,
+      scheduler: SYSTEMD_SCHEDULER,
       notes: [
         `It runs while you are signed in, and catches up at your next login. To run it while signed out, run: ${LINGER_HINT}`,
       ],
@@ -438,6 +438,13 @@ export function createLinuxBackend(options: LinuxBackendOptions = {}): Backend {
           : `Could not read your crontab (${read.message}); nothing was changed.`
       );
     }
+    // A crontab line would never run without a daemon; leave the crontab alone
+    if (cronDaemonRunning(procRoot) === false) {
+      throw new AutosubmitError(
+        "no cron daemon is running.",
+        "On WSL, enable systemd or start cron (sudo service cron start), then run this again."
+      );
+    }
     // systemd units from an earlier run would submit twice; if they cannot be
     // removed, stop here before cron is written
     await removeSystemd();
@@ -451,15 +458,16 @@ export function createLinuxBackend(options: LinuxBackendOptions = {}): Backend {
     });
     await writeCrontab(applyCronBlock(read.content, block), tmpdir);
 
-    const notes = ["cron skips the run when the computer is off or asleep at that time."];
-    if (cronDaemonRunning(procRoot) === false) notes.push(NO_CRON_DAEMON_NOTE);
-    return { log: paths.cronLog, notes };
+    return {
+      scheduler: CRON_SCHEDULER,
+      notes: ["cron skips the run when the computer is off or asleep at that time."],
+    };
   }
 
   async function systemdStatus(): Promise<AutosubmitStatus> {
     const status: AutosubmitStatus = {
       registered: false,
-      mechanism: `systemd user timer ${TIMER_UNIT}`,
+      scheduler: SYSTEMD_SCHEDULER,
       log: JOURNAL_HINT,
     };
     try {
@@ -503,7 +511,7 @@ export function createLinuxBackend(options: LinuxBackendOptions = {}): Backend {
   async function cronStatus(): Promise<AutosubmitStatus> {
     const status: AutosubmitStatus = {
       registered: false,
-      mechanism: "crontab entry",
+      scheduler: CRON_SCHEDULER,
       log: paths.cronLog,
       lastLogLine: readLastLogLine(paths.cronLog),
     };

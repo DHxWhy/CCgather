@@ -1,11 +1,14 @@
 import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
+import inquirer from "inquirer";
 import { getConfig, isAuthenticated } from "../lib/config.js";
 import type { CliConfig } from "../lib/config.js";
 import type Conf from "conf";
+import { colors } from "../lib/ui.js";
 import { promptStarNudge, shouldPromptStar } from "../lib/star-nudge.js";
 import {
+  AutosubmitError,
   AutosubmitStatus,
   Backend,
   DailyTime,
@@ -49,6 +52,8 @@ export interface AutosubmitContext {
   lastScheduledRun?: LastScheduledRun;
 }
 
+const SUPPORTED_PLATFORMS: NodeJS.Platform[] = ["win32", "darwin", "linux"];
+
 export function getBackend(platform: NodeJS.Platform = process.platform): Backend {
   switch (platform) {
     case "win32":
@@ -58,34 +63,85 @@ export function getBackend(platform: NodeJS.Platform = process.platform): Backen
     case "linux":
       return createLinuxBackend();
     default:
-      throw new Error(
-        `Autosubmit does not support ${platform} yet. See the README for a cron line you can add yourself.`
+      throw new AutosubmitError(
+        `Auto-submit does not support ${platform} yet.`,
+        "See the README for a cron line you can add yourself.",
+        true
       );
   }
-}
-
-function describeCommand(command: JobCommand): string {
-  if (command.kind === "global") return "your global install of ccgather";
-  if (command.spec === "ccgather@latest") return "the newest ccgather release each day, via npx";
-  return `${command.spec} via npx and stays on that version. To have it follow upgrades, install ccgather globally (\`npm install -g ccgather\`) and run \`ccgather autosubmit on\` again`;
 }
 
 function backendFor(context: AutosubmitContext): Backend {
   return context.backend ?? getBackend(context.platform);
 }
 
+// What the user types to reach this command: a global install runs `ccgather`
+function commandPrefix(kind: JobCommand["kind"] | undefined): string {
+  return kind === "global" ? "ccgather autosubmit" : "npx ccgather autosubmit";
+}
+
+function describeRuns(kind: JobCommand["kind"], spec?: string): string {
+  if (kind === "global") return "your global install of ccgather";
+  if (spec === "ccgather@latest") return "the newest ccgather release each day, via npx";
+  return `${spec} via npx`;
+}
+
+/** Which command a registered job runs, read back from its argv; null if it is none of ours */
+function classifyArgv(argv: string[]): { kind: JobCommand["kind"]; spec?: string } | null {
+  if (argv.slice(-2).join(" ") !== "submit --scheduled") return null;
+  if (argv.length === 4) return { kind: "global" };
+  if (argv.length === 6 && argv[2] === "--yes" && /^ccgather@./.test(argv[3])) {
+    return { kind: "npx", spec: argv[3] };
+  }
+  return null;
+}
+
+function sameArgv(a: string[] | undefined, b: string[]): boolean {
+  return a !== undefined && a.length === b.length && a.every((value, index) => value === b[index]);
+}
+
+function printFailureLines(cause: string, action: string | undefined): void {
+  console.error(`${colors.error("✖")} ${cause}`);
+  if (action) console.error(`  ${action}`);
+}
+
+/**
+ * Print a failure as the cause on one line and the next step on a second.
+ * `prefix` says what was being attempted ("Could not register: ").
+ */
+export function printFailure(err: unknown, prefix: string): void {
+  if (err instanceof AutosubmitError) {
+    printFailureLines(err.bare ? err.cause : `${prefix}${err.cause}`, err.action);
+  } else {
+    printFailureLines(`${prefix}${err instanceof Error ? err.message : String(err)}`, undefined);
+  }
+}
+
+export const REGISTER_FAILED = "Could not register: ";
+export const TURN_OFF_FAILED = "Could not turn auto-submit off: ";
+export const READ_FAILED = "Could not read the scheduler: ";
+
 export async function autosubmitEnable(
   options: AutosubmitOptions,
   context: AutosubmitContext = {}
 ): Promise<void> {
   if (!isAuthenticated()) {
-    throw new Error("Log in first with `npx ccgather`.");
+    throw new AutosubmitError(
+      "you are not logged in.",
+      "Run `npx ccgather` to log in, then run this again."
+    );
   }
 
   let time: DailyTime | null = null;
   if (options.at !== undefined) {
     time = parseDailyTime(options.at);
-    if (!time) throw new Error(`--at must be HH:MM (24-hour), for example 21:30.`);
+    if (!time) {
+      throw new AutosubmitError(
+        "--at must be HH:MM (24-hour), for example 21:30.",
+        undefined,
+        true
+      );
+    }
   }
 
   const backend = backendFor(context);
@@ -94,12 +150,13 @@ export async function autosubmitEnable(
     context.resolveDeps ?? defaultResolveDeps()
   );
 
+  const current = await backend.status();
+  const wasOn = current.registered;
   if (!time) {
     // Re-running without --at keeps the registered time (a repair should not
     // move the schedule); a first run picks five minutes from now
-    const current = await backend.status();
     time =
-      current.registered && current.time
+      wasOn && current.time
         ? current.time
         : defaultDailyTime((context.now ?? (() => new Date()))());
   }
@@ -110,29 +167,46 @@ export async function autosubmitEnable(
     home: os.homedir(),
     xdgConfigHome: process.env.XDG_CONFIG_HOME || undefined,
   });
-  getConfig().set("autoSync", true);
+  const config = getConfig();
+  config.set("autoSync", true);
+  config.set("autoSyncTime", formatDailyTime(time));
 
-  console.log(
-    `Autosubmit is on. Runs every day at ${formatDailyTime(time)}, your local time. A run is skipped if you submitted in the ${SCHEDULED_MIN_INTERVAL_HOURS} hours before it, so the first one may be.`
-  );
-  console.log(`It uses ${describeCommand(command)}.`);
-  console.log(
-    `Log: ${result.log}. Turn it off with \`npx ccgather autosubmit off\`; check it with \`npx ccgather autosubmit status\`.`
-  );
-  if (options.autoUpdate) {
-    console.log(
-      "--auto-update: each day it runs whatever ccgather release is newest that day, with access to your token."
+  const at = formatDailyTime(time);
+  const cli = commandPrefix(command.kind);
+  const lines: string[] = [];
+
+  if (wasOn && options.at !== undefined) {
+    lines.push(`${colors.success("✔")} Auto-submit now runs every day at ${at} (your local time).`);
+  } else if (wasOn) {
+    lines.push(`Auto-submit is already on (daily ${at}). Use --at HH:MM to change the time.`);
+    // A moved node or a newer version is picked up by the re-registration above
+    if (!sameArgv(current.argv, command.argv)) {
+      lines.push(`  The job was updated: it now runs ${describeRuns(command.kind, command.spec)}.`);
+    }
+  } else {
+    lines.push(`${colors.success("✔")} Auto-submit is on.`);
+    lines.push(`  Runs every day at ${at} (your local time) via ${result.scheduler}.`);
+    lines.push(
+      `  A run is skipped if you submitted in the ${SCHEDULED_MIN_INTERVAL_HOURS} hours before it, so the first one may be.`
     );
+    lines.push(`  Check: ${cli} status   Stop: ${cli} off`);
+    if (options.autoUpdate) {
+      lines.push("  It runs the newest ccgather release each day, with access to your token.");
+    } else if (command.kind === "npx") {
+      lines.push(
+        `  Tip: this job stays on ccgather ${command.spec?.replace(/^ccgather@/, "")}. To follow upgrades, install globally (npm i -g ccgather) or add --auto-update.`
+      );
+    }
+    for (const note of result.notes) lines.push(`  ${note}`);
   }
-  for (const note of result.notes) console.log(note);
+  for (const line of lines) console.log(line);
 
-  await offerStarPrompt(context);
+  if (!wasOn) await offerStarPrompt(context);
 }
 
 /**
- * Scheduled runs never show the star prompt, so offer it once when autosubmit is
- * turned on, under the same rule and config flags as a submit. A failure here
- * never fails the command.
+ * Scheduled runs never show the star prompt, so offer it when auto-submit is
+ * turned on. A failure here never fails the command.
  */
 async function offerStarPrompt(context: AutosubmitContext): Promise<void> {
   try {
@@ -140,87 +214,116 @@ async function offerStarPrompt(context: AutosubmitContext): Promise<void> {
     const isTTY = context.isTTY ?? Boolean(process.stdout.isTTY && process.stdin.isTTY);
     const ask = shouldPromptStar({
       isTTY,
-      hasSubmittedBefore: Boolean(config.get("lastSync")),
+      // Asked once, now, whether or not a submit has happened: the first-submit
+      // rule and the decline spacing (takeStarPromptTurn) belong to submits
+      hasSubmittedBefore: true,
       starConfirmed: config.get("starConfirmed") === true,
       hasStarred: null,
     });
     if (ask) await (context.promptStar ?? promptStarNudge)(config);
   } catch {
-    // The prompt is a courtesy; autosubmit is already on
+    // The prompt is a courtesy; auto-submit is already on
   }
 }
 
 export async function autosubmitOff(context: AutosubmitContext = {}): Promise<void> {
   const backend = backendFor(context);
   const removed = await backend.disable();
-  getConfig().set("autoSync", false);
-  console.log(removed ? "Autosubmit is off; the scheduled job was removed." : "Autosubmit is off.");
+  const config = getConfig();
+  config.set("autoSync", false);
+  config.delete("autoSyncTime");
+  console.log(
+    removed
+      ? `${colors.success("✔")} Auto-submit is off. The daily job was removed.`
+      : "Auto-submit was not on."
+  );
 }
 
 function isAbsolutePath(value: string): boolean {
   return path.isAbsolute(value) || path.win32.isAbsolute(value);
 }
 
-function quoteForDisplay(value: string): string {
-  return /\s/.test(value) ? `"${value}"` : value;
-}
-
 function pad2(value: number): string {
   return String(value).padStart(2, "0");
 }
 
-// The run's local date and time to the minute: 2026-10-11 14:23
-function formatLocalMinute(iso: string): string {
-  const date = new Date(iso);
-  if (Number.isNaN(date.getTime())) return iso;
+// A date and time to the minute, local: 2026-10-11 14:23
+function formatMinute(date: Date): string {
   return `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())} ${pad2(date.getHours())}:${pad2(date.getMinutes())}`;
 }
 
-/** Status lines, read from the OS, plus the last scheduled run's own record */
+function formatLocalMinute(iso: string): string {
+  const date = new Date(iso);
+  return Number.isNaN(date.getTime()) ? iso : formatMinute(date);
+}
+
+// Scheduler states that mean nothing is wrong: waiting for the next run, or running
+const NORMAL_STATES = new Set(["ready", "running", "queued", "active", "waiting", "not running"]);
+
+const LABEL_WIDTH = 11;
+
+function row(label: string, value: string): string {
+  return `  ${`${label}:`.padEnd(LABEL_WIDTH)}${value}`;
+}
+
+/** Status lines: the scheduler's job, plus the last scheduled run's own record */
 export function formatStatus(
   status: AutosubmitStatus,
   exists: (file: string) => boolean = fs.existsSync,
   lastScheduledRun?: LastScheduledRun
 ): string[] {
-  const lines: string[] = [];
   if (!status.registered) {
-    lines.push(`Autosubmit is off (no ${status.mechanism} found).`);
-    if (status.state) lines.push(`State: ${status.state}`);
-    lines.push("Turn it on with `npx ccgather autosubmit on`.");
+    const lines = ["Auto-submit: OFF"];
+    if (status.state) lines.push(row("State", status.state));
+    lines.push("  Turn it on with: npx ccgather autosubmit on");
     return lines;
   }
 
-  const when = status.time ? ` every day at ${formatDailyTime(status.time)}` : "";
-  lines.push(`Autosubmit is on: ${status.mechanism}${when}.`);
+  const lines = ["Auto-submit: ON"];
+  const when = status.time ? `daily at ${formatDailyTime(status.time)}` : "daily";
+  lines.push(row("Schedule", `${when} (${status.scheduler})`));
 
+  const known = status.argv ? classifyArgv(status.argv) : null;
+  const cli = commandPrefix(known?.kind);
   if (status.argv && status.argv.length > 0) {
-    lines.push(`Runs: ${status.argv.map(quoteForDisplay).join(" ")}`);
-    const missing = status.argv.filter((arg) => isAbsolutePath(arg) && !exists(arg));
-    for (const file of missing) lines.push(`Missing: ${file}`);
-    if (missing.length > 0) lines.push("Run `npx ccgather autosubmit on` again to repair.");
-  } else {
     lines.push(
-      "Could not read the command it runs. Run `npx ccgather autosubmit on` again to repair."
+      row(
+        "Runs",
+        known
+          ? describeRuns(known.kind, known.spec)
+          : status.argv.map((arg) => (/\s/.test(arg) ? `"${arg}"` : arg)).join(" ")
+      )
     );
+    for (const file of status.argv.filter((arg) => isAbsolutePath(arg) && !exists(arg))) {
+      lines.push(row("Problem", `${file} is missing. Run \`${cli} on\` to repair.`));
+    }
+  } else {
+    lines.push(row("Problem", `could not read the command it runs. Run \`${cli} on\` to repair.`));
   }
 
-  if (status.state) lines.push(`State: ${status.state}`);
-  if (status.lastRun) lines.push(`Last run: ${status.lastRun}`);
-  if (status.lastResult) lines.push(`Last result: ${status.lastResult}`);
-  if (lastScheduledRun) {
-    lines.push(
-      `Last outcome (${formatLocalMinute(lastScheduledRun.at)}): ${lastScheduledRun.message}`
-    );
+  if (status.state && !NORMAL_STATES.has(status.state.toLowerCase())) {
+    lines.push(row("State", status.state));
   }
-  if (status.nextRun) lines.push(`Next run: ${status.nextRun}`);
-  lines.push(`Log: ${status.log}`);
-  // The outcome above is the log's last line when the run got as far as the CLI;
-  // a crash before that shows only here
+  lines.push(
+    row(
+      "Last run",
+      lastScheduledRun
+        ? `${formatLocalMinute(lastScheduledRun.at)} · ${lastScheduledRun.summary}`
+        : "none yet"
+    )
+  );
+  if (status.nextRun) {
+    const next = new Date(status.nextRun);
+    lines.push(row("Next run", Number.isNaN(next.getTime()) ? status.nextRun : formatMinute(next)));
+  }
+  lines.push(row("Log", status.log));
+  // The last run above is the log's last line when the run got as far as the
+  // CLI; a crash before that shows only here
   if (
     status.lastLogLine &&
     !(lastScheduledRun && status.lastLogLine.endsWith(lastScheduledRun.message))
   ) {
-    lines.push(`Last log line: ${status.lastLogLine}`);
+    lines.push(row("Log tail", status.lastLogLine));
   }
   return lines;
 }
@@ -233,55 +336,65 @@ export async function autosubmitStatus(context: AutosubmitContext = {}): Promise
   }
 }
 
-export interface AutosubmitSettingsState {
-  // What the Settings menu entry shows
-  label: string;
-  // True when the job is registered; choosing the entry then turns it off
-  on: boolean;
+/**
+ * The main menu's label for auto-submit, from config only: drawing the menu must
+ * not query the OS scheduler (on Windows that starts PowerShell). Null on a
+ * platform auto-submit does not support, so the menu leaves the item out.
+ */
+export function autosubmitMenuLabel(platform: NodeJS.Platform = process.platform): string | null {
+  if (!SUPPORTED_PLATFORMS.includes(platform)) return null;
+  const config = getConfig();
+  if (config.get("autoSync") !== true) return "Auto-submit: OFF";
+  const time = config.get("autoSyncTime");
+  return time ? `Auto-submit: ON · daily ${time}` : "Auto-submit: ON";
 }
 
 /**
- * The Settings menu entry for autosubmit, read from the OS scheduler. Null on a
- * platform autosubmit does not support, so the menu leaves the entry out.
+ * Choosing the main menu's auto-submit item. Off: the same path as
+ * `autosubmit on`. On: Change time, Turn off or Back. A failure prints its lines
+ * and returns, so the menu carries on.
  */
-export async function autosubmitSettingsState(
-  context: AutosubmitContext = {}
-): Promise<AutosubmitSettingsState | null> {
-  let backend: Backend;
-  try {
-    backend = backendFor(context);
-  } catch {
-    return null;
+export async function autosubmitMenuChoose(context: AutosubmitContext = {}): Promise<void> {
+  const config = getConfig();
+  if (config.get("autoSync") !== true) {
+    await runFromMenu(() => autosubmitEnable({}, context), REGISTER_FAILED);
+    return;
   }
 
-  try {
-    const status = await backend.status();
-    if (!status.registered) return { label: "Autosubmit: off", on: false };
-    const when = status.time ? `, every day at ${formatDailyTime(status.time)}` : "";
-    return { label: `Autosubmit: on${when}`, on: true };
-  } catch {
-    return { label: "Autosubmit: could not read the OS scheduler", on: false };
+  const { autosubmitAction } = await inquirer.prompt([
+    {
+      type: "list",
+      name: "autosubmitAction",
+      message: "Auto-submit",
+      choices: [
+        { name: "Change time", value: "time" },
+        { name: "Turn off", value: "off" },
+        { name: "Back", value: "back" },
+      ],
+      loop: false,
+    },
+  ]);
+
+  if (autosubmitAction === "time") {
+    const { newTime } = await inquirer.prompt([
+      {
+        type: "input",
+        name: "newTime",
+        message: "New time (HH:MM, 24-hour):",
+        validate: (value: string) =>
+          parseDailyTime(value) ? true : "Use HH:MM, 24-hour, for example 21:30.",
+      },
+    ]);
+    await runFromMenu(() => autosubmitEnable({ at: newTime }, context), REGISTER_FAILED);
+  } else if (autosubmitAction === "off") {
+    await runFromMenu(() => autosubmitOff(context), TURN_OFF_FAILED);
   }
 }
 
-/**
- * Choosing the Settings entry: turn autosubmit off when it is on, otherwise on
- * (exactly `autosubmit on` / `autosubmit off`). A failure prints one line and
- * never throws, so the menu carries on.
- */
-export async function toggleAutosubmit(
-  on: boolean,
-  context: AutosubmitContext = {}
-): Promise<boolean> {
+async function runFromMenu(action: () => Promise<void>, prefix: string): Promise<void> {
   try {
-    if (on) {
-      await autosubmitOff(context);
-    } else {
-      await autosubmitEnable({}, context);
-    }
-    return true;
+    await action();
   } catch (err) {
-    console.error(`ccgather autosubmit: ${err instanceof Error ? err.message : String(err)}`);
-    return false;
+    printFailure(err, prefix);
   }
 }

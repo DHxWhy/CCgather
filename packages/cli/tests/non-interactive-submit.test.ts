@@ -95,11 +95,11 @@ function json(status: number, body: unknown): Response {
   });
 }
 
-function usageLine(index: number): string {
+function usageLine(index: number, timestamp: string = new Date().toISOString()): string {
   return JSON.stringify({
     type: "assistant",
     sessionId: "demo",
-    timestamp: new Date().toISOString(),
+    timestamp,
     requestId: `req_demo_${index}`,
     message: {
       id: `msg_demo_${index}`,
@@ -578,7 +578,7 @@ describe("submit({ nonInteractive: true })", () => {
     });
 
     describe("recording the result for `autosubmit status`", () => {
-      type Record = { at: string; ok: boolean; message: string };
+      type Record = { at: string; ok: boolean; message: string; summary: string };
       const recorded = () => mocked.store.get("lastScheduledRun") as Record | undefined;
       const messageOf = (line: string) => line.replace(LOG_LINE, "");
 
@@ -594,6 +594,7 @@ describe("submit({ nonInteractive: true })", () => {
           at: expect.any(String),
           ok: true,
           message: "Skipped: submitted 10 minutes ago.",
+          summary: "skipped: submitted 10 minutes ago",
         });
         expect(Date.parse(recorded()!.at)).toBeGreaterThanOrEqual(before);
         expect(Date.parse(recorded()!.at)).toBeLessThanOrEqual(Date.now());
@@ -608,11 +609,27 @@ describe("submit({ nonInteractive: true })", () => {
           at: expect.any(String),
           ok: true,
           message: messageOf(logs[0]),
+          summary: "submitted 1 day",
         });
         expect(recorded()!.message).toMatch(
           /^Submitted 3\.00K tokens .* as alice, global rank #7\.$/
         );
         expect(JSON.stringify(recorded())).not.toContain("test-token");
+      });
+
+      it("summarises a success by the days of usage that were sent", async () => {
+        mocked.store.set("lastSync", new Date(Date.now() - 21 * HOUR).toISOString());
+        const days = [10, 11, 12].map((day) => new Date(Date.UTC(2026, 8, day, 12)).toISOString());
+        fs.writeFileSync(
+          path.join(projectDir, "session.jsonl"),
+          days.map((timestamp, index) => usageLine(index + 1, timestamp)).join("\n") + "\n"
+        );
+
+        expect(await runSubmit({ scheduled: true })).toBe(0);
+
+        const body = JSON.parse(String(callsTo("/cli/submit")[0].init?.body));
+        expect(body.daysTracked).toBe(3);
+        expect(recorded()?.summary).toBe("submitted 3 days");
       });
 
       it("records a failure as not ok, before the process exits", async () => {
@@ -625,6 +642,7 @@ describe("submit({ nonInteractive: true })", () => {
           at: expect.any(String),
           ok: false,
           message: "Failed to submit: Service unavailable.",
+          summary: "failed: Service unavailable",
         });
       });
 
@@ -637,6 +655,71 @@ describe("submit({ nonInteractive: true })", () => {
         expect(recorded()?.ok).toBe(false);
         expect(recorded()?.message).toBe(messageOf(errors[0]));
         expect(recorded()?.message).toContain("Authentication refused by server (HTTP 401)");
+      });
+
+      // Each way a scheduled run can fail, and the summary `status` shows for it
+      it.each<[string, () => void, string]>([
+        ["no token saved", () => mocked.store.delete("apiToken"), "failed: not logged in"],
+        [
+          "token refused",
+          () => {
+            routes.verify = () => json(403, { error: "Invalid API token" });
+          },
+          "failed: authentication refused by server (HTTP 403)",
+        ],
+        [
+          "token cannot be verified",
+          () => {
+            routes.verify = () => json(500, { error: "Internal server error" });
+          },
+          "failed: could not verify authentication (HTTP 500)",
+        ],
+        [
+          "no sessions",
+          () => fs.rmSync(path.join(mocked.home, ".claude"), { recursive: true, force: true }),
+          "failed: no Claude Code sessions found",
+        ],
+        [
+          "no usage data",
+          () =>
+            fs.writeFileSync(
+              path.join(projectDir, "session.jsonl"),
+              JSON.stringify({
+                type: "user",
+                sessionId: "demo",
+                timestamp: new Date().toISOString(),
+                message: { role: "user", content: "hello" },
+              }) + "\n"
+            ),
+          "failed: no usage data found",
+        ],
+        [
+          "submission limit",
+          () => {
+            routes.submit = () =>
+              json(429, { error: "Rate limit exceeded", retryAfterMinutes: 25 });
+          },
+          "failed: submission limit reached, try again in 25 minute(s)",
+        ],
+        [
+          "no response from the server",
+          () => {
+            routes.submit = stall;
+          },
+          "failed: no response from the server within 120 seconds",
+        ],
+      ])("summarises a failure: %s", async (_name, arrange, summary) => {
+        mocked.store.set("lastSync", new Date(Date.now() - 21 * HOUR).toISOString());
+        arrange();
+
+        expect(await runSubmit({ scheduled: true })).toBe(1);
+
+        expect(recorded()).toEqual({
+          at: expect.any(String),
+          ok: false,
+          message: messageOf(errors[0]),
+          summary,
+        });
       });
 
       it("keeps the output and the exit code when writing the record throws", async () => {

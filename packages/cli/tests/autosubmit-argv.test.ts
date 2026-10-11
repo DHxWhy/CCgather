@@ -161,7 +161,11 @@ describe("argv selection on Windows", () => {
         {},
         deps("win32", { files: [WIN_NODE] }, { execPath: WIN_NODE, pathEnv: String.raw`C:\bin` })
       )
-    ).rejects.toThrow(/Could not find npm's npx-cli\.js .*npm install -g ccgather/);
+    ).rejects.toMatchObject({
+      cause: `npm's npx-cli.js was not found for ${WIN_NODE}.`,
+      action:
+        "Install ccgather globally (npm i -g ccgather) and run `ccgather autosubmit on` again.",
+    });
   });
 });
 
