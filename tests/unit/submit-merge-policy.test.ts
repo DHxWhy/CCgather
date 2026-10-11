@@ -18,21 +18,21 @@ describe("floorSessionsToStored", () => {
   const lookup = (date: string) => stored.get(date) ?? 0;
 
   it("keeps the stored count when the resubmitted count is lower", () => {
-    expect(floorSessionsToStored(records, lookup)[0].sessions).toBe(7);
+    expect(floorSessionsToStored(records, lookup)[0]?.sessions).toBe(7);
   });
 
   it("takes the new count when it is higher", () => {
-    expect(floorSessionsToStored(records, lookup)[1].sessions).toBe(9);
+    expect(floorSessionsToStored(records, lookup)[1]?.sessions).toBe(9);
   });
 
   it("leaves dates without a stored row untouched", () => {
-    expect(floorSessionsToStored(records, lookup)[2].sessions).toBe(0);
+    expect(floorSessionsToStored(records, lookup)[2]?.sessions).toBe(0);
   });
 
   it("does not touch other fields or the input array", () => {
     const out = floorSessionsToStored(records, lookup);
     expect(out[0]).toMatchObject({ date: "2026-10-01", total_tokens: 100, device_id: "dev-a" });
-    expect(records[0].sessions).toBe(3);
+    expect(records[0]?.sessions).toBe(3);
     expect(out[1]).toBe(records[1]);
   });
 });
