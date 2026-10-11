@@ -241,7 +241,7 @@ Auto-submit: ON
   Runs:      ccgather@2.2.0 via npx
   Last run:  2026-10-12 14:23 · skipped: submitted 10 minutes ago
   Next run:  2026-10-13 14:23
-  Log:       /home/alice/.local/state/ccgather/autosubmit.log
+  Log:       journalctl --user -u ccgather-autosubmit
 ```
 
 When the scheduler reports a run that failed before the CLI could record it (for example npx could not fetch the package), `status` shows a `Problem:` line.
