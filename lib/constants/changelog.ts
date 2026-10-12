@@ -16,6 +16,22 @@ export const CHANGELOG_CATEGORY = {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    id: "2026-10-12-cli-auto-submit",
+    date: "2026-10-12",
+    category: "new",
+    title: "Auto-submit: one command keeps your Claude Code usage current",
+    summary:
+      "npx ccgather autosubmit on registers a daily job with your operating system's own scheduler (Task Scheduler, launchd, systemd or cron) that runs the CLI's prompt-free submit. It picks the time you turned it on plus five minutes so submissions spread out, catches up after a day the machine was off, skips a run within 20 hours of your last submit, and autosubmit status shows what the last run did. The main menu has the same toggle as its second item. In CLI v2.3.0, contributed by michael-huffaker.",
+  },
+  {
+    id: "2026-10-12-cli-workflow-journal-sessions",
+    date: "2026-10-12",
+    category: "fixed",
+    title: "Workflow journals no longer count as Claude Code sessions",
+    summary:
+      "A Claude Code workflow run leaves a journal file that holds no usage. The CLI counted each one as a session, so heavy workflow users saw a few extra sessions in their total. CLI v2.3.0 counts a file without a session id only when it holds usage. Token and cost totals are unchanged. Fixed by michael-huffaker.",
+  },
+  {
     id: "2026-10-11-cli-subagent-usage-counted",
     date: "2026-10-11",
     category: "fixed",
