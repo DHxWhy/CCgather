@@ -186,4 +186,85 @@ describe("scanAllProjects: subagent transcripts", () => {
     expect(data?.dailyUsage.map((day) => day.sessions)).toEqual([1]);
     expect(data?.projects["-home-user-demo"].sessions).toBe(1);
   });
+
+  // A workflow run leaves a journal of bookkeeping records: no sessionId, no usage.
+  it.each([
+    [
+      "launched",
+      [
+        { type: "launched" },
+        { type: "started", agentId: "a1", key: "review" },
+        { type: "result", key: "review", result: "ok" },
+      ],
+    ],
+    [
+      "started",
+      [
+        { type: "started", agentId: "a2", key: "review" },
+        { type: "result", key: "review", result: "ok" },
+      ],
+    ],
+  ])("does not count a workflow journal that opens with %s as a session", (_name, records) => {
+    writeProject(
+      projectsDir,
+      "-home-user-demo",
+      {
+        [`${SESSION}/subagents/workflows/wf_1/journal.jsonl`]:
+          records.map((record) => JSON.stringify(record)).join("\n") + "\n",
+      },
+      new Date("2026-09-01T11:00:00.000Z")
+    );
+
+    const data = scanAllProjects();
+
+    expect(data?.usage.totalTokens).toBe(EXPECTED_TOKENS);
+    expect(data?.sessionFingerprint?.sessionCount).toBe(TRANSCRIPT_FILES + 1);
+    expect(data?.stats.sessionsCount).toBe(1);
+    expect(data?.dailyUsage.map((day) => day.sessions)).toEqual([1]);
+    expect(data?.projects["-home-user-demo"].sessions).toBe(1);
+  });
+
+  it("counts a transcript with usage but no sessionId on its first line as a session", () => {
+    writeProject(
+      projectsDir,
+      "-home-user-demo",
+      {
+        "legacy.jsonl":
+          [
+            JSON.stringify({ type: "summary", summary: "Earlier work", leafUuid: "leaf-1" }),
+            usageLine("msg_legacy_1"),
+          ].join("\n") + "\n",
+      },
+      new Date("2026-09-01T11:00:00.000Z")
+    );
+
+    const data = scanAllProjects();
+
+    expect(data?.usage.totalTokens).toBe(EXPECTED_TOKENS + TOKENS_PER_MESSAGE);
+    expect(data?.stats.sessionsCount).toBe(2);
+    expect(data?.projects["-home-user-demo"].sessions).toBe(2);
+  });
+
+  it("counts a transcript that names its session but holds no usage as a session", () => {
+    const quietSession = "7e4a9c20-1b8d-4f35-a6c2-93d0e5b17f48";
+    writeProject(
+      projectsDir,
+      "-home-user-demo",
+      {
+        [`${quietSession}.jsonl`]:
+          JSON.stringify({
+            type: "user",
+            sessionId: quietSession,
+            message: { role: "user", content: "Hello" },
+          }) + "\n",
+      },
+      new Date("2026-09-01T11:00:00.000Z")
+    );
+
+    const data = scanAllProjects();
+
+    expect(data?.usage.totalTokens).toBe(EXPECTED_TOKENS);
+    expect(data?.stats.sessionsCount).toBe(2);
+    expect(data?.projects["-home-user-demo"].sessions).toBe(2);
+  });
 });
