@@ -255,7 +255,7 @@ When turning it on, you are offered the GitHub star prompt unless you have alrea
 <tr><td>Linux</td><td>systemd user timer <code>ccgather-autosubmit.timer</code>, or a marked crontab line where systemd user sessions are not available</td><td><code>journalctl --user -u ccgather-autosubmit</code>, or <code>~/.local/state/ccgather/autosubmit.log</code> with cron</td></tr>
 </table>
 
-The macOS and Linux setups are covered by tests but have not yet been run on a real machine. If the job misbehaves, `npx ccgather autosubmit off` removes it.
+The macOS setup is covered by tests but has not yet been run on a real Mac; Windows and Linux (systemd and cron) have. If the job misbehaves, `npx ccgather autosubmit off` removes it.
 
 The job runs the ccgather version you set it up with (or your global install, if you ran that). Set up through `npx`, it stays on that version; to have it follow upgrades, install ccgather globally (`npm install -g ccgather`) and run `ccgather autosubmit on` again. With `--auto-update` it runs `ccgather@latest` instead, so whatever release is newest that day runs with access to your token.
 

@@ -98,7 +98,6 @@ export function buildTimerUnit(time: DailyTime): string {
     "[Timer]",
     `OnCalendar=*-*-* ${formatDailyTime(time)}:00`,
     "Persistent=true",
-    "RandomizedDelaySec=10m",
     "",
     "[Install]",
     "WantedBy=timers.target",

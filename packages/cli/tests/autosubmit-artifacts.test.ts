@@ -506,7 +506,6 @@ describe("systemd user units", () => {
         "[Timer]",
         "OnCalendar=*-*-* 09:05:00",
         "Persistent=true",
-        "RandomizedDelaySec=10m",
         "",
         "[Install]",
         "WantedBy=timers.target",
