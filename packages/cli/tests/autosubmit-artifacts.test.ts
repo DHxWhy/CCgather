@@ -97,7 +97,7 @@ describe("Windows task XML", () => {
         "    <StartWhenAvailable>true</StartWhenAvailable>",
         "    <RunOnlyIfNetworkAvailable>false</RunOnlyIfNetworkAvailable>",
         "    <Enabled>true</Enabled>",
-        "    <ExecutionTimeLimit>PT10M</ExecutionTimeLimit>",
+        "    <ExecutionTimeLimit>PT30M</ExecutionTimeLimit>",
         "  </Settings>",
         '  <Actions Context="Author">',
         "    <Exec>",
