@@ -6,6 +6,18 @@ import chalk from "chalk";
 import { execSync } from "child_process";
 import { submit, logResult } from "./commands/submit.js";
 import {
+  autosubmitEnable,
+  autosubmitOff,
+  autosubmitStatus,
+  autosubmitMenuLabel,
+  autosubmitMenuChoose,
+  printFailure,
+  REGISTER_FAILED,
+  TURN_OFF_FAILED,
+  READ_FAILED,
+  AutosubmitOptions,
+} from "./commands/autosubmit.js";
+import {
   printAnimatedHeader,
   printAnimatedWelcomeBox,
   colors,
@@ -208,7 +220,10 @@ async function showMainMenu(): Promise<void> {
 
 // Show menu only (without header animation)
 async function showMenuOnly(): Promise<void> {
-  // Main menu - 3 options only
+  // Config only: drawing the menu never asks the OS scheduler. Null on a
+  // platform auto-submit does not support.
+  const autosubmitLabel = autosubmitMenuLabel();
+
   const { action } = await inquirer.prompt([
     {
       type: "list",
@@ -216,6 +231,9 @@ async function showMenuOnly(): Promise<void> {
       message: "What would you like to do?",
       choices: [
         { name: `📤  ${colors.white("Submit usage data")}`, value: "submit" },
+        ...(autosubmitLabel
+          ? [{ name: `🔁  ${colors.white(autosubmitLabel)}`, value: "autosubmit" }]
+          : []),
         { name: `🌐  ${colors.white("Open leaderboard")}`, value: "leaderboard" },
         { name: `⚙️   ${colors.white("Settings")}`, value: "settings" },
       ],
@@ -229,6 +247,10 @@ async function showMenuOnly(): Promise<void> {
     case "submit":
       await dotAnimation("Preparing", 400);
       await submit({});
+      break;
+    case "autosubmit":
+      await autosubmitMenuChoose();
+      await showMenuOnly();
       break;
     case "leaderboard": {
       const cfg = getConfig();
@@ -281,14 +303,61 @@ async function showSettingsMenu(): Promise<void> {
 program
   .command("submit")
   .description("Submit usage without prompts (log in first with `npx ccgather`)")
-  .action(async () => {
+  .option("--scheduled", "run as the autosubmit job: skip if submitted in the last 20 hours")
+  .action(async (opts: { scheduled?: boolean }) => {
     try {
-      await submit({ nonInteractive: true });
+      await submit(
+        opts.scheduled ? { nonInteractive: true, scheduled: true } : { nonInteractive: true }
+      );
     } catch (err) {
       // Keep an unexpected failure to one timestamped line in the scheduler log
       logResult(`Unexpected error: ${err instanceof Error ? err.message : String(err)}`, true);
       process.exitCode = 1;
     }
+  });
+
+// A failure is its cause and the next step on stderr, with exit code 1
+async function runAutosubmit(action: () => Promise<void>, failed: string): Promise<void> {
+  try {
+    await action();
+  } catch (err) {
+    printFailure(err, failed);
+    process.exitCode = 1;
+  }
+}
+
+// Daily submission through the OS scheduler (Task Scheduler, launchd, systemd or cron).
+// The command has no action of its own: bare `autosubmit` shows its help, and an
+// unknown word (`autosubmit disable`) is an error, so neither turns anything on.
+const autosubmit = program
+  .command("autosubmit")
+  .description("Submit automatically once a day through your OS scheduler");
+
+autosubmit
+  .command("on")
+  .description("Turn on the daily job (re-run to update or repair)")
+  .allowExcessArguments(false)
+  .option("--at <HH:MM>", "daily time, 24-hour local (default: five minutes from now)")
+  .option(
+    "--auto-update",
+    "run ccgather@latest each day instead of this version: whatever release is newest that day runs with access to your token"
+  )
+  .action(async (opts: AutosubmitOptions) => {
+    await runAutosubmit(() => autosubmitEnable(opts), REGISTER_FAILED);
+  });
+
+autosubmit
+  .command("off")
+  .description("Remove the daily job")
+  .action(async () => {
+    await runAutosubmit(() => autosubmitOff(), TURN_OFF_FAILED);
+  });
+
+autosubmit
+  .command("status")
+  .description("Show the daily job as the OS scheduler has it")
+  .action(async () => {
+    await runAutosubmit(() => autosubmitStatus(), READ_FAILED);
   });
 
 // Default action - show main menu

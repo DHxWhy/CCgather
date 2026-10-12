@@ -70,7 +70,7 @@ vi.mock("readline", async (importOriginal) => {
 
 vi.mock("../src/commands/auth", () => ({ auth: mocked.auth }));
 
-import { submit } from "../src/commands/submit";
+import { formatAgo, submit, SubmitOptions } from "../src/commands/submit";
 
 class ExitCalled extends Error {
   constructor(readonly code: number | string | null | undefined) {
@@ -95,11 +95,11 @@ function json(status: number, body: unknown): Response {
   });
 }
 
-function usageLine(index: number): string {
+function usageLine(index: number, timestamp: string = new Date().toISOString()): string {
   return JSON.stringify({
     type: "assistant",
     sessionId: "demo",
-    timestamp: new Date().toISOString(),
+    timestamp,
     requestId: `req_demo_${index}`,
     message: {
       id: `msg_demo_${index}`,
@@ -143,7 +143,7 @@ describe("submit({ nonInteractive: true })", () => {
   let stdoutTTY: PropertyDescriptor | undefined;
   let stdinTTY: PropertyDescriptor | undefined;
 
-  async function runSubmit(options = { nonInteractive: true }): Promise<number> {
+  async function runSubmit(options: SubmitOptions = { nonInteractive: true }): Promise<number> {
     try {
       await submit(options);
       return 0;
@@ -520,5 +520,266 @@ describe("submit({ nonInteractive: true })", () => {
     expect(code).toBe(0);
     expect(mocked.readline).toHaveBeenCalledTimes(1);
     expect(mocked.store.get("starDeclineCount")).toBe(1);
+  });
+
+  // `ccgather submit --scheduled`: the job `ccgather autosubmit` registers
+  describe("scheduled", () => {
+    const HOUR = 60 * 60 * 1000;
+
+    it("skips without calling the server when the last submit is under 20 hours old", async () => {
+      const recent = new Date(Date.now() - 19 * HOUR - 59 * 60 * 1000).toISOString();
+      mocked.store.set("lastSync", recent);
+
+      const code = await runSubmit({ scheduled: true });
+
+      expect(code).toBe(0);
+      expect(fetchCalls).toEqual([]);
+      expect(errors).toEqual([]);
+      expect(logs).toHaveLength(1);
+      expect(logs[0]).toMatch(LOG_LINE);
+      expect(logs[0]).toMatch(/ccgather: Skipped: submitted 19 hours ago\.$/);
+      expect(mocked.store.get("lastSync")).toBe(recent);
+      expect(mocked.prompt).not.toHaveBeenCalled();
+      expectNoStreamWrites();
+    });
+
+    it("submits once 20 hours have passed, without an autoSync field", async () => {
+      mocked.store.set("lastSync", new Date(Date.now() - 20 * HOUR - 1000).toISOString());
+
+      const code = await runSubmit({ scheduled: true });
+
+      expect(code).toBe(0);
+      expect(mocked.prompt).not.toHaveBeenCalled();
+      expect(mocked.ora).not.toHaveBeenCalled();
+      expectNoStreamWrites();
+      expect(logs).toHaveLength(1);
+      expect(logs[0]).toMatch(/ccgather: Submitted 3\.00K tokens/);
+      const [submitCall] = callsTo("/cli/submit");
+      const body = JSON.parse(String(submitCall.init?.body));
+      // The server decides the Autopilot badge; the CLI does not claim it
+      expect(body).not.toHaveProperty("autoSync");
+      expect(body.totalTokens).toBe(3000);
+    });
+
+    it("submits when there is no lastSync, or it lies in the future", async () => {
+      mocked.store.delete("lastSync");
+      expect(await runSubmit({ scheduled: true })).toBe(0);
+      expect(callsTo("/cli/submit")).toHaveLength(1);
+
+      mocked.store.set("lastSync", new Date(Date.now() + 2 * HOUR).toISOString());
+      expect(await runSubmit({ scheduled: true })).toBe(0);
+      expect(callsTo("/cli/submit")).toHaveLength(2);
+    });
+
+    it("fails like the plain non-interactive submit, with exit 1", async () => {
+      routes.submit = () => json(503, { error: "Service unavailable" });
+      expect(await runSubmit({ scheduled: true })).toBe(1);
+      expectSingleError("Failed to submit: Service unavailable.");
+    });
+
+    describe("recording the result for `autosubmit status`", () => {
+      type Record = { at: string; ok: boolean; message: string; summary: string };
+      const recorded = () => mocked.store.get("lastScheduledRun") as Record | undefined;
+      const messageOf = (line: string) => line.replace(LOG_LINE, "");
+
+      it("records the skip with its text and time", async () => {
+        mocked.store.set("lastSync", new Date(Date.now() - 10 * 60 * 1000).toISOString());
+        const before = Date.now();
+
+        expect(await runSubmit({ scheduled: true })).toBe(0);
+
+        expect(logs).toHaveLength(1);
+        expect(messageOf(logs[0])).toBe("Skipped: submitted 10 minutes ago.");
+        expect(recorded()).toEqual({
+          at: expect.any(String),
+          ok: true,
+          message: "Skipped: submitted 10 minutes ago.",
+          summary: "skipped: submitted 10 minutes ago",
+        });
+        expect(Date.parse(recorded()!.at)).toBeGreaterThanOrEqual(before);
+        expect(Date.parse(recorded()!.at)).toBeLessThanOrEqual(Date.now());
+      });
+
+      it("records a success, exactly as printed and without the token", async () => {
+        mocked.store.set("lastSync", new Date(Date.now() - 21 * HOUR).toISOString());
+
+        expect(await runSubmit({ scheduled: true })).toBe(0);
+
+        expect(recorded()).toEqual({
+          at: expect.any(String),
+          ok: true,
+          message: messageOf(logs[0]),
+          summary: "submitted 1 day",
+        });
+        expect(recorded()!.message).toMatch(
+          /^Submitted 3\.00K tokens .* as alice, global rank #7\.$/
+        );
+        expect(JSON.stringify(recorded())).not.toContain("test-token");
+      });
+
+      it("summarises a success by the days of usage that were sent", async () => {
+        mocked.store.set("lastSync", new Date(Date.now() - 21 * HOUR).toISOString());
+        const days = [10, 11, 12].map((day) => new Date(Date.UTC(2026, 8, day, 12)).toISOString());
+        fs.writeFileSync(
+          path.join(projectDir, "session.jsonl"),
+          days.map((timestamp, index) => usageLine(index + 1, timestamp)).join("\n") + "\n"
+        );
+
+        expect(await runSubmit({ scheduled: true })).toBe(0);
+
+        const body = JSON.parse(String(callsTo("/cli/submit")[0].init?.body));
+        expect(body.daysTracked).toBe(3);
+        expect(recorded()?.summary).toBe("submitted 3 days");
+      });
+
+      it("records a failure as not ok, before the process exits", async () => {
+        mocked.store.set("lastSync", new Date(Date.now() - 21 * HOUR).toISOString());
+        routes.submit = () => json(503, { error: "Service unavailable" });
+
+        expect(await runSubmit({ scheduled: true })).toBe(1);
+
+        expect(recorded()).toEqual({
+          at: expect.any(String),
+          ok: false,
+          message: "Failed to submit: Service unavailable.",
+          summary: "failed: Service unavailable",
+        });
+      });
+
+      it("records a failure to verify the token", async () => {
+        mocked.store.set("lastSync", new Date(Date.now() - 21 * HOUR).toISOString());
+        routes.verify = () => json(401, { error: "Invalid API token" });
+
+        expect(await runSubmit({ scheduled: true })).toBe(1);
+
+        expect(recorded()?.ok).toBe(false);
+        expect(recorded()?.message).toBe(messageOf(errors[0]));
+        expect(recorded()?.message).toContain("Authentication refused by server (HTTP 401)");
+      });
+
+      // Each way a scheduled run can fail, and the summary `status` shows for it
+      it.each<[string, () => void, string]>([
+        ["no token saved", () => mocked.store.delete("apiToken"), "failed: not logged in"],
+        [
+          "token refused",
+          () => {
+            routes.verify = () => json(403, { error: "Invalid API token" });
+          },
+          "failed: authentication refused by server (HTTP 403)",
+        ],
+        [
+          "token cannot be verified",
+          () => {
+            routes.verify = () => json(500, { error: "Internal server error" });
+          },
+          "failed: could not verify authentication (HTTP 500)",
+        ],
+        [
+          "no sessions",
+          () => fs.rmSync(path.join(mocked.home, ".claude"), { recursive: true, force: true }),
+          "failed: no Claude Code sessions found",
+        ],
+        [
+          "no usage data",
+          () =>
+            fs.writeFileSync(
+              path.join(projectDir, "session.jsonl"),
+              JSON.stringify({
+                type: "user",
+                sessionId: "demo",
+                timestamp: new Date().toISOString(),
+                message: { role: "user", content: "hello" },
+              }) + "\n"
+            ),
+          "failed: no usage data found",
+        ],
+        [
+          "submission limit",
+          () => {
+            routes.submit = () =>
+              json(429, { error: "Rate limit exceeded", retryAfterMinutes: 25 });
+          },
+          "failed: submission limit reached, try again in 25 minute(s)",
+        ],
+        [
+          "no response from the server",
+          () => {
+            routes.submit = stall;
+          },
+          "failed: no response from the server within 120 seconds",
+        ],
+      ])("summarises a failure: %s", async (_name, arrange, summary) => {
+        mocked.store.set("lastSync", new Date(Date.now() - 21 * HOUR).toISOString());
+        arrange();
+
+        expect(await runSubmit({ scheduled: true })).toBe(1);
+
+        expect(recorded()).toEqual({
+          at: expect.any(String),
+          ok: false,
+          message: messageOf(errors[0]),
+          summary,
+        });
+      });
+
+      it("keeps the output and the exit code when writing the record throws", async () => {
+        const realSet = mocked.store.set.bind(mocked.store);
+        vi.spyOn(mocked.store, "set").mockImplementation((key, value) => {
+          if (key === "lastScheduledRun") throw new Error("disk full");
+          return realSet(key, value);
+        });
+
+        mocked.store.delete("lastSync");
+        expect(await runSubmit({ scheduled: true })).toBe(0);
+        expect(logs).toHaveLength(1);
+        expect(logs[0]).toMatch(/ccgather: Submitted 3\.00K tokens/);
+        expect(errors).toEqual([]);
+
+        logs.length = 0;
+        mocked.store.delete("lastSync");
+        routes.submit = () => json(503, { error: "Service unavailable" });
+        expect(await runSubmit({ scheduled: true })).toBe(1);
+        expectSingleError("Failed to submit: Service unavailable.");
+        expect(recorded()).toBeUndefined();
+      });
+
+      // Control: the manual non-interactive submit records nothing
+      it("a plain non-interactive submit records nothing", async () => {
+        expect(await runSubmit()).toBe(0);
+        routes.submit = () => json(503, { error: "Service unavailable" });
+        expect(await runSubmit()).toBe(1);
+        expect(mocked.store.has("lastScheduledRun")).toBe(false);
+      });
+    });
+
+    // Control: the manual `ccgather submit` ignores the guard
+    it("plain non-interactive submit ignores the guard", async () => {
+      mocked.store.set("lastSync", new Date(Date.now() - HOUR).toISOString());
+
+      expect(await runSubmit()).toBe(0);
+
+      const [submitCall] = callsTo("/cli/submit");
+      expect(JSON.parse(String(submitCall.init?.body))).not.toHaveProperty("autoSync");
+    });
+  });
+});
+
+describe("formatAgo", () => {
+  const MIN = 60 * 1000;
+  const HOUR = 60 * MIN;
+
+  it.each([
+    [0, "less than a minute ago"],
+    [59 * 1000, "less than a minute ago"],
+    [MIN, "1 minute ago"],
+    [119 * 1000, "1 minute ago"],
+    [10 * MIN, "10 minutes ago"],
+    [59 * MIN + 59 * 1000, "59 minutes ago"],
+    [HOUR, "1 hour ago"],
+    [HOUR + 59 * MIN, "1 hour ago"],
+    [2 * HOUR, "2 hours ago"],
+    [19 * HOUR + 59 * MIN, "19 hours ago"],
+  ])("%i ms reads %s", (elapsed, expected) => {
+    expect(formatAgo(elapsed)).toBe(expected);
   });
 });
