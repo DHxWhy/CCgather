@@ -7,10 +7,11 @@ import { posthogApi } from "@/lib/posthog/api-client";
 // 실행 주기: 매일 UTC 00:20 (한국 시간 09:20)
 // Vercel Cron: 20 0 * * *
 // 기본 2일 재조회로 전일 실패분 자동 보완 (upsert 멱등).
-// ?days=N (최대 92)으로 최초 백필 지원.
+// ?days=N (최대 120)으로 최초 백필 지원.
 // =====================================================
 
-const MAX_BACKFILL_DAYS = 92;
+// 2026-07-14~10-17 공백(97일)을 한 번에 메울 수 있게 92 → 120 (CRON_SECRET 미설정으로 석 달 401)
+const MAX_BACKFILL_DAYS = 120;
 
 export async function GET(request: NextRequest) {
   return handleSnapshot(request);
