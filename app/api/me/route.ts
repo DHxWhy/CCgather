@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth, currentUser } from "@clerk/nextjs/server";
 import { cookies, headers } from "next/headers";
 import { createServiceClient } from "@/lib/supabase/server";
+import { recalcCountryRanks } from "@/lib/services/country-ranks";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { z } from "zod";
 import { randomBytes } from "crypto";
@@ -812,7 +813,7 @@ export async function GET() {
         if (!countryErr) {
           user.country_code = detectedCountry;
           // 백필 직후 country_rank 재계산 (이번 사용자가 국가별 랭킹에 합류)
-          await supabase.rpc("calculate_country_ranks").catch(() => {});
+          await recalcCountryRanks(supabase, "/api/me GET country backfill");
         }
       }
     }
@@ -1035,7 +1036,7 @@ export async function PATCH(request: NextRequest) {
 
             if (!reviveError && revived) {
               if (parsed.data.country_code !== undefined) {
-                await supabase.rpc("calculate_country_ranks").catch(() => {});
+                await recalcCountryRanks(supabase, "/api/me PATCH revive");
               }
               return NextResponse.json({ user: revived });
             }
@@ -1067,7 +1068,7 @@ export async function PATCH(request: NextRequest) {
 
             if (!patchRetryError && patchRetryUser) {
               if (parsed.data.country_code !== undefined) {
-                await supabase.rpc("calculate_country_ranks").catch(() => {});
+                await recalcCountryRanks(supabase, "/api/me PATCH retry");
               }
               return NextResponse.json({ user: patchRetryUser });
             }
