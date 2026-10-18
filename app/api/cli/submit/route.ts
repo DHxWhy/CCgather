@@ -22,7 +22,11 @@ import {
 } from "@/lib/services/submit-validators";
 import { notifyValidationIssue } from "@/lib/services/validation-notify";
 import { alertOps } from "@/lib/services/ops-alert";
-import { fetchSessionHashRows, type SessionHashRow } from "@/lib/utils/session-hash-query";
+import {
+  fetchSessionHashRows,
+  storeSessionHashes,
+  type SessionHashRow,
+} from "@/lib/utils/session-hash-query";
 
 interface DailyUsage {
   date: string;
@@ -399,20 +403,30 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      // Upsert (not insert): re-submitted hashes are the norm, and a plain insert
-      // aborts the whole batch on the first UNIQUE(session_hash) collision.
-      const hashRecords = sessionHashes.map((hash: string) => ({
-        session_hash: hash,
-        user_id: authenticatedUser.id,
-        device_id: deviceId !== "legacy" ? deviceId : null,
-      }));
+      // Store only the hashes the lookup did not find, 500 per request. Sending the
+      // whole payload as one upsert hit statement timeout (57014) for heavy daily
+      // submitters and failed silently, leaving a hole in the 1 Project 1 Person gate.
+      const storeStartedAt = Date.now();
+      const stored = await storeSessionHashes(supabase, {
+        hashes: sessionHashes,
+        knownHashes: existingHashes.map((h) => h.session_hash),
+        userId: authenticatedUser.id,
+        deviceId: deviceId !== "legacy" ? deviceId : null,
+      });
 
-      const { error: insertError } = await supabase
-        .from("submitted_sessions")
-        .upsert(hashRecords, { onConflict: "session_hash", ignoreDuplicates: true });
-
-      if (insertError) {
-        console.error("[CLI Submit] Failed to store session hashes:", insertError);
+      if (stored.failedChunks > 0) {
+        await alertOps("Session hash store failed", {
+          username: authenticatedUser.username,
+          attempted: stored.attempted,
+          chunks: stored.chunks,
+          failedChunks: stored.failedChunks,
+          deviceId,
+          error: stored.lastError ?? "unknown",
+        });
+      } else if (stored.attempted > 0) {
+        console.log(
+          `[CLI Submit] Stored ${stored.attempted} new session hashes in ${stored.chunks} chunk(s) for ${authenticatedUser.username} (${Date.now() - storeStartedAt}ms)`
+        );
       }
     }
 
