@@ -257,7 +257,7 @@ When turning it on, you are offered the GitHub star prompt unless you have alrea
 
 The macOS setup is covered by tests but has not yet been run on a real Mac; Windows and Linux (systemd and cron) have. If the job misbehaves, `npx ccgather autosubmit off` removes it.
 
-Set up through `npx`, the job runs the newest ccgather release each day (`npx --yes ccgather@latest`), so upgrades reach it on their own; `--pin` keeps it on the version you set it up with, and running `on` again moves it. A global install runs its own copy and follows `npm install -g ccgather`; `--auto-update` makes even a global install run `ccgather@latest`. Jobs created with v2.3.0 are pinned to that version: run `npx ccgather autosubmit on` once to update them.
+Set up through `npx`, the job runs the newest ccgather release each day (`npx --yes ccgather@latest`), so upgrades reach it on their own; `--pin` keeps it on the version you set it up with, and running `on` again moves it. A global install runs its own copy and follows `npm install -g ccgather`; `--auto-update` makes even a global install run `ccgather@latest`. Jobs created with v2.3.0 or v2.3.1 are pinned to that version: run `npx ccgather autosubmit on` once to update them.
 
 - **macOS** may show a "Background Items Added" notification once.
 - **Linux (systemd)** runs the job only while you are signed in and catches up at your next login. To run it while signed out, run `loginctl enable-linger $USER` yourself.

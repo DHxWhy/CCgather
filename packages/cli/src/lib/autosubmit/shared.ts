@@ -343,7 +343,7 @@ export function findNpxCli(nodePath: string, deps: ResolveDeps): string | null {
  * 2. Anything else (npx, pnpm dlx, bunx, a project's node_modules) runs
  *    `npx --yes ccgather@latest`, so a new release reaches the job on its own
  *    (a job pinned to one version kept running it until `on` was run again,
- *    so 2.3.0 jobs never saw a fix). `pin` keeps `ccgather@<this version>`.
+ *    so 2.3.0 and 2.3.1 jobs never saw a fix). `pin` keeps `ccgather@<this version>`.
  *    --auto-update always takes this route, even from a global install.
  */
 export async function resolveJobCommand(
