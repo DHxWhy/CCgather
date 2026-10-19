@@ -101,6 +101,9 @@ interface SubmitPayload {
   deviceId?: string;
   // CLI version that produced the payload (2.2.0+); absent on older CLIs
   cliVersion?: string;
+  // True only from `ccgather submit --scheduled` (2.3.1+), the autosubmit job.
+  // Absent on manual submits and on older CLIs.
+  scheduled?: boolean;
 }
 
 // Known CCplan values
@@ -316,6 +319,9 @@ export async function POST(request: NextRequest) {
     const rawDeviceId = body.deviceId || "legacy";
     const cliVersion =
       typeof body.cliVersion === "string" ? body.cliVersion.slice(0, 32) : "pre-2.2.0";
+    // The autosubmit job marks its submits so the admin page can tell them apart
+    const scheduled = body.scheduled === true;
+    const submissionSource = scheduled ? "cli-scheduled" : "cli";
     const validatedDeviceId =
       rawDeviceId === "legacy" || /^[a-f0-9]{8,16}$/.test(rawDeviceId) ? rawDeviceId : "legacy";
 
@@ -701,7 +707,7 @@ export async function POST(request: NextRequest) {
           primary_model: dayPrimaryModel,
           submitted_at: new Date().toISOString(),
           device_id: deviceId,
-          submission_source: "cli",
+          submission_source: submissionSource,
           league_reason: isOpusModel ? "opus" : null,
           validation_flags: dayFlags.map((f) => f.code),
           submission_review_status: computeReviewStatus(dayFlags),
@@ -825,7 +831,7 @@ export async function POST(request: NextRequest) {
             primary_model: overallPrimaryModel,
             submitted_at: new Date().toISOString(),
             device_id: deviceId,
-            submission_source: "cli",
+            submission_source: submissionSource,
             league_reason: isOpusModel ? "opus" : null,
           },
           { onConflict: "user_id,date,device_id" }
@@ -846,7 +852,7 @@ export async function POST(request: NextRequest) {
               cost_usd: computedTodayCost,
               primary_model: overallPrimaryModel,
               submitted_at: new Date().toISOString(),
-              submission_source: "cli",
+              submission_source: submissionSource,
               league_reason: isOpusModel ? "opus" : null,
             },
             { onConflict: "user_id,date" }
@@ -1136,6 +1142,26 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Failed to update stats" }, { status: 500 });
     }
 
+    // A scheduled submit proves the daily job is on. Written separately and
+    // best-effort so a DB without migration 081 still accepts the submit.
+    if (scheduled) {
+      const scheduledAt = new Date().toISOString();
+      const { error: scheduledError } = await supabase
+        .from("users")
+        .update({
+          last_scheduled_submit_at: scheduledAt,
+          auto_sync_enabled: true,
+          auto_sync_reported_at: scheduledAt,
+        })
+        .eq("id", authenticatedUser.id);
+      if (scheduledError) {
+        console.error(
+          "[CLI Submit] scheduled-submit columns update failed (migration 081 applied?):",
+          scheduledError.message
+        );
+      }
+    }
+
     // Calculate rank
     // FIX: Update ALL users' global_rank (not just self) to prevent rank drift
     const { data: rankData } = await supabase
@@ -1215,7 +1241,8 @@ export async function POST(request: NextRequest) {
         global_rank: rank || 9999,
         country_rank: countryRank,
         country_code: authenticatedUser.country_code,
-        auto_sync_enabled: authenticatedUser.auto_sync_enabled ?? false,
+        // A scheduled submit turns the job on in this very request (see above)
+        auto_sync_enabled: scheduled || (authenticatedUser.auto_sync_enabled ?? false),
         github_starred: !!authenticatedUser.github_starred_at,
       },
       usageHistory

@@ -14,6 +14,8 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 const mocked = vi.hoisted(() => ({
   store: new Map<string, unknown>(),
   realPrompt: vi.fn(async () => undefined),
+  // The server report of the on/off state (a real call would hit the network)
+  report: vi.fn(async () => ({ success: true, data: { enabled: true } })),
 }));
 
 vi.mock("../src/lib/star-nudge", async (importOriginal) => {
@@ -34,6 +36,8 @@ vi.mock("../src/lib/config", () => ({
   getApiUrl: () => "https://ccgather.test/api",
   isAuthenticated: () => mocked.store.has("apiToken"),
 }));
+
+vi.mock("../src/lib/api", () => ({ reportAutosubmit: mocked.report }));
 
 import {
   autosubmitEnable,
@@ -127,6 +131,31 @@ describe("autosubmit on", () => {
   afterEach(() => {
     expect(mocked.realPrompt).not.toHaveBeenCalled();
     vi.restoreAllMocks();
+  });
+
+  it("reports the on state to the server after registering, and ignores a failure", async () => {
+    mocked.report.mockClear();
+    mocked.store.delete("apiToken");
+    await expect(
+      autosubmitEnable({}, { backend: fakeBackend(), resolveDeps: fakeDeps() })
+    ).rejects.toBeInstanceOf(AutosubmitError);
+    expect(mocked.report).not.toHaveBeenCalled();
+
+    mocked.store.set("apiToken", "test-token");
+    const backend = fakeBackend();
+    await autosubmitEnable({}, { backend, resolveDeps: fakeDeps(), now: AT_14_17, isTTY: false });
+    expect(mocked.report).toHaveBeenCalledTimes(1);
+    expect(mocked.report).toHaveBeenCalledWith(true);
+
+    const report = vi.fn(async () => {
+      throw new Error("offline");
+    });
+    await autosubmitEnable(
+      {},
+      { backend, resolveDeps: fakeDeps(), now: AT_14_17, isTTY: false, report }
+    );
+    expect(report).toHaveBeenCalledWith(true);
+    expect(mocked.store.get("autoSync")).toBe(true);
   });
 
   it("refuses when not logged in, without touching the scheduler", async () => {
@@ -436,6 +465,32 @@ describe("autosubmit off", () => {
     expect(logs).toEqual(["Auto-submit was not on."]);
     expect(mocked.store.get("autoSync")).toBe(false);
     expect(mocked.store.has("autoSyncTime")).toBe(false);
+  });
+});
+
+describe("autosubmit off — server report", () => {
+  beforeEach(() => {
+    mocked.store.clear();
+    mocked.store.set("apiToken", "test-token");
+    mocked.report.mockClear();
+    vi.spyOn(console, "log").mockImplementation(() => undefined);
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("reports the off state to the server, and ignores a failure", async () => {
+    await autosubmitOff({ backend: fakeBackend({ registered: true }) });
+    expect(mocked.report).toHaveBeenCalledTimes(1);
+    expect(mocked.report).toHaveBeenCalledWith(false);
+
+    const report = vi.fn(async () => {
+      throw new Error("offline");
+    });
+    await autosubmitOff({ backend: fakeBackend(), report });
+    expect(report).toHaveBeenCalledWith(false);
+    expect(mocked.store.get("autoSync")).toBe(false);
   });
 });
 

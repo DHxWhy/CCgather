@@ -21,6 +21,14 @@ import {
 import type { LucideIcon } from "lucide-react";
 import { FlagIcon } from "@/components/ui/FlagIcon";
 import { NATIVE_OPTION_CLASS, NATIVE_SELECT_CLASS } from "@/components/admin/native-select";
+import {
+  AUTO_SUBMIT_LABELS,
+  AUTO_SUBMIT_STATES,
+  deriveAutoSubmitState,
+  formatAutoSubmitAge,
+  type AutoSubmitSignals,
+  type AutoSubmitState,
+} from "@/lib/admin/auto-submit-state";
 
 // ─────────────────────────────────────────────────────────────
 // Types (API contract — 변경 X)
@@ -42,6 +50,10 @@ interface User {
   device_count: number;
   shadow_banned: boolean;
   deleted_at: string | null;
+  // 자동 제출 신호 3종 (마이그 081, CLI 2.3.1 부터 채워짐) — 판정은 lib/admin/auto-submit-state
+  auto_sync_enabled: boolean | null;
+  auto_sync_reported_at: string | null;
+  last_scheduled_submit_at: string | null;
 }
 
 interface PlanStats {
@@ -297,6 +309,63 @@ function StatusChip({ active }: { active: boolean }) {
 }
 
 // ─────────────────────────────────────────────────────────────
+// Auto-submit chip (켬 / 켬·멈춤 / 끔 / 미확인) — 라벨·판정은 lib/admin/auto-submit-state
+// ─────────────────────────────────────────────────────────────
+const AUTO_SUBMIT_CHIP: Record<AutoSubmitState, { ring: string; dot: string }> = {
+  on: { ring: "ring-emerald-400/25 bg-emerald-400/10 text-emerald-300", dot: "bg-emerald-300" },
+  stalled: { ring: "ring-amber-400/25 bg-amber-400/10 text-amber-200", dot: "bg-amber-300" },
+  off: { ring: "ring-white/[0.08] bg-white/[0.04] text-white/50", dot: "bg-white/40" },
+  unknown: { ring: "ring-white/[0.06] bg-transparent text-white/30", dot: "bg-white/20" },
+};
+
+function AutoSubmitChip({
+  state,
+  signals,
+  now,
+}: {
+  state: AutoSubmitState;
+  signals: AutoSubmitSignals;
+  now: Date;
+}) {
+  const cfg = AUTO_SUBMIT_CHIP[state];
+  const lastRun = signals.last_scheduled_submit_at;
+  const reported = signals.auto_sync_reported_at;
+  const ago = (iso: string) => formatAutoSubmitAge(now.getTime() - Date.parse(iso));
+  // 켬: 마지막 자동 제출 시각(없으면 "실행 전") · 끔: 끈 시각 · 미확인: 없음
+  const detail =
+    state === "unknown"
+      ? null
+      : state === "off"
+        ? reported
+          ? ago(reported)
+          : null
+        : lastRun
+          ? ago(lastRun)
+          : "실행 전";
+  const title = [
+    lastRun
+      ? `마지막 자동 제출: ${new Date(lastRun).toLocaleString("ko-KR")}`
+      : "자동 제출 기록 없음",
+    reported
+      ? `CLI 보고: ${signals.auto_sync_enabled ? "켬" : "끔"} · ${new Date(reported).toLocaleString("ko-KR")}`
+      : "CLI 보고 없음 (2.3.1 미만)",
+  ].join("\n");
+
+  return (
+    <span className="inline-flex flex-col items-center gap-0.5" title={title}>
+      <span
+        className={`inline-flex items-center gap-1 rounded-[5px] px-1.5 py-0.5 text-[10px] font-medium ring-1 ${cfg.ring}`}
+        aria-label={`자동 제출: ${AUTO_SUBMIT_LABELS[state]}`}
+      >
+        <span aria-hidden="true" className={`h-1 w-1 rounded-full ${cfg.dot}`} />
+        {AUTO_SUBMIT_LABELS[state]}
+      </span>
+      {detail && <span className="text-[10px] tabular-nums text-white/35">{detail}</span>}
+    </span>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
 // Sort chevron — macOS Finder column header
 // ─────────────────────────────────────────────────────────────
 function SortIndicator({ active, dir }: { active: boolean; dir: SortDir }) {
@@ -344,6 +413,7 @@ export default function AdminUsersPage() {
   const [filterCountries, setFilterCountries] = useState<string[]>([]);
   const [filterOnboarding, setFilterOnboarding] = useState<string>("");
   const [filterSubmission, setFilterSubmission] = useState<string>("");
+  const [filterAutoSubmit, setFilterAutoSubmit] = useState<"" | AutoSubmitState>("");
   const [alerts, setAlerts] = useState<AdminAlert[]>([]);
   const [sortKey, setSortKey] = useState<SortKey>("created_at");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
@@ -485,6 +555,20 @@ export default function AdminUsersPage() {
     [countryStats]
   );
 
+  // 자동 제출 상태 — 목록을 받을 때 한 번 판정 (SSOT: lib/admin/auto-submit-state)
+  const autoSubmitStates = useMemo(() => {
+    const now = new Date();
+    return {
+      now,
+      map: new Map(users.map((u) => [u.id, deriveAutoSubmitState(u, now)] as const)),
+    };
+  }, [users]);
+  const autoSubmitCounts = useMemo(() => {
+    const counts: Record<AutoSubmitState, number> = { on: 0, stalled: 0, off: 0, unknown: 0 };
+    for (const state of autoSubmitStates.map.values()) counts[state] += 1;
+    return counts;
+  }, [autoSubmitStates]);
+
   // 필터 — deferred 검색어 사용 (UI debounce)
   const filteredUsers = useMemo(() => {
     const q = deferredQuery.toLowerCase();
@@ -511,8 +595,16 @@ export default function AdminUsersPage() {
         !filterSubmission ||
         (filterSubmission === "has" ? user.total_tokens > 0 : user.total_tokens === 0);
 
+      const matchesAutoSubmit =
+        !filterAutoSubmit || autoSubmitStates.map.get(user.id) === filterAutoSubmit;
+
       return (
-        matchesSearch && matchesPlan && matchesCountry && matchesOnboarding && matchesSubmission
+        matchesSearch &&
+        matchesPlan &&
+        matchesCountry &&
+        matchesOnboarding &&
+        matchesSubmission &&
+        matchesAutoSubmit
       );
     });
 
@@ -537,6 +629,8 @@ export default function AdminUsersPage() {
     filterCountries,
     filterOnboarding,
     filterSubmission,
+    filterAutoSubmit,
+    autoSubmitStates,
     sortKey,
     sortDir,
   ]);
@@ -546,7 +640,8 @@ export default function AdminUsersPage() {
     !!filterPlan ||
     filterCountries.length > 0 ||
     !!filterOnboarding ||
-    !!filterSubmission;
+    !!filterSubmission ||
+    !!filterAutoSubmit;
 
   const completedCount = useMemo(() => users.filter((u) => u.onboarding_completed).length, [users]);
   const pendingCount = useMemo(() => users.filter((u) => !u.onboarding_completed).length, [users]);
@@ -571,6 +666,7 @@ export default function AdminUsersPage() {
     setFilterCountries([]);
     setFilterOnboarding("");
     setFilterSubmission("");
+    setFilterAutoSubmit("");
   }
 
   return (
@@ -775,6 +871,17 @@ export default function AdminUsersPage() {
                 {filterSubmission === "has" ? "제출있음" : "미제출"}
               </Chip>
             )}
+            {filterAutoSubmit && (
+              <Chip
+                size="sm"
+                active
+                onClick={() => setFilterAutoSubmit("")}
+                ariaLabel="자동 제출 필터 해제"
+                icon={X}
+              >
+                자동 제출: {AUTO_SUBMIT_LABELS[filterAutoSubmit]}
+              </Chip>
+            )}
             {searchQuery && (
               <Chip
                 size="sm"
@@ -966,7 +1073,7 @@ export default function AdminUsersPage() {
           </div>
         </div>
 
-        {/* 상태 행 — 온보딩 + 제출 */}
+        {/* 상태 행 — 온보딩 + 제출 + 자동 제출 */}
         <div className="flex items-start gap-4 px-4 py-3">
           <div className="w-20 shrink-0 pt-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-white/40">
             상태
@@ -1030,6 +1137,30 @@ export default function AdminUsersPage() {
               >
                 미제출
               </Chip>
+            </div>
+            <div aria-hidden="true" className="hidden h-4 w-px bg-white/[0.08] md:block" />
+            <div className="flex items-center gap-1.5" role="group" aria-label="자동 제출 필터">
+              <span className="text-[10.5px] uppercase tracking-wide text-white/35">자동 제출</span>
+              <Chip
+                size="sm"
+                active={filterAutoSubmit === ""}
+                onClick={() => setFilterAutoSubmit("")}
+                ariaPressed={filterAutoSubmit === ""}
+              >
+                전체
+              </Chip>
+              {AUTO_SUBMIT_STATES.map((state) => (
+                <Chip
+                  key={state}
+                  size="sm"
+                  active={filterAutoSubmit === state}
+                  onClick={() => setFilterAutoSubmit(state)}
+                  count={autoSubmitCounts[state]}
+                  ariaPressed={filterAutoSubmit === state}
+                >
+                  {AUTO_SUBMIT_LABELS[state]}
+                </Chip>
+              ))}
             </div>
           </div>
         </div>
@@ -1160,6 +1291,12 @@ export default function AdminUsersPage() {
                   scope="col"
                   className="px-4 py-2.5 text-center text-[10.5px] font-semibold uppercase tracking-[0.08em] text-white/45"
                 >
+                  자동 제출
+                </th>
+                <th
+                  scope="col"
+                  className="px-4 py-2.5 text-center text-[10.5px] font-semibold uppercase tracking-[0.08em] text-white/45"
+                >
                   상태
                 </th>
               </tr>
@@ -1167,7 +1304,7 @@ export default function AdminUsersPage() {
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={8} className="px-4 py-12 text-center text-[12px] text-white/40">
+                  <td colSpan={9} className="px-4 py-12 text-center text-[12px] text-white/40">
                     <div className="inline-flex items-center gap-2">
                       <span className="inline-block h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/20 border-t-[var(--color-claude-coral)]" />
                       로딩 중...
@@ -1176,7 +1313,7 @@ export default function AdminUsersPage() {
                 </tr>
               ) : filteredUsers.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="px-4 py-12 text-center text-[12px] text-white/40">
+                  <td colSpan={9} className="px-4 py-12 text-center text-[12px] text-white/40">
                     {isFiltered ? "검색 결과가 없습니다." : "사용자가 없습니다."}
                   </td>
                 </tr>
@@ -1282,6 +1419,13 @@ export default function AdminUsersPage() {
                           month: "2-digit",
                           day: "2-digit",
                         })}
+                      </td>
+                      <td className="px-4 py-2.5 text-center">
+                        <AutoSubmitChip
+                          state={autoSubmitStates.map.get(user.id) ?? "unknown"}
+                          signals={user}
+                          now={autoSubmitStates.now}
+                        />
                       </td>
                       <td className="px-4 py-2.5">
                         <div className="flex items-center justify-center gap-1.5">

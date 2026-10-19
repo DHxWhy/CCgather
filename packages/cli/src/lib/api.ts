@@ -1,4 +1,5 @@
 import { getConfig, getApiUrl } from "./config.js";
+import { VERSION } from "./ui.js";
 
 export interface SyncPayload {
   totalTokens: number;
@@ -65,6 +66,22 @@ export async function syncUsage(payload: SyncPayload): Promise<ApiResponse<{ ran
 
 export async function getStatus(): Promise<ApiResponse<UserStats>> {
   return fetchApi("/cli/status");
+}
+
+// `autosubmit on` / `off` tell the server the job's state: the admin page shows
+// it, and the server awards the Autopilot badge. Bounded so the command never
+// hangs on a slow network; the caller ignores a failure (the next scheduled
+// submit reports the state again).
+const AUTOSUBMIT_REPORT_TIMEOUT_MS = 10_000;
+
+export async function reportAutosubmit(
+  enabled: boolean
+): Promise<ApiResponse<{ enabled: boolean }>> {
+  return fetchApi("/cli/autosubmit", {
+    method: "POST",
+    body: JSON.stringify({ enabled, cliVersion: VERSION }),
+    signal: AbortSignal.timeout(AUTOSUBMIT_REPORT_TIMEOUT_MS),
+  });
 }
 
 export async function verifyToken(

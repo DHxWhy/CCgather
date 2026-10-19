@@ -10,6 +10,45 @@ interface UserRow {
   shadow_banned: boolean | null;
 }
 
+// 관리자 표 "자동 제출" 열의 신호 3종 (마이그 081, CLI 2.3.1 부터 채워짐).
+// 별도 best-effort 조회라 마이그 전 DB 에서도 목록은 깨지지 않고 전원 "미확인".
+interface AutoSubmitRow {
+  id: string;
+  auto_sync_enabled: boolean | null;
+  auto_sync_reported_at: string | null;
+  last_scheduled_submit_at: string | null;
+}
+type AutoSubmitSignals = Omit<AutoSubmitRow, "id">;
+const EMPTY_AUTO_SUBMIT: AutoSubmitSignals = {
+  auto_sync_enabled: null,
+  auto_sync_reported_at: null,
+  last_scheduled_submit_at: null,
+};
+
+async function fetchAutoSubmitSignals(
+  supabase: ReturnType<typeof createServiceClient>
+): Promise<Map<string, AutoSubmitSignals>> {
+  const map = new Map<string, AutoSubmitSignals>();
+  const { data, error } = await supabase
+    .from("users")
+    .select("id, auto_sync_enabled, auto_sync_reported_at, last_scheduled_submit_at");
+  if (error) {
+    console.error(
+      "[Admin Users] auto-submit signals unavailable (migration 081 applied?):",
+      error.message
+    );
+    return map;
+  }
+  for (const row of (data ?? []) as AutoSubmitRow[]) {
+    map.set(row.id, {
+      auto_sync_enabled: row.auto_sync_enabled,
+      auto_sync_reported_at: row.auto_sync_reported_at,
+      last_scheduled_submit_at: row.last_scheduled_submit_at,
+    });
+  }
+  return map;
+}
+
 export async function GET() {
   try {
     if (!(await checkAdminAccess())) {
@@ -59,8 +98,11 @@ export async function GET() {
       }
     });
 
+    const autoSubmitMap = await fetchAutoSubmitSignals(supabase);
+
     const usersWithDeviceCount = (users || []).map((u: { id: string }) => ({
       ...u,
+      ...(autoSubmitMap.get(u.id) ?? EMPTY_AUTO_SUBMIT),
       device_count: deviceCountMap.get(u.id)?.size || 0,
     }));
 

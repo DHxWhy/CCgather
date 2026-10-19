@@ -3,6 +3,7 @@ import * as os from "os";
 import * as path from "path";
 import inquirer from "inquirer";
 import { getConfig, isAuthenticated } from "../lib/config.js";
+import { reportAutosubmit } from "../lib/api.js";
 import type { CliConfig } from "../lib/config.js";
 import type Conf from "conf";
 import { colors } from "../lib/ui.js";
@@ -53,6 +54,17 @@ export interface AutosubmitContext {
   isTTY?: boolean;
   promptStar?: (config: Conf<CliConfig>) => Promise<void>;
   lastScheduledRun?: LastScheduledRun;
+  // The server report of the on/off state (default: the real API call)
+  report?: (enabled: boolean) => Promise<unknown>;
+}
+
+// Tell the server the job's state for the admin page; never fails the command
+async function reportState(context: AutosubmitContext, enabled: boolean): Promise<void> {
+  try {
+    await (context.report ?? reportAutosubmit)(enabled);
+  } catch {
+    // Best-effort: the next scheduled submit reports the state again
+  }
 }
 
 const SUPPORTED_PLATFORMS: NodeJS.Platform[] = ["win32", "darwin", "linux"];
@@ -204,6 +216,8 @@ export async function autosubmitEnable(
   }
   for (const line of lines) console.log(line);
 
+  await reportState(context, true);
+
   if (!wasOn && options.starPrompt !== false) await offerStarPrompt(context);
 }
 
@@ -240,6 +254,7 @@ export async function autosubmitOff(context: AutosubmitContext = {}): Promise<vo
       ? `${colors.success("✔")} Auto-submit is off. The daily job was removed.`
       : "Auto-submit was not on."
   );
+  await reportState(context, false);
 }
 
 function isAbsolutePath(value: string): boolean {

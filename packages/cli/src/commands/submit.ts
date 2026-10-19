@@ -209,7 +209,11 @@ function ccgatherToUsageData(data: CCGatherData): UsageData {
 /**
  * Submit data to CCgather API with token authentication
  */
-async function submitToServer(data: UsageData, nonInteractive: boolean): Promise<SubmitResponse> {
+async function submitToServer(
+  data: UsageData,
+  nonInteractive: boolean,
+  scheduled: boolean
+): Promise<SubmitResponse> {
   const apiUrl = getApiUrl();
   const config = getConfig();
   const apiToken = config.get("apiToken");
@@ -250,6 +254,8 @@ async function submitToServer(data: UsageData, nonInteractive: boolean): Promise
         deviceId: getDeviceId(),
         // Lets the server tell CLI generations apart (e.g. the 2.2 session definition)
         cliVersion: VERSION,
+        // The autosubmit job marks its submits; the server records them for the admin page
+        ...(scheduled ? { scheduled: true } : {}),
       }),
     });
 
@@ -692,7 +698,7 @@ export async function submit(options: SubmitOptions = {}): Promise<void> {
         color: "cyan",
       }).start();
 
-  const result = await submitToServer(usageData, nonInteractive);
+  const result = await submitToServer(usageData, nonInteractive, scheduled);
 
   if (nonInteractive) {
     if (result.success) {

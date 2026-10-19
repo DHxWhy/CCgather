@@ -45,6 +45,8 @@ const MAC_EASE = "cubic-bezier(0.25, 0.46, 0.45, 0.94)";
 const SOURCE_OPTIONS = [
   { label: "전체", value: "" },
   { label: "CLI", value: "cli" },
+  // `ccgather submit --scheduled` (CLI 2.3.1+, 서버가 submission_source 로 기록)
+  { label: "자동", value: "cli-scheduled" },
   { label: "Hook", value: "hook" },
   { label: "API", value: "api" },
 ] as const;
@@ -333,6 +335,7 @@ function SemanticDot({ color, label }: { color: string; label?: string }) {
 function SourceBadge({ source }: { source: string }) {
   const config: Record<string, { icon: LucideIcon; label: string; dot: string; tone: TagTone }> = {
     cli: { icon: Terminal, label: "CLI", dot: "bg-emerald-300", tone: "accent" },
+    "cli-scheduled": { icon: Bot, label: "자동", dot: "bg-teal-300", tone: "accent" },
     hook: { icon: Webhook, label: "Hook", dot: "bg-sky-300", tone: "neutral" },
     api: { icon: Plug, label: "API", dot: "bg-violet-300", tone: "neutral" },
   };

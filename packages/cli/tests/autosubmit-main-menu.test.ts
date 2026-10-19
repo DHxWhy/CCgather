@@ -107,6 +107,7 @@ vi.mock("../src/lib/api", () => ({
   getStatus: vi.fn(async () => {
     throw new Error("blocked in tests");
   }),
+  reportAutosubmit: vi.fn(async () => ({ success: true })),
 }));
 vi.mock("open", () => ({ default: vi.fn(async () => undefined) }));
 

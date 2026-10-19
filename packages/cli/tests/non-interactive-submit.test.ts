@@ -294,6 +294,8 @@ describe("submit({ nonInteractive: true })", () => {
     const [submitCall] = callsTo("/cli/submit");
     const body = JSON.parse(String(submitCall.init?.body));
     expect(body.totalTokens).toBe(3000);
+    // A plain non-interactive run is not the autosubmit job
+    expect(body).not.toHaveProperty("scheduled");
     expect(mocked.store.get("lastSync")).not.toBe(INITIAL_LAST_SYNC);
   });
 
@@ -558,6 +560,8 @@ describe("submit({ nonInteractive: true })", () => {
       const body = JSON.parse(String(submitCall.init?.body));
       // The server decides the Autopilot badge; the CLI does not claim it
       expect(body).not.toHaveProperty("autoSync");
+      // ...but it does say it is the autosubmit job, for the admin page
+      expect(body.scheduled).toBe(true);
       expect(body.totalTokens).toBe(3000);
     });
 
