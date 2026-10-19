@@ -32,6 +32,7 @@ import {
   Plug,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
+import { NATIVE_OPTION_CLASS, NATIVE_SELECT_CLASS } from "@/components/admin/native-select";
 
 // =====================================================
 // macOS Big Sur+ Easing — AdminLayoutClient / analytics / ai-usage / funnels 와 동일
@@ -176,7 +177,7 @@ function NSPopupSelect<T extends string | number>({
           if (original) onChange(original.value);
         }}
         aria-label={ariaLabel}
-        className="h-7 rounded-[7px] pl-2.5 pr-7 text-[11.5px] font-medium text-white/90 tracking-[-0.005em] appearance-none focus:outline-none focus-visible:ring-2 focus-visible:ring-white/25 cursor-pointer"
+        className={`h-7 rounded-[7px] pl-2.5 pr-7 text-[11.5px] font-medium text-white/90 tracking-[-0.005em] appearance-none focus:outline-none focus-visible:ring-2 focus-visible:ring-white/25 cursor-pointer ${NATIVE_SELECT_CLASS}`}
         style={{
           minWidth,
           background: "rgba(255,255,255,0.04)",
@@ -188,7 +189,7 @@ function NSPopupSelect<T extends string | number>({
         }}
       >
         {options.map((opt) => (
-          <option key={String(opt.value)} value={String(opt.value)}>
+          <option key={String(opt.value)} value={String(opt.value)} className={NATIVE_OPTION_CLASS}>
             {opt.label}
           </option>
         ))}

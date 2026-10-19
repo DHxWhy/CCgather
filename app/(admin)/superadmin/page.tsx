@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { FlagIcon } from "@/components/ui/FlagIcon";
+import { NATIVE_OPTION_CLASS, NATIVE_SELECT_CLASS } from "@/components/admin/native-select";
 
 // ─────────────────────────────────────────────────────────────
 // Types (API contract — 변경 X)
@@ -942,14 +943,21 @@ export default function AdminUsersPage() {
                   }
                 }}
                 aria-label="국가 추가 선택"
-                className="h-6 rounded-[6px] px-1.5 text-[11px] bg-white/[0.04] text-white/65 ring-1 ring-white/[0.06] focus:outline-none focus:ring-2 focus:ring-white/25 cursor-pointer"
+                className={`h-6 rounded-[6px] px-1.5 text-[11px] bg-white/[0.04] text-white/65 ring-1 ring-white/[0.06] focus:outline-none focus:ring-2 focus:ring-white/25 cursor-pointer ${NATIVE_SELECT_CLASS}`}
                 style={{
                   transition: `all 180ms ${MAC_EASE}`,
                 }}
               >
-                <option value="">+{sortedCountries.length - 12}개 더</option>
+                <option value="" className={NATIVE_OPTION_CLASS}>
+                  +{sortedCountries.length - 12}개 더
+                </option>
                 {sortedCountries.slice(12).map(({ code, count }) => (
-                  <option key={code} value={code} disabled={filterCountries.includes(code)}>
+                  <option
+                    key={code}
+                    value={code}
+                    className={NATIVE_OPTION_CLASS}
+                    disabled={filterCountries.includes(code)}
+                  >
                     {code} ({count}) {filterCountries.includes(code) ? "✓" : ""}
                   </option>
                 ))}
