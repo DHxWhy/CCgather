@@ -447,14 +447,102 @@ function deduplicateJsonlFiles(files: string[]): TranscriptFile[] {
   ];
 }
 
+/** Raw lines at the top of a transcript that make its session hash. */
+const SESSION_HASH_LINES = 50;
+
+/** Bytes read per step when streaming a transcript. */
+const TRANSCRIPT_CHUNK_BYTES = 4 * 1024 * 1024;
+
+/** A line without this key cannot be a usage event, so it is never decoded. */
+const USAGE_KEY = Buffer.from('"usage"');
+
+export interface ReadTranscriptOptions {
+  /** How many leading raw lines to return, split as content.split("\n") splits them. */
+  headLines?: number;
+  /**
+   * Receives each non-blank line that can hold usage, decoded. Without it the
+   * read stops as soon as the head is complete.
+   */
+  onLine?: (line: string) => void;
+  /** Bytes per read. The default suits transcripts; tests shrink it to cross boundaries. */
+  chunkBytes?: number;
+}
+
+/**
+ * Read a transcript line by line without loading it whole.
+ *
+ * Node cannot build a string over buffer.constants.MAX_STRING_LENGTH
+ * (~512 MiB): readFileSync threw inside the per-file catch and the largest
+ * sessions were silently left out of every submit. Lines are split on the
+ * newline byte and only two kinds are decoded — the first `headLines` lines
+ * (the session hash input) and lines holding the "usage" key. The rest of a
+ * transcript, most of its bytes, is never turned into a string.
+ *
+ * Returns the head lines. Throws on I/O errors as readFileSync did, so callers
+ * keep skipping unreadable files.
+ */
+export function readTranscriptLines(
+  filePath: string,
+  options: ReadTranscriptOptions = {}
+): string[] {
+  const { headLines = 0, onLine, chunkBytes = TRANSCRIPT_CHUNK_BYTES } = options;
+  const head: string[] = [];
+
+  const handleLine = (buf: Buffer, start: number, end: number): void => {
+    const forHead = head.length < headLines;
+    const mayHoldUsage = onLine !== undefined && buf.subarray(start, end).includes(USAGE_KEY);
+    if (!forHead && !mayHoldUsage) return;
+    const line = buf.toString("utf-8", start, end);
+    if (forHead) head.push(line);
+    if (mayHoldUsage && line.trim()) onLine(line);
+  };
+
+  const fd = fs.openSync(filePath, "r");
+  try {
+    const chunk = Buffer.allocUnsafe(chunkBytes);
+    let carry: Buffer = Buffer.alloc(0);
+    for (;;) {
+      const bytesRead = fs.readSync(fd, chunk, 0, chunkBytes, null);
+      if (bytesRead === 0) break;
+      const buf =
+        carry.length > 0
+          ? Buffer.concat([carry, chunk.subarray(0, bytesRead)])
+          : chunk.subarray(0, bytesRead);
+      let start = 0;
+      for (
+        let newline = buf.indexOf(0x0a, start);
+        newline !== -1;
+        newline = buf.indexOf(0x0a, start)
+      ) {
+        handleLine(buf, start, newline);
+        start = newline + 1;
+        if (onLine === undefined && head.length >= headLines) return head;
+      }
+      // The chunk buffer is reused by the next read, so the partial line is copied out
+      carry = Buffer.from(buf.subarray(start));
+    }
+    // What follows the last newline is a line to split("\n"), even when empty
+    handleLine(carry, 0, carry.length);
+  } finally {
+    fs.closeSync(fd);
+  }
+  return head;
+}
+
 /**
  * Generate SHA256 hash of file content
  * Uses first N lines to create a unique fingerprint
  */
-function generateSessionHash(filePath: string, maxLines: number = 50): string | null {
+function generateSessionHash(
+  filePath: string,
+  maxLines: number = SESSION_HASH_LINES
+): string | null {
   try {
-    const content = fs.readFileSync(filePath, "utf-8");
-    return hashSessionLines(filePath, content.split("\n"), maxLines);
+    return hashSessionLines(
+      filePath,
+      readTranscriptLines(filePath, { headLines: maxLines }),
+      maxLines
+    );
   } catch {
     return null;
   }
@@ -465,7 +553,11 @@ function generateSessionHash(filePath: string, maxLines: number = 50): string | 
  * The server stores these hashes for duplicate prevention — the input must
  * stay byte-identical across CLI versions.
  */
-function hashSessionLines(filePath: string, rawLines: string[], maxLines: number = 50): string {
+function hashSessionLines(
+  filePath: string,
+  rawLines: string[],
+  maxLines: number = SESSION_HASH_LINES
+): string {
   const lines = rawLines.slice(0, maxLines).join("\n");
 
   // Create hash from file content + filename (for uniqueness)
@@ -597,103 +689,102 @@ export function scanUsageData(options: ScanOptions = {}): CCGatherData | null {
     projects[projectName].sessions++;
 
     try {
-      const content = fs.readFileSync(filePath, "utf-8");
-      const lines = content.split("\n").filter((line) => line.trim());
+      readTranscriptLines(filePath, {
+        onLine: (line) => {
+          try {
+            const event = JSON.parse(line);
 
-      for (const line of lines) {
-        try {
-          const event = JSON.parse(line);
-
-          if (event.type === "assistant" && event.message?.usage) {
-            // Streaming writes one line per content block, each repeating the
-            // message's full usage — count each message once.
-            const eventKey = event.message.id
-              ? `${event.message.id}:${event.requestId ?? ""}`
-              : null;
-            if (eventKey) {
-              if (seenUsageEvents.has(eventKey)) continue;
-              seenUsageEvents.add(eventKey);
-            }
-            // Skip events older than cutoff date (if set)
-            if (cutoffDate && event.timestamp && event.timestamp < cutoffDate) {
-              continue;
-            }
-
-            const usage = event.message.usage;
-            const model = event.message.model || "unknown";
-            const inputTokens = usage.input_tokens || 0;
-            const outputTokens = usage.output_tokens || 0;
-            const cacheWrite = usage.cache_creation_input_tokens || 0;
-            const cacheRead = usage.cache_read_input_tokens || 0;
-
-            totalInputTokens += inputTokens;
-            totalOutputTokens += outputTokens;
-            totalCacheRead += cacheRead;
-            totalCacheWrite += cacheWrite;
-
-            // Calculate cost for this message (including cache tokens)
-            const messageCost = estimateCost(
-              model,
-              inputTokens,
-              outputTokens,
-              cacheWrite,
-              cacheRead
-            );
-            totalCost += messageCost;
-
-            // Track model usage (global) - includes cache tokens
-            const totalModelTokens = inputTokens + outputTokens + cacheWrite + cacheRead;
-            models[model] = (models[model] || 0) + totalModelTokens;
-
-            // Track project usage
-            projects[projectName].tokens += totalModelTokens;
-            projects[projectName].cost += messageCost;
-            projects[projectName].models[model] =
-              (projects[projectName].models[model] || 0) + totalModelTokens;
-
-            // Track dates and daily usage (UTC timezone for global consistency)
-            if (event.timestamp) {
-              const date = new Date(event.timestamp).toISOString().split("T")[0];
-              dates.add(date);
-
-              // Initialize daily data if not exists
-              if (!dailyData[date]) {
-                dailyData[date] = {
-                  tokens: 0,
-                  cost: 0,
-                  inputTokens: 0,
-                  outputTokens: 0,
-                  cacheWriteTokens: 0,
-                  cacheReadTokens: 0,
-                  sessions: new Set(),
-                  models: {},
-                };
+            if (event.type === "assistant" && event.message?.usage) {
+              // Streaming writes one line per content block, each repeating the
+              // message's full usage — count each message once.
+              const eventKey = event.message.id
+                ? `${event.message.id}:${event.requestId ?? ""}`
+                : null;
+              if (eventKey) {
+                if (seenUsageEvents.has(eventKey)) return;
+                seenUsageEvents.add(eventKey);
+              }
+              // Skip events older than cutoff date (if set)
+              if (cutoffDate && event.timestamp && event.timestamp < cutoffDate) {
+                return;
               }
 
-              // Track daily usage
-              dailyData[date].tokens += totalModelTokens;
-              dailyData[date].cost += messageCost;
-              dailyData[date].inputTokens += inputTokens;
-              dailyData[date].outputTokens += outputTokens;
-              dailyData[date].cacheWriteTokens += cacheWrite;
-              dailyData[date].cacheReadTokens += cacheRead;
-              dailyData[date].sessions.add(filePath);
-              dailyData[date].models[model] =
-                (dailyData[date].models[model] || 0) + totalModelTokens;
+              const usage = event.message.usage;
+              const model = event.message.model || "unknown";
+              const inputTokens = usage.input_tokens || 0;
+              const outputTokens = usage.output_tokens || 0;
+              const cacheWrite = usage.cache_creation_input_tokens || 0;
+              const cacheRead = usage.cache_read_input_tokens || 0;
 
-              // Track first and last timestamps
-              if (!firstTimestamp || event.timestamp < firstTimestamp) {
-                firstTimestamp = event.timestamp;
-              }
-              if (!lastTimestamp || event.timestamp > lastTimestamp) {
-                lastTimestamp = event.timestamp;
+              totalInputTokens += inputTokens;
+              totalOutputTokens += outputTokens;
+              totalCacheRead += cacheRead;
+              totalCacheWrite += cacheWrite;
+
+              // Calculate cost for this message (including cache tokens)
+              const messageCost = estimateCost(
+                model,
+                inputTokens,
+                outputTokens,
+                cacheWrite,
+                cacheRead
+              );
+              totalCost += messageCost;
+
+              // Track model usage (global) - includes cache tokens
+              const totalModelTokens = inputTokens + outputTokens + cacheWrite + cacheRead;
+              models[model] = (models[model] || 0) + totalModelTokens;
+
+              // Track project usage
+              projects[projectName].tokens += totalModelTokens;
+              projects[projectName].cost += messageCost;
+              projects[projectName].models[model] =
+                (projects[projectName].models[model] || 0) + totalModelTokens;
+
+              // Track dates and daily usage (UTC timezone for global consistency)
+              if (event.timestamp) {
+                const date = new Date(event.timestamp).toISOString().split("T")[0];
+                dates.add(date);
+
+                // Initialize daily data if not exists
+                if (!dailyData[date]) {
+                  dailyData[date] = {
+                    tokens: 0,
+                    cost: 0,
+                    inputTokens: 0,
+                    outputTokens: 0,
+                    cacheWriteTokens: 0,
+                    cacheReadTokens: 0,
+                    sessions: new Set(),
+                    models: {},
+                  };
+                }
+
+                // Track daily usage
+                dailyData[date].tokens += totalModelTokens;
+                dailyData[date].cost += messageCost;
+                dailyData[date].inputTokens += inputTokens;
+                dailyData[date].outputTokens += outputTokens;
+                dailyData[date].cacheWriteTokens += cacheWrite;
+                dailyData[date].cacheReadTokens += cacheRead;
+                dailyData[date].sessions.add(filePath);
+                dailyData[date].models[model] =
+                  (dailyData[date].models[model] || 0) + totalModelTokens;
+
+                // Track first and last timestamps
+                if (!firstTimestamp || event.timestamp < firstTimestamp) {
+                  firstTimestamp = event.timestamp;
+                }
+                if (!lastTimestamp || event.timestamp > lastTimestamp) {
+                  lastTimestamp = event.timestamp;
+                }
               }
             }
+          } catch {
+            // Skip invalid JSON lines
           }
-        } catch {
-          // Skip invalid JSON lines
-        }
-      }
+        },
+      });
     } catch {
       // Skip unreadable files
     }
@@ -917,95 +1008,94 @@ export function scanUsageDataFromPath(
     projects[projectName].sessions++;
 
     try {
-      const content = fs.readFileSync(filePath, "utf-8");
-      const lines = content.split("\n").filter((line) => line.trim());
+      readTranscriptLines(filePath, {
+        onLine: (line) => {
+          try {
+            const event = JSON.parse(line);
 
-      for (const line of lines) {
-        try {
-          const event = JSON.parse(line);
-
-          if (event.type === "assistant" && event.message?.usage) {
-            // Streaming writes one line per content block, each repeating the
-            // message's full usage — count each message once.
-            const eventKey = event.message.id
-              ? `${event.message.id}:${event.requestId ?? ""}`
-              : null;
-            if (eventKey) {
-              if (seenUsageEvents.has(eventKey)) continue;
-              seenUsageEvents.add(eventKey);
-            }
-            if (cutoffDate && event.timestamp && event.timestamp < cutoffDate) {
-              continue;
-            }
-
-            const usage = event.message.usage;
-            const model = event.message.model || "unknown";
-            const inputTokens = usage.input_tokens || 0;
-            const outputTokens = usage.output_tokens || 0;
-            const cacheWrite = usage.cache_creation_input_tokens || 0;
-            const cacheRead = usage.cache_read_input_tokens || 0;
-
-            totalInputTokens += inputTokens;
-            totalOutputTokens += outputTokens;
-            totalCacheRead += cacheRead;
-            totalCacheWrite += cacheWrite;
-
-            const messageCost = estimateCost(
-              model,
-              inputTokens,
-              outputTokens,
-              cacheWrite,
-              cacheRead
-            );
-            totalCost += messageCost;
-
-            const totalModelTokens = inputTokens + outputTokens + cacheWrite + cacheRead;
-            models[model] = (models[model] || 0) + totalModelTokens;
-
-            projects[projectName].tokens += totalModelTokens;
-            projects[projectName].cost += messageCost;
-            projects[projectName].models[model] =
-              (projects[projectName].models[model] || 0) + totalModelTokens;
-
-            if (event.timestamp) {
-              const date = new Date(event.timestamp).toISOString().split("T")[0];
-              dates.add(date);
-
-              if (!dailyData[date]) {
-                dailyData[date] = {
-                  tokens: 0,
-                  cost: 0,
-                  inputTokens: 0,
-                  outputTokens: 0,
-                  cacheWriteTokens: 0,
-                  cacheReadTokens: 0,
-                  sessions: new Set(),
-                  models: {},
-                };
+            if (event.type === "assistant" && event.message?.usage) {
+              // Streaming writes one line per content block, each repeating the
+              // message's full usage — count each message once.
+              const eventKey = event.message.id
+                ? `${event.message.id}:${event.requestId ?? ""}`
+                : null;
+              if (eventKey) {
+                if (seenUsageEvents.has(eventKey)) return;
+                seenUsageEvents.add(eventKey);
+              }
+              if (cutoffDate && event.timestamp && event.timestamp < cutoffDate) {
+                return;
               }
 
-              dailyData[date].tokens += totalModelTokens;
-              dailyData[date].cost += messageCost;
-              dailyData[date].inputTokens += inputTokens;
-              dailyData[date].outputTokens += outputTokens;
-              dailyData[date].cacheWriteTokens += cacheWrite;
-              dailyData[date].cacheReadTokens += cacheRead;
-              dailyData[date].sessions.add(filePath);
-              dailyData[date].models[model] =
-                (dailyData[date].models[model] || 0) + totalModelTokens;
+              const usage = event.message.usage;
+              const model = event.message.model || "unknown";
+              const inputTokens = usage.input_tokens || 0;
+              const outputTokens = usage.output_tokens || 0;
+              const cacheWrite = usage.cache_creation_input_tokens || 0;
+              const cacheRead = usage.cache_read_input_tokens || 0;
 
-              if (!firstTimestamp || event.timestamp < firstTimestamp) {
-                firstTimestamp = event.timestamp;
-              }
-              if (!lastTimestamp || event.timestamp > lastTimestamp) {
-                lastTimestamp = event.timestamp;
+              totalInputTokens += inputTokens;
+              totalOutputTokens += outputTokens;
+              totalCacheRead += cacheRead;
+              totalCacheWrite += cacheWrite;
+
+              const messageCost = estimateCost(
+                model,
+                inputTokens,
+                outputTokens,
+                cacheWrite,
+                cacheRead
+              );
+              totalCost += messageCost;
+
+              const totalModelTokens = inputTokens + outputTokens + cacheWrite + cacheRead;
+              models[model] = (models[model] || 0) + totalModelTokens;
+
+              projects[projectName].tokens += totalModelTokens;
+              projects[projectName].cost += messageCost;
+              projects[projectName].models[model] =
+                (projects[projectName].models[model] || 0) + totalModelTokens;
+
+              if (event.timestamp) {
+                const date = new Date(event.timestamp).toISOString().split("T")[0];
+                dates.add(date);
+
+                if (!dailyData[date]) {
+                  dailyData[date] = {
+                    tokens: 0,
+                    cost: 0,
+                    inputTokens: 0,
+                    outputTokens: 0,
+                    cacheWriteTokens: 0,
+                    cacheReadTokens: 0,
+                    sessions: new Set(),
+                    models: {},
+                  };
+                }
+
+                dailyData[date].tokens += totalModelTokens;
+                dailyData[date].cost += messageCost;
+                dailyData[date].inputTokens += inputTokens;
+                dailyData[date].outputTokens += outputTokens;
+                dailyData[date].cacheWriteTokens += cacheWrite;
+                dailyData[date].cacheReadTokens += cacheRead;
+                dailyData[date].sessions.add(filePath);
+                dailyData[date].models[model] =
+                  (dailyData[date].models[model] || 0) + totalModelTokens;
+
+                if (!firstTimestamp || event.timestamp < firstTimestamp) {
+                  firstTimestamp = event.timestamp;
+                }
+                if (!lastTimestamp || event.timestamp > lastTimestamp) {
+                  lastTimestamp = event.timestamp;
+                }
               }
             }
+          } catch {
+            // Skip invalid JSON lines
           }
-        } catch {
-          // Skip invalid JSON lines
-        }
-      }
+        },
+      });
     } catch {
       // Skip unreadable files
     }
@@ -1357,112 +1447,112 @@ export function scanAllProjects(options: ScanOptions = {}): CCGatherData | null 
     let hasUsage = false;
 
     try {
-      const content = fs.readFileSync(filePath, "utf-8");
-      const rawLines = content.split("\n");
-      // Hash while the file is in memory — re-reading every session after the
-      // progress bar hit 100% left the CLI silent for a long time.
-      sessionHashes.push(hashSessionLines(filePath, rawLines));
-      const lines = rawLines.filter((line) => line.trim());
+      // One pass per file: the first lines feed the session hash (re-reading
+      // every session after the progress bar hit 100% left the CLI silent for
+      // a long time) and the usage lines feed the totals.
+      const rawHead = readTranscriptLines(filePath, {
+        headLines: SESSION_HASH_LINES,
+        onLine: (line) => {
+          try {
+            const event = JSON.parse(line);
 
-      for (const line of lines) {
-        try {
-          const event = JSON.parse(line);
+            if (event.type === "assistant" && event.message?.usage) {
+              hasUsage = true;
+              // Streaming writes one line per content block, each repeating the
+              // message's full usage — count each message once.
+              const eventKey = event.message.id
+                ? `${event.message.id}:${event.requestId ?? ""}`
+                : null;
+              if (eventKey) {
+                if (seenUsageEvents.has(eventKey)) return;
+                seenUsageEvents.add(eventKey);
+              }
+              if (cutoffDate && event.timestamp && event.timestamp < cutoffDate) {
+                return;
+              }
 
-          if (event.type === "assistant" && event.message?.usage) {
-            hasUsage = true;
-            // Streaming writes one line per content block, each repeating the
-            // message's full usage — count each message once.
-            const eventKey = event.message.id
-              ? `${event.message.id}:${event.requestId ?? ""}`
-              : null;
-            if (eventKey) {
-              if (seenUsageEvents.has(eventKey)) continue;
-              seenUsageEvents.add(eventKey);
-            }
-            if (cutoffDate && event.timestamp && event.timestamp < cutoffDate) {
-              continue;
-            }
+              const usage = event.message.usage;
+              const model = event.message.model || "unknown";
+              const inputTokens = usage.input_tokens || 0;
+              const outputTokens = usage.output_tokens || 0;
+              const cacheWrite = usage.cache_creation_input_tokens || 0;
+              const cacheRead = usage.cache_read_input_tokens || 0;
 
-            const usage = event.message.usage;
-            const model = event.message.model || "unknown";
-            const inputTokens = usage.input_tokens || 0;
-            const outputTokens = usage.output_tokens || 0;
-            const cacheWrite = usage.cache_creation_input_tokens || 0;
-            const cacheRead = usage.cache_read_input_tokens || 0;
+              totalInputTokens += inputTokens;
+              totalOutputTokens += outputTokens;
+              totalCacheRead += cacheRead;
+              totalCacheWrite += cacheWrite;
 
-            totalInputTokens += inputTokens;
-            totalOutputTokens += outputTokens;
-            totalCacheRead += cacheRead;
-            totalCacheWrite += cacheWrite;
+              const messageCost = estimateCost(
+                model,
+                inputTokens,
+                outputTokens,
+                cacheWrite,
+                cacheRead
+              );
+              totalCost += messageCost;
 
-            const messageCost = estimateCost(
-              model,
-              inputTokens,
-              outputTokens,
-              cacheWrite,
-              cacheRead
-            );
-            totalCost += messageCost;
+              const totalModelTokens = inputTokens + outputTokens + cacheWrite + cacheRead;
+              models[model] = (models[model] || 0) + totalModelTokens;
 
-            const totalModelTokens = inputTokens + outputTokens + cacheWrite + cacheRead;
-            models[model] = (models[model] || 0) + totalModelTokens;
+              projects[projectName].tokens += totalModelTokens;
+              projects[projectName].cost += messageCost;
+              projects[projectName].models[model] =
+                (projects[projectName].models[model] || 0) + totalModelTokens;
 
-            projects[projectName].tokens += totalModelTokens;
-            projects[projectName].cost += messageCost;
-            projects[projectName].models[model] =
-              (projects[projectName].models[model] || 0) + totalModelTokens;
+              if (event.timestamp) {
+                const date = new Date(event.timestamp).toISOString().split("T")[0];
+                dates.add(date);
 
-            if (event.timestamp) {
-              const date = new Date(event.timestamp).toISOString().split("T")[0];
-              dates.add(date);
+                if (!dailyData[date]) {
+                  dailyData[date] = {
+                    tokens: 0,
+                    cost: 0,
+                    inputTokens: 0,
+                    outputTokens: 0,
+                    cacheWriteTokens: 0,
+                    cacheReadTokens: 0,
+                    sessions: new Set(),
+                    models: {},
+                    modelTokens: {},
+                  };
+                }
 
-              if (!dailyData[date]) {
-                dailyData[date] = {
-                  tokens: 0,
-                  cost: 0,
+                dailyData[date].tokens += totalModelTokens;
+                dailyData[date].cost += messageCost;
+                dailyData[date].inputTokens += inputTokens;
+                dailyData[date].outputTokens += outputTokens;
+                dailyData[date].cacheWriteTokens += cacheWrite;
+                dailyData[date].cacheReadTokens += cacheRead;
+                dailyData[date].sessions.add(sessionKey);
+                dailyData[date].models[model] =
+                  (dailyData[date].models[model] || 0) + totalModelTokens;
+
+                const split = (dailyData[date].modelTokens[model] ??= {
                   inputTokens: 0,
                   outputTokens: 0,
                   cacheWriteTokens: 0,
                   cacheReadTokens: 0,
-                  sessions: new Set(),
-                  models: {},
-                  modelTokens: {},
-                };
-              }
+                });
+                split.inputTokens += inputTokens;
+                split.outputTokens += outputTokens;
+                split.cacheWriteTokens += cacheWrite;
+                split.cacheReadTokens += cacheRead;
 
-              dailyData[date].tokens += totalModelTokens;
-              dailyData[date].cost += messageCost;
-              dailyData[date].inputTokens += inputTokens;
-              dailyData[date].outputTokens += outputTokens;
-              dailyData[date].cacheWriteTokens += cacheWrite;
-              dailyData[date].cacheReadTokens += cacheRead;
-              dailyData[date].sessions.add(sessionKey);
-              dailyData[date].models[model] =
-                (dailyData[date].models[model] || 0) + totalModelTokens;
-
-              const split = (dailyData[date].modelTokens[model] ??= {
-                inputTokens: 0,
-                outputTokens: 0,
-                cacheWriteTokens: 0,
-                cacheReadTokens: 0,
-              });
-              split.inputTokens += inputTokens;
-              split.outputTokens += outputTokens;
-              split.cacheWriteTokens += cacheWrite;
-              split.cacheReadTokens += cacheRead;
-
-              if (!firstTimestamp || event.timestamp < firstTimestamp) {
-                firstTimestamp = event.timestamp;
-              }
-              if (!lastTimestamp || event.timestamp > lastTimestamp) {
-                lastTimestamp = event.timestamp;
+                if (!firstTimestamp || event.timestamp < firstTimestamp) {
+                  firstTimestamp = event.timestamp;
+                }
+                if (!lastTimestamp || event.timestamp > lastTimestamp) {
+                  lastTimestamp = event.timestamp;
+                }
               }
             }
+          } catch {
+            // Skip invalid JSON lines
           }
-        } catch {
-          // Skip invalid JSON lines
-        }
-      }
+        },
+      });
+      sessionHashes.push(hashSessionLines(filePath, rawHead));
     } catch {
       // Skip unreadable files
     }

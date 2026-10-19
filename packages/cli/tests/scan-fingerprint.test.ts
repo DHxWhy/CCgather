@@ -17,7 +17,11 @@ const mocked = vi.hoisted(() => ({ home: "" }));
 
 vi.mock("fs", async (importOriginal) => {
   const actual = await importOriginal<typeof import("fs")>();
-  return { ...actual, readFileSync: vi.fn(actual.readFileSync) };
+  return {
+    ...actual,
+    openSync: vi.fn(actual.openSync),
+    readFileSync: vi.fn(actual.readFileSync),
+  };
 });
 
 vi.mock("os", async (importOriginal) => {
@@ -36,7 +40,7 @@ vi.mock("../src/lib/credentials", () => ({
 
 import * as fs from "fs";
 import * as os from "os";
-import { scanAllProjects } from "../src/lib/ccgather-json";
+import { scanAllProjects, scanUsageDataFromPath } from "../src/lib/ccgather-json";
 
 // Frozen v2.1.0 contract (literal on purpose): filename + first 50 raw lines.
 function publishedSessionHash(fileName: string, content: string): string {
@@ -94,6 +98,7 @@ describe("scanAllProjects: session fingerprint", () => {
     }
 
     vi.mocked(fs.readFileSync).mockClear();
+    vi.mocked(fs.openSync).mockClear();
   });
 
   afterEach(() => {
@@ -115,20 +120,42 @@ describe("scanAllProjects: session fingerprint", () => {
     );
   });
 
-  it("reads each session file exactly once", () => {
+  it("streams each session file once and never reads one as a whole string", () => {
     const progress: Array<[number, number]> = [];
     scanAllProjects({ onProgress: (current, total) => progress.push([current, total]) });
 
-    const reads = new Map<string, number>();
-    for (const [target] of vi.mocked(fs.readFileSync).mock.calls) {
-      const file = path.basename(String(target));
-      if (file.endsWith(".jsonl")) reads.set(file, (reads.get(file) ?? 0) + 1);
-    }
+    const jsonlCalls = (calls: ReadonlyArray<ReadonlyArray<unknown>>) => {
+      const counts = new Map<string, number>();
+      for (const [target] of calls) {
+        const file = path.basename(String(target));
+        if (file.endsWith(".jsonl")) counts.set(file, (counts.get(file) ?? 0) + 1);
+      }
+      return Object.fromEntries(counts);
+    };
 
+    // Node cannot build a string over ~512 MiB, so a whole-file read drops the
+    // largest sessions: transcripts must never go through readFileSync.
+    expect(jsonlCalls(vi.mocked(fs.readFileSync).mock.calls)).toEqual({});
+    // Opened twice: once to identify it by its first line, once to scan it.
+    // A second scan pass after the progress bar hit 100% would show as a third.
     const sessionCount = Object.keys(sessions).length;
-    expect(Object.fromEntries(reads)).toEqual(
-      Object.fromEntries(Object.keys(sessions).map((name) => [name, 1]))
+    expect(jsonlCalls(vi.mocked(fs.openSync).mock.calls)).toEqual(
+      Object.fromEntries(Object.keys(sessions).map((name) => [name, 2]))
     );
     expect(progress.at(-1)).toEqual([sessionCount, sessionCount]);
+  });
+
+  it("scanUsageDataFromPath hashes sessions the published way without whole-file reads", () => {
+    const data = scanUsageDataFromPath(projectDir, { days: 0 });
+
+    const expected = Object.entries(sessions)
+      .map(([name, content]) => publishedSessionHash(name, content))
+      .sort();
+    expect(data?.sessionFingerprint?.sessionHashes).toEqual(expected);
+
+    const wholeReads = vi
+      .mocked(fs.readFileSync)
+      .mock.calls.filter(([target]) => String(target).endsWith(".jsonl"));
+    expect(wholeReads).toEqual([]);
   });
 });

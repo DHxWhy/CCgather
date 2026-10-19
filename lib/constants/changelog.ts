@@ -16,6 +16,14 @@ export const CHANGELOG_CATEGORY = {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    id: "2026-10-19-cli-large-transcripts",
+    date: "2026-10-19",
+    category: "fixed",
+    title: "The longest Claude Code sessions now count",
+    summary:
+      "On Node, a transcript over about 512 MiB cannot be read as one string, so the CLI skipped it without a word — and since the longest sessions are usually the heaviest, the biggest totals were the ones missing (one machine: five files, 16.9B tokens). CLI v2.3.1 reads transcripts in chunks and decodes only the lines that hold usage: nothing is skipped, a full scan runs three to four times faster on about a fifth of the memory, and your next submit catches the missing sessions up. Auto-submit set up with npx stays on the CLI version that registered it, so run npx ccgather autosubmit on once to move the daily job to v2.3.1 — from then on the job also reports itself as on, which unlocks the Autopilot badge.",
+  },
+  {
     id: "2026-10-12-cli-auto-submit",
     date: "2026-10-12",
     category: "new",
