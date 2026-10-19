@@ -341,11 +341,13 @@ export function findNpxCli(nodePath: string, deps: ResolveDeps): string | null {
  * 1. A global install (the running package is exactly `<npm root -g>/ccgather`)
  *    runs its own dist/index.js, so it follows `npm install -g` upgrades.
  * 2. Anything else (npx, pnpm dlx, bunx, a project's node_modules) runs
- *    `npx --yes ccgather@<this version>`, or `ccgather@latest` with autoUpdate.
+ *    `npx --yes ccgather@latest`, so a new release reaches the job on its own
+ *    (a job pinned to one version kept running it until `on` was run again,
+ *    so 2.3.0 jobs never saw a fix). `pin` keeps `ccgather@<this version>`.
  *    --auto-update always takes this route, even from a global install.
  */
 export async function resolveJobCommand(
-  options: { autoUpdate?: boolean },
+  options: { autoUpdate?: boolean; pin?: boolean },
   deps: ResolveDeps
 ): Promise<JobCommand> {
   const p = pathFor(deps.platform);
@@ -374,7 +376,7 @@ export async function resolveJobCommand(
       "Install ccgather globally (npm i -g ccgather) and run `ccgather autosubmit on` again."
     );
   }
-  const spec = options.autoUpdate ? "ccgather@latest" : `ccgather@${deps.version}`;
+  const spec = options.pin ? `ccgather@${deps.version}` : "ccgather@latest";
   return { argv: [nodePath, npxCli, "--yes", spec, ...scheduledArgs], kind: "npx", spec };
 }
 

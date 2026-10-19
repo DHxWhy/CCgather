@@ -170,13 +170,13 @@ describe("autosubmit on", () => {
     expect(mocked.store.get("autoSync")).toBe(false);
   });
 
-  it("turning on from off prints the five lines for a job pinned through npx", async () => {
+  it("turning on from off prints the five lines for a job that follows releases through npx", async () => {
     const backend = fakeBackend();
     await autosubmitEnable({}, { backend, resolveDeps: fakeDeps(), now: AT_14_17, isTTY: false });
 
     expect(backend.enable).toHaveBeenCalledWith(
       expect.objectContaining({
-        command: { argv: PINNED, kind: "npx", spec: "ccgather@2.2.0" },
+        command: { argv: LATEST, kind: "npx", spec: "ccgather@latest" },
         time: { hour: 14, minute: 23 },
       })
     );
@@ -185,7 +185,26 @@ describe("autosubmit on", () => {
     expect(logs).toEqual([
       ...FIRST_LINES,
       "  Check: npx ccgather autosubmit status   Stop: npx ccgather autosubmit off",
-      "  Tip: this job stays on ccgather 2.2.0. To follow upgrades, install globally (npm i -g ccgather) or add --auto-update.",
+      "  It runs the newest ccgather release each day. Add --pin to stay on this version.",
+    ]);
+  });
+
+  it("with --pin, keeps the job on this version and says how to move it", async () => {
+    const backend = fakeBackend();
+    await autosubmitEnable(
+      { pin: true },
+      { backend, resolveDeps: fakeDeps(), now: AT_14_17, isTTY: false }
+    );
+
+    expect(backend.enable).toHaveBeenCalledWith(
+      expect.objectContaining({
+        command: { argv: PINNED, kind: "npx", spec: "ccgather@2.2.0" },
+      })
+    );
+    expect(logs).toEqual([
+      ...FIRST_LINES,
+      "  Check: npx ccgather autosubmit status   Stop: npx ccgather autosubmit off",
+      "  Pinned to ccgather 2.2.0. Run `npx ccgather autosubmit on` again to move it to a newer release.",
     ]);
   });
 
@@ -261,7 +280,7 @@ describe("autosubmit on", () => {
   });
 
   describe("when it is already on", () => {
-    const on = { registered: true, time: { hour: 20, minute: 15 }, argv: PINNED };
+    const on = { registered: true, time: { hour: 20, minute: 15 }, argv: LATEST };
 
     it("re-registers at the same time and says so, without a star prompt", async () => {
       const backend = fakeBackend(on);
@@ -283,19 +302,29 @@ describe("autosubmit on", () => {
     });
 
     it.each([
-      ["a global install", PINNED, globalDeps(), "your global install of ccgather"],
-      ["a pinned version", GLOBAL, fakeDeps(), "ccgather@2.2.0 via npx"],
-    ])("adds the updated line when the job now runs %s", async (_name, old, deps, what) => {
-      const backend = fakeBackend({ ...on, argv: old });
-      await autosubmitEnable({}, { backend, resolveDeps: deps });
-      expect(logs).toEqual([
-        "Auto-submit is already on (daily 20:15). Use --at HH:MM to change the time.",
-        `  The job was updated: it now runs ${what}.`,
-      ]);
-    });
+      ["a global install", PINNED, globalDeps(), {}, "your global install of ccgather"],
+      [
+        "the newest release",
+        GLOBAL,
+        fakeDeps(),
+        {},
+        "the newest ccgather release each day, via npx",
+      ],
+      ["a pinned version", GLOBAL, fakeDeps(), { pin: true }, "ccgather@2.2.0 via npx"],
+    ])(
+      "adds the updated line when the job now runs %s",
+      async (_name, old, deps, options, what) => {
+        const backend = fakeBackend({ ...on, argv: old });
+        await autosubmitEnable(options, { backend, resolveDeps: deps });
+        expect(logs).toEqual([
+          "Auto-submit is already on (daily 20:15). Use --at HH:MM to change the time.",
+          `  The job was updated: it now runs ${what}.`,
+        ]);
+      }
+    );
 
     it("describes a job that now follows the newest release", async () => {
-      const backend = fakeBackend(on);
+      const backend = fakeBackend({ ...on, argv: PINNED });
       await autosubmitEnable({ autoUpdate: true }, { backend, resolveDeps: fakeDeps() });
       expect(backend.enable).toHaveBeenCalledWith(
         expect.objectContaining({ command: expect.objectContaining({ argv: LATEST }) })
@@ -308,7 +337,9 @@ describe("autosubmit on", () => {
     it("adds the updated line when the old command could not be read", async () => {
       const backend = fakeBackend({ ...on, argv: undefined });
       await autosubmitEnable({}, { backend, resolveDeps: fakeDeps() });
-      expect(logs[1]).toBe("  The job was updated: it now runs ccgather@2.2.0 via npx.");
+      expect(logs[1]).toBe(
+        "  The job was updated: it now runs the newest ccgather release each day, via npx."
+      );
     });
 
     it("leaves the updated line out when the command is the same", async () => {
@@ -410,6 +441,13 @@ describe("autosubmit failures", () => {
     await register({ at: "9pm" }, { backend });
     expect(errors).toEqual(["✖ --at must be HH:MM (24-hour), for example 21:30."]);
     expect(backend.status).not.toHaveBeenCalled();
+    expect(backend.enable).not.toHaveBeenCalled();
+  });
+
+  it("--pin together with --auto-update: one line, nothing registered", async () => {
+    const backend = fakeBackend();
+    await register({ pin: true, autoUpdate: true }, { backend });
+    expect(errors).toEqual(["✖ --pin and --auto-update cannot be used together."]);
     expect(backend.enable).not.toHaveBeenCalled();
   });
 

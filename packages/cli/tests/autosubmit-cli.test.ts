@@ -119,6 +119,11 @@ describe("ccgather autosubmit routing", () => {
     );
   });
 
+  it("`autosubmit on --pin` passes pin: true", async () => {
+    await runCli(["autosubmit", "on", "--pin"]);
+    await vi.waitFor(() => expect(mocked.enable).toHaveBeenCalledWith({ pin: true }));
+  });
+
   it("a bare `autosubmit` shows its help with exit code 1 and registers nothing", async () => {
     const exit = vi.spyOn(process, "exit").mockImplementation((code) => {
       throw new Exit(code);

@@ -49,7 +49,7 @@ const WIN_NPX_CACHE = String.raw`C:\Users\alice\AppData\Local\npm-cache\_npx\abc
 describe("argv selection on Windows", () => {
   const files = [WIN_NODE, WIN_NPX, WIN_NPM];
 
-  it("runs a pinned npx when started through npx", async () => {
+  it("runs ccgather@latest through npx by default, so upgrades reach the job", async () => {
     const globalRoot = vi.fn(async () => WIN_GLOBAL);
     const command = await resolveJobCommand(
       {},
@@ -64,12 +64,28 @@ describe("argv selection on Windows", () => {
       )
     );
     expect(command).toEqual({
+      argv: [WIN_NODE, WIN_NPX, "--yes", "ccgather@latest", "submit", "--scheduled"],
+      kind: "npx",
+      spec: "ccgather@latest",
+    });
+    // npm root -g is asked through npm-cli.js next to node, never npm.cmd
+    expect(globalRoot).toHaveBeenCalledWith(WIN_NPM);
+  });
+
+  it("pins npx to the running version with pin", async () => {
+    const command = await resolveJobCommand(
+      { pin: true },
+      deps(
+        "win32",
+        { files: [...files, WIN_NPX_CACHE] },
+        { execPath: WIN_NODE, packageRoot: WIN_NPX_CACHE, globalRoot: async () => WIN_GLOBAL }
+      )
+    );
+    expect(command).toEqual({
       argv: [WIN_NODE, WIN_NPX, "--yes", "ccgather@2.1.1", "submit", "--scheduled"],
       kind: "npx",
       spec: "ccgather@2.1.1",
     });
-    // npm root -g is asked through npm-cli.js next to node, never npm.cmd
-    expect(globalRoot).toHaveBeenCalledWith(WIN_NPM);
   });
 
   it("runs the global install's dist/index.js when it is the running copy", async () => {
@@ -149,7 +165,7 @@ describe("argv selection on Windows", () => {
       otherNode,
       npxBesideCmd,
       "--yes",
-      "ccgather@2.1.1",
+      "ccgather@latest",
       "submit",
       "--scheduled",
     ]);
@@ -189,7 +205,7 @@ describe("argv selection on macOS and Linux", () => {
       "/opt/homebrew/bin/node",
       brewNpx,
       "--yes",
-      "ccgather@2.1.1",
+      "ccgather@latest",
       "submit",
       "--scheduled",
     ]);
@@ -221,7 +237,7 @@ describe("argv selection on macOS and Linux", () => {
       optNode,
       optNpx,
       "--yes",
-      "ccgather@2.1.1",
+      "ccgather@latest",
       "submit",
       "--scheduled",
     ]);

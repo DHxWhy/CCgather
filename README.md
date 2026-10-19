@@ -238,7 +238,7 @@ Without `--at` it runs every day at the time you turned it on plus five minutes 
 ```
 Auto-submit: ON
   Schedule:  daily at 14:23 (systemd user timer)
-  Runs:      ccgather@2.2.0 via npx
+  Runs:      the newest ccgather release each day, via npx
   Last run:  2026-10-12 14:23 · skipped: submitted 10 minutes ago
   Next run:  2026-10-13 14:23
   Log:       journalctl --user -u ccgather-autosubmit
@@ -257,7 +257,7 @@ When turning it on, you are offered the GitHub star prompt unless you have alrea
 
 The macOS setup is covered by tests but has not yet been run on a real Mac; Windows and Linux (systemd and cron) have. If the job misbehaves, `npx ccgather autosubmit off` removes it.
 
-The job runs the ccgather version you set it up with (or your global install, if you ran that). Set up through `npx`, it stays on that version; to have it follow upgrades, install ccgather globally (`npm install -g ccgather`) and run `ccgather autosubmit on` again. With `--auto-update` it runs `ccgather@latest` instead, so whatever release is newest that day runs with access to your token.
+Set up through `npx`, the job runs the newest ccgather release each day (`npx --yes ccgather@latest`), so upgrades reach it on their own; `--pin` keeps it on the version you set it up with, and running `on` again moves it. A global install runs its own copy and follows `npm install -g ccgather`; `--auto-update` makes even a global install run `ccgather@latest`. Jobs created with v2.3.0 are pinned to that version: run `npx ccgather autosubmit on` once to update them.
 
 - **macOS** may show a "Background Items Added" notification once.
 - **Linux (systemd)** runs the job only while you are signed in and catches up at your next login. To run it while signed out, run `loginctl enable-linger $USER` yourself.

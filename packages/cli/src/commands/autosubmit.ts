@@ -35,6 +35,7 @@ import { createLinuxBackend } from "../lib/autosubmit/linux.js";
 export interface AutosubmitOptions {
   at?: string;
   autoUpdate?: boolean;
+  pin?: boolean;
   // Internal, not a CLI flag: false keeps the star prompt away from a turn-on
   // that comes from the on-state menu (default true)
   starPrompt?: boolean;
@@ -159,9 +160,13 @@ export async function autosubmitEnable(
     }
   }
 
+  if (options.pin && options.autoUpdate) {
+    throw new AutosubmitError("--pin and --auto-update cannot be used together.", undefined, true);
+  }
+
   const backend = backendFor(context);
   const command = await resolveJobCommand(
-    { autoUpdate: options.autoUpdate === true },
+    { autoUpdate: options.autoUpdate === true, pin: options.pin === true },
     context.resolveDeps ?? defaultResolveDeps()
   );
 
@@ -207,9 +212,13 @@ export async function autosubmitEnable(
     lines.push(`  Check: ${cli} status   Stop: ${cli} off`);
     if (options.autoUpdate) {
       lines.push("  It runs the newest ccgather release each day, with access to your token.");
+    } else if (command.kind === "npx" && options.pin) {
+      lines.push(
+        `  Pinned to ccgather ${command.spec?.replace(/^ccgather@/, "")}. Run \`${cli} on\` again to move it to a newer release.`
+      );
     } else if (command.kind === "npx") {
       lines.push(
-        `  Tip: this job stays on ccgather ${command.spec?.replace(/^ccgather@/, "")}. To follow upgrades, install globally (npm i -g ccgather) or add --auto-update.`
+        "  It runs the newest ccgather release each day. Add --pin to stay on this version."
       );
     }
     for (const note of result.notes) lines.push(`  ${note}`);

@@ -338,9 +338,10 @@ autosubmit
   .description("Turn on the daily job (re-run to update or repair)")
   .allowExcessArguments(false)
   .option("--at <HH:MM>", "daily time, 24-hour local (default: five minutes from now)")
+  .option("--pin", "stay on this ccgather version instead of running the newest release each day")
   .option(
     "--auto-update",
-    "run ccgather@latest each day instead of this version: whatever release is newest that day runs with access to your token"
+    "run ccgather@latest each day even from a global install (what an npx setup does by default)"
   )
   .action(async (opts: AutosubmitOptions) => {
     await runAutosubmit(() => autosubmitEnable(opts), REGISTER_FAILED);
