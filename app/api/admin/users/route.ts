@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/server";
 import { checkAdminAccess } from "@/lib/admin";
+import { planCategory } from "@/lib/services/auth-plan";
 
 interface UserRow {
   last_submission_at: string | null;
@@ -125,30 +126,21 @@ export async function GET() {
     );
 
     // Calculate plan distribution
-    const knownPlans = ["free", "pro", "max", "team", "enterprise"];
     const planStats = {
       free: 0,
       pro: 0,
       max: 0,
       business: 0, // team + enterprise combined
+      api: 0, // API key, Console and cloud providers
       null: 0, // unset
       unknown: 0, // other values
     };
 
     activeUsers.forEach((u: UserRow) => {
-      const plan = u.ccplan?.toLowerCase();
-      if (!plan) {
+      if (!u.ccplan) {
         planStats.null++;
-      } else if (plan === "free") {
-        planStats.free++;
-      } else if (plan === "pro") {
-        planStats.pro++;
-      } else if (plan === "max") {
-        planStats.max++;
-      } else if (plan === "team" || plan === "enterprise") {
-        planStats.business++;
-      } else if (!knownPlans.includes(plan)) {
-        planStats.unknown++;
+      } else {
+        planStats[planCategory(u.ccplan)]++;
       }
     });
 

@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { FlagIcon } from "@/components/ui/FlagIcon";
+import { planCategory } from "@/lib/services/auth-plan";
 import { NATIVE_OPTION_CLASS, NATIVE_SELECT_CLASS } from "@/components/admin/native-select";
 import {
   AUTO_SUBMIT_LABELS,
@@ -61,6 +62,7 @@ interface PlanStats {
   pro: number;
   max: number;
   business: number;
+  api: number;
   null: number;
   unknown: number;
 }
@@ -250,8 +252,9 @@ function PlanBadge({ ccplan }: { ccplan: string | null }) {
   }
 
   const plan = ccplan.toLowerCase();
-  const isBusiness = plan === "team" || plan === "enterprise";
-  const known = ["free", "pro", "max", "team", "enterprise"].includes(plan);
+  const category = planCategory(plan);
+  const isBusiness = category === "business";
+  const known = category !== "unknown";
 
   if (!known) {
     return (
@@ -279,7 +282,10 @@ function PlanBadge({ ccplan }: { ccplan: string | null }) {
       className="inline-flex items-center gap-1.5 rounded-[5px] px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide ring-1 ring-white/[0.08] bg-white/[0.05] text-white/85"
       aria-label={`플랜: ${plan}`}
     >
-      <span aria-hidden="true" className={`h-1 w-1 rounded-full ${dotMap[plan]}`} />
+      <span
+        aria-hidden="true"
+        className={`h-1 w-1 rounded-full ${dotMap[plan] ?? "bg-pink-300"}`}
+      />
       {isBusiness && <Building2 className="h-2.5 w-2.5" strokeWidth={2} />}
       <span>{plan}</span>
     </span>
@@ -392,14 +398,10 @@ function formatNumber(num: number) {
 }
 
 // ─────────────────────────────────────────────────────────────
-// Helper: categorize ccplan (기존 로직 그대로)
+// Helper: categorize ccplan (공용 planCategory — API 키·Console·클라우드는 api)
 // ─────────────────────────────────────────────────────────────
 function getPlanCategory(ccplan: string | null): string {
-  if (!ccplan) return "null";
-  const plan = ccplan.toLowerCase();
-  if (["free", "pro", "max"].includes(plan)) return plan;
-  if (["team", "enterprise"].includes(plan)) return "business";
-  return "unknown";
+  return ccplan ? planCategory(ccplan) : "null";
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -428,6 +430,7 @@ export default function AdminUsersPage() {
       pro: 0,
       max: 0,
       business: 0,
+      api: 0,
       null: 0,
       unknown: 0,
     } as PlanStats,
@@ -494,6 +497,7 @@ export default function AdminUsersPage() {
             pro: 0,
             max: 0,
             business: 0,
+            api: 0,
             null: 0,
             unknown: 0,
           },
@@ -966,6 +970,15 @@ export default function AdminUsersPage() {
               icon={Building2}
             >
               Business
+            </Chip>
+            <Chip
+              size="sm"
+              active={filterPlan === "api"}
+              onClick={() => setFilterPlan("api")}
+              count={stats.planStats.api}
+              ariaPressed={filterPlan === "api"}
+            >
+              API
             </Chip>
             {stats.planStats.null > 0 && (
               <Chip

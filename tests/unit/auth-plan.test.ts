@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { KNOWN_PLAN_KEYS, normalizeSubmittedPlan } from "@/lib/services/auth-plan";
+import { KNOWN_PLAN_KEYS, normalizeSubmittedPlan, planCategory } from "@/lib/services/auth-plan";
 import { CCPLAN_CONFIG, getCCPlanConfig } from "@/lib/types/leaderboard";
 
 const read = (p: string) => readFileSync(path.resolve(__dirname, "../../", p), "utf-8");
@@ -36,12 +36,49 @@ describe("normalizeSubmittedPlan", () => {
   });
 
   it("passes an unknown value through so the discovery alert still fires", () => {
-    expect(normalizeSubmittedPlan({ ccplan: "Weird-Plan" })).toBe("weird-plan");
+    expect(normalizeSubmittedPlan({ ccplan: "default_claude_ai" })).toBe("default_claude_ai");
+  });
+
+  it("stores only [a-z0-9_], at most 32 characters", () => {
+    expect(normalizeSubmittedPlan({ ccplan: "Weird-Plan" })).toBe("weird_plan");
+    expect(normalizeSubmittedPlan({ ccplan: "max\nINJECTED line" })).toBe("max_injected_line");
+    expect(normalizeSubmittedPlan({ ccplan: "a".repeat(5000) })).toBe("a".repeat(32));
+    expect(normalizeSubmittedPlan({ ccplan: "--" })).toBeNull();
   });
 
   it("returns null when nothing was sent", () => {
     expect(normalizeSubmittedPlan({})).toBeNull();
     expect(normalizeSubmittedPlan({ ccplan: "  " })).toBeNull();
+  });
+
+  it("keeps the stored plan when an API-key report carries no plan", () => {
+    expect(normalizeSubmittedPlan({ ccplan: null, authMethod: "api_key" })).toBeNull();
+  });
+
+  it("does not turn a cloud provider or api into a subscription rewrite", () => {
+    expect(normalizeSubmittedPlan({ ccplan: "bedrock", authMethod: "api_key" })).toBe("bedrock");
+    expect(normalizeSubmittedPlan({ ccplan: "api", authMethod: "api_key" })).toBe("api");
+  });
+});
+
+describe("planCategory (admin grouping)", () => {
+  it("groups every key the server accepts", () => {
+    for (const key of KNOWN_PLAN_KEYS) {
+      expect(planCategory(key), key).not.toBe("unknown");
+    }
+  });
+
+  it("keeps the subscription tiers, merges business, and groups API billing", () => {
+    expect(planCategory("Max")).toBe("max");
+    expect(planCategory("pro")).toBe("pro");
+    expect(planCategory("free")).toBe("free");
+    expect(planCategory("team")).toBe("business");
+    expect(planCategory("enterprise")).toBe("business");
+    expect(planCategory("api")).toBe("api");
+    expect(planCategory("bedrock")).toBe("api");
+    expect(planCategory("gcp_platform")).toBe("api");
+    expect(planCategory("default_claude_ai")).toBe("unknown");
+    expect(planCategory("constructor")).toBe("unknown");
   });
 });
 
@@ -65,14 +102,37 @@ describe("official plan labels (Claude Code 2.1.306)", () => {
       expect(CCPLAN_CONFIG[key], key).toBeDefined();
     }
   });
+
+  it("gives a stored plan named like an Object member the fallback badge", () => {
+    expect(getCCPlanConfig("constructor")).toMatchObject({ name: "CONSTRUCTOR", icon: "❓" });
+    expect(getCCPlanConfig("__proto__")).toMatchObject({ name: "__PROTO__", icon: "❓" });
+  });
 });
 
 describe("plan wiring", () => {
   it("the submit route stores the normalized plan from the shared module", () => {
     const route = read("app/api/cli/submit/route.ts");
     expect(route).toContain('from "@/lib/services/auth-plan"');
-    expect(route).toMatch(/normalizeSubmittedPlan\(body\)/);
+    expect(route).toContain("const submittedPlan = normalizeSubmittedPlan(body);");
+    expect(route).toContain("updateData.ccplan = submittedPlan;");
+    expect(route).not.toContain("updateData.ccplan = body.ccplan");
     expect(route).not.toContain("const KNOWN_CCPLANS = [");
+  });
+
+  it("the admin pages group plans through planCategory, not their own lists", () => {
+    for (const file of [
+      "app/(admin)/superadmin/page.tsx",
+      "app/api/admin/users/route.ts",
+      "app/(admin)/superadmin/deleted-users/page.tsx",
+    ]) {
+      const source = read(file);
+      expect(source, file).toContain('import { planCategory } from "@/lib/services/auth-plan";');
+      expect(source, file).not.toContain('["free", "pro", "max", "team", "enterprise"]');
+    }
+  });
+
+  it("auth-plan stays import-free, so client pages can use it", () => {
+    expect(read("lib/services/auth-plan.ts")).not.toMatch(/^\s*import\s/m);
   });
 
   it("the badge prints the short label, not the raw key", () => {

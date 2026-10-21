@@ -24,6 +24,7 @@ import {
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { FlagIcon } from "@/components/ui/FlagIcon";
+import { planCategory } from "@/lib/services/auth-plan";
 
 // =====================================================
 // macOS Big Sur+ Easing — 이전 9 페이지 (ai-usage / analytics / community 등) 100% 동일
@@ -62,7 +63,7 @@ interface DeletedUser {
   ccplan: string | null;
 }
 
-type PlanFilter = "all" | "free" | "pro" | "max" | "team" | "enterprise" | "none";
+type PlanFilter = "all" | "free" | "pro" | "max" | "team" | "enterprise" | "api" | "none";
 
 // =====================================================
 // Grace period 계산 — 사용자 facing 핵심 정보
@@ -235,6 +236,7 @@ const PLAN_OPTIONS: { value: PlanFilter; label: string }[] = [
   { value: "max", label: "Max" },
   { value: "team", label: "Team" },
   { value: "enterprise", label: "Ent" },
+  { value: "api", label: "API" },
 ];
 
 function PlanSegmented({
@@ -525,7 +527,9 @@ export default function DeletedUsersPage() {
       if (planFilter !== "all") {
         const userPlan = (user.ccplan || "none").toLowerCase();
         if (planFilter === "none" && userPlan !== "none") return false;
-        if (planFilter !== "none" && userPlan !== planFilter) return false;
+        if (planFilter === "api") {
+          if (userPlan === "none" || planCategory(userPlan) !== "api") return false;
+        } else if (planFilter !== "none" && userPlan !== planFilter) return false;
       }
       // search
       if (!q) return true;

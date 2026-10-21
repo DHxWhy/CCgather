@@ -107,8 +107,6 @@ interface SubmitPayload {
   scheduled?: boolean;
 }
 
-// Known CCplan values
-
 interface AuthenticatedUser {
   id: string;
   username: string;
@@ -1101,13 +1099,13 @@ export async function POST(request: NextRequest) {
       // Log unknown ccplan values for discovery (Team/Enterprise patterns)
       if (!isKnownPlanKey(submittedPlan)) {
         console.log(
-          `[CLI Submit] Unknown ccplan discovered: "${body.ccplan}" (raw: "${body.rawSubscriptionType}", auth: "${body.authMethod}") for user ${authenticatedUser.username}`
+          `[CLI Submit] Unknown ccplan discovered: "${submittedPlan}" (raw: ${JSON.stringify(body.rawSubscriptionType)}, auth: ${JSON.stringify(body.authMethod)}) for user ${authenticatedUser.username}`
         );
 
         // Store alert for admin review
         await supabase.from("admin_alerts").insert({
           type: "unknown_ccplan",
-          message: `Unknown ccplan "${body.ccplan}" discovered`,
+          message: `Unknown ccplan "${submittedPlan}" discovered`,
           metadata: {
             user_id: authenticatedUser.id,
             username: authenticatedUser.username,

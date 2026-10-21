@@ -49,8 +49,8 @@ export const CCPLAN_FALLBACK: CCPlanBadgeConfig = {
 };
 
 /**
- * Get CCplan badge config with fallback for unknown plans
- * Supports variants like "max_20x" → falls back to "max" if exact match not found
+ * Get CCplan badge config; an unknown plan gets the fallback badge named after it.
+ * Own keys only: a stored plan such as "constructor" must not read Object.prototype.
  */
 export function getCCPlanConfig(ccplan: string | null | undefined): CCPlanBadgeConfig | null {
   if (!ccplan) return null;
@@ -58,8 +58,8 @@ export function getCCPlanConfig(ccplan: string | null | undefined): CCPlanBadgeC
   const normalized = ccplan.toLowerCase();
 
   // Exact match
-  if (CCPLAN_CONFIG[normalized]) {
-    return CCPLAN_CONFIG[normalized];
+  if (Object.hasOwn(CCPLAN_CONFIG, normalized)) {
+    return CCPLAN_CONFIG[normalized] ?? null;
   }
 
   // Return fallback for unknown plans
