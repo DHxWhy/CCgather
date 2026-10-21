@@ -40,7 +40,7 @@ export function CCplanBadge({ ccplan, size = "md" }: CCplanBadgeProps) {
         }}
       >
         <span className={iconSizes[size]}>{config.icon}</span>
-        <span className="uppercase">{ccplan}</span>
+        <span className="uppercase">{config.short ?? ccplan}</span>
       </span>
 
       {/* Tooltip popover */}

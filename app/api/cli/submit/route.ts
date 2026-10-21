@@ -12,6 +12,7 @@ import {
 import { aggregateByDate } from "@/lib/utils/usage-aggregation";
 import { earliestSubmittedDate, floorSessionsToStored } from "@/lib/utils/submit-merge-policy";
 import { computeDayCost, getPricingData, resolveDayCost } from "@/lib/services/pricing";
+import { isKnownPlanKey, normalizeSubmittedPlan } from "@/lib/services/auth-plan";
 import { requestPricingCheck, unpricedClaudeModels } from "@/lib/services/pricing-dispatch";
 import type { PriceCache } from "@/lib/services/pricing";
 import { parseValidationMode } from "@/lib/config/validation-thresholds";
@@ -107,7 +108,6 @@ interface SubmitPayload {
 }
 
 // Known CCplan values
-const KNOWN_CCPLANS = ["free", "pro", "max", "team", "enterprise"];
 
 interface AuthenticatedUser {
   id: string;
@@ -1092,14 +1092,14 @@ export async function POST(request: NextRequest) {
       updateData.primary_model_updated_at = new Date().toISOString();
     }
 
-    // Update ccplan if provided
-    if (body.ccplan) {
-      const normalizedCcplan = body.ccplan.toLowerCase();
-      updateData.ccplan = normalizedCcplan;
+    // Update ccplan if provided (null keeps the stored plan)
+    const submittedPlan = normalizeSubmittedPlan(body);
+    if (submittedPlan) {
+      updateData.ccplan = submittedPlan;
       updateData.ccplan_updated_at = new Date().toISOString();
 
       // Log unknown ccplan values for discovery (Team/Enterprise patterns)
-      if (!KNOWN_CCPLANS.includes(normalizedCcplan)) {
+      if (!isKnownPlanKey(submittedPlan)) {
         console.log(
           `[CLI Submit] Unknown ccplan discovered: "${body.ccplan}" (raw: "${body.rawSubscriptionType}", auth: "${body.authMethod}") for user ${authenticatedUser.username}`
         );

@@ -14,19 +14,31 @@ export type CCPlanFilter = "all" | "free" | "pro" | "max" | "team" | "enterprise
 
 // CCplan badge configuration
 interface CCPlanBadgeConfig {
-  name: string;
+  name: string; // full label, as Claude Code shows it
+  short?: string; // badge text
   icon: string;
   color: string;
 }
 
 // Known CCplan configurations - For badge display only (v2.0)
 export const CCPLAN_CONFIG: Record<string, CCPlanBadgeConfig> = {
-  free: { name: "Free", icon: "⚪", color: "#6B7280" },
-  pro: { name: "Pro", icon: "⚡", color: "#3B82F6" },
-  max: { name: "Max", icon: "🚀", color: "#F59E0B" },
-  team: { name: "Team", icon: "👥", color: "#8B5CF6" },
-  enterprise: { name: "Enterprise", icon: "🏢", color: "#10B981" },
-  api: { name: "API", icon: "🔑", color: "#EC4899" },
+  free: { name: "Free", short: "Free", icon: "⚪", color: "#6B7280" },
+  pro: { name: "Claude Pro", short: "Pro", icon: "⚡", color: "#3B82F6" },
+  max: { name: "Claude Max", short: "Max", icon: "🚀", color: "#F59E0B" },
+  team: { name: "Claude Team", short: "Team", icon: "👥", color: "#8B5CF6" },
+  enterprise: { name: "Claude Enterprise", short: "Enterprise", icon: "🏢", color: "#10B981" },
+  api: { name: "Claude API", short: "API", icon: "🔑", color: "#EC4899" },
+  bedrock: { name: "Amazon Bedrock", short: "Bedrock", icon: "☁️", color: "#F97316" },
+  vertex: { name: "Google Vertex AI", short: "Vertex AI", icon: "☁️", color: "#0EA5E9" },
+  foundry: { name: "Microsoft Foundry", short: "Foundry", icon: "☁️", color: "#6366F1" },
+  aws_platform: { name: "Claude Platform on AWS", short: "AWS", icon: "☁️", color: "#F97316" },
+  gcp_platform: {
+    name: "Claude Platform on Google Cloud",
+    short: "Google Cloud",
+    icon: "☁️",
+    color: "#0EA5E9",
+  },
+  mantle: { name: "Amazon Bedrock (Mantle)", short: "Mantle", icon: "☁️", color: "#F97316" },
 };
 
 // Fallback config for unknown plans
