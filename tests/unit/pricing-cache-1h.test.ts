@@ -1,17 +1,28 @@
 import { describe, it, expect } from "vitest";
 import { cacheWrite1hRate, extractClaudePricing, getModelPricing } from "@/lib/services/pricing";
+import type { PricingTable } from "@/lib/services/official-pricing";
+import snapshot from "@/lib/constants/claude-pricing.json";
 
 // 1-hour cache writes cost 2x the base input price; 5-minute writes cost 1.25x
 // (platform.claude.com/docs/en/about-claude/pricing, "Prompt caching").
 describe("1-hour cache write rate", () => {
+  // Compared with the snapshot entry, not a copied number: the hourly sync rewrites the
+  // snapshot when the official table changes, and a pinned price would fail that gate.
   it("comes from the official snapshot when the model is listed", () => {
-    expect(cacheWrite1hRate(getModelPricing("claude-opus-5-5", null))).toBe(8);
-    expect(cacheWrite1hRate(getModelPricing("claude-fable-5-1", null))).toBe(20);
+    const listed = (snapshot.models as PricingTable)["claude-opus-5-5"];
+    expect(listed?.cacheWrite1h).toBeDefined();
+    expect(getModelPricing("claude-opus-5-5", null)).toEqual(listed);
+  });
+
+  it("uses a listed price as it is, even when it is not twice the input", () => {
+    expect(
+      cacheWrite1hRate({ input: 4, output: 20, cacheWrite: 5, cacheWrite1h: 9, cacheRead: 0.2 })
+    ).toBe(9);
   });
 
   it("is twice the input price for a model only the fallback table knows", () => {
-    expect(cacheWrite1hRate(getModelPricing("anthropic.claude-opus-5-6", null))).toBe(8);
-    expect(cacheWrite1hRate(getModelPricing("claude-opus-5-7-20261001", null))).toBe(8);
+    expect(cacheWrite1hRate(getModelPricing("anthropic.claude-opus-5-18-20991231", null))).toBe(8);
+    expect(cacheWrite1hRate(getModelPricing("claude-opus-5-19", null))).toBe(8);
     expect(cacheWrite1hRate(getModelPricing("claude-opus-4-9", null))).toBe(10);
     expect(cacheWrite1hRate(getModelPricing("some-unknown-model", null))).toBe(6);
   });
