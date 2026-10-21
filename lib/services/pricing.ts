@@ -493,6 +493,10 @@ const NO_TOKENS: TokenCounts = {
  * billing them to a pricier model than `primary_model` reports: cost inflation
  * with no visible signal. The clamp holds even if the upstream price table
  * stops having one model that is priciest on all four token types.
+ * The 1h and fast shares are claims the server cannot check either: they must fit
+ * inside each model's own tokens and the clamp reads the day with them, so at worst
+ * they bill declared tokens at a declared model's fast or 1h rate (up to 6x on Opus
+ * 4.6/4.7). A day with a fast share is annotated V10_fast_mode_share for review.
  * Summed unrounded, rounded once — per-model rounding drops sub-cent models.
  */
 export function computeDayCostByModel(
