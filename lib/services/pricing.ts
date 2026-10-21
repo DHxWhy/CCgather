@@ -124,8 +124,9 @@ function stripProviderPrefix(key: string): string {
   return key;
 }
 
-function isFiniteNumber(value: unknown): value is number {
-  return typeof value === "number" && Number.isFinite(value);
+// LiteLLM is a third-party file: a price cell must be a finite, non-negative number.
+function isPrice(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value) && value >= 0;
 }
 
 export function extractClaudePricing(
@@ -139,24 +140,23 @@ export function extractClaudePricing(
 
     const inputCostPerToken = value.input_cost_per_token;
     const outputCostPerToken = value.output_cost_per_token;
-    if (!isFiniteNumber(inputCostPerToken) || !isFiniteNumber(outputCostPerToken)) continue;
+    if (!isPrice(inputCostPerToken) || !isPrice(outputCostPerToken)) continue;
 
     const input = inputCostPerToken * 1_000_000;
     const output = outputCostPerToken * 1_000_000;
 
-    const cacheWritePerToken = value.cache_creation_input_token_cost as number | undefined;
-    const cacheWrite1hPerToken = value.cache_creation_input_token_cost_above_1hr as
-      number | undefined;
-    const cacheReadPerToken = value.cache_read_input_token_cost as number | undefined;
+    const cacheWritePerToken = value.cache_creation_input_token_cost;
+    const cacheWrite1hPerToken = value.cache_creation_input_token_cost_above_1hr;
+    const cacheReadPerToken = value.cache_read_input_token_cost;
 
-    const cacheWrite = cacheWritePerToken != null ? cacheWritePerToken * 1_000_000 : input * 1.25;
-    const cacheRead = cacheReadPerToken != null ? cacheReadPerToken * 1_000_000 : input * 0.1;
+    const cacheWrite = isPrice(cacheWritePerToken) ? cacheWritePerToken * 1_000_000 : input * 1.25;
+    const cacheRead = isPrice(cacheReadPerToken) ? cacheReadPerToken * 1_000_000 : input * 0.1;
 
     const pricing: ModelPricing = {
       input: Math.round(input * 1000) / 1000,
       output: Math.round(output * 1000) / 1000,
       cacheWrite: Math.round(cacheWrite * 1000) / 1000,
-      ...(cacheWrite1hPerToken != null
+      ...(isPrice(cacheWrite1hPerToken)
         ? { cacheWrite1h: Math.round(cacheWrite1hPerToken * 1_000_000 * 1000) / 1000 }
         : {}),
       cacheRead: Math.round(cacheRead * 1000) / 1000,
@@ -354,8 +354,12 @@ export function computeDayCost(
   inputs: DayCostInputs
 ): number {
   const model = inputs.model || "default";
-  const price = matchModel(model, pricingData);
+  const cost = costAt(matchModel(model, pricingData), inputs);
+  // A non-finite figure means a bad price slipped in: price at the built-in table instead.
+  return Number.isFinite(cost) ? cost : costAt(fallbackForModel(model), inputs);
+}
 
+function costAt(price: ModelPricing, inputs: DayCostInputs): number {
   const inputCost = (inputs.inputTokens / 1_000_000) * price.input;
   const outputCost = (inputs.outputTokens / 1_000_000) * price.output;
   const cacheWriteCost = (inputs.cacheWriteTokens / 1_000_000) * price.cacheWrite;

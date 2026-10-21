@@ -10,6 +10,7 @@
  *   4. Conservative — only flag what we are highly confident is wrong
  */
 
+import { fastModeMultiplier } from "./pricing";
 import {
   CACHE_RATIO_SKIP_THRESHOLD,
   CACHE_TO_PRIMARY_RATIO_MAX,
@@ -307,26 +308,33 @@ export function validateCacheRatio(day: DailyUsageInput): Flag[] {
 /**
  * V10: fast-mode share. A fast share raises a day's cost (up to 6x on Opus 4.6/4.7)
  * while its token totals stay the same, and the share is the client's own claim — so
- * a day that carries one is annotated where an admin can see it. INFO: fast mode is a
- * real Claude Code feature, so the review status does not change.
+ * a day that carries one on a model with a fast premium is annotated in
+ * validation_flags. INFO: fast mode is a real Claude Code feature, so the review
+ * status does not change. 1-hour cache shares are not annotated: most days have them.
  */
 export function validateFastShare(day: DailyUsageInput): Flag[] {
   const split = day.modelTokens;
   if (split === null || typeof split !== "object" || Array.isArray(split)) return [];
   let fastTokens = 0;
-  for (const value of Object.values(split as Record<string, unknown>)) {
+  let topMultiplier = 1;
+  for (const [model, value] of Object.entries(split as Record<string, unknown>)) {
+    const multiplier = fastModeMultiplier(model);
+    if (multiplier <= 1) continue;
     const fast = (value as { fast?: unknown } | null)?.fast;
     if (fast === null || typeof fast !== "object") continue;
     const f = fast as Record<string, unknown>;
-    fastTokens +=
+    const tokens =
       num(f.inputTokens) + num(f.outputTokens) + num(f.cacheWriteTokens) + num(f.cacheReadTokens);
+    if (tokens <= 0) continue;
+    fastTokens += tokens;
+    topMultiplier = Math.max(topMultiplier, multiplier);
   }
   if (fastTokens <= 0) return [];
   return [
     {
       code: "V10_fast_mode_share",
       severity: "INFO",
-      detail: `fast ${fastTokens} of ${num(day.tokens)} tokens`,
+      detail: `fast ${fastTokens} of ${num(day.tokens)} tokens, up to ${topMultiplier}x`,
     },
   ];
 }
