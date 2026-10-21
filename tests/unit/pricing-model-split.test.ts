@@ -1,5 +1,9 @@
 import { describe, it, expect } from "vitest";
-import { computeDayCost, computeDayCostByModel } from "../../lib/services/pricing";
+import {
+  computeDayCost,
+  computeDayCostByModel,
+  fastModeMultiplier,
+} from "../../lib/services/pricing";
 
 const M = 1_000_000;
 
@@ -409,5 +413,108 @@ describe("computeDayCostByModel", () => {
       expect(perModel).not.toBeNull();
       expect(perModel!).toBeLessThanOrEqual(ceiling);
     });
+  });
+});
+
+describe("1-hour cache writes and fast mode", () => {
+  const zero = { inputTokens: 0, outputTokens: 0, cacheWriteTokens: 0, cacheReadTokens: 0 };
+
+  function oneModelDay(model: string, split: Record<string, unknown>) {
+    const base = { ...zero, ...split } as typeof zero;
+    const declared =
+      base.inputTokens + base.outputTokens + base.cacheWriteTokens + base.cacheReadTokens;
+    return computeDayCostByModel(null, {
+      modelTokens: { [model]: split },
+      declaredModels: { [model]: declared },
+      dayTotals: {
+        inputTokens: base.inputTokens,
+        outputTokens: base.outputTokens,
+        cacheWriteTokens: base.cacheWriteTokens,
+        cacheReadTokens: base.cacheReadTokens,
+      },
+    });
+  }
+
+  it("prices 1-hour cache writes at the 1h rate", () => {
+    expect(
+      oneModelDay("claude-opus-5-5", {
+        ...zero,
+        cacheWriteTokens: 1 * M,
+        cacheWrite1hTokens: 1 * M,
+      })
+    ).toBe(8);
+  });
+
+  it("splits a day's cache writes between the 5m and 1h rates", () => {
+    expect(
+      oneModelDay("claude-opus-5-5", {
+        ...zero,
+        cacheWriteTokens: 1 * M,
+        cacheWrite1hTokens: 600_000,
+      })
+    ).toBe(6.8);
+  });
+
+  it("prices a split without the new fields exactly as before", () => {
+    expect(oneModelDay("claude-opus-5-5", { ...zero, cacheWriteTokens: 1 * M })).toBe(5);
+  });
+
+  it("multiplies fast-mode tokens by the model's fast multiplier", () => {
+    const tokens = { ...zero, inputTokens: 1 * M, outputTokens: 1 * M };
+    expect(oneModelDay("claude-opus-5-5", { ...tokens, fast: tokens })).toBe(48);
+    expect(oneModelDay("claude-opus-4-6", { ...tokens, fast: tokens })).toBe(180);
+    expect(oneModelDay("claude-sonnet-4-6", { ...tokens, fast: tokens })).toBe(18);
+  });
+
+  it("adds the fast premium only on the fast part of a model's tokens", () => {
+    const tokens = { ...zero, inputTokens: 1 * M, outputTokens: 1 * M };
+    const half = { ...zero, inputTokens: 500_000, outputTokens: 500_000 };
+    expect(oneModelDay("claude-opus-5-5", { ...tokens, fast: half })).toBe(36);
+  });
+
+  it("knows the official fast multipliers", () => {
+    expect(fastModeMultiplier("claude-opus-5-5")).toBe(2);
+    expect(fastModeMultiplier("claude-opus-5")).toBe(2);
+    expect(fastModeMultiplier("claude-opus-4-8")).toBe(2);
+    expect(fastModeMultiplier("claude-opus-4-7")).toBe(6);
+    expect(fastModeMultiplier("anthropic.claude-opus-4-6-v1:0")).toBe(6);
+    expect(fastModeMultiplier("claude-opus-5-20261001")).toBe(2);
+    expect(fastModeMultiplier("claude-sonnet-5-5")).toBe(1);
+  });
+
+  it("rejects a 1h share larger than the model's cache writes", () => {
+    expect(
+      oneModelDay("claude-opus-5-5", { ...zero, cacheWriteTokens: 100, cacheWrite1hTokens: 101 })
+    ).toBeNull();
+  });
+
+  it("rejects a fast share larger than the model's tokens", () => {
+    const tokens = { ...zero, inputTokens: 1 * M, outputTokens: 1 * M };
+    expect(
+      oneModelDay("claude-opus-5-5", { ...tokens, fast: { ...tokens, inputTokens: 2 * M } })
+    ).toBeNull();
+  });
+
+  it("rejects a fast 1h share larger than the model's 1h share", () => {
+    const tokens = { ...zero, cacheWriteTokens: 1 * M, cacheWrite1hTokens: 100 };
+    expect(
+      oneModelDay("claude-opus-5-5", {
+        ...tokens,
+        fast: { ...zero, cacheWriteTokens: 1 * M, cacheWrite1hTokens: 200 },
+      })
+    ).toBeNull();
+  });
+
+  it("still clamps a fast premium to the priciest single-model reading of the day", () => {
+    const fastDay = { ...zero, inputTokens: 1 * M, outputTokens: 1 * M };
+    const cost = computeDayCostByModel(null, {
+      modelTokens: {
+        "claude-opus-4-6": { ...fastDay, fast: fastDay },
+        "claude-haiku-4-5": { ...zero, inputTokens: 1 * M },
+      },
+      declaredModels: { "claude-opus-4-6": 2 * M, "claude-haiku-4-5": 1 * M },
+      dayTotals: { ...zero, inputTokens: 2 * M, outputTokens: 1 * M },
+    });
+    expect(cost).toBe(180 + 1);
   });
 });

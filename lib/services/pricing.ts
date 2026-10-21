@@ -18,6 +18,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 
 import officialSnapshot from "@/lib/constants/claude-pricing.json";
+import { FAST_MODE_MULTIPLIERS } from "@/lib/services/fast-mode";
 import type { PricingSnapshot } from "@/lib/services/official-pricing";
 
 const LITELLM_PRICING_URL =
@@ -348,11 +349,23 @@ export function computeDayCost(
   return Math.round((inputCost + outputCost + cacheWriteCost + cacheReadCost) * 100) / 100;
 }
 
-export interface ModelTokenSplit {
+interface TokenCounts {
   inputTokens: number;
   outputTokens: number;
   cacheWriteTokens: number;
   cacheReadTokens: number;
+  cacheWrite1hTokens?: number; // the part of cacheWriteTokens written to the 1-hour cache
+}
+
+export interface ModelTokenSplit extends TokenCounts {
+  fast?: TokenCounts; // the part of this model's tokens sent in fast mode
+}
+
+export function fastModeMultiplier(model: string): number {
+  const id = stripProviderPrefix(model.toLowerCase())
+    .replace(/-v\d+:\d+$/, "")
+    .replace(/-\d{8}$/, "");
+  return (FAST_MODE_MULTIPLIERS as Record<string, number>)[id] ?? 1;
 }
 
 export type PriceCache = Map<string, ModelPricing>;
@@ -371,7 +384,7 @@ function isTokenCount(v: unknown): v is number {
   return typeof v === "number" && Number.isFinite(v) && v >= 0;
 }
 
-function readSplit(value: unknown): ModelTokenSplit | null {
+function readCounts(value: unknown): TokenCounts | null {
   if (value === null || typeof value !== "object") return null;
   const v = value as Record<string, unknown>;
   if (
@@ -382,22 +395,75 @@ function readSplit(value: unknown): ModelTokenSplit | null {
   ) {
     return null;
   }
-  return {
+  const counts: TokenCounts = {
     inputTokens: v.inputTokens,
     outputTokens: v.outputTokens,
     cacheWriteTokens: v.cacheWriteTokens,
     cacheReadTokens: v.cacheReadTokens,
   };
+  if (v.cacheWrite1hTokens !== undefined) {
+    if (!isTokenCount(v.cacheWrite1hTokens) || v.cacheWrite1hTokens > v.cacheWriteTokens) {
+      return null;
+    }
+    counts.cacheWrite1hTokens = v.cacheWrite1hTokens;
+  }
+  return counts;
 }
 
-function rawCost(price: ModelPricing, t: ModelTokenSplit): number {
+// The 1h and fast parts are sub-shares of the model's own tokens: a share larger
+// than its whole would bill tokens that were never declared.
+function readSplit(value: unknown): ModelTokenSplit | null {
+  const counts = readCounts(value);
+  if (!counts) return null;
+  const fastValue = (value as Record<string, unknown>).fast;
+  if (fastValue === undefined) return counts;
+
+  const fast = readCounts(fastValue);
+  if (
+    !fast ||
+    fast.inputTokens > counts.inputTokens ||
+    fast.outputTokens > counts.outputTokens ||
+    fast.cacheWriteTokens > counts.cacheWriteTokens ||
+    fast.cacheReadTokens > counts.cacheReadTokens ||
+    (fast.cacheWrite1hTokens ?? 0) > (counts.cacheWrite1hTokens ?? 0)
+  ) {
+    return null;
+  }
+  return { ...counts, fast };
+}
+
+function rawCost(price: ModelPricing, t: TokenCounts): number {
+  const oneHour = t.cacheWrite1hTokens ?? 0;
   return (
     (t.inputTokens / 1_000_000) * price.input +
     (t.outputTokens / 1_000_000) * price.output +
-    (t.cacheWriteTokens / 1_000_000) * price.cacheWrite +
+    ((t.cacheWriteTokens - oneHour) / 1_000_000) * price.cacheWrite +
+    (oneHour / 1_000_000) * cacheWrite1hRate(price) +
     (t.cacheReadTokens / 1_000_000) * price.cacheRead
   );
 }
+
+function splitCost(price: ModelPricing, multiplier: number, split: ModelTokenSplit): number {
+  const base = rawCost(price, split);
+  return split.fast ? base + (multiplier - 1) * rawCost(price, split.fast) : base;
+}
+
+function addCounts(a: TokenCounts, b: TokenCounts): TokenCounts {
+  return {
+    inputTokens: a.inputTokens + b.inputTokens,
+    outputTokens: a.outputTokens + b.outputTokens,
+    cacheWriteTokens: a.cacheWriteTokens + b.cacheWriteTokens,
+    cacheReadTokens: a.cacheReadTokens + b.cacheReadTokens,
+    cacheWrite1hTokens: (a.cacheWrite1hTokens ?? 0) + (b.cacheWrite1hTokens ?? 0),
+  };
+}
+
+const NO_TOKENS: TokenCounts = {
+  inputTokens: 0,
+  outputTokens: 0,
+  cacheWriteTokens: 0,
+  cacheReadTokens: 0,
+};
 
 /**
  * Price a day per model; returns null when the split can't be trusted so the
@@ -485,14 +551,24 @@ export function computeDayCostByModel(
     return price;
   };
 
+  // The day as a whole, with its 1h and fast shares, read as each billed model.
+  let dayOneHour = 0;
+  let dayFast = NO_TOKENS;
+  for (const { split } of splits) {
+    dayOneHour += split.cacheWrite1hTokens ?? 0;
+    if (split.fast) dayFast = addCounts(dayFast, split.fast);
+  }
+  const wholeDay: ModelTokenSplit = { ...dayTotals, cacheWrite1hTokens: dayOneHour, fast: dayFast };
+
   let total = 0;
   let ceiling = 0;
   for (const { model, split } of splits) {
     const price = priceOf(model);
-    total += rawCost(price, split);
+    const multiplier = fastModeMultiplier(model);
+    total += splitCost(price, multiplier, split);
     // Ceiling spans only the models actually being billed: a model declared with
     // zero tokens must not be able to raise the cap it is clamped against.
-    ceiling = Math.max(ceiling, rawCost(price, dayTotals));
+    ceiling = Math.max(ceiling, splitCost(price, multiplier, wholeDay));
   }
 
   return Math.round(Math.min(total, ceiling) * 100) / 100;
