@@ -12,8 +12,11 @@ export interface OfficialModelPricing {
   input: number; // USD per million tokens
   output: number;
   cacheWrite: number; // 5-minute cache write
+  cacheWrite1h?: number; // 1-hour cache write
   cacheRead: number;
 }
+
+const PRICE_FIELDS = ["input", "output", "cacheWrite", "cacheWrite1h", "cacheRead"] as const;
 
 export type PricingTable = Record<string, OfficialModelPricing>;
 
@@ -63,7 +66,7 @@ export function parseOfficialPricing(markdown: string): PricingTable {
     if (!line.trim().startsWith("|")) continue;
     const cells = line.split("|").slice(1, -1);
     if (cells.length < 6) continue;
-    const [modelCell, inputCell, write5mCell, , readCell, outputCell] = cells;
+    const [modelCell, inputCell, write5mCell, write1hCell, readCell, outputCell] = cells;
     const id = modelNameToId(modelCell ?? "");
     if (!id) continue;
     // A model split by prompt length (Haiku 5.5: "up to" / "over 100,000 tokens") appears
@@ -72,10 +75,17 @@ export function parseOfficialPricing(markdown: string): PricingTable {
     if (models[id]) continue;
     const input = parseDollars(inputCell ?? "");
     const cacheWrite = parseDollars(write5mCell ?? "");
+    const cacheWrite1h = parseDollars(write1hCell ?? "");
     const cacheRead = parseDollars(readCell ?? "");
     const output = parseDollars(outputCell ?? "");
     if (input == null || output == null || cacheWrite == null || cacheRead == null) continue;
-    models[id] = { input, output, cacheWrite, cacheRead };
+    models[id] = {
+      input,
+      output,
+      cacheWrite,
+      ...(cacheWrite1h != null ? { cacheWrite1h } : {}),
+      cacheRead,
+    };
   }
   return models;
 }
@@ -83,7 +93,13 @@ export function parseOfficialPricing(markdown: string): PricingTable {
 export interface SnapshotDiff {
   added: string[];
   removed: string[];
-  changed: { id: string; field: keyof OfficialModelPricing; from: number; to: number }[];
+  // null = the field was not published on that side (a column appearing or disappearing)
+  changed: {
+    id: string;
+    field: keyof OfficialModelPricing;
+    from: number | null;
+    to: number | null;
+  }[];
 }
 
 export function diffPricing(prev: PricingTable, next: PricingTable): SnapshotDiff {
@@ -93,8 +109,10 @@ export function diffPricing(prev: PricingTable, next: PricingTable): SnapshotDif
   for (const [id, n] of Object.entries(next)) {
     const p = prev[id];
     if (!p) continue;
-    for (const field of ["input", "output", "cacheWrite", "cacheRead"] as const) {
-      if (p[field] !== n[field]) changed.push({ id, field, from: p[field], to: n[field] });
+    for (const field of PRICE_FIELDS) {
+      const from = p[field] ?? null;
+      const to = n[field] ?? null;
+      if (from !== to) changed.push({ id, field, from, to });
     }
   }
   return { added, removed, changed };
@@ -124,7 +142,10 @@ export function checkSnapshot(
   if (count < MIN_MODELS) blockers.push(`parsed only ${count} models (< ${MIN_MODELS})`);
 
   for (const [id, p] of Object.entries(next)) {
-    if (!(p.input > 0 && p.output > 0 && p.cacheWrite > 0 && p.cacheRead > 0)) {
+    if (
+      !(p.input > 0 && p.output > 0 && p.cacheWrite > 0 && p.cacheRead > 0) ||
+      (p.cacheWrite1h !== undefined && !(p.cacheWrite1h > 0))
+    ) {
       blockers.push(`${id}: non-positive price`);
     }
     if (p.cacheRead > p.input || p.output < p.input) {
@@ -139,6 +160,11 @@ export function checkSnapshot(
   const diff = diffPricing(prev, next);
   for (const id of diff.removed) blockers.push(`${id}: removed from the official table`);
   for (const c of diff.changed) {
+    if (c.from === null) continue; // a newly published column, like a new model, passes
+    if (c.to === null) {
+      blockers.push(`${c.id}.${c.field}: dropped from the official table`);
+      continue;
+    }
     const ratio = Math.abs(c.to - c.from) / c.from;
     if (ratio > MAX_PRICE_CHANGE_RATIO) {
       blockers.push(`${c.id}.${c.field}: ${c.from} → ${c.to} (>${MAX_PRICE_CHANGE_RATIO * 100}%)`);
@@ -153,9 +179,12 @@ export function checkSnapshot(
         if (added.has(id)) warnings.push(`${id}: not listed on LiteLLM yet`);
         continue;
       }
-      for (const field of ["input", "output", "cacheWrite", "cacheRead"] as const) {
-        if (Math.abs(l[field] - p[field]) > 1e-6) {
-          warnings.push(`${id}.${field}: official ${p[field]} vs LiteLLM ${l[field]}`);
+      for (const field of PRICE_FIELDS) {
+        const official = p[field];
+        const other = l[field];
+        if (official === undefined || other === undefined) continue;
+        if (Math.abs(other - official) > 1e-6) {
+          warnings.push(`${id}.${field}: official ${official} vs LiteLLM ${other}`);
         }
       }
     }

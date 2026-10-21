@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   checkSnapshot,
+  diffPricing,
   MIN_MODELS,
   modelNameToId,
   parseOfficialPricing,
@@ -45,14 +46,27 @@ describe("parseOfficialPricing", () => {
   });
 
   it("reads the per-model cache-read exceptions from the table itself", () => {
-    expect(t["claude-opus-5-5"]).toEqual({ input: 4, output: 20, cacheWrite: 5, cacheRead: 0.2 });
+    expect(t["claude-opus-5-5"]).toEqual({
+      input: 4,
+      output: 20,
+      cacheWrite: 5,
+      cacheWrite1h: 8,
+      cacheRead: 0.2,
+    });
     expect(t["claude-fable-5-1"]?.cacheRead).toBe(0.25);
     expect(t["claude-haiku-3-5"]).toEqual({
       input: 0.8,
       output: 4,
       cacheWrite: 1,
+      cacheWrite1h: 1.6,
       cacheRead: 0.08,
     });
+  });
+
+  it("reads the 1-hour cache write column", () => {
+    expect(t["claude-fable-5-1"]?.cacheWrite1h).toBe(20);
+    expect(t["claude-opus-4-1"]?.cacheWrite1h).toBe(30);
+    expect(t["claude-sonnet-5"]?.cacheWrite1h).toBe(4);
   });
 
   it("keeps the first row when a model is split by prompt length (Haiku 5.5 tiers)", () => {
@@ -62,6 +76,7 @@ describe("parseOfficialPricing", () => {
       input: 0.1,
       output: 0.5,
       cacheWrite: 0.125,
+      cacheWrite1h: 0.2,
       cacheRead: 0.01,
     });
   });
@@ -121,6 +136,30 @@ describe("checkSnapshot", () => {
     expect(checkSnapshot(base, small, null).ok).toBe(true);
   });
 
+  it("reports a newly published 1h cache column without blocking", () => {
+    const next: PricingTable = Object.fromEntries(
+      Object.entries(base).map(([id, p]) => [id, { ...p, cacheWrite1h: 10 }])
+    );
+    const changed = diffPricing(base, next).changed;
+    expect(changed).toHaveLength(MIN_MODELS);
+    expect(changed[0]).toEqual({
+      id: "claude-opus-4-5",
+      field: "cacheWrite1h",
+      from: null,
+      to: 10,
+    });
+    expect(checkSnapshot(base, next, null).ok).toBe(true);
+  });
+
+  it("blocks a 1h cache column that disappears", () => {
+    const withOneHour: PricingTable = Object.fromEntries(
+      Object.entries(base).map(([id, p]) => [id, { ...p, cacheWrite1h: 10 }])
+    );
+    expect(checkSnapshot(withOneHour, base, null).blockers).toContain(
+      "claude-opus-4-5.cacheWrite1h: dropped from the official table"
+    );
+  });
+
   it("warns on a new family and on LiteLLM disagreement without blocking", () => {
     const next = {
       ...base,
@@ -138,6 +177,12 @@ describe("committed snapshot", () => {
   it("passes its own safety checks", () => {
     const models = snapshot.models as PricingTable;
     expect(checkSnapshot(models, models, null).blockers).toEqual([]);
+  });
+
+  it("lists a 1h cache write price for every model, above its 5m price", () => {
+    for (const [id, p] of Object.entries(snapshot.models as PricingTable)) {
+      expect(p.cacheWrite1h, id).toBeGreaterThan(p.cacheWrite);
+    }
   });
 
   it("wins over a wrong LiteLLM price", () => {

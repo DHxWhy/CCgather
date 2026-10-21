@@ -28,8 +28,14 @@ const FETCH_TIMEOUT_MS = 5000;
 interface ModelPricing {
   input: number; // per million tokens
   output: number;
-  cacheWrite: number;
+  cacheWrite: number; // 5-minute cache write
+  cacheWrite1h?: number; // 1-hour cache write; cacheWrite1hRate() fills it in when absent
   cacheRead: number;
+}
+
+/** 1-hour cache writes cost 2x the base input price wherever no table lists them. */
+export function cacheWrite1hRate(price: ModelPricing): number {
+  return price.cacheWrite1h ?? price.input * 2;
 }
 
 // Fallback pricing — used ONLY when the LiteLLM fetch fails or the id has no
@@ -114,7 +120,7 @@ function stripProviderPrefix(key: string): string {
   return key;
 }
 
-function extractClaudePricing(
+export function extractClaudePricing(
   rawData: Record<string, Record<string, unknown>>
 ): Record<string, ModelPricing> {
   const result: Record<string, ModelPricing> = {};
@@ -131,6 +137,8 @@ function extractClaudePricing(
     const output = outputCostPerToken * 1_000_000;
 
     const cacheWritePerToken = value.cache_creation_input_token_cost as number | undefined;
+    const cacheWrite1hPerToken = value.cache_creation_input_token_cost_above_1hr as
+      number | undefined;
     const cacheReadPerToken = value.cache_read_input_token_cost as number | undefined;
 
     const cacheWrite = cacheWritePerToken != null ? cacheWritePerToken * 1_000_000 : input * 1.25;
@@ -140,6 +148,9 @@ function extractClaudePricing(
       input: Math.round(input * 1000) / 1000,
       output: Math.round(output * 1000) / 1000,
       cacheWrite: Math.round(cacheWrite * 1000) / 1000,
+      ...(cacheWrite1hPerToken != null
+        ? { cacheWrite1h: Math.round(cacheWrite1hPerToken * 1_000_000 * 1000) / 1000 }
+        : {}),
       cacheRead: Math.round(cacheRead * 1000) / 1000,
     };
 
@@ -297,6 +308,13 @@ function matchModel(model: string, pricingData: Record<string, ModelPricing> | n
   }
 
   return fallbackForModel(model);
+}
+
+export function getModelPricing(
+  model: string,
+  pricingData: Record<string, ModelPricing> | null
+): ModelPricing {
+  return matchModel(model, pricingData);
 }
 
 export interface DayCostInputs {

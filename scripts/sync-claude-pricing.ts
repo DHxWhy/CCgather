@@ -42,6 +42,9 @@ async function fetchLiteLLM(ids: string[]): Promise<PricingTable | null> {
         cacheWrite: v.cache_creation_input_token_cost
           ? perM(v.cache_creation_input_token_cost)
           : input * 1.25,
+        ...(v.cache_creation_input_token_cost_above_1hr
+          ? { cacheWrite1h: perM(v.cache_creation_input_token_cost_above_1hr) }
+          : {}),
         cacheRead: v.cache_read_input_token_cost
           ? perM(v.cache_read_input_token_cost)
           : input * 0.1,
