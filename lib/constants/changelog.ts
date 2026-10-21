@@ -16,6 +16,14 @@ export const CHANGELOG_CATEGORY = {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    id: "2026-10-21-feedback-replies-in-notifications",
+    date: "2026-10-21",
+    category: "fixed",
+    title: "Replies to your bug reports now show in notifications",
+    summary:
+      "When we update a bug report or feature request you sent, the notification now says whether it is being reviewed, resolved or closed, and opens to show our reply under your original message. Before, it appeared as a generic system announcement and the reply never showed, in the bell or on the notifications page.",
+  },
+  {
     id: "2026-10-19-cli-large-transcripts",
     date: "2026-10-19",
     category: "fixed",

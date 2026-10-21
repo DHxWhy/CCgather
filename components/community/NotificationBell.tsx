@@ -12,10 +12,14 @@ import {
   TrendingUp,
   Megaphone,
   Check,
+  Clock,
+  CheckCircle2,
+  X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatDistanceToNowStrict } from "date-fns";
 import { useNotificationSound } from "@/hooks/use-notification-sound";
+import { getNotificationDetail } from "@/lib/notifications/display";
 import Link from "next/link";
 
 // =====================================================
@@ -115,6 +119,21 @@ const NOTIFICATION_CONFIG: Record<string, NotificationConfigItem> = {
     icon: Megaphone,
     color: "text-[var(--color-claude-coral)]",
     getMessage: () => "Your weekly digest is ready",
+  },
+  feedback_in_progress: {
+    icon: Clock,
+    color: "text-amber-300",
+    getMessage: (_actor, notification) => notification?.title || "Your feedback is being reviewed",
+  },
+  feedback_resolved: {
+    icon: CheckCircle2,
+    color: "text-emerald-300",
+    getMessage: (_actor, notification) => notification?.title || "Your feedback has been resolved!",
+  },
+  feedback_closed: {
+    icon: X,
+    color: "text-white/55",
+    getMessage: (_actor, notification) => notification?.title || "Your feedback has been closed",
   },
 };
 
@@ -253,7 +272,7 @@ export default function NotificationBell({ className }: NotificationBellProps) {
   const [clearingId, setClearingId] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
-  // Handle notification click - mark as read + expand system notices
+  // Handle notification click - mark as read + expand system notices and feedback replies
   const handleNotificationClick = (notification: Notification) => {
     if (!notification.is_read) {
       setClearingId(notification.id);
@@ -263,8 +282,7 @@ export default function NotificationBell({ className }: NotificationBellProps) {
       }, 300);
     }
 
-    // Expandable notifications (system_notice with body)
-    if (notification.type === "system_notice" && notification.body) {
+    if (getNotificationDetail(notification)) {
       setExpandedId((prev) => (prev === notification.id ? null : notification.id));
     }
   };
@@ -334,6 +352,7 @@ export default function NotificationBell({ className }: NotificationBellProps) {
                   const config = getNotificationConfig(notification.type);
                   const Icon = config.icon;
                   const isClearing = clearingId === notification.id;
+                  const detail = getNotificationDetail(notification);
 
                   return (
                     <motion.button
@@ -392,16 +411,21 @@ export default function NotificationBell({ className }: NotificationBellProps) {
                           {config.getMessage(notification.actor, notification)}
                         </p>
                         <AnimatePresence>
-                          {expandedId === notification.id && notification.body && (
-                            <motion.p
+                          {expandedId === notification.id && detail && (
+                            <motion.span
                               initial={{ height: 0, opacity: 0 }}
                               animate={{ height: "auto", opacity: 1 }}
                               exit={{ height: 0, opacity: 0 }}
                               transition={{ duration: 0.2 }}
-                              className="text-[11px] text-[var(--color-text-secondary)] mt-1.5 leading-relaxed overflow-hidden select-text cursor-text"
+                              className="block text-[11px] text-[var(--color-text-secondary)] mt-1.5 leading-relaxed overflow-hidden select-text cursor-text"
                             >
-                              {notification.body}
-                            </motion.p>
+                              {detail.quotedFeedback && (
+                                <span className="block mb-1.5 pl-2 border-l border-white/15 italic text-[var(--color-text-muted)]">
+                                  {detail.quotedFeedback}
+                                </span>
+                              )}
+                              <span className="block whitespace-pre-line">{detail.text}</span>
+                            </motion.span>
                           )}
                         </AnimatePresence>
                         <p className="text-[10px] text-[var(--color-text-muted)] mt-0.5">

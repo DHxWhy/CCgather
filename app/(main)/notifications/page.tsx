@@ -17,10 +17,14 @@ import {
   Sparkles,
   Trash2,
   ChevronDown,
+  Clock,
+  CheckCircle2,
+  X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatDistanceToNowStrict } from "date-fns";
 import { BrandSpinner } from "@/components/shared/BrandSpinner";
+import { getNotificationDetail } from "@/lib/notifications/display";
 import Link from "next/link";
 
 // =====================================================
@@ -143,6 +147,27 @@ const NOTIFICATION_CONFIG: Record<string, NotificationConfigItem> = {
     getMessage: () => "Your weekly digest is ready",
     category: "system",
   },
+  feedback_in_progress: {
+    icon: Clock,
+    color: "text-amber-300",
+    bgColor: "bg-amber-300/10",
+    getMessage: (_actor, notification) => notification?.title || "Your feedback is being reviewed",
+    category: "system",
+  },
+  feedback_resolved: {
+    icon: CheckCircle2,
+    color: "text-emerald-300",
+    bgColor: "bg-emerald-300/10",
+    getMessage: (_actor, notification) => notification?.title || "Your feedback has been resolved!",
+    category: "system",
+  },
+  feedback_closed: {
+    icon: X,
+    color: "text-white/55",
+    bgColor: "bg-white/10",
+    getMessage: (_actor, notification) => notification?.title || "Your feedback has been closed",
+    category: "system",
+  },
 };
 
 // Short time format: "1h ago", "3d ago", "2m ago"
@@ -197,7 +222,8 @@ function NotificationItem({
   const [isExpanded, setIsExpanded] = useState(false);
   const config = getNotificationConfig(notification.type);
   const Icon = config.icon;
-  const isExpandable = notification.type === "system_notice" && notification.body;
+  const detail = getNotificationDetail(notification);
+  const isExpandable = detail !== null;
 
   const handleClick = () => {
     if (!notification.is_read) {
@@ -295,16 +321,21 @@ function NotificationItem({
             )}
           </div>
           <AnimatePresence>
-            {isExpanded && notification.body && (
-              <motion.p
+            {isExpanded && detail && (
+              <motion.span
                 initial={{ height: 0, opacity: 0 }}
                 animate={{ height: "auto", opacity: 1 }}
                 exit={{ height: 0, opacity: 0 }}
                 transition={{ duration: 0.2 }}
-                className="text-[11px] text-[var(--color-text-secondary)] mt-1.5 leading-relaxed overflow-hidden select-text cursor-text"
+                className="block text-[11px] text-[var(--color-text-secondary)] mt-1.5 leading-relaxed overflow-hidden select-text cursor-text"
               >
-                {notification.body}
-              </motion.p>
+                {detail.quotedFeedback && (
+                  <span className="block mb-1.5 pl-2 border-l border-white/15 italic text-[var(--color-text-muted)]">
+                    {detail.quotedFeedback}
+                  </span>
+                )}
+                <span className="block whitespace-pre-line">{detail.text}</span>
+              </motion.span>
             )}
           </AnimatePresence>
           <p className="text-[10px] text-[var(--color-text-muted)] mt-0.5">
