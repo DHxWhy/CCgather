@@ -685,6 +685,7 @@ export async function POST(request: NextRequest) {
               outputTokens: day.outputTokens || 0,
               cacheReadTokens: day.cacheReadTokens || 0,
               cacheWriteTokens: day.cacheWriteTokens || 0,
+              modelTokens: day.modelTokens,
             });
           } catch (validationError) {
             // Narrow to message only — raw error could carry payload fragments (PII).

@@ -124,6 +124,10 @@ function stripProviderPrefix(key: string): string {
   return key;
 }
 
+function isFiniteNumber(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value);
+}
+
 export function extractClaudePricing(
   rawData: Record<string, Record<string, unknown>>
 ): Record<string, ModelPricing> {
@@ -133,9 +137,9 @@ export function extractClaudePricing(
     const normalized = stripProviderPrefix(key);
     if (!normalized.startsWith("claude-")) continue;
 
-    const inputCostPerToken = value.input_cost_per_token as number | undefined;
-    const outputCostPerToken = value.output_cost_per_token as number | undefined;
-    if (inputCostPerToken == null || outputCostPerToken == null) continue;
+    const inputCostPerToken = value.input_cost_per_token;
+    const outputCostPerToken = value.output_cost_per_token;
+    if (!isFiniteNumber(inputCostPerToken) || !isFiniteNumber(outputCostPerToken)) continue;
 
     const input = inputCostPerToken * 1_000_000;
     const output = outputCostPerToken * 1_000_000;
@@ -256,10 +260,21 @@ function fallbackForModel(model: string): ModelPricing {
 // before LiteLLM: it is the vendor's own number, and LiteLLM can lag a launch.
 const OFFICIAL_PRICING: Record<string, ModelPricing> = (officialSnapshot as PricingSnapshot).models;
 
+// Model ids come from the client: a name like "constructor" must not resolve to an
+// Object.prototype member, so every table is read through its own keys only.
+function ownPrice(
+  table: Record<string, ModelPricing> | null,
+  key: string
+): ModelPricing | undefined {
+  return table !== null && Object.hasOwn(table, key) ? table[key] : undefined;
+}
+
 function officialPricing(model: string): ModelPricing | null {
   const normalized = stripProviderPrefix(model);
   const withoutVersion = normalized.replace(/-v\d+:\d+$/, "").replace(/-\d{8}$/, "");
-  return OFFICIAL_PRICING[normalized] ?? OFFICIAL_PRICING[withoutVersion] ?? null;
+  return (
+    ownPrice(OFFICIAL_PRICING, normalized) ?? ownPrice(OFFICIAL_PRICING, withoutVersion) ?? null
+  );
 }
 
 export function hasOfficialPricing(model: string): boolean {
@@ -273,14 +288,14 @@ function matchModel(model: string, pricingData: Record<string, ModelPricing> | n
   if (pricingData) {
     const normalized = stripProviderPrefix(model);
 
-    if (pricingData[model]) return pricingData[model];
-    if (pricingData[normalized]) return pricingData[normalized];
-
     const withoutDate = normalized.replace(/-\d{8}$/, "");
-    if (pricingData[withoutDate]) return pricingData[withoutDate];
-
     const withoutVersion = normalized.replace(/-v\d+:\d+$/, "").replace(/-\d{8}$/, "");
-    if (pricingData[withoutVersion]) return pricingData[withoutVersion];
+    const exact =
+      ownPrice(pricingData, model) ??
+      ownPrice(pricingData, normalized) ??
+      ownPrice(pricingData, withoutDate) ??
+      ownPrice(pricingData, withoutVersion);
+    if (exact) return exact;
 
     // ★ Opus tier 가드 (Diana 발견, 2026-05-29): 아래 fuzzy startsWith 루프가
     // 합성키 "claude-opus-4"(레거시 $15/$75)로 신규 minor("claude-opus-4-8" 등)를
@@ -365,7 +380,9 @@ export function fastModeMultiplier(model: string): number {
   const id = stripProviderPrefix(model.toLowerCase())
     .replace(/-v\d+:\d+$/, "")
     .replace(/-\d{8}$/, "");
-  return (FAST_MODE_MULTIPLIERS as Record<string, number>)[id] ?? 1;
+  return Object.hasOwn(FAST_MODE_MULTIPLIERS, id)
+    ? FAST_MODE_MULTIPLIERS[id as keyof typeof FAST_MODE_MULTIPLIERS]
+    : 1;
 }
 
 export type PriceCache = Map<string, ModelPricing>;
@@ -571,6 +588,8 @@ export function computeDayCostByModel(
     ceiling = Math.max(ceiling, splitCost(price, multiplier, wholeDay));
   }
 
+  // A non-finite figure means a bad price slipped in: refuse, so the caller falls back.
+  if (!Number.isFinite(total) || !Number.isFinite(ceiling)) return null;
   return Math.round(Math.min(total, ceiling) * 100) / 100;
 }
 

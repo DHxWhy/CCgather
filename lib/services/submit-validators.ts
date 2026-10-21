@@ -36,6 +36,7 @@ export interface DailyUsageInput {
   outputTokens?: number;
   cacheReadTokens?: number;
   cacheWriteTokens?: number;
+  modelTokens?: unknown;
 }
 
 export interface SubmitPayloadInput {
@@ -304,6 +305,33 @@ export function validateCacheRatio(day: DailyUsageInput): Flag[] {
 }
 
 /**
+ * V10: fast-mode share. A fast share raises a day's cost (up to 6x on Opus 4.6/4.7)
+ * while its token totals stay the same, and the share is the client's own claim — so
+ * a day that carries one is annotated where an admin can see it. INFO: fast mode is a
+ * real Claude Code feature, so the review status does not change.
+ */
+export function validateFastShare(day: DailyUsageInput): Flag[] {
+  const split = day.modelTokens;
+  if (split === null || typeof split !== "object" || Array.isArray(split)) return [];
+  let fastTokens = 0;
+  for (const value of Object.values(split as Record<string, unknown>)) {
+    const fast = (value as { fast?: unknown } | null)?.fast;
+    if (fast === null || typeof fast !== "object") continue;
+    const f = fast as Record<string, unknown>;
+    fastTokens +=
+      num(f.inputTokens) + num(f.outputTokens) + num(f.cacheWriteTokens) + num(f.cacheReadTokens);
+  }
+  if (fastTokens <= 0) return [];
+  return [
+    {
+      code: "V10_fast_mode_share",
+      severity: "INFO",
+      detail: `fast ${fastTokens} of ${num(day.tokens)} tokens`,
+    },
+  ];
+}
+
+/**
  * V2-aggregate: detect "same-date split" bypass attempts.
  *
  * Attack scenario: send dailyUsage = [{date:"X", tokens:30B}, {date:"X", tokens:30B}].
@@ -367,6 +395,7 @@ export function validateSingleDay(day: DailyUsageInput, today: string = todayUTC
     ...validateDate(day, today),
     ...validateDailyCap(day),
     ...validateCacheRatio(day),
+    ...validateFastShare(day),
   ];
 }
 

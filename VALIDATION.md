@@ -49,6 +49,7 @@ validators. **None of these block the submission** — they annotate it.
 | `V2_aggregate_*` | same date split across multiple entries to dodge a per-day check | SOFT |
 | `V4_future_date` | dates beyond today (UTC, +1 day buffer) | *(advisory)* |
 | `V6_cache_ratio_high` | cache-read share far beyond what real heavy-cache users show | SOFT |
+| `V10_fast_mode_share` | the day's per-model split claims fast-mode tokens (billed at up to 6x) | INFO |
 | `V8` / `V9` | payload shape & numeric overflow guards | *(advisory)* |
 
 Thresholds are calibrated against real heavy-user data and carry a wide safety
