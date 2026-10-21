@@ -160,6 +160,50 @@ describe("checkSnapshot", () => {
     );
   });
 
+  it("blocks a model missing its 1h price while the others list one", () => {
+    const next: PricingTable = Object.fromEntries(
+      Object.entries(base).map(([id, p]) => [id, { ...p, cacheWrite1h: 10 }])
+    );
+    next["claude-opus-5-5"] = { input: 4, output: 20, cacheWrite: 5, cacheRead: 0.2 };
+    expect(checkSnapshot(base, next, null).blockers).toContain(
+      "claude-opus-5-5: missing 1h cache write price"
+    );
+  });
+
+  it("blocks a 1h price that is not above the 5m price", () => {
+    const next: PricingTable = Object.fromEntries(
+      Object.entries(base).map(([id, p]) => [id, { ...p, cacheWrite1h: 10 }])
+    );
+    next["claude-opus-4-5"] = {
+      input: 5,
+      output: 25,
+      cacheWrite: 6.25,
+      cacheWrite1h: 6.25,
+      cacheRead: 0.5,
+    };
+    expect(checkSnapshot(base, next, null).blockers).toContain(
+      "claude-opus-4-5: implausible 1h cache write 6.25 ≤ 5m 6.25"
+    );
+  });
+
+  it("cross-checks the 1h price against LiteLLM only when both list it", () => {
+    const next: PricingTable = Object.fromEntries(
+      Object.entries(base).map(([id, p]) => [id, { ...p, cacheWrite1h: 10 }])
+    );
+    const r = checkSnapshot(next, next, {
+      "claude-opus-4-5": {
+        input: 5,
+        output: 25,
+        cacheWrite: 6.25,
+        cacheWrite1h: 12,
+        cacheRead: 0.5,
+      },
+      "claude-opus-4-6": { input: 5, output: 25, cacheWrite: 6.25, cacheRead: 0.5 },
+    });
+    expect(r.ok).toBe(true);
+    expect(r.warnings).toEqual(["claude-opus-4-5.cacheWrite1h: official 10 vs LiteLLM 12"]);
+  });
+
   it("warns on a new family and on LiteLLM disagreement without blocking", () => {
     const next = {
       ...base,

@@ -35,7 +35,10 @@ interface ModelPricing {
 
 /** 1-hour cache writes cost 2x the base input price wherever no table lists them. */
 export function cacheWrite1hRate(price: ModelPricing): number {
-  return price.cacheWrite1h ?? price.input * 2;
+  const listed = price.cacheWrite1h;
+  return typeof listed === "number" && Number.isFinite(listed) && listed > 0
+    ? listed
+    : price.input * 2;
 }
 
 // Fallback pricing — used ONLY when the LiteLLM fetch fails or the id has no

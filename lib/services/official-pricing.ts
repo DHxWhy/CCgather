@@ -141,6 +141,18 @@ export function checkSnapshot(
 
   if (count < MIN_MODELS) blockers.push(`parsed only ${count} models (< ${MIN_MODELS})`);
 
+  // The committed-snapshot test requires both of these; blocking here keeps a page
+  // anomaly from reaching the test gate, which alerts hourly without deduplication.
+  const anyOneHour = Object.values(next).some((p) => p.cacheWrite1h !== undefined);
+  for (const [id, p] of Object.entries(next)) {
+    if (anyOneHour && p.cacheWrite1h === undefined) {
+      blockers.push(`${id}: missing 1h cache write price`);
+    }
+    if (p.cacheWrite1h !== undefined && p.cacheWrite1h <= p.cacheWrite) {
+      blockers.push(`${id}: implausible 1h cache write ${p.cacheWrite1h} ≤ 5m ${p.cacheWrite}`);
+    }
+  }
+
   for (const [id, p] of Object.entries(next)) {
     if (
       !(p.input > 0 && p.output > 0 && p.cacheWrite > 0 && p.cacheRead > 0) ||
