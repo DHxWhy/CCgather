@@ -13,6 +13,7 @@ describe("plan keys", () => {
 
   it("the CLI shows each plan by the site badge's short name", () => {
     for (const key of SENT_PLAN_KEYS) {
+      expect(PLAN_SHORT_NAMES[key], key).toBeDefined();
       expect(PLAN_SHORT_NAMES[key], key).toBe(CCPLAN_CONFIG[key]?.short);
     }
   });

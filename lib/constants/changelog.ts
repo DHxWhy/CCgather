@@ -29,7 +29,15 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
     category: "improved",
     title: "CLI v2.3.3 finds your other Claude Code folders and shows how you sign in",
     summary:
-      "The CLI now also reads Claude Code data folders beside ~/.claude, such as ~/.claude-work for a second account, and asks once before counting one it found (a session found twice counts once; Settings > Data folders asks again). A folder elsewhere counts when CLAUDE_CONFIG_DIR names it. Your plan badge follows how Claude Code signs you in, with its own names: API keys, Console logins and cloud providers show as such, never as Team, and signing in through an enterprise gateway leaves your badge as it is. Auto-submit jobs that run through npx pick up v2.3.3 on their next run; one set up with v2.3.0 or v2.3.1 or pinned with --pin needs npx ccgather autosubmit on once, and one set up from a global install updates with npm install -g ccgather.",
+      "The CLI now also reads Claude Code data folders beside ~/.claude, such as ~/.claude-work for a second account, and asks once before counting one it found (a session found twice counts once; Settings > Data folders asks again). A folder elsewhere counts when CLAUDE_CONFIG_DIR names it. Your plan badge follows how Claude Code signs you in: API keys and Console logins show as Claude API and cloud providers by name, never as Team, and an enterprise gateway sign-in leaves the badge as it is.",
+  },
+  {
+    id: "2026-10-22-cli-autosubmit-v2-3-3",
+    date: "2026-10-22",
+    category: "improved",
+    title: "Auto-submit and CLI v2.3.3: how jobs update and what they leave to you",
+    summary:
+      "Jobs that run through npx pick up v2.3.3 on their next run. A job set up from a global install updates with npm install -g ccgather; one set up with v2.3.0 or v2.3.1, or pinned with --pin, needs npx ccgather autosubmit on once. A scheduled run never asks about new data folders or reads your sign-in, so your badge and the folders it counts change only when you submit from npx ccgather in a terminal.",
   },
   {
     id: "2026-10-21-feedback-replies-in-notifications",

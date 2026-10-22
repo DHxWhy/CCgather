@@ -1046,7 +1046,7 @@ describe("submit({ nonInteractive: true })", () => {
       expect(body.rateLimitTier).toBe("default_claude_max_20x");
     });
 
-    it("shows a cloud plan in the summary by the site badge's short name", async () => {
+    it("an interactive submit shows a cloud plan by the site badge's short name", async () => {
       mocked.store.set("starConfirmed", true);
       mocked.readCredentials.mockReturnValueOnce({
         ccplan: "aws_platform",
