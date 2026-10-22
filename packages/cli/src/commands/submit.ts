@@ -122,6 +122,8 @@ interface SubmitResponse {
   newBadges?: BadgeInfo[];
   totalBadges?: number;
   error?: string;
+  code?: string; // the server's reason, e.g. DUPLICATE_SESSION
+  hint?: string; // the server's next step for the user
   retryAfterMinutes?: number;
   previous?: PreviousSubmission;
   deviceInfo?: DeviceInfo;
@@ -270,6 +272,7 @@ async function submitToServer(
     if (!response.ok) {
       const errorData = (await response.json().catch(() => ({}))) as {
         error?: string;
+        code?: string;
         retryAfterMinutes?: number;
         hint?: string;
       };
@@ -283,7 +286,12 @@ async function submitToServer(
         };
       }
 
-      return { success: false, error: errorData.error || `HTTP ${response.status}` };
+      return {
+        success: false,
+        error: errorData.error || `HTTP ${response.status}`,
+        code: errorData.code,
+        hint: errorData.hint,
+      };
     }
 
     const result = (await response.json()) as SubmitResponse;
@@ -477,7 +485,7 @@ async function confirmOtherClaudeDirs(config: Conf<CliConfig>): Promise<void> {
       name: "include",
       message:
         "Other Claude Code data folders found on this computer. Count them too? " +
-        "(CCgather treats one computer as one person)",
+        "(CCgather treats one computer as one person; a session found twice counts once)",
       choices: candidates.map((dir) => ({ name: dir, value: dir, checked: true })),
     },
   ]);
@@ -489,6 +497,14 @@ async function confirmOtherClaudeDirs(config: Conf<CliConfig>): Promise<void> {
     ...declinedClaudeDirs,
     ...candidates.filter((dir) => !chosen.includes(dir)),
   ]);
+}
+
+// The server refuses sessions another account already submitted. With extra data folders
+// counted, the likely cause is a folder that belongs to someone else's CCgather account.
+function duplicateSessionAdvice(config: Conf<CliConfig>, result: SubmitResponse): string | null {
+  if (result.code !== "DUPLICATE_SESSION") return null;
+  if ((config.get("claudeDirs") ?? []).length === 0) return null;
+  return "If a data folder you added belongs to another CCgather account, choose folders again: npx ccgather > Settings > Data folders.";
 }
 
 /**
@@ -786,8 +802,10 @@ export async function submit(options: SubmitOptions = {}): Promise<void> {
         true
       );
     } else {
+      const advice = duplicateSessionAdvice(config, result);
+      const reason = (result.error || "Unknown error").replace(/\.$/, "");
       report(
-        `Failed to submit: ${result.error || "Unknown error"}.`,
+        `Failed to submit: ${reason}.${advice ? ` ${advice}` : ""}`,
         `failed: ${result.error || "unknown error"}`,
         true
       );
@@ -1029,6 +1047,9 @@ export async function submit(options: SubmitOptions = {}): Promise<void> {
     } else {
       submitSpinner?.fail(colors.error("Failed to submit"));
       console.log(`\n  ${error(result.error || "Unknown error")}`);
+      if (result.hint) console.log(`  ${colors.muted(result.hint)}`);
+      const advice = duplicateSessionAdvice(config, result);
+      if (advice) console.log(`  ${colors.muted(advice)}`);
     }
     console.log();
     process.exit(1);

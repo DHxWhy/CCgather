@@ -375,6 +375,36 @@ describe("submit({ nonInteractive: true })", () => {
     expect(mocked.store.get("lastSync")).toBe(INITIAL_LAST_SYNC);
   });
 
+  it("points to Data folders when another account owns sessions from an added folder", async () => {
+    const duplicate = () =>
+      json(409, {
+        error: "These sessions have already been submitted by another account.",
+        hint: "Each project's data can only be submitted by one account (1 Project 1 Person).",
+        code: "DUPLICATE_SESSION",
+      });
+    routes.submit = duplicate;
+    mocked.store.set("claudeDirs", [path.join(mocked.home, ".claude-work")]);
+
+    expect(await runSubmit()).toBe(1);
+
+    expectSingleError(
+      "Failed to submit: These sessions have already been submitted by another account. If a data folder you added belongs to another CCgather account, choose folders again: npx ccgather > Settings > Data folders."
+    );
+  });
+
+  it("leaves the Data folders advice out when no folder was added", async () => {
+    routes.submit = () =>
+      json(409, {
+        error: "These sessions have already been submitted by another account.",
+        code: "DUPLICATE_SESSION",
+      });
+
+    expect(await runSubmit()).toBe(1);
+
+    expect(errors[0]).toContain("These sessions have already been submitted by another account.");
+    expect(errors[0]).not.toContain("Data folders");
+  });
+
   it("exits 1 when the server rejects the submission", async () => {
     routes.submit = () => json(503, { error: "Service unavailable" });
 
