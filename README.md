@@ -230,8 +230,8 @@ Let the CLI set up the daily job for you, using your operating system's own sche
 
 ```bash
 npx ccgather@latest autosubmit on             # turn it on, or update/repair it
-npx ccgather autosubmit status                # what the scheduler has, and what the last run did
-npx ccgather autosubmit off                   # remove it
+npx ccgather@latest autosubmit status         # what the scheduler has, and what the last run did
+npx ccgather@latest autosubmit off            # remove it
 npx ccgather@latest autosubmit on --at 21:30  # pick the time yourself
 ```
 
@@ -257,7 +257,7 @@ When turning it on, you are offered the GitHub star prompt unless you have alrea
 <tr><td>Linux</td><td>systemd user timer <code>ccgather-autosubmit.timer</code>, or a marked crontab line where systemd user sessions are not available</td><td><code>journalctl --user -u ccgather-autosubmit</code>, or <code>~/.local/state/ccgather/autosubmit.log</code> with cron</td></tr>
 </table>
 
-The macOS setup is covered by tests but has not yet been run on a real Mac; Windows and Linux (systemd and cron) have. If the job misbehaves, `npx ccgather autosubmit off` removes it.
+The macOS setup is covered by tests but has not yet been run on a real Mac; Windows and Linux (systemd and cron) have. If the job misbehaves, `npx ccgather@latest autosubmit off` removes it.
 
 Set up through `npx`, the job runs the newest ccgather release each day (`npx --yes ccgather@latest`), so upgrades reach it on their own; `--pin` keeps it on the version you set it up with, and running `on` again moves it. A global install runs its own copy and follows `npm install -g ccgather`; `--auto-update` makes even a global install run `ccgather@latest`. Jobs created through `npx` with v2.3.0 or v2.3.1 are pinned to that version: run `npx ccgather@latest autosubmit on` once to update them (an npm older than 9.6.5 keeps running a cached copy of `npx ccgather` without `@latest`).
 

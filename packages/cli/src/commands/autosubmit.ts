@@ -94,7 +94,7 @@ function backendFor(context: AutosubmitContext): Backend {
 
 // What the user types to reach this command: a global install runs `ccgather`
 function commandPrefix(kind: JobCommand["kind"] | undefined): string {
-  return kind === "global" ? "ccgather autosubmit" : "npx ccgather autosubmit";
+  return kind === "global" ? "ccgather autosubmit" : "npx ccgather@latest autosubmit";
 }
 
 function describeRuns(kind: JobCommand["kind"], spec?: string): string {
@@ -308,7 +308,7 @@ export function formatStatus(
   if (!status.registered) {
     const lines = ["Auto-submit: OFF"];
     if (status.state) lines.push(row("State", status.state));
-    lines.push("  Turn it on with: npx ccgather autosubmit on");
+    lines.push("  Turn it on with: npx ccgather@latest autosubmit on");
     return lines;
   }
 

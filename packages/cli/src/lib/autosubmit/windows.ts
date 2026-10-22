@@ -71,7 +71,7 @@ export function assertLaunchable(values: string[]): void {
   for (const value of values) {
     if (value.includes("%")) {
       throw new Error(
-        `Cannot schedule ${value} because it contains "%", which Windows would expand as an environment variable. Move it to a folder without "%" and run \`npx ccgather autosubmit on\` again.`
+        `Cannot schedule ${value} because it contains "%", which Windows would expand as an environment variable. Move it to a folder without "%" and run \`npx ccgather@latest autosubmit on\` again.`
       );
     }
     if (value.includes('"')) {
@@ -105,7 +105,7 @@ export function buildLauncher(argv: string[], log: string): string {
   return [
     "// ccgather autosubmit launcher, written by `ccgather autosubmit`.",
     `// The ${JOB_NAME} scheduled task runs it with wscript.exe so the job starts`,
-    "// without a console window. Run `npx ccgather autosubmit on` again to rewrite it.",
+    "// without a console window. Run `npx ccgather@latest autosubmit on` again to rewrite it.",
     `// ccgather-argv: ${JSON.stringify(argv).replace(/[^\x20-\x7e]/g, unicodeEscape)}`,
     "var shell = new ActiveXObject('WScript.Shell');",
     "// Task Scheduler builds PATH from the registry, which fnm and profile-only",
@@ -153,7 +153,7 @@ export function buildTaskXml(options: TaskXmlOptions): string {
     '<?xml version="1.0" encoding="UTF-16"?>',
     '<Task version="1.2" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">',
     "  <RegistrationInfo>",
-    `    <Description>Submits your Claude Code usage to CCgather once a day. Created by ccgather autosubmit; remove it with: npx ccgather autosubmit off</Description>`,
+    `    <Description>Submits your Claude Code usage to CCgather once a day. Created by ccgather autosubmit; remove it with: npx ccgather@latest autosubmit off</Description>`,
     "  </RegistrationInfo>",
     "  <Triggers>",
     "    <CalendarTrigger>",

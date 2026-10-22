@@ -156,16 +156,16 @@ describe("folder wording", () => {
 
   it("counts the folders waiting for an answer in the no-sessions hint", () => {
     expect(unconfirmedFoldersHint(1)).toBe(
-      "1 other data folder found; run `npx ccgather` once to choose it."
+      "1 other data folder found; run `npx ccgather@latest` once to choose it."
     );
     expect(unconfirmedFoldersHint(3)).toBe(
-      "3 other data folders found; run `npx ccgather` once to choose them."
+      "3 other data folders found; run `npx ccgather@latest` once to choose them."
     );
   });
 
   it("tells how to leave out a folder that belongs to another account", () => {
     expect(DUPLICATE_SESSION_ADVICE).toBe(
-      "If a data folder you added belongs to another CCgather account, choose folders again and uncheck it: npx ccgather > Settings > Data folders."
+      "If a data folder you added belongs to another CCgather account, choose folders again and uncheck it: npx ccgather@latest > Settings > Data folders."
     );
     expect(SHELL_FOLDER_ADVICE).toBe(
       "If that folder is named in CLAUDE_CONFIG_DIR, CCgather counts it whenever that variable names it, so choose folders and submit in a terminal where CLAUDE_CONFIG_DIR leaves it out."

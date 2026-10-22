@@ -68,7 +68,7 @@ describe("Windows task XML", () => {
         '<?xml version="1.0" encoding="UTF-16"?>',
         '<Task version="1.2" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">',
         "  <RegistrationInfo>",
-        "    <Description>Submits your Claude Code usage to CCgather once a day. Created by ccgather autosubmit; remove it with: npx ccgather autosubmit off</Description>",
+        "    <Description>Submits your Claude Code usage to CCgather once a day. Created by ccgather autosubmit; remove it with: npx ccgather@latest autosubmit off</Description>",
         "  </RegistrationInfo>",
         "  <Triggers>",
         "    <CalendarTrigger>",
@@ -153,7 +153,7 @@ describe("Windows launcher and cmd line", () => {
       [
         "// ccgather autosubmit launcher, written by `ccgather autosubmit`.",
         "// The ccgather-autosubmit scheduled task runs it with wscript.exe so the job starts",
-        "// without a console window. Run `npx ccgather autosubmit on` again to rewrite it.",
+        "// without a console window. Run `npx ccgather@latest autosubmit on` again to rewrite it.",
         String.raw`// ccgather-argv: ["C:\\Program Files\\nodejs\\node.exe","C:\\Program Files\\nodejs\\node_modules\\npm\\bin\\npx-cli.js","--yes","ccgather@2.1.1","submit","--scheduled"]`,
         "var shell = new ActiveXObject('WScript.Shell');",
         "// Task Scheduler builds PATH from the registry, which fnm and profile-only",

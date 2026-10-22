@@ -185,7 +185,7 @@ describe("autosubmit on", () => {
     expect(mocked.store.get("autoSyncTime")).toBe("14:23");
     expect(logs).toEqual([
       ...FIRST_LINES,
-      "  Check: npx ccgather autosubmit status   Stop: npx ccgather autosubmit off",
+      "  Check: npx ccgather@latest autosubmit status   Stop: npx ccgather@latest autosubmit off",
       "  It runs the newest ccgather release each day. Add --pin to stay on this version.",
     ]);
   });
@@ -248,8 +248,8 @@ describe("autosubmit on", () => {
     );
     expect(logs).toEqual([
       ...FIRST_LINES,
-      "  Check: npx ccgather autosubmit status   Stop: npx ccgather autosubmit off",
-      "  Pinned to ccgather 2.2.0. Run `npx ccgather autosubmit on` again to move it to a newer release.",
+      "  Check: npx ccgather@latest autosubmit status   Stop: npx ccgather@latest autosubmit off",
+      "  Pinned to ccgather 2.2.0. Run `npx ccgather@latest autosubmit on` again to move it to a newer release.",
     ]);
   });
 
@@ -277,7 +277,7 @@ describe("autosubmit on", () => {
     );
     expect(logs).toEqual([
       ...FIRST_LINES,
-      "  Check: npx ccgather autosubmit status   Stop: npx ccgather autosubmit off",
+      "  Check: npx ccgather@latest autosubmit status   Stop: npx ccgather@latest autosubmit off",
       "  It runs the newest ccgather release each day, with access to your token.",
     ]);
   });
@@ -761,7 +761,7 @@ describe("formatStatus", () => {
   it("shows the off layout", () => {
     expect(formatStatus({ registered: false, scheduler: "cron", log: LOG }, exists, run)).toEqual([
       "Auto-submit: OFF",
-      "  Turn it on with: npx ccgather autosubmit on",
+      "  Turn it on with: npx ccgather@latest autosubmit on",
     ]);
   });
 
@@ -798,7 +798,7 @@ describe("formatStatus", () => {
   it("flags each missing path and says how to repair, by the command the job runs", () => {
     const missing = (file: string) => file !== NPX && file !== GLOBAL_ENTRY;
     expect(formatStatus(base, missing)).toContain(
-      `  Problem:   ${NPX} is missing. Run \`npx ccgather autosubmit on\` to repair.`
+      `  Problem:   ${NPX} is missing. Run \`npx ccgather@latest autosubmit on\` to repair.`
     );
     expect(formatStatus({ ...base, argv: GLOBAL }, missing)).toContain(
       `  Problem:   ${GLOBAL_ENTRY} is missing. Run \`ccgather autosubmit on\` to repair.`
@@ -808,7 +808,7 @@ describe("formatStatus", () => {
 
   it("asks to repair when the command cannot be read", () => {
     expect(formatStatus({ ...base, argv: undefined }, exists)).toContain(
-      "  Problem:   could not read the command it runs. Run `npx ccgather autosubmit on` to repair."
+      "  Problem:   could not read the command it runs. Run `npx ccgather@latest autosubmit on` to repair."
     );
   });
 
@@ -917,7 +917,10 @@ describe("formatStatus", () => {
 
     it("prints the off layout when the scheduler has no job", async () => {
       await autosubmitStatus({ backend: fakeBackend() });
-      expect(logs).toEqual(["Auto-submit: OFF", "  Turn it on with: npx ccgather autosubmit on"]);
+      expect(logs).toEqual([
+        "Auto-submit: OFF",
+        "  Turn it on with: npx ccgather@latest autosubmit on",
+      ]);
     });
   });
 });

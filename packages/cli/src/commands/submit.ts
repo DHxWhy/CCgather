@@ -145,7 +145,7 @@ export const COUNTING_NOTICE =
 
 /** Added to a refused submit when another account owns sessions and extra folders are read. */
 export const DUPLICATE_SESSION_ADVICE =
-  "If a data folder you added belongs to another CCgather account, choose folders again and uncheck it: npx ccgather > Settings > Data folders.";
+  "If a data folder you added belongs to another CCgather account, choose folders again and uncheck it: npx ccgather@latest > Settings > Data folders.";
 
 /** Added to that advice while CLAUDE_CONFIG_DIR names other folders: they are saved again each time. */
 export const SHELL_FOLDER_ADVICE =
@@ -163,8 +163,8 @@ export function otherFoldersQuestion(count: number): string {
 /** Added when a non-interactive run finds no sessions but data folders wait for an answer. */
 export function unconfirmedFoldersHint(count: number): string {
   return count === 1
-    ? "1 other data folder found; run `npx ccgather` once to choose it."
-    : `${count} other data folders found; run \`npx ccgather\` once to choose them.`;
+    ? "1 other data folder found; run `npx ccgather@latest` once to choose it."
+    : `${count} other data folders found; run \`npx ccgather@latest\` once to choose them.`;
 }
 
 /** Shown after Settings > Data folders forgets the folder answers. */

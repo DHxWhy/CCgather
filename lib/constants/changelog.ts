@@ -37,7 +37,7 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
     category: "improved",
     title: "Scheduled submits and CLI v2.3.3: how they update and what they leave to you",
     summary:
-      "npx ccgather autosubmit status shows what your auto-submit job runs: one that runs the newest ccgather release picks up v2.3.3 on its next run, one that runs your global install of ccgather updates with npm install -g ccgather, and one that runs a set version such as ccgather@2.3.1 needs npx ccgather@latest autosubmit on once (add --pin to keep one). Auto-submit never asks about new data folders or reads your Claude Code sign-in, so a folder found later waits for the menu of npx ccgather@latest and your badge for a submit by hand. A cron or Task Scheduler job you set up yourself to run npx ccgather@latest submit, as the README shows, picks up v2.3.3 too and does not ask about folders either, but it reports the sign-in it sees there, which can miss your shell's API key or provider settings.",
+      "npx ccgather@latest autosubmit status shows what your auto-submit job runs: one that runs the newest ccgather release picks up v2.3.3 on its next run, one that runs your global install of ccgather updates with npm install -g ccgather, and one that runs a set version such as ccgather@2.3.1 needs npx ccgather@latest autosubmit on once (add --pin to keep one). Auto-submit never asks about new data folders or reads your Claude Code sign-in, so a folder found later waits for the menu of npx ccgather@latest and your badge for a submit by hand. A cron or Task Scheduler job you set up yourself to run npx ccgather@latest submit, as the README shows, picks up v2.3.3 too and does not ask about folders either, but it reports the sign-in it sees there, which can miss your shell's API key or provider settings.",
   },
   {
     id: "2026-10-21-feedback-replies-in-notifications",
@@ -61,7 +61,7 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
     category: "new",
     title: "Auto-submit: one command keeps your Claude Code usage current",
     summary:
-      "npx ccgather autosubmit on registers a daily job with your operating system's own scheduler (Task Scheduler, launchd, systemd or cron) that runs the CLI's prompt-free submit. It picks the time you turned it on plus five minutes so submissions spread out, catches up after a day the machine was off, skips a run within 20 hours of your last submit, and autosubmit status shows what the last run did. The main menu has the same toggle as its second item. In CLI v2.3.0, contributed by michael-huffaker.",
+      "npx ccgather@latest autosubmit on registers a daily job with your operating system's own scheduler (Task Scheduler, launchd, systemd or cron) that runs the CLI's prompt-free submit. It picks the time you turned it on plus five minutes so submissions spread out, catches up after a day the machine was off, skips a run within 20 hours of your last submit, and autosubmit status shows what the last run did. The main menu has the same toggle as its second item. In CLI v2.3.0, contributed by michael-huffaker.",
   },
   {
     id: "2026-10-12-cli-workflow-journal-sessions",
