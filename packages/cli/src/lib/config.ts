@@ -21,6 +21,8 @@ export interface CliConfig {
   // Other Claude Code data folders on this computer (asked once): counted / left out
   claudeDirs?: string[];
   declinedClaudeDirs?: string[];
+  // Set once the CLI has told an interactive user that 2.3.3 counts usage like ccusage
+  countingNoticeShown?: boolean;
 }
 
 const defaults: CliConfig = {

@@ -133,6 +133,10 @@ interface SubmitResponse {
   accumulatedCost?: number;
 }
 
+/** Shown once, after the first interactive submit with this version. */
+export const COUNTING_NOTICE =
+  "This version counts usage the way ccusage does: your token total can rise a little and your cost more (1-hour cache writes, fast mode). Details: What's new on ccgather.com.";
+
 /** How long a non-interactive request may wait for the server before it is abandoned */
 const NON_INTERACTIVE_TIMEOUT_MS = 120_000;
 
@@ -865,6 +869,13 @@ export async function submit(options: SubmitOptions = {}): Promise<void> {
     submitSpinner?.succeed(colors.success("Successfully submitted!"));
     config.set("lastSync", new Date().toISOString());
     console.log();
+
+    // Once per computer: 2.3.3 counts usage like ccusage, so the numbers can move
+    if (config.get("countingNoticeShown") !== true) {
+      console.log(`  ${colors.muted(COUNTING_NOTICE)}`);
+      console.log();
+      config.set("countingNoticeShown", true);
+    }
 
     // Section header with trailing line (aligned to box width: 48 = 2 indent + 46 content + 2 borders)
     const sectionHeader = (icon: string, title: string) => {

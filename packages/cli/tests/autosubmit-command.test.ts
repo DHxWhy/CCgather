@@ -303,6 +303,27 @@ describe("autosubmit on", () => {
   describe("when it is already on", () => {
     const on = { registered: true, time: { hour: 20, minute: 15 }, argv: LATEST };
 
+    it("still saves the shell's CLAUDE_CONFIG_DIR folders for the job", async () => {
+      const fs = await import("fs");
+      const os = await import("os");
+      const path = await import("path");
+      const dir = fs.mkdtempSync(path.join(os.tmpdir(), "ccgather-shell-dir-"));
+      fs.mkdirSync(path.join(dir, "projects"));
+      vi.stubEnv("CLAUDE_CONFIG_DIR", dir);
+      try {
+        await autosubmitEnable(
+          {},
+          { backend: fakeBackend(on), resolveDeps: fakeDeps(), now: AT_14_17, isTTY: false }
+        );
+
+        expect(mocked.store.get("claudeDirs")).toEqual([dir]);
+        expect(logs.at(-1)).toBe(`  Scheduled submits will also read ${dir} (CLAUDE_CONFIG_DIR).`);
+      } finally {
+        vi.unstubAllEnvs();
+        fs.rmSync(dir, { recursive: true, force: true });
+      }
+    });
+
     it("re-registers at the same time and says so, without a star prompt", async () => {
       const backend = fakeBackend(on);
       const promptStar = vi.fn(async () => undefined);

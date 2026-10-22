@@ -215,14 +215,16 @@ describe("saveShellClaudeDirs", () => {
     };
     const a = dataDir("work-a");
     const b = dataDir("work-b");
+    const kept = dataDir("kept");
+    saved.set("claudeDirs", [kept]);
     saved.set("declinedClaudeDirs", [b, "/gone"]);
     const env = { CLAUDE_CONFIG_DIR: `${a},${b}` };
 
     expect(saveShellClaudeDirs(store, env, home, "linux")).toEqual([a, b]);
-    expect(saved.get("claudeDirs")).toEqual([a, b]);
+    expect(saved.get("claudeDirs")).toEqual([kept, a, b]);
     expect(saved.get("declinedClaudeDirs")).toEqual(["/gone"]);
     expect(saveShellClaudeDirs(store, env, home, "linux")).toEqual([]);
-    expect(saved.get("claudeDirs")).toEqual([a, b]);
+    expect(saved.get("claudeDirs")).toEqual([kept, a, b]);
   });
 });
 

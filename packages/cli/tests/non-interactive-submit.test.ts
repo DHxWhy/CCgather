@@ -13,6 +13,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
+import type { CredentialsData } from "../src/lib/credentials";
 
 const mocked = vi.hoisted(() => ({
   home: "",
@@ -25,7 +26,7 @@ const mocked = vi.hoisted(() => ({
     throw new Error("readline prompt must not be called");
   }),
   auth: vi.fn(async () => undefined),
-  readCredentials: vi.fn(() => ({
+  readCredentials: vi.fn((): CredentialsData => ({
     ccplan: null,
     rateLimitTier: null,
     authMethod: "unknown",
@@ -71,7 +72,7 @@ vi.mock("readline", async (importOriginal) => {
 
 vi.mock("../src/commands/auth", () => ({ auth: mocked.auth }));
 
-import { formatAgo, submit, SubmitOptions } from "../src/commands/submit";
+import { COUNTING_NOTICE, formatAgo, submit, SubmitOptions } from "../src/commands/submit";
 
 class ExitCalled extends Error {
   constructor(readonly code: number | string | null | undefined) {
@@ -676,6 +677,22 @@ describe("submit({ nonInteractive: true })", () => {
       expect(logs.filter((line) => line.includes(notice))).toHaveLength(1);
     });
 
+    it("names every shell folder it saves in one line", async () => {
+      const first = otherFolder();
+      const second = path.join(mocked.home, "work-two");
+      fs.mkdirSync(path.join(second, "projects"), { recursive: true });
+      vi.stubEnv("CLAUDE_CONFIG_DIR", `${first},${second}`);
+      mocked.store.set("starConfirmed", true);
+
+      expect(await runSubmit({ nonInteractive: false })).toBe(0);
+
+      expect(logs).toContainEqual(
+        expect.stringContaining(
+          `Scheduled submits will also read ${first}, ${second} (CLAUDE_CONFIG_DIR).`
+        )
+      );
+    });
+
     it("says nothing about shell folders when there are none", async () => {
       mocked.store.set("starConfirmed", true);
       expect(await runSubmit({ nonInteractive: false })).toBe(0);
@@ -774,6 +791,26 @@ describe("submit({ nonInteractive: true })", () => {
         expect(errors[0]).toContain(path.join(dir, "projects"));
       }
     });
+  });
+
+  it("tells an interactive user once that counting changed, never a scheduled run", async () => {
+    mocked.store.set("starConfirmed", true);
+    const shown = () => logs.filter((line) => line.includes(COUNTING_NOTICE)).length;
+
+    expect(await runSubmit({ nonInteractive: false })).toBe(0);
+    expect(shown()).toBe(1);
+    expect(mocked.store.get("countingNoticeShown")).toBe(true);
+
+    expect(await runSubmit({ nonInteractive: false })).toBe(0);
+    expect(shown()).toBe(1);
+  });
+
+  it("does not show the counting notice outside an interactive submit", async () => {
+    expect(await runSubmit()).toBe(0);
+    mocked.store.delete("lastSync");
+    expect(await runSubmit({ scheduled: true })).toBe(0);
+    expect(logs.some((line) => line.includes(COUNTING_NOTICE))).toBe(false);
+    expect(mocked.store.has("countingNoticeShown")).toBe(false);
   });
 
   it("interactive mode still reaches the star nudge", async () => {

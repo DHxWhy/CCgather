@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import * as os from "os";
 import { isolateEnvironment } from "./setup/isolation";
 
@@ -35,6 +35,25 @@ describe("test isolation", () => {
       for (const name of MUST_CLEAR) expect(process.env[name], name).toBeUndefined();
       expect(process.env.HOME).toBe("/tmp/isolated-home");
       expect(process.env.USERPROFILE).toBe("/tmp/isolated-home");
+    } finally {
+      for (const name of Object.keys(process.env)) {
+        if (!(name in before)) delete process.env[name];
+      }
+      Object.assign(process.env, before);
+    }
+  });
+
+  it("the setup file itself clears them when loaded under a polluted shell", async () => {
+    const before = { ...process.env };
+    try {
+      for (const name of MUST_CLEAR) process.env[name] = "/polluted";
+      process.env.HOME = "/polluted-home";
+      vi.resetModules();
+
+      await import("./setup/isolate-environment");
+
+      for (const name of MUST_CLEAR) expect(process.env[name], name).toBeUndefined();
+      expect(process.env.HOME).toMatch(/ccgather-test-home-/);
     } finally {
       for (const name of Object.keys(process.env)) {
         if (!(name in before)) delete process.env[name];
