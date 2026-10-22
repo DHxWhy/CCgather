@@ -225,8 +225,11 @@ describe("Windows launcher and cmd line", () => {
 
   it("says how to recover from a path with %, in full", () => {
     const node = String.raw`C:\100%\node.exe`;
+    // An Error compares the whole message; a string would only look for it inside
     expect(() => buildLauncher([node, "x.js"], WIN_LOG)).toThrow(
-      `Cannot schedule ${node} because it contains "%", which Windows would expand as an environment variable. Move it to a folder without "%" and run \`npx ccgather@latest autosubmit on\` again.`
+      new Error(
+        `Cannot schedule ${node} because it contains "%", which Windows would expand as an environment variable. Move it to a folder without "%" and run \`npx ccgather@latest autosubmit on\` again.`
+      )
     );
   });
 
