@@ -27,6 +27,7 @@ import {
   findCandidateClaudeDirs,
   resolveClaudeConfigDirs,
   saveShellClaudeDirs,
+  savedShellDirsNotice,
   shellOnlyClaudeDirs,
 } from "../src/lib/claude-dirs";
 import { scanAllProjects } from "../src/lib/ccgather-json";
@@ -225,6 +226,18 @@ describe("saveShellClaudeDirs", () => {
     expect(saved.get("declinedClaudeDirs")).toEqual(["/gone"]);
     expect(saveShellClaudeDirs(store, env, home, "linux")).toEqual([]);
     expect(saved.get("claudeDirs")).toEqual([kept, a, b]);
+  });
+});
+
+// The wording is written out here: the other tests build their expectation from this function
+describe("savedShellDirsNotice", () => {
+  it("names every saved folder, as it for one and them for more", () => {
+    expect(savedShellDirsNotice(["/w/a"])).toBe(
+      "Saved /w/a from CLAUDE_CONFIG_DIR: every submit on this computer counts it now."
+    );
+    expect(savedShellDirsNotice(["/w/a", "/w/b"])).toBe(
+      "Saved /w/a, /w/b from CLAUDE_CONFIG_DIR: every submit on this computer counts them now."
+    );
   });
 });
 

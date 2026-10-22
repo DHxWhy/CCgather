@@ -143,7 +143,27 @@ export const COUNTING_NOTICE =
 
 /** Added to a refused submit when another account owns sessions and extra folders are read. */
 export const DUPLICATE_SESSION_ADVICE =
-  "If a data folder you added belongs to another CCgather account, choose folders again and leave that one unchecked: npx ccgather > Settings > Data folders.";
+  "If a data folder you added belongs to another CCgather account, choose folders again and uncheck it: npx ccgather > Settings > Data folders.";
+
+/** Added to that advice while CLAUDE_CONFIG_DIR is set: its folders are saved again each time. */
+export const SHELL_FOLDER_ADVICE =
+  "Folders named in CLAUDE_CONFIG_DIR are always counted, so do this in a terminal without it.";
+
+/** The question about data folders found on disk. */
+export function otherFoldersQuestion(count: number): string {
+  const found =
+    count === 1
+      ? "Another Claude Code data folder found on this computer. Count it too?"
+      : "Other Claude Code data folders found on this computer. Count them too?";
+  return `${found} (CCgather treats one computer as one person; a session found twice counts once)`;
+}
+
+/** Added when a non-interactive run finds no sessions but data folders wait for an answer. */
+export function unconfirmedFoldersHint(count: number): string {
+  return count === 1
+    ? "1 other data folder found; run `npx ccgather` once to choose it."
+    : `${count} other data folders found; run \`npx ccgather\` once to choose them.`;
+}
 
 /** Shown after Settings > Data folders forgets the folder answers. */
 export const FOLDER_CHOICES_CLEARED =
@@ -497,9 +517,7 @@ async function confirmOtherClaudeDirs(config: Conf<CliConfig>): Promise<void> {
     {
       type: "checkbox",
       name: "include",
-      message:
-        "Other Claude Code data folders found on this computer. Count them too? " +
-        "(CCgather treats one computer as one person; a session found twice counts once)",
+      message: otherFoldersQuestion(candidates.length),
       choices: candidates.map((dir) => ({ name: dir, value: dir, checked: true })),
     },
   ]);
@@ -518,7 +536,9 @@ async function confirmOtherClaudeDirs(config: Conf<CliConfig>): Promise<void> {
 function duplicateSessionAdvice(config: Conf<CliConfig>, result: SubmitResponse): string | null {
   if (result.code !== "DUPLICATE_SESSION") return null;
   if ((config.get("claudeDirs") ?? []).length === 0) return null;
-  return DUPLICATE_SESSION_ADVICE;
+  return process.env.CLAUDE_CONFIG_DIR?.trim()
+    ? `${DUPLICATE_SESSION_ADVICE} ${SHELL_FOLDER_ADVICE}`
+    : DUPLICATE_SESSION_ADVICE;
 }
 
 /**
@@ -692,10 +712,7 @@ export async function submit(options: SubmitOptions = {}): Promise<void> {
         claudeDirs: config.get("claudeDirs") ?? [],
         declinedClaudeDirs: config.get("declinedClaudeDirs") ?? [],
       }).length;
-      const hint =
-        unconfirmed > 0
-          ? ` ${unconfirmed} other data folder(s) found; run \`npx ccgather\` once to choose them.`
-          : "";
+      const hint = unconfirmed > 0 ? ` ${unconfirmedFoldersHint(unconfirmed)}` : "";
       report(
         `No Claude Code sessions found (searched: ${searched}).${hint}`,
         "failed: no Claude Code sessions found",
@@ -881,9 +898,10 @@ export async function submit(options: SubmitOptions = {}): Promise<void> {
     console.log();
 
     // Once per computer: 2.3.3 counts usage like ccusage, so the numbers can move. A first
-    // submit has no earlier total to compare, so it only marks the notice as seen.
+    // submit has no earlier total to compare, so it only marks the notice as seen. The server's
+    // previous record also counts: CLI 2.0.x and older never saved lastSync.
     if (config.get("countingNoticeShown") !== true) {
-      if (starState.hasSubmittedBefore) {
+      if (starState.hasSubmittedBefore || result.previous) {
         console.log(`  ${colors.muted(COUNTING_NOTICE)}`);
         console.log();
       }

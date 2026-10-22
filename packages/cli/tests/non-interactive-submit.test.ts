@@ -76,8 +76,11 @@ import {
   COUNTING_NOTICE,
   DUPLICATE_SESSION_ADVICE,
   formatAgo,
+  otherFoldersQuestion,
+  SHELL_FOLDER_ADVICE,
   submit,
   SubmitOptions,
+  unconfirmedFoldersHint,
 } from "../src/commands/submit";
 import { savedShellDirsNotice } from "../src/lib/claude-dirs";
 
@@ -137,6 +140,37 @@ function restoreTTY(
     delete (stream as { isTTY?: boolean }).isTTY;
   }
 }
+
+// The wording is written out here: the other tests build their expectation from these
+describe("folder wording", () => {
+  it("asks about one folder as it and about several as them", () => {
+    const why = "(CCgather treats one computer as one person; a session found twice counts once)";
+    expect(otherFoldersQuestion(1)).toBe(
+      `Another Claude Code data folder found on this computer. Count it too? ${why}`
+    );
+    expect(otherFoldersQuestion(2)).toBe(
+      `Other Claude Code data folders found on this computer. Count them too? ${why}`
+    );
+  });
+
+  it("counts the folders waiting for an answer in the no-sessions hint", () => {
+    expect(unconfirmedFoldersHint(1)).toBe(
+      "1 other data folder found; run `npx ccgather` once to choose it."
+    );
+    expect(unconfirmedFoldersHint(3)).toBe(
+      "3 other data folders found; run `npx ccgather` once to choose them."
+    );
+  });
+
+  it("tells how to leave out a folder that belongs to another account", () => {
+    expect(DUPLICATE_SESSION_ADVICE).toBe(
+      "If a data folder you added belongs to another CCgather account, choose folders again and uncheck it: npx ccgather > Settings > Data folders."
+    );
+    expect(SHELL_FOLDER_ADVICE).toBe(
+      "Folders named in CLAUDE_CONFIG_DIR are always counted, so do this in a terminal without it."
+    );
+  });
+});
 
 describe("submit({ nonInteractive: true })", () => {
   let projectDir: string;
@@ -437,6 +471,20 @@ describe("submit({ nonInteractive: true })", () => {
     expect(logs.join("\n")).not.toContain(DUPLICATE_SESSION_ADVICE);
   });
 
+  it("adds that CLAUDE_CONFIG_DIR folders are always counted while the variable is set", async () => {
+    routes.submit = () =>
+      json(409, {
+        error: "These sessions have already been submitted by another account.",
+        code: "DUPLICATE_SESSION",
+      });
+    const dir = path.join(mocked.home, "acct-shell");
+    fs.mkdirSync(path.join(dir, "projects"), { recursive: true });
+    vi.stubEnv("CLAUDE_CONFIG_DIR", dir);
+
+    expect(await runSubmit()).toBe(1);
+    expect(errors[0]).toContain(`${DUPLICATE_SESSION_ADVICE} ${SHELL_FOLDER_ADVICE}`);
+  });
+
   it("leaves the Data folders advice out when no folder was added", async () => {
     routes.submit = () =>
       json(409, {
@@ -630,6 +678,8 @@ describe("submit({ nonInteractive: true })", () => {
       expect(await runSubmit({ nonInteractive: false })).toBe(0);
 
       expect(mocked.prompt).toHaveBeenCalledTimes(1);
+      const [question] = mocked.prompt.mock.calls[0]?.[0] as { message: string }[];
+      expect(question?.message).toBe(otherFoldersQuestion(1));
       expect(mocked.store.get("claudeDirs")).toEqual([dir]);
       expect(mocked.store.get("declinedClaudeDirs")).toEqual([]);
       const body = JSON.parse(String(callsTo("/cli/submit")[0]?.init?.body));
@@ -734,8 +784,9 @@ describe("submit({ nonInteractive: true })", () => {
     it("says nothing about shell folders when there are none", async () => {
       mocked.store.set("starConfirmed", true);
       expect(await runSubmit({ nonInteractive: false })).toBe(0);
-      const tail = savedShellDirsNotice(["\u0000"]).split("\u0000")[1];
-      expect(logs.some((line) => line.includes(tail))).toBe(false);
+      // The part that does not change with the number of folders
+      const fixed = savedShellDirsNotice(["\u0000"]).split("\u0000")[1].split(" counts ")[0];
+      expect(logs.some((line) => line.includes(fixed))).toBe(false);
     });
 
     it("a manual non-interactive submit saves a shell folder quietly, so scheduled runs match", async () => {
@@ -794,7 +845,7 @@ describe("submit({ nonInteractive: true })", () => {
       expect(await runSubmit()).toBe(1);
 
       expect(errors[0]).toContain("No Claude Code sessions found");
-      expect(errors[0]).not.toContain("other data folder(s) found");
+      expect(errors[0]).not.toMatch(/other data folders? found/);
     });
 
     it("lists ~/.config/claude once in the no-sessions report when XDG_CONFIG_HOME is ~/.config", async () => {
@@ -813,7 +864,7 @@ describe("submit({ nonInteractive: true })", () => {
 
       expect(await runSubmit()).toBe(1);
 
-      expectSingleError("1 other data folder(s) found; run `npx ccgather` once to choose them.");
+      expectSingleError(unconfirmedFoldersHint(1));
     });
 
     it("reports every folder it searched, from the variable and the saved list", async () => {
@@ -842,6 +893,22 @@ describe("submit({ nonInteractive: true })", () => {
 
     expect(await runSubmit({ nonInteractive: false })).toBe(0);
     expect(shown()).toBe(1);
+  });
+
+  it("shows the counting notice when the server holds an earlier submit but lastSync is missing", async () => {
+    // CLI 2.0.x and older never saved lastSync
+    mocked.store.set("starConfirmed", true);
+    mocked.store.delete("lastSync");
+    routes.submit = () =>
+      json(200, {
+        success: true,
+        rank: 7,
+        previous: { totalTokens: 1000, totalCost: 1, lastSubmissionAt: "2026-08-01T00:00:00Z" },
+      });
+
+    expect(await runSubmit({ nonInteractive: false })).toBe(0);
+    expect(logs.filter((line) => line.includes(COUNTING_NOTICE))).toHaveLength(1);
+    expect(mocked.store.get("countingNoticeShown")).toBe(true);
   });
 
   it("only marks the counting notice as seen on a first submit, with nothing to compare", async () => {
