@@ -12,7 +12,11 @@ import {
 import { aggregateByDate } from "@/lib/utils/usage-aggregation";
 import { earliestSubmittedDate, floorSessionsToStored } from "@/lib/utils/submit-merge-policy";
 import { computeDayCost, getPricingData, resolveDayCost } from "@/lib/services/pricing";
-import { isKnownPlanKey, normalizeSubmittedPlan } from "@/lib/services/auth-plan";
+import {
+  isKnownPlanKey,
+  normalizeSubmittedPlan,
+  unknownSubscriptionType,
+} from "@/lib/services/auth-plan";
 import { readUsageTotals, recalculateRanks } from "@/lib/services/rank-totals";
 import { requestPricingCheck, unpricedClaudeModels } from "@/lib/services/pricing-dispatch";
 import type { PriceCache } from "@/lib/services/pricing";
@@ -1097,10 +1101,32 @@ export async function POST(request: NextRequest) {
       updateData.rate_limit_tier = body.rateLimitTier;
     }
 
+    // CLI 2.3.3+ sends only known plan keys: raise the same discovery alert for a new
+    // subscription type that arrives as the raw value.
+    const rawSubscription = unknownSubscriptionType(body);
+    if (rawSubscription) {
+      console.log(
+        `[CLI Submit] Unknown subscription type discovered: "${rawSubscription}" for user ${authenticatedUser.username}`
+      );
+      await supabase.from("admin_alerts").insert({
+        type: "unknown_ccplan",
+        message: `Unknown subscription type "${rawSubscription}" discovered`,
+        metadata: {
+          user_id: authenticatedUser.id,
+          username: authenticatedUser.username,
+          ccplan: null,
+          rawSubscriptionType: rawSubscription,
+          authMethod: body.authMethod,
+          rateLimitTier: body.rateLimitTier,
+          timestamp: new Date().toISOString(),
+        },
+      });
+    }
+
     // Log API key auth users for Team/Enterprise discovery
     if (body.authMethod === "api_key") {
       console.log(
-        `[CLI Submit] API Key auth user: ${authenticatedUser.username} (ccplan: ${body.ccplan || "unknown"}, raw: ${body.rawSubscriptionType || "none"})`
+        `[CLI Submit] API Key auth user: ${authenticatedUser.username} (ccplan: ${submittedPlan ?? "unknown"}, raw: ${JSON.stringify(body.rawSubscriptionType ?? null)})`
       );
     }
 

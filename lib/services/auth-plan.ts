@@ -48,6 +48,17 @@ interface SubmittedPlan {
  * authMethod "api_key" with a made-up subscription plan ("team" by default); both are
  * API usage billing, so such a plan becomes "api".
  */
+/**
+ * A subscription type to raise a discovery alert for, or null. CLI 2.3.3+ sends only
+ * known plan keys, so a new subscription type arrives as the raw value of a /login
+ * (authMethod "oauth") with no ccplan.
+ */
+export function unknownSubscriptionType(body: SubmittedPlan): string | null {
+  if (body.authMethod !== "oauth" || normalizeSubmittedPlan(body) !== null) return null;
+  const raw = normalizeSubmittedPlan({ ccplan: body.rawSubscriptionType });
+  return raw !== null && !isKnownPlanKey(raw) ? raw : null;
+}
+
 export function normalizeSubmittedPlan(body: SubmittedPlan): string | null {
   if (typeof body.ccplan !== "string") return null;
   const plan = body.ccplan

@@ -1,7 +1,12 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { KNOWN_PLAN_KEYS, normalizeSubmittedPlan, planCategory } from "@/lib/services/auth-plan";
+import {
+  KNOWN_PLAN_KEYS,
+  normalizeSubmittedPlan,
+  planCategory,
+  unknownSubscriptionType,
+} from "@/lib/services/auth-plan";
 import { CCPLAN_CONFIG, getCCPlanConfig } from "@/lib/types/leaderboard";
 
 const read = (p: string) => readFileSync(path.resolve(__dirname, "../../", p), "utf-8");
@@ -109,6 +114,28 @@ describe("official plan labels (Claude Code 2.1.306)", () => {
   });
 });
 
+describe("unknownSubscriptionType", () => {
+  it("names a new subscription type a /login reports without a plan key", () => {
+    const login = { ccplan: null, authMethod: "oauth" };
+    expect(unknownSubscriptionType({ ...login, rawSubscriptionType: "ultra" })).toBe("ultra");
+    expect(unknownSubscriptionType({ ...login, rawSubscriptionType: " Ultra Plan! " })).toBe(
+      "ultra_plan"
+    );
+  });
+
+  it("stays quiet for known types, a sent plan key, other sign-ins and empty values", () => {
+    expect(unknownSubscriptionType({ authMethod: "oauth", rawSubscriptionType: "max" })).toBeNull();
+    expect(
+      unknownSubscriptionType({ ccplan: "max", authMethod: "oauth", rawSubscriptionType: "ultra" })
+    ).toBeNull();
+    expect(
+      unknownSubscriptionType({ authMethod: "api_key", rawSubscriptionType: "console_login" })
+    ).toBeNull();
+    expect(unknownSubscriptionType({ authMethod: "oauth", rawSubscriptionType: null })).toBeNull();
+    expect(unknownSubscriptionType({ authMethod: "oauth", rawSubscriptionType: "  " })).toBeNull();
+  });
+});
+
 describe("plan wiring", () => {
   it("the submit route stores the normalized plan from the shared module", () => {
     const route = read("app/api/cli/submit/route.ts");
@@ -117,6 +144,14 @@ describe("plan wiring", () => {
     expect(route).toContain("updateData.ccplan = submittedPlan;");
     expect(route).not.toContain("updateData.ccplan = body.ccplan");
     expect(route).not.toContain("const KNOWN_CCPLANS = [");
+  });
+
+  it("the submit route raises the discovery alert for a raw subscription type", () => {
+    const route = read("app/api/cli/submit/route.ts");
+    expect(route).toContain("const rawSubscription = unknownSubscriptionType(body);");
+    expect(route).toContain(
+      'message: `Unknown subscription type "${rawSubscription}" discovered`,'
+    );
   });
 
   it("the admin pages group plans through planCategory, not their own lists", () => {
