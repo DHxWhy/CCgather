@@ -684,7 +684,9 @@ export async function submit(options: SubmitOptions = {}): Promise<void> {
   // Scan ALL projects
   let scannedData: CCGatherData | null;
   if (nonInteractive) {
-    scannedData = scanAllProjects();
+    // A scheduled run sends no plan, so it does not read the sign-in (no Keychain prompt
+    // from a LaunchAgent).
+    scannedData = scanAllProjects({ readAccount: !scheduled });
   } else {
     console.log(`\n  ${colors.muted("Scanning all Claude Code sessions...")}`);
 

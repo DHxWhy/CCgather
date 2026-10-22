@@ -612,6 +612,7 @@ function buildSessionFingerprint(sessionHashes: string[]): SessionFingerprint {
 export interface ScanOptions {
   days?: number; // Number of days to include (default: 30, 0 = all)
   onProgress?: (current: number, total: number) => void; // Progress callback
+  readAccount?: boolean; // false: leave out the sign-in (scheduled runs do not send it)
 }
 
 function cutoffFor(days: number): string | null {
@@ -1162,7 +1163,7 @@ export function scanAllProjects(options: ScanOptions = {}): CCGatherData | null 
     models: summary.models,
     projects: summary.projects,
     dailyUsage: summary.dailyUsage,
-    account: accountInfo(),
+    account: options.readAccount === false ? undefined : accountInfo(),
     sessionFingerprint: buildSessionFingerprint(sessionHashes),
   };
 }

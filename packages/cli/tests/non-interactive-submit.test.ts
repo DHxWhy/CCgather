@@ -25,6 +25,12 @@ const mocked = vi.hoisted(() => ({
     throw new Error("readline prompt must not be called");
   }),
   auth: vi.fn(async () => undefined),
+  readCredentials: vi.fn(() => ({
+    ccplan: null,
+    rateLimitTier: null,
+    authMethod: "unknown",
+    rawSubscriptionType: null,
+  })),
 }));
 
 vi.mock("os", async (importOriginal) => {
@@ -50,12 +56,7 @@ vi.mock("../src/lib/config", () => {
 });
 
 vi.mock("../src/lib/credentials", () => ({
-  readCredentials: () => ({
-    ccplan: null,
-    rateLimitTier: null,
-    authMethod: "unknown",
-    rawSubscriptionType: null,
-  }),
+  readCredentials: mocked.readCredentials,
 }));
 
 vi.mock("inquirer", () => ({ default: { prompt: mocked.prompt } }));
@@ -622,6 +623,16 @@ describe("submit({ nonInteractive: true })", () => {
       for (const field of ["ccplan", "rateLimitTier", "authMethod", "rawSubscriptionType"]) {
         expect(body, field).not.toHaveProperty(field);
       }
+    });
+
+    it("does not read the sign-in at all, so a LaunchAgent never asks the Keychain", async () => {
+      mocked.store.delete("lastSync");
+      mocked.readCredentials.mockClear();
+      expect(await runSubmit({ scheduled: true })).toBe(0);
+      expect(mocked.readCredentials).not.toHaveBeenCalled();
+      mocked.store.delete("lastSync");
+      expect(await runSubmit({ nonInteractive: true })).toBe(0);
+      expect(mocked.readCredentials).toHaveBeenCalled();
     });
 
     it("submits when there is no lastSync, or it lies in the future", async () => {
