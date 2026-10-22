@@ -205,6 +205,31 @@ describe("readUsageTotals", () => {
     );
   });
 
+  it("warns at the cap on the second fallback read too, and not one row below it", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const page = (length: number) =>
+      Array.from({ length }, () => ({ total_tokens: 1, cost_usd: 0, sessions: 0 }));
+    const second = fakeClient({
+      usageReads: [
+        { data: null, error: { message: "no device_id" } },
+        { data: page(1000), error: null },
+      ],
+    });
+    await readUsageTotals(second.client, "me");
+    expect(warn).toHaveBeenCalledWith(
+      "[CLI Submit] usage fallback read hit the 1000-row cap; totals may be short for user",
+      "me"
+    );
+
+    warn.mockClear();
+    const below = fakeClient({ usageReads: [{ data: page(999), error: null }] });
+    await readUsageTotals(below.client, "me");
+    expect(warn).not.toHaveBeenCalledWith(
+      "[CLI Submit] usage fallback read hit the 1000-row cap; totals may be short for user",
+      "me"
+    );
+  });
+
   it("reports an error, not zero totals, when every read fails", async () => {
     vi.spyOn(console, "warn").mockImplementation(() => {});
     const fake = fakeClient({
