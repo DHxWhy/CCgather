@@ -1,3 +1,4 @@
+import * as os from "os";
 import ora from "ora";
 import inquirer from "inquirer";
 import type Conf from "conf";
@@ -15,6 +16,7 @@ import {
   getSessionPathDebugInfo,
 } from "../lib/ccgather-json.js";
 import { initPricing } from "../lib/pricing.js";
+import { findCandidateClaudeDirs } from "../lib/claude-dirs.js";
 import { SCHEDULED_MIN_INTERVAL_MS } from "../lib/autosubmit/shared.js";
 import {
   shouldPromptStar,
@@ -450,6 +452,36 @@ function recordScheduledRun(
 /**
  * Get plan display color
  */
+async function confirmOtherClaudeDirs(config: Conf<CliConfig>): Promise<void> {
+  const claudeDirs = config.get("claudeDirs") ?? [];
+  const declinedClaudeDirs = config.get("declinedClaudeDirs") ?? [];
+  const candidates = findCandidateClaudeDirs(process.env, os.homedir(), {
+    claudeDirs,
+    declinedClaudeDirs,
+  });
+  if (candidates.length === 0) return;
+
+  console.log();
+  const { include } = await inquirer.prompt([
+    {
+      type: "checkbox",
+      name: "include",
+      message:
+        "Other Claude Code data folders found on this computer. Count them too? " +
+        "(CCgather treats one computer as one person)",
+      choices: candidates.map((dir) => ({ name: dir, value: dir, checked: true })),
+    },
+  ]);
+  const chosen = Array.isArray(include)
+    ? include.filter((dir): dir is string => typeof dir === "string")
+    : [];
+  config.set("claudeDirs", [...claudeDirs, ...chosen]);
+  config.set("declinedClaudeDirs", [
+    ...declinedClaudeDirs,
+    ...candidates.filter((dir) => !chosen.includes(dir)),
+  ]);
+}
+
 function getPlanColor(plan: string): (text: string) => string {
   switch (plan.toLowerCase()) {
     case "max":
@@ -596,6 +628,11 @@ export async function submit(options: SubmitOptions = {}): Promise<void> {
 
   // Initialize dynamic pricing from LiteLLM (cached, non-blocking fallback)
   await initPricing();
+
+  // Other Claude Code data folders on this computer (another account's CLAUDE_CONFIG_DIR):
+  // one computer is one person, so ask once which to count and remember the answer. A
+  // non-interactive or scheduled run never asks and reads only the saved list.
+  if (!nonInteractive) await confirmOtherClaudeDirs(config);
 
   // ═══════════════════════════════════════════════════════════════════════════
   // SCAN ALL PROJECTS (v2.0 - Level-based League System)

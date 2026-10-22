@@ -512,6 +512,54 @@ describe("submit({ nonInteractive: true })", () => {
     expect(timeoutSpy).not.toHaveBeenCalled();
   });
 
+  describe("other Claude Code data folders on this computer", () => {
+    function otherFolder(): string {
+      const dir = path.join(mocked.home, ".claude-work");
+      const project = path.join(dir, "projects", "-home-user-other");
+      fs.mkdirSync(project, { recursive: true });
+      fs.writeFileSync(
+        path.join(project, "other.jsonl"),
+        [usageLine(11), usageLine(12)]
+          .join("\n")
+          .replace(/"sessionId":"demo"/g, '"sessionId":"other"') + "\n"
+      );
+      return dir;
+    }
+
+    it("a non-interactive run never asks and leaves an unconfirmed folder out", async () => {
+      otherFolder();
+      expect(await runSubmit()).toBe(0);
+      expect(mocked.prompt).not.toHaveBeenCalled();
+      const body = JSON.parse(String(callsTo("/cli/submit")[0]?.init?.body));
+      expect(body.totalTokens).toBe(3000);
+    });
+
+    it("a non-interactive run counts a folder confirmed earlier", async () => {
+      mocked.store.set("claudeDirs", [otherFolder()]);
+      expect(await runSubmit()).toBe(0);
+      const body = JSON.parse(String(callsTo("/cli/submit")[0]?.init?.body));
+      expect(body.totalTokens).toBe(6000);
+    });
+
+    it("an interactive run asks once, counts the chosen folder and remembers the answer", async () => {
+      const dir = otherFolder();
+      mocked.prompt.mockResolvedValueOnce({ include: [dir] });
+      mocked.readline.mockImplementationOnce(() => ({
+        on: () => {},
+        close: () => {},
+        question: (_question: string, callback: (answer: string) => void) => callback("n"),
+      }));
+
+      expect(await runSubmit({ nonInteractive: false })).toBe(0);
+
+      expect(mocked.prompt).toHaveBeenCalledTimes(1);
+      expect(mocked.store.get("claudeDirs")).toEqual([dir]);
+      expect(mocked.store.get("declinedClaudeDirs")).toEqual([]);
+      const body = JSON.parse(String(callsTo("/cli/submit")[0]?.init?.body));
+      expect(body.totalTokens).toBe(6000);
+    });
+  });
+
   it("interactive mode still reaches the star nudge", async () => {
     mocked.readline.mockImplementationOnce(() => ({
       on: () => {},

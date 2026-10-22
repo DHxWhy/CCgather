@@ -1,0 +1,173 @@
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import * as fs from "fs";
+import * as os from "os";
+import * as path from "path";
+
+const mocked = vi.hoisted(() => ({ home: "" }));
+
+vi.mock("os", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("os")>();
+  return { ...actual, homedir: () => mocked.home };
+});
+
+vi.mock("../src/lib/credentials", () => ({
+  readCredentials: () => ({
+    ccplan: null,
+    rateLimitTier: null,
+    authMethod: "unknown",
+    rawSubscriptionType: null,
+  }),
+}));
+
+import {
+  claudeConfigDirCandidates,
+  findCandidateClaudeDirs,
+  resolveClaudeConfigDirs,
+} from "../src/lib/claude-dirs";
+import { scanAllProjects } from "../src/lib/ccgather-json";
+
+const FIXTURE = path.join(__dirname, "fixtures", "ccusage-parity");
+
+let home: string;
+
+function dataDir(relative: string): string {
+  const dir = path.join(home, relative);
+  fs.mkdirSync(path.join(dir, "projects"), { recursive: true });
+  return dir;
+}
+
+beforeEach(() => {
+  home = fs.mkdtempSync(path.join(os.tmpdir(), "ccgather-dirs-"));
+  mocked.home = home;
+  vi.stubEnv("CLAUDE_CONFIG_DIR", "");
+  vi.stubEnv("XDG_CONFIG_HOME", "");
+  vi.stubEnv("APPDATA", "");
+});
+
+afterEach(() => {
+  vi.unstubAllEnvs();
+  fs.rmSync(home, { recursive: true, force: true });
+});
+
+describe("resolveClaudeConfigDirs", () => {
+  it("reads every folder of a comma-separated CLAUDE_CONFIG_DIR, then the default", () => {
+    const a = dataDir("a");
+    const b = dataDir("b");
+    const legacy = dataDir(".claude");
+    expect(resolveClaudeConfigDirs({ CLAUDE_CONFIG_DIR: `${a}, ${b}` }, home, {}, "linux")).toEqual(
+      [a, b, legacy]
+    );
+  });
+
+  it("takes a path to projects/ itself, and expands ~", () => {
+    const work = dataDir("work");
+    expect(
+      resolveClaudeConfigDirs({ CLAUDE_CONFIG_DIR: path.join(work, "projects") }, home, {}, "linux")
+    ).toEqual([work]);
+    expect(resolveClaudeConfigDirs({ CLAUDE_CONFIG_DIR: "~/work" }, home, {}, "linux")).toEqual([
+      work,
+    ]);
+  });
+
+  it("uses $XDG_CONFIG_HOME/claude, or ~/.config/claude without it", () => {
+    const xdg = dataDir("xdg/claude");
+    expect(
+      resolveClaudeConfigDirs({ XDG_CONFIG_HOME: path.join(home, "xdg") }, home, {}, "linux")
+    ).toEqual([xdg]);
+    const config = dataDir(".config/claude");
+    expect(resolveClaudeConfigDirs({}, home, {}, "linux")).toEqual([config]);
+  });
+
+  it("follows CLAUDE_CONFIG_DIR set in ~/.claude/settings.json", () => {
+    const acc = dataDir("acc2");
+    fs.mkdirSync(path.join(home, ".claude"), { recursive: true });
+    fs.writeFileSync(
+      path.join(home, ".claude", "settings.json"),
+      JSON.stringify({ env: { CLAUDE_CONFIG_DIR: "~/acc2" } })
+    );
+    expect(resolveClaudeConfigDirs({}, home, {}, "linux")).toEqual([acc]);
+  });
+
+  it("adds the folders the user confirmed, and skips folders without projects/", () => {
+    const saved = dataDir(".claude-work");
+    fs.mkdirSync(path.join(home, "empty"), { recursive: true });
+    expect(
+      resolveClaudeConfigDirs(
+        { CLAUDE_CONFIG_DIR: path.join(home, "empty") },
+        home,
+        { claudeDirs: [saved] },
+        "linux"
+      )
+    ).toEqual([saved]);
+  });
+
+  it("reads a folder once even when two paths lead to it", () => {
+    const real = dataDir("real");
+    const link = path.join(home, "link");
+    fs.symlinkSync(real, link);
+    expect(
+      resolveClaudeConfigDirs({ CLAUDE_CONFIG_DIR: `${real},${link}` }, home, {}, "linux")
+    ).toEqual([real]);
+  });
+
+  it("lists every place it looked, for the no-sessions report", () => {
+    expect(claudeConfigDirCandidates({ CLAUDE_CONFIG_DIR: "~/x" }, home, {}, "linux")).toEqual([
+      path.join(home, "x"),
+      path.join(home, ".config", "claude"),
+      path.join(home, ".claude"),
+    ]);
+  });
+});
+
+describe("findCandidateClaudeDirs", () => {
+  it("finds other ~/.claude* data folders, one level deep, not yet asked about", () => {
+    dataDir(".claude");
+    const work = dataDir(".claude-work");
+    const slot = dataDir(".claude-accounts/slot1");
+    fs.mkdirSync(path.join(home, ".claude-server-commander"), { recursive: true });
+    const declined = dataDir(".claude-old");
+
+    expect(findCandidateClaudeDirs({}, home, { declinedClaudeDirs: [declined] }, "linux")).toEqual(
+      [slot, work].sort()
+    );
+  });
+
+  it("does not offer a folder that is already read", () => {
+    const work = dataDir(".claude-work");
+    expect(findCandidateClaudeDirs({ CLAUDE_CONFIG_DIR: work }, home, {}, "linux")).toEqual([]);
+    expect(findCandidateClaudeDirs({}, home, { claudeDirs: [work] }, "linux")).toEqual([]);
+  });
+});
+
+describe("scanAllProjects over several folders", () => {
+  it("reads both fixture folders and matches ccusage's day totals", () => {
+    vi.stubEnv("CLAUDE_CONFIG_DIR", `${path.join(FIXTURE, "A")},${path.join(FIXTURE, "B")}`);
+    const ccusage = JSON.parse(fs.readFileSync(path.join(FIXTURE, "ccusage-daily.json"), "utf-8"));
+    const want = ccusage.daily[0];
+
+    const day = scanAllProjects()?.dailyUsage[0];
+
+    expect(day).toMatchObject({
+      date: want.date,
+      tokens: want.totalTokens,
+      inputTokens: want.inputTokens,
+      outputTokens: want.outputTokens,
+      cacheWriteTokens: want.cacheCreationTokens,
+      cacheReadTokens: want.cacheReadTokens,
+    });
+  });
+
+  it("counts a transcript found in two folders once", () => {
+    const copy = dataDir("copy");
+    fs.mkdirSync(path.join(copy, "projects", "projA"), { recursive: true });
+    fs.copyFileSync(
+      path.join(FIXTURE, "A", "projects", "projA", "s1.jsonl"),
+      path.join(copy, "projects", "projA", "s1.jsonl")
+    );
+    vi.stubEnv("CLAUDE_CONFIG_DIR", `${path.join(FIXTURE, "A")},${copy}`);
+
+    const day = scanAllProjects()?.dailyUsage[0];
+
+    expect(day?.modelTokens?.["claude-opus-4-8"]?.outputTokens).toBe(534);
+  });
+});

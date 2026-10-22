@@ -18,6 +18,9 @@ export interface CliConfig {
   // The last `submit --scheduled` run, shown by `autosubmit status`: its full log
   // line and a short summary of the outcome
   lastScheduledRun?: { at: string; ok: boolean; message: string; summary: string };
+  // Other Claude Code data folders on this computer (asked once): counted / left out
+  claudeDirs?: string[];
+  declinedClaudeDirs?: string[];
 }
 
 const defaults: CliConfig = {

@@ -3,6 +3,9 @@ import * as path from "path";
 import * as os from "os";
 import * as crypto from "crypto";
 import { readCredentials } from "./credentials.js";
+import { getConfig } from "./config.js";
+import { claudeConfigDirCandidates, resolveClaudeConfigDirs } from "./claude-dirs.js";
+import type { ClaudeDirsConfig } from "./claude-dirs.js";
 import { estimateCostRaw } from "./pricing.js";
 import { createUsageAccumulator } from "./usage-accumulator.js";
 import type { AccumulatedUsage, ModelSplit, TokenSplit } from "./usage-accumulator.js";
@@ -161,48 +164,27 @@ function extractProjectName(filePath: string): string {
   return "unknown";
 }
 
+// The other data folders the user answered about once (see claude-dirs.ts).
+function savedClaudeDirs(): ClaudeDirsConfig {
+  try {
+    const config = getConfig();
+    return {
+      claudeDirs: config.get("claudeDirs"),
+      declinedClaudeDirs: config.get("declinedClaudeDirs"),
+    };
+  } catch {
+    return {};
+  }
+}
+
 /**
- * Get all possible Claude Code projects directories
- * Supports:
- * - CLAUDE_CONFIG_DIR environment variable
- * - XDG path (~/.config/claude/projects) - Claude Code v1.0.30+
- * - Legacy path (~/.claude/projects) - Claude Code < v1.0.30
+ * Get all Claude Code projects directories: every CLAUDE_CONFIG_DIR entry, the XDG path
+ * (~/.config/claude, Claude Code v1.0.30+), the legacy ~/.claude, and confirmed folders.
  */
 function getClaudeProjectsDirs(): string[] {
-  const dirs: string[] = [];
-  const home = os.homedir();
-
-  // 1. CLAUDE_CONFIG_DIR environment variable (highest priority)
-  const configDir = process.env.CLAUDE_CONFIG_DIR;
-  if (configDir) {
-    const envPath = path.join(configDir, "projects");
-    dirs.push(envPath);
-  }
-
-  // 2. XDG path (Claude Code v1.0.30+)
-  // Windows: %APPDATA%/claude/projects or ~/.config/claude/projects
-  // macOS/Linux: ~/.config/claude/projects
-  if (process.platform === "win32") {
-    const appData = process.env.APPDATA;
-    if (appData) {
-      const appDataPath = path.join(appData, "claude", "projects");
-      dirs.push(appDataPath);
-    }
-  }
-  const xdgPath = path.join(home, ".config", "claude", "projects");
-  dirs.push(xdgPath);
-
-  // 3. Legacy path (Claude Code < v1.0.30)
-  const legacyPath = path.join(home, ".claude", "projects");
-  dirs.push(legacyPath);
-
-  // Return only unique paths that exist
-  const uniqueDirs = [...new Set(dirs)];
-  const existingDirs = uniqueDirs.filter((dir) => {
-    return fs.existsSync(dir);
-  });
-
-  return existingDirs;
+  return resolveClaudeConfigDirs(process.env, os.homedir(), savedClaudeDirs()).map((dir) =>
+    path.join(dir, "projects")
+  );
 }
 
 /**
@@ -900,21 +882,9 @@ export function getSessionPathDebugInfo(): {
   const cwd = process.cwd();
   const encodedCwd = encodePathLikeClaude(cwd);
 
-  const pathsToCheck = [
-    path.join(home, ".config", "claude", "projects"),
-    path.join(home, ".claude", "projects"),
-  ];
-
-  // Add CLAUDE_CONFIG_DIR if set
-  const configDir = process.env.CLAUDE_CONFIG_DIR;
-  if (configDir) {
-    pathsToCheck.unshift(path.join(configDir, "projects"));
-  }
-
-  // Add APPDATA on Windows
-  if (process.platform === "win32" && process.env.APPDATA) {
-    pathsToCheck.unshift(path.join(process.env.APPDATA, "claude", "projects"));
-  }
+  const pathsToCheck = claudeConfigDirCandidates(process.env, home, savedClaudeDirs()).map((dir) =>
+    path.join(dir, "projects")
+  );
 
   const searchedPaths = pathsToCheck.map((p) => {
     const exists = fs.existsSync(p);
