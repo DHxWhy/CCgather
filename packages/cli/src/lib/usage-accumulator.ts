@@ -46,8 +46,6 @@ export interface AccumulatedUsage {
   total: UsageBucket;
   daily: Map<string, UsageBucket>; // UTC date
   projects: Map<string, UsageBucket>;
-  firstTimestamp: string | null;
-  lastTimestamp: string | null;
 }
 
 export interface UsageContext {
@@ -65,7 +63,6 @@ interface Entry {
   messageId: string | null;
   requestId: string | null;
   sessionId: string;
-  timestamp: string;
   instant: number; // epoch ms, for keys that need the exact time
   sidechain: boolean;
   model: string;
@@ -290,7 +287,6 @@ function readEntries(event: JsonObject, ctx: UsageContext): Entry[] {
   const shared = {
     requestId: typeof line.requestId === "string" ? line.requestId : null,
     sessionId: typeof event.sessionId === "string" ? event.sessionId : ctx.sessionKey,
-    timestamp: line.timestamp as string,
     instant,
     sidechain: line.isSidechain === true,
   };
@@ -357,10 +353,6 @@ export function createUsageAccumulator(options: { cutoff?: string | null } = {})
   const cutoffInstant = cutoff === null ? null : Date.parse(cutoff);
   const beforeCutoff = (instant: number): boolean =>
     cutoffInstant !== null && instant < cutoffInstant;
-  let firstTimestamp: string | null = null;
-  let lastTimestamp: string | null = null;
-  let firstInstant = Infinity;
-  let lastInstant = -Infinity;
 
   // Strings repeated across responses (sessions, models, days, projects) are kept once.
   const pool = new Map<string, string>();
@@ -489,18 +481,6 @@ export function createUsageAccumulator(options: { cutoff?: string | null } = {})
     c.hasSpeed = e.hasSpeed;
   };
 
-  // Compared as instants: a timestamp with an offset sorts wrongly as text.
-  const noteTimestamp = (e: Entry): void => {
-    if (e.instant < firstInstant) {
-      firstInstant = e.instant;
-      firstTimestamp = e.timestamp;
-    }
-    if (e.instant > lastInstant) {
-      lastInstant = e.instant;
-      lastTimestamp = e.timestamp;
-    }
-  };
-
   const consider = (e: Entry, ctx: UsageContext): boolean => {
     const key = exactKey(e);
     const existing = find(e, key);
@@ -534,7 +514,6 @@ export function createUsageAccumulator(options: { cutoff?: string | null } = {})
       if (e.messageId !== null) indexRoutes(existing, e.messageId, existing.sessionId);
       if (existing.excluded) return false;
       place(existing, e.split, e.fast, 1);
-      if (moves) noteTimestamp(e);
       return true;
     }
 
@@ -562,7 +541,6 @@ export function createUsageAccumulator(options: { cutoff?: string | null } = {})
     if (c.excluded) return false;
 
     place(c, e.split, e.fast, 1);
-    noteTimestamp(e);
     return true;
   };
 
@@ -576,7 +554,7 @@ export function createUsageAccumulator(options: { cutoff?: string | null } = {})
       return counted;
     },
     result() {
-      return { total, daily, projects, firstTimestamp, lastTimestamp };
+      return { total, daily, projects };
     },
   };
 }

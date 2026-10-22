@@ -123,7 +123,6 @@ describe("one response written as several lines", () => {
     );
     expect(day(acc)?.models).toEqual({ first: 534 });
     expect(acc.result().daily.has("2026-10-02")).toBe(false);
-    expect(acc.result().lastTimestamp).toBe("2026-10-01T23:59:59.000Z");
   });
 
   it("prefers the line that carries speed when the totals tie", () => {
@@ -755,7 +754,6 @@ describe("a /btw replay read before its parent", () => {
     expect(acc.add(parent, A)).toBe(true);
     expect(day(acc)?.tokens).toBe(1007);
     expect(acc.result().daily.has("2026-10-02")).toBe(false);
-    expect(acc.result().firstTimestamp).toBe("2026-10-01T10:00:00.000Z");
   });
 
   it("leaves no empty model or day behind", () => {
@@ -824,15 +822,6 @@ describe("a /btw replay read before its parent", () => {
 });
 
 describe("buckets and bounds", () => {
-  it("keeps the earliest and latest timestamps whatever order lines come in", () => {
-    const acc = createUsageAccumulator();
-    acc.add(line({ id: "msg_2", req: "r2", ts: "2026-10-20T05:00:00.000Z", output: 1 }), A);
-    acc.add(line({ id: "msg_1", req: "r1", ts: "2026-10-18T05:00:00.000Z", output: 1 }), A);
-    acc.add(line({ id: "msg_3", req: "r3", ts: "2026-10-19T05:00:00.000Z", output: 1 }), A);
-    expect(acc.result().firstTimestamp).toBe("2026-10-18T05:00:00.000Z");
-    expect(acc.result().lastTimestamp).toBe("2026-10-20T05:00:00.000Z");
-  });
-
   it("compares times as instants, so an offset timestamp is placed and cut off correctly", () => {
     const cut = createUsageAccumulator({ cutoff: "2026-10-01T00:00:00.000Z" });
     // 08:00 at +09:00 is 23:00 UTC the day before the cutoff
@@ -843,8 +832,8 @@ describe("buckets and bounds", () => {
     const acc = createUsageAccumulator();
     acc.add(line({ id: "msg_1", req: "r1", ts: "2026-10-01T23:30:00Z", output: 1 }), A);
     acc.add(line({ id: "msg_2", req: "r2", ts: "2026-10-02T08:00:00+09:00", output: 1 }), A);
-    expect(acc.result().firstTimestamp).toBe("2026-10-02T08:00:00+09:00");
-    expect(acc.result().lastTimestamp).toBe("2026-10-01T23:30:00Z");
+    // 08:00 at +09:00 on the 2nd is 23:00 UTC on the 1st
+    expect([...acc.result().daily.keys()]).toEqual(["2026-10-01"]);
   });
 
   it("cuts off at the cutoff's instant, not at its date", () => {
@@ -876,7 +865,7 @@ describe("buckets and bounds", () => {
     expect(acc.result().total.outputTokens).toBe(5);
   });
 
-  it("tracks sessions per day, projects, and the first and last timestamps", () => {
+  it("tracks sessions per day and projects", () => {
     const acc = createUsageAccumulator();
     acc.add(line({ id: "msg_1", req: "r1", ts: "2026-10-01T05:00:00.000Z", output: 1 }), A);
     acc.add(line({ id: "msg_2", req: "r2", ts: "2026-10-01T06:00:00.000Z", output: 2 }), B);
@@ -891,7 +880,5 @@ describe("buckets and bounds", () => {
     ]);
     expect(r.projects.get("proj")?.tokens).toBe(3);
     expect(r.projects.get("other")?.tokens).toBe(4);
-    expect(r.firstTimestamp).toBe("2026-10-01T05:00:00.000Z");
-    expect(r.lastTimestamp).toBe("2026-10-02T01:00:00.000Z");
   });
 });
