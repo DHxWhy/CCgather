@@ -75,8 +75,16 @@ describe("cloud providers (Claude Code's own order)", () => {
 
   it("reads true/yes/on and ignores 0/false", () => {
     expect(creds({ CLAUDE_CODE_USE_VERTEX: "TRUE" }).ccplan).toBe("vertex");
+    expect(creds({ CLAUDE_CODE_USE_BEDROCK: "yes" }).ccplan).toBe("bedrock");
+    expect(creds({ CLAUDE_CODE_USE_VERTEX: "on" }).ccplan).toBe("vertex");
+    expect(creds({ CLAUDE_CODE_USE_FOUNDRY: " 1 " }).ccplan).toBe("foundry");
     expect(creds({ CLAUDE_CODE_USE_BEDROCK: "0" }).ccplan).toBeNull();
     expect(creds({ CLAUDE_CODE_USE_BEDROCK: "false" }).ccplan).toBeNull();
+  });
+
+  it("reads the Mantle switch from a settings env block too", () => {
+    write(".claude/settings.json", { env: { CLAUDE_CODE_USE_MANTLE: "1" } });
+    expect(creds({ CLAUDE_CODE_USE_BEDROCK: "1" }).ccplan).toBe("mantle");
   });
 
   it("shows Mantle on top of Bedrock as Mantle, and Bedrock before Vertex", () => {
@@ -282,6 +290,64 @@ describe("API usage billing", () => {
     expect(creds(env).ccplan).toBe("api");
   });
 
+  it("reads the OAuth token's scopes from a settings env block, split on any whitespace", () => {
+    write(".claude.json", { primaryApiKey: "saved" });
+    write(".claude/settings.json", {
+      env: { CLAUDE_CODE_OAUTH_TOKEN: "t", CLAUDE_CODE_OAUTH_SCOPES: "user:profile" },
+    });
+    expect(creds({}).ccplan).toBe("api");
+    write(".claude/settings.json", { env: { CLAUDE_CODE_OAUTH_SCOPES: "user:profile" } });
+    expect(
+      creds({ CLAUDE_CODE_OAUTH_TOKEN: "t", CLAUDE_CODE_SUBSCRIPTION_TYPE: "pro" }).ccplan
+    ).toBe("api");
+    write(".claude/settings.json", {});
+    const tab = {
+      CLAUDE_CODE_OAUTH_TOKEN: "t",
+      CLAUDE_CODE_OAUTH_SCOPES: "user:profile\tuser:inference",
+      CLAUDE_CODE_SUBSCRIPTION_TYPE: "pro",
+    };
+    expect(creds(tab).ccplan).toBe("pro");
+  });
+
+  it("judges the OAuth token by its own scopes, never by a saved login", () => {
+    oauth("max", undefined, { scopes: ["user:inference"] });
+    write(".claude.json", { primaryApiKey: "saved" });
+    const token = {
+      CLAUDE_CODE_OAUTH_TOKEN: "t",
+      CLAUDE_CODE_OAUTH_SCOPES: "user:profile",
+      CLAUDE_CODE_SUBSCRIPTION_TYPE: "pro",
+    };
+    expect(creds(token).ccplan).toBe("api");
+    oauth("max", undefined, { scopes: ["user:profile"] });
+    expect(creds({ CLAUDE_CODE_OAUTH_SCOPES: "user:inference" }).ccplan).toBe("api");
+  });
+
+  it("trims the plan and tier it sends", () => {
+    const env = {
+      CLAUDE_CODE_OAUTH_TOKEN: "t",
+      CLAUDE_CODE_SUBSCRIPTION_TYPE: " max ",
+      CLAUDE_CODE_RATE_LIMIT_TIER: " default_claude_max_20x ",
+    };
+    expect(creds(env)).toEqual({
+      ccplan: "max",
+      rateLimitTier: "default_claude_max_20x",
+      authMethod: "oauth",
+      rawSubscriptionType: "max",
+    });
+  });
+
+  it("in bare mode takes only ANTHROPIC_API_KEY, and never reads a login", () => {
+    oauth("max", undefined, { scopes: ["user:inference"] });
+    expect(creds({ CLAUDE_CODE_SIMPLE: "1", ANTHROPIC_API_KEY: KEY }).ccplan).toBe("api");
+    expect(creds({ CLAUDE_CODE_SIMPLE: "1" })).toEqual({
+      ccplan: null,
+      rateLimitTier: null,
+      authMethod: "unknown",
+      rawSubscriptionType: "bare_mode",
+    });
+    expect(creds({ CLAUDE_CODE_SIMPLE: "1", CLAUDE_CODE_USE_BEDROCK: "1" }).ccplan).toBe("bedrock");
+  });
+
   it("uses a Console key when the OAuth token's scopes cannot run inference", () => {
     write(".claude.json", { primaryApiKey: "saved" });
     const token = { CLAUDE_CODE_OAUTH_TOKEN: "t", CLAUDE_CODE_SUBSCRIPTION_TYPE: "pro" };
@@ -360,6 +426,25 @@ describe("Anthropic profiles and federation", () => {
       ANTHROPIC_ORGANIZATION_ID: "o",
     };
     expect(creds(env).ccplan).toBe("max");
+  });
+
+  it("reads profile and federation variables from a settings env block", () => {
+    oauth("max", undefined, { scopes: ["user:inference"] });
+    profile("anth", "work", { type: "oidc_federation" });
+    write(".claude/settings.json", {
+      env: { ANTHROPIC_PROFILE: "work", ANTHROPIC_CONFIG_DIR: path.join(home, "anth") },
+    });
+    expect(creds({}).ccplan).toBe("api");
+
+    write(".claude/settings.json", {
+      env: { ANTHROPIC_FEDERATION_RULE_ID: "r", ANTHROPIC_ORGANIZATION_ID: "o" },
+    });
+    expect(creds({}).ccplan).toBe("api");
+
+    write("anth/active_config", "corp\n");
+    profile("anth", "corp", { type: "oidc_federation" });
+    write(".claude/settings.json", { env: { ANTHROPIC_CONFIG_DIR: path.join(home, "anth") } });
+    expect(creds({}).ccplan).toBe("api");
   });
 
   it("federation needs both variables", () => {

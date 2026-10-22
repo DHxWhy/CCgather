@@ -257,13 +257,15 @@ const unknown = (source: string | null): CredentialsData => ({
   rawSubscriptionType: source,
 });
 
+// Plan values are trimmed: the server stores the tier as sent.
+const trimmed = (v: unknown): string | null => (typeof v === "string" ? v.trim() || null : null);
+
 function subscription(oauth: JsonObject | null): CredentialsData {
   return {
     ccplan: oauth ? planFrom(oauth) : null,
-    rateLimitTier: typeof oauth?.rateLimitTier === "string" ? oauth.rateLimitTier : null,
+    rateLimitTier: trimmed(oauth?.rateLimitTier),
     authMethod: "oauth",
-    rawSubscriptionType:
-      typeof oauth?.subscriptionType === "string" ? oauth.subscriptionType : null,
+    rawSubscriptionType: trimmed(oauth?.subscriptionType),
   };
 }
 
@@ -279,9 +281,12 @@ function subscription(oauth: JsonObject | null): CredentialsData {
  * numbers and booleans): .claude.json's legacy env, then the user's settings, then managed
  * settings files. A non-interactive `claude -p` also uses an ANTHROPIC_API_KEY the user rejected
  * or never answered; this reports the interactive choice (the subscription when there is a
- * login), which decides most usage. Not read: MDM or registry policies, server-managed
- * settings, the Windows Credential Manager store and a custom OAuth URL's separate login —
- * those cases report what the files say.
+ * login), which decides most usage. In bare mode (--bare, CLAUDE_CODE_SIMPLE) Anthropic auth is
+ * only ANTHROPIC_API_KEY or an apiKeyHelper given with --settings, and no login is read.
+ * Not read: MDM or registry policies, server-managed settings, project and local settings,
+ * --settings and other flags, the Windows Credential Manager store, a custom OAuth URL's
+ * separate login and credentials a remote host hands to Claude Code — those cases report what
+ * the files say.
  */
 export function readCredentials(
   env: Env = process.env,
@@ -309,7 +314,8 @@ export function readCredentials(
   };
   const setting = (key: string): unknown => settingsLayers.find((s) => s[key] !== undefined)?.[key];
 
-  const stored = readSecureStorage(env, paths.credentials, platform);
+  const bare = isTruthy(variable("CLAUDE_CODE_SIMPLE"));
+  const stored = bare ? null : readSecureStorage(env, paths.credentials, platform);
   // No plan key describes a gateway sign-in; null keeps the plan the server has.
   if (isObject(stored?.enterpriseGateway)) return unknown("enterprise_gateway");
   // A saved login without an access token is not one Claude Code can use.
@@ -327,6 +333,12 @@ export function readCredentials(
       authMethod: "cloud",
       rawSubscriptionType: name,
     };
+  }
+
+  if (bare) {
+    return filled(variable("ANTHROPIC_API_KEY"))
+      ? apiBilling("ANTHROPIC_API_KEY")
+      : unknown("bare_mode");
   }
 
   if (filled(variable("ANTHROPIC_AUTH_TOKEN"))) return apiBilling("ANTHROPIC_AUTH_TOKEN");
