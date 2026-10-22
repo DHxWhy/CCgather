@@ -149,6 +149,10 @@ describe("plan wiring", () => {
   it("the submit route raises the discovery alert for a raw subscription type", () => {
     const route = read("app/api/cli/submit/route.ts");
     expect(route).toContain("const rawSubscription = unknownSubscriptionType(body);");
+    // The insert sits under that check, so a check that never passes is caught too
+    expect(route).toMatch(
+      /const rawSubscription = unknownSubscriptionType\(body\);\s*if \(rawSubscription\) \{[\s\S]{0,400}?supabase\.from\("admin_alerts"\)\.insert\(\{\s*type: "unknown_ccplan",/
+    );
     expect(route).toContain(
       'message: `Unknown subscription type "${rawSubscription}" discovered`,'
     );

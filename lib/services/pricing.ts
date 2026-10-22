@@ -483,10 +483,10 @@ function splitCost(price: ModelPricing, multiplier: number, split: ModelTokenSpl
  * inside the model's own tokens), so at worst each type is billed at the highest
  * (rate × fast multiplier) among the declared models — cache writes at the 1h rate —
  * which can be a cheaper model's fast rate (Opus 4.6 fast input $30 beats Opus 4.1's
- * $15; up to 6x on Opus 4.6/4.7; fast days are annotated V10_fast_mode_share). There is no further clamp: like ccusage, a day
- * costs its per-model sum. (Until 2026-10-22 a clamp to the priciest single-model
- * reading of the day sat here; it cut honest mixed-model days, ~6% on a real
- * Opus 5.5 + Sonnet 4.6 day.)
+ * $15; up to 6x on Opus 4.6/4.7; fast days are annotated V10_fast_mode_share). There
+ * is no further clamp: like ccusage, a day costs its per-model sum. (Until 2026-10-22
+ * a clamp to the priciest single-model reading of the day sat here; it cut honest
+ * mixed-model days, ~6% on a real Opus 5.5 + Sonnet 4.6 day.)
  * Summed unrounded, rounded once — per-model rounding drops sub-cent models.
  */
 export function computeDayCostByModel(

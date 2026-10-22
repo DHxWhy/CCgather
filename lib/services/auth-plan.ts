@@ -42,13 +42,6 @@ interface SubmittedPlan {
 }
 
 /**
- * The plan to store for a submission, or null to keep the stored one. Stored values
- * are `[a-z0-9_]`, at most 32 characters; an unknown value is kept (the route raises
- * a discovery alert for it). CLIs before 2.3.3 report API-key and Console logins as
- * authMethod "api_key" with a made-up subscription plan ("team" by default); both are
- * API usage billing, so such a plan becomes "api".
- */
-/**
  * A subscription type to raise a discovery alert for, or null. CLI 2.3.3+ sends only
  * known plan keys, so a new subscription type arrives as the raw value of a /login
  * (authMethod "oauth") with no ccplan.
@@ -59,6 +52,13 @@ export function unknownSubscriptionType(body: SubmittedPlan): string | null {
   return raw !== null && !isKnownPlanKey(raw) ? raw : null;
 }
 
+/**
+ * The plan to store for a submission, or null to keep the stored one. Stored values
+ * are `[a-z0-9_]`, at most 32 characters; an unknown value is kept (the route raises
+ * a discovery alert for it). CLIs before 2.3.3 report API-key and Console logins as
+ * authMethod "api_key" with a made-up subscription plan ("team" by default); both are
+ * API usage billing, so such a plan becomes "api".
+ */
 export function normalizeSubmittedPlan(body: SubmittedPlan): string | null {
   if (typeof body.ccplan !== "string") return null;
   const plan = body.ccplan
