@@ -191,8 +191,10 @@ function isSavedGatewaySignIn(stored: JsonObject | null): boolean {
 // (Claude Code's Gce()). A value its schema rejects counts as unset.
 function managedRequiresGateway(managed: JsonObject[]): boolean {
   const layers = [...managed].reverse();
-  const method = layers.find((s) =>
-    ["claudeai", "console", "gateway"].includes(String(s.forceLoginMethod))
+  const method = layers.find(
+    (s) =>
+      typeof s.forceLoginMethod === "string" &&
+      ["claudeai", "console", "gateway"].includes(s.forceLoginMethod)
   )?.forceLoginMethod;
   const url = layers.find(
     (s) => typeof s.forceLoginGatewayUrl === "string" && s.forceLoginGatewayUrl !== ""

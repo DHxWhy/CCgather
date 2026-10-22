@@ -713,6 +713,35 @@ describe("enterprise gateway", () => {
     expect(creds({})).toEqual(GATEWAY);
   });
 
+  it("reads each managed layer on its own: a later file without a valid value keeps an earlier one", () => {
+    oauth("max", undefined, { scopes: ["user:inference"] });
+    write("managed/managed-settings.json", { forceLoginMethod: "gateway" });
+    for (const later of [
+      { forceLoginMethod: "sso" },
+      { forceLoginMethod: ["claudeai"] },
+      { forceLoginMethod: null },
+      { permissions: { allow: ["Bash(ls)"] } },
+    ]) {
+      write("managed/managed-settings.d/50-policy.json", later);
+      expect(creds({})).toEqual(GATEWAY);
+    }
+
+    write("managed/managed-settings.json", { forceLoginGatewayUrl: "https://gw.example" });
+    for (const later of [{ forceLoginGatewayUrl: "" }, { forceLoginMethod: "claudeai" }]) {
+      write("managed/managed-settings.d/50-policy.json", later);
+      expect(creds({})).toEqual(GATEWAY);
+    }
+  });
+
+  it("applies a managed gateway requirement in bare mode too", () => {
+    write("managed/managed-settings.json", { forceLoginMethod: "gateway" });
+    for (const platform of ["linux", "darwin"] as const) {
+      expect(creds({ CLAUDE_CODE_SIMPLE: "1", ANTHROPIC_API_KEY: KEY }, { platform })).toEqual(
+        GATEWAY
+      );
+    }
+  });
+
   it("ignores a gateway requirement in the user's own settings", () => {
     oauth("max", undefined, { scopes: ["user:inference"] });
     write(".claude/settings.json", {
