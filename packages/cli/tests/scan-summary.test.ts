@@ -443,6 +443,13 @@ describe("lines without a sessionId", () => {
     expect(days()).toEqual([["2026-10-01", 1_103, 1]]);
   });
 
+  it("does the same in a one-project scan", () => {
+    write("pa/s1.jsonl", [summary, bare("msg_1")]);
+    write("pa/s1/subagents/agent-a.jsonl", [summary, bare("msg_1")]);
+    const data = scanUsageDataFromPath(path.join(configDir, "projects", "pa"), { days: 0 });
+    expect(data?.dailyUsage.map((d) => [d.date, d.tokens])).toEqual([["2026-10-01", 1_103]]);
+  });
+
   it("counts one session for a grown copy that opens with a summary (P2)", () => {
     const line = (req: string, ts: string, u: Record<string, number>, id: string) =>
       JSON.stringify({
