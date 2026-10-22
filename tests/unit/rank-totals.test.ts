@@ -83,8 +83,8 @@ function fakeClient(opts: FakeOptions) {
         q.filters.push(["gt", col, value]);
         return b;
       },
-      order(col) {
-        q.filters.push(["order", col, null]);
+      order(col, options) {
+        q.filters.push(["order", col, options]);
         return b;
       },
       update(values) {
@@ -103,7 +103,7 @@ function fakeClient(opts: FakeOptions) {
   };
 
   const client = {
-    rpc: vi.fn((name: string) => {
+    rpc: vi.fn((name: string, _args?: Record<string, unknown>) => {
       rpcCalls.push(name);
       return settle(opts.rpc?.[name] ?? { data: null, error: { message: `no ${name}` } });
     }),
@@ -149,6 +149,7 @@ describe("readUsageTotals", () => {
       error: null,
       fromDb: true,
     });
+    expect(fake.client.rpc).toHaveBeenCalledWith("get_user_usage_totals", { p_user_id: "me" });
     expect(fake.queries).toHaveLength(0);
     expect(warn).not.toHaveBeenCalled();
   });
@@ -166,6 +167,7 @@ describe("readUsageTotals", () => {
     expect(totals).toEqual({ rows: [row], error: null, fromDb: false });
     expect(warn).toHaveBeenCalledWith("[CLI Submit] totals RPC fallback:", "Could not find");
     expect(fake.queries[0]?.select).toBe("total_tokens, cost_usd, sessions, device_id");
+    expect(fake.queries[0]?.filters).toEqual([["eq", "user_id", "me"]]);
   });
 
   it("drops device_id when the primary read fails", async () => {
@@ -182,6 +184,25 @@ describe("readUsageTotals", () => {
 
     expect(totals).toEqual({ rows: [row], error: null, fromDb: false });
     expect(fake.queries[1]?.select).toBe("total_tokens, cost_usd, sessions");
+    expect(fake.queries[1]?.filters).toEqual([["eq", "user_id", "me"]]);
+  });
+
+  it("warns when the fallback read comes back at the 1000-row cap", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const rows = Array.from({ length: 1000 }, () => ({
+      total_tokens: 1,
+      cost_usd: 0,
+      sessions: 0,
+      device_id: "laptop",
+    }));
+    const fake = fakeClient({ usageReads: [{ data: rows, error: null }] });
+
+    await readUsageTotals(fake.client, "me");
+
+    expect(warn).toHaveBeenCalledWith(
+      "[CLI Submit] usage fallback read hit the 1000-row cap; totals may be short for user",
+      "me"
+    );
   });
 
   it("reports an error, not zero totals, when every read fails", async () => {
@@ -213,6 +234,9 @@ describe("recalculateRanks", () => {
 
     expect(ranks).toEqual({ rank: 7, countryRank: 2, fromDb: true });
     expect(fake.rpcCalls).toEqual(["calculate_global_ranks", "calculate_country_ranks"]);
+    const readBack = fake.queries.find((q) => q.single);
+    expect(readBack?.select).toBe("global_rank, country_rank");
+    expect(readBack?.filters).toEqual([["eq", "id", "me"]]);
     expect(fake.updates()).toEqual([]);
     expect(fake.queries.filter((q) => q.select === "id")).toHaveLength(0);
     expect(warn).not.toHaveBeenCalled();
@@ -247,6 +271,39 @@ describe("recalculateRanks", () => {
       { country_rank: 1, id: "me" },
     ]);
     expect(warn).toHaveBeenCalledWith("[CLI Submit] rank RPC fallback:", "082 not available");
+    const criteria = [
+      ["eq", "onboarding_completed", true],
+      ["is", "deleted_at", null],
+      ["eq", "shadow_banned", false],
+      ["gt", "total_tokens", 0],
+      ["order", "total_tokens", { ascending: false }],
+      ["order", "created_at", { ascending: true }],
+    ];
+    const reads = fake.queries.filter((q) => q.select === "id");
+    expect(reads.map((q) => q.filters)).toEqual([
+      criteria,
+      [["eq", "country_code", "KR"], ...criteria],
+    ]);
+  });
+
+  it("falls back when only the country function fails, instead of reading a stale country rank", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const fake = fakeClient({
+      rpc: {
+        calculate_global_ranks: ok,
+        calculate_country_ranks: { data: null, error: { message: "lock" } },
+      },
+      readBack: { data: { global_rank: 7, country_rank: 99 }, error: null },
+      rankedUsers: [{ id: "u1" }, { id: "me" }],
+      countryUsers: [{ id: "me" }],
+    });
+
+    const ranks = await recalculateRanks(fake.client, { id: "me", country_code: "KR" }, true);
+
+    expect(fake.rpcCalls).toEqual(["calculate_global_ranks", "calculate_country_ranks"]);
+    expect(fake.queries.some((q) => q.single)).toBe(false);
+    expect(ranks).toEqual({ rank: 2, countryRank: 1, fromDb: false });
+    expect(warn).toHaveBeenCalledWith("[CLI Submit] rank RPC fallback:", "lock");
   });
 
   it("falls back with the RPC error when a rank function fails", async () => {

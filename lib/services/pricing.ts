@@ -479,10 +479,11 @@ function splitCost(price: ModelPricing, multiplier: number, split: ModelTokenSpl
  * type must add up to the day's total. Drop either check and a caller can keep the
  * day totals intact while billing them to a pricier model than `primary_model`
  * reports: cost inflation with no visible signal. Within them a caller can still
- * choose how a model's tokens divide across types, so at worst each type is billed
- * at the priciest declared model's rate for it. The 1h and fast shares are claims
- * too: they must fit inside each model's own tokens (fast up to 6x on Opus 4.6/4.7,
- * annotated V10_fast_mode_share). There is no further clamp: like ccusage, a day
+ * choose how a model's tokens divide across types and claim 1h and fast shares (each
+ * inside the model's own tokens), so at worst each type is billed at the priciest
+ * declared model's rate for it — cache writes at its 1h rate — times that model's
+ * fast multiplier (up to 6x on Opus 4.6/4.7; fast days are annotated
+ * V10_fast_mode_share). There is no further clamp: like ccusage, a day
  * costs its per-model sum. (Until 2026-10-22 a clamp to the priciest single-model
  * reading of the day sat here; it cut honest mixed-model days, ~6% on a real
  * Opus 5.5 + Sonnet 4.6 day.)

@@ -67,10 +67,10 @@ describe("082 grants nothing beyond service_role", () => {
   });
 
   it("grants only to service_role and defines no SECURITY DEFINER function", () => {
-    const grants = SQL.match(/GRANT [^;]+;/g) ?? [];
+    const grants = SQL.match(/\bgrant\b[^;]+;/gi) ?? [];
     expect(grants).toHaveLength(3);
-    for (const grant of grants) expect(grant).toMatch(/ TO service_role;$/);
-    expect(SQL).not.toContain("SECURITY DEFINER");
+    for (const grant of grants) expect(grant).toMatch(/ to service_role;$/i);
+    expect(SQL).not.toMatch(/security\s+definer/i);
   });
 });
 

@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
+  cacheWrite1hRate,
   computeDayCost,
   computeDayCostByModel,
   fastModeMultiplier,
@@ -362,51 +363,6 @@ describe("computeDayCostByModel", () => {
       ).toBe(200);
     });
   });
-
-  describe("stays within each token type's priciest declared rate", () => {
-    it("never bills a token type above the priciest declared model's rate for it", () => {
-      const dayTotals = {
-        inputTokens: 1 * M,
-        outputTokens: 1 * M,
-        cacheWriteTokens: 0,
-        cacheReadTokens: 0,
-      };
-      const declaredModels = { "claude-haiku-4-5": 1 * M, "claude-opus-5": 1 * M };
-      const perModel = computeDayCostByModel(null, {
-        modelTokens: {
-          "claude-haiku-4-5": {
-            inputTokens: 0,
-            outputTokens: 1 * M,
-            cacheWriteTokens: 0,
-            cacheReadTokens: 0,
-          },
-          "claude-opus-5": {
-            inputTokens: 1 * M,
-            outputTokens: 0,
-            cacheWriteTokens: 0,
-            cacheReadTokens: 0,
-          },
-        },
-        declaredModels,
-        dayTotals,
-      });
-      const priciest = (tokens: Partial<typeof dayTotals>) =>
-        Math.max(
-          ...Object.keys(declaredModels).map((model) =>
-            computeDayCost(null, {
-              model,
-              ...dayTotals,
-              inputTokens: 0,
-              outputTokens: 0,
-              ...tokens,
-            })
-          )
-        );
-      const bound = priciest({ inputTokens: 1 * M }) + priciest({ outputTokens: 1 * M });
-      expect(perModel).not.toBeNull();
-      expect(perModel!).toBeLessThanOrEqual(bound);
-    });
-  });
 });
 
 describe("1-hour cache writes and fast mode", () => {
@@ -607,5 +563,73 @@ describe("1-hour cache writes and fast mode", () => {
     });
     // 1000 + Opus 4.6 input x6; the removed clamp would have capped it at 1001.
     expect(cost).toBe(cents(1000 + opus.input * 6));
+  });
+
+  it("reaches, and never exceeds, each type at its priciest declared rate x fast multiplier", () => {
+    type Field = "inputTokens" | "outputTokens" | "cacheWriteTokens" | "cacheReadTokens";
+    const fields: Field[] = ["inputTokens", "outputTokens", "cacheWriteTokens", "cacheReadTokens"];
+    const declared = [
+      { id: "claude-opus-4-6", price: listed("claude-opus-4-6"), k: 6 },
+      { id: "claude-test-pricey-out", price: TABLE["claude-test-pricey-out"], k: 1 },
+    ];
+    // Cache writes are counted at the 1h rate: the dearer of the two write rates.
+    const rate = (price: OfficialModelPricing, field: Field) =>
+      field === "inputTokens"
+        ? price.input
+        : field === "outputTokens"
+          ? price.output
+          : field === "cacheWriteTokens"
+            ? cacheWrite1hRate(price)
+            : price.cacheRead;
+    const day = {
+      inputTokens: 1 * M,
+      outputTokens: 1 * M,
+      cacheWriteTokens: 1 * M,
+      cacheReadTokens: 1 * M,
+    };
+
+    // Funnel: every type to the model that bills it highest, all of it 1h and fast.
+    const shares = new Map(declared.map((m) => [m.id, { ...zero }]));
+    let bound = 0;
+    for (const field of fields) {
+      const top = declared.reduce((a, b) =>
+        rate(b.price, field) * b.k > rate(a.price, field) * a.k ? b : a
+      );
+      shares.get(top.id)![field] = 1 * M;
+      bound += rate(top.price, field) * top.k;
+    }
+    const modelTokens: Record<string, unknown> = {};
+    const declaredModels: Record<string, number> = {};
+    for (const m of declared) {
+      const own = shares.get(m.id)!;
+      const share = { ...own, cacheWrite1hTokens: own.cacheWriteTokens };
+      modelTokens[m.id] = m.k > 1 ? { ...share, fast: share } : share;
+      declaredModels[m.id] = fields.reduce((n, field) => n + own[field], 0);
+    }
+    expect(computeDayCostByModel(TABLE, { modelTokens, declaredModels, dayTotals: day })).toBe(
+      cents(bound)
+    );
+
+    // Any other honest-looking split of the same day stays at or under it.
+    const misaligned = computeDayCostByModel(TABLE, {
+      modelTokens: {
+        "claude-opus-4-6": {
+          ...zero,
+          outputTokens: 1 * M,
+          cacheReadTokens: 1 * M,
+          fast: { ...zero, outputTokens: 500_000 },
+        },
+        "claude-test-pricey-out": {
+          ...zero,
+          inputTokens: 1 * M,
+          cacheWriteTokens: 1 * M,
+          cacheWrite1hTokens: 400_000,
+        },
+      },
+      declaredModels: { "claude-opus-4-6": 2 * M, "claude-test-pricey-out": 2 * M },
+      dayTotals: day,
+    });
+    expect(misaligned).not.toBeNull();
+    expect(misaligned!).toBeLessThanOrEqual(bound);
   });
 });

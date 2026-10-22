@@ -48,6 +48,7 @@ export async function readUsageTotals(
     .select("total_tokens, cost_usd, sessions, device_id")
     .eq("user_id", userId);
   if (!primary.error && primary.data) {
+    warnAtRowCap(primary.data.length, userId);
     return { rows: primary.data as UsageTotalsRow[], error: null, fromDb: false };
   }
 
@@ -60,6 +61,7 @@ export async function readUsageTotals(
     .select("total_tokens, cost_usd, sessions")
     .eq("user_id", userId);
   if (!fallback.error && fallback.data) {
+    warnAtRowCap(fallback.data.length, userId);
     return { rows: fallback.data as UsageTotalsRow[], error: null, fromDb: false };
   }
   return {
@@ -67,6 +69,16 @@ export async function readUsageTotals(
     error: fallback.error || { message: "No data returned from fallback" },
     fromDb: false,
   };
+}
+
+// PostgREST returns at most 1000 rows: a full page means rows may be missing.
+function warnAtRowCap(rows: number, userId: string): void {
+  if (rows >= 1000) {
+    console.warn(
+      "[CLI Submit] usage fallback read hit the 1000-row cap; totals may be short for user",
+      userId
+    );
+  }
 }
 
 export interface SubmitterRanks {
