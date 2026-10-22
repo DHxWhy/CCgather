@@ -1046,6 +1046,22 @@ describe("submit({ nonInteractive: true })", () => {
       expect(body.rateLimitTier).toBe("default_claude_max_20x");
     });
 
+    it("shows a cloud plan in the summary by the site badge's short name", async () => {
+      mocked.store.set("starConfirmed", true);
+      mocked.readCredentials.mockReturnValueOnce({
+        ccplan: "aws_platform",
+        rateLimitTier: null,
+        authMethod: "cloud",
+        rawSubscriptionType: "CLAUDE_CODE_USE_ANTHROPIC_AWS",
+      });
+
+      expect(await runSubmit({ nonInteractive: false })).toBe(0);
+
+      const text = logs.join("\n").replace(/\u001B\[[0-9;]*m/g, "");
+      expect(text).toMatch(/Plan\s+AWS\b/);
+      expect(text).not.toContain("AWS_PLATFORM");
+    });
+
     it("does not read the sign-in at all, so a LaunchAgent never asks the Keychain", async () => {
       mocked.store.delete("lastSync");
       mocked.readCredentials.mockClear();
