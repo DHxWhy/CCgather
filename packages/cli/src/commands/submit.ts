@@ -148,7 +148,7 @@ export const DUPLICATE_SESSION_ADVICE =
 
 /** Added to that advice while CLAUDE_CONFIG_DIR names other folders: they are saved again each time. */
 export const SHELL_FOLDER_ADVICE =
-  "If that folder is named in CLAUDE_CONFIG_DIR, CCgather counts it whenever that variable is set, so choose folders and submit in a terminal without it.";
+  "If that folder is named in CLAUDE_CONFIG_DIR, CCgather counts it whenever that variable names it, so choose folders and submit in a terminal where CLAUDE_CONFIG_DIR leaves it out.";
 
 /** The question about data folders found on disk. */
 export function otherFoldersQuestion(count: number): string {
@@ -168,7 +168,7 @@ export function unconfirmedFoldersHint(count: number): string {
 
 /** Shown after Settings > Data folders forgets the folder answers. */
 export const FOLDER_CHOICES_CLEARED =
-  "Folder choices cleared. Your next submit from this menu asks again about other Claude Code data folders it finds (a folder set in CLAUDE_CONFIG_DIR is counted without asking). Until then, scheduled submits read only the default folders.";
+  "Folder choices cleared. Until your next submit from this menu, which asks again about other Claude Code data folders it finds, scheduled submits read only the default folders. A folder named in CLAUDE_CONFIG_DIR is counted without asking whenever you submit with that variable set.";
 
 /** How long a non-interactive request may wait for the server before it is abandoned */
 const NON_INTERACTIVE_TIMEOUT_MS = 120_000;

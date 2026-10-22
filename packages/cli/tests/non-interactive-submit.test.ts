@@ -75,6 +75,7 @@ vi.mock("../src/commands/auth", () => ({ auth: mocked.auth }));
 import {
   COUNTING_NOTICE,
   DUPLICATE_SESSION_ADVICE,
+  FOLDER_CHOICES_CLEARED,
   formatAgo,
   otherFoldersQuestion,
   SHELL_FOLDER_ADVICE,
@@ -167,7 +168,10 @@ describe("folder wording", () => {
       "If a data folder you added belongs to another CCgather account, choose folders again and uncheck it: npx ccgather > Settings > Data folders."
     );
     expect(SHELL_FOLDER_ADVICE).toBe(
-      "If that folder is named in CLAUDE_CONFIG_DIR, CCgather counts it whenever that variable is set, so choose folders and submit in a terminal without it."
+      "If that folder is named in CLAUDE_CONFIG_DIR, CCgather counts it whenever that variable names it, so choose folders and submit in a terminal where CLAUDE_CONFIG_DIR leaves it out."
+    );
+    expect(FOLDER_CHOICES_CLEARED).toBe(
+      "Folder choices cleared. Until your next submit from this menu, which asks again about other Claude Code data folders it finds, scheduled submits read only the default folders. A folder named in CLAUDE_CONFIG_DIR is counted without asking whenever you submit with that variable set."
     );
   });
 });
@@ -493,7 +497,10 @@ describe("submit({ nonInteractive: true })", () => {
         code: "DUPLICATE_SESSION",
       });
     mocked.store.set("claudeDirs", [path.join(mocked.home, ".claude-work")]);
-    for (const value of ["   ", path.join(mocked.home, ".claude")]) {
+    const link = path.join(mocked.home, "claude-link");
+    fs.symlinkSync(path.join(mocked.home, ".claude"), link);
+    // Blank, the default folder, a link to it, a folder that does not exist
+    for (const value of ["   ", path.join(mocked.home, ".claude"), link, "/nonexistent/x"]) {
       vi.stubEnv("CLAUDE_CONFIG_DIR", value);
       errors.length = 0;
       expect(await runSubmit()).toBe(1);
@@ -931,9 +938,20 @@ describe("submit({ nonInteractive: true })", () => {
   it("only marks the counting notice as seen on a first submit, with nothing to compare", async () => {
     mocked.store.set("starConfirmed", true);
     mocked.store.delete("lastSync");
-    // What the server sends for a first submit: the new totals, no previous record
+    // What the server sends for a first submit: everything but a previous record
     routes.submit = () =>
-      json(200, { success: true, rank: 7, accumulatedTokens: 3000, accumulatedCost: 0.12 });
+      json(200, {
+        success: true,
+        profileUrl: "https://ccgather.com/u/alice",
+        rank: 7,
+        countryRank: 2,
+        currentLevel: 1,
+        accumulatedTokens: 3000,
+        accumulatedCost: 0.12,
+        levelInfo: { level: 1, name: "Rookie", icon: "🌱", progress: 3, tokensToNextLevel: 97000 },
+        newBadges: [],
+        totalBadges: 0,
+      });
 
     expect(await runSubmit({ nonInteractive: false })).toBe(0);
     expect(logs.some((line) => line.includes(COUNTING_NOTICE))).toBe(false);
