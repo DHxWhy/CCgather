@@ -20,6 +20,7 @@ import {
   findCandidateClaudeDirs,
   saveShellClaudeDirs,
   savedShellDirsNotice,
+  shellOnlyClaudeDirs,
 } from "../lib/claude-dirs.js";
 import { SCHEDULED_MIN_INTERVAL_MS } from "../lib/autosubmit/shared.js";
 import {
@@ -145,9 +146,9 @@ export const COUNTING_NOTICE =
 export const DUPLICATE_SESSION_ADVICE =
   "If a data folder you added belongs to another CCgather account, choose folders again and uncheck it: npx ccgather > Settings > Data folders.";
 
-/** Added to that advice while CLAUDE_CONFIG_DIR is set: its folders are saved again each time. */
+/** Added to that advice while CLAUDE_CONFIG_DIR names other folders: they are saved again each time. */
 export const SHELL_FOLDER_ADVICE =
-  "Folders named in CLAUDE_CONFIG_DIR are always counted, so do this in a terminal without it.";
+  "If that folder is named in CLAUDE_CONFIG_DIR, CCgather counts it whenever that variable is set, so choose folders and submit in a terminal without it.";
 
 /** The question about data folders found on disk. */
 export function otherFoldersQuestion(count: number): string {
@@ -536,7 +537,7 @@ async function confirmOtherClaudeDirs(config: Conf<CliConfig>): Promise<void> {
 function duplicateSessionAdvice(config: Conf<CliConfig>, result: SubmitResponse): string | null {
   if (result.code !== "DUPLICATE_SESSION") return null;
   if ((config.get("claudeDirs") ?? []).length === 0) return null;
-  return process.env.CLAUDE_CONFIG_DIR?.trim()
+  return shellOnlyClaudeDirs(process.env, os.homedir()).length > 0
     ? `${DUPLICATE_SESSION_ADVICE} ${SHELL_FOLDER_ADVICE}`
     : DUPLICATE_SESSION_ADVICE;
 }

@@ -167,7 +167,7 @@ describe("folder wording", () => {
       "If a data folder you added belongs to another CCgather account, choose folders again and uncheck it: npx ccgather > Settings > Data folders."
     );
     expect(SHELL_FOLDER_ADVICE).toBe(
-      "Folders named in CLAUDE_CONFIG_DIR are always counted, so do this in a terminal without it."
+      "If that folder is named in CLAUDE_CONFIG_DIR, CCgather counts it whenever that variable is set, so choose folders and submit in a terminal without it."
     );
   });
 });
@@ -472,7 +472,7 @@ describe("submit({ nonInteractive: true })", () => {
     expect(logs.join("\n")).not.toContain(DUPLICATE_SESSION_ADVICE);
   });
 
-  it("adds that CLAUDE_CONFIG_DIR folders are always counted while the variable is set", async () => {
+  it("adds what to do about a CLAUDE_CONFIG_DIR folder while the variable names one", async () => {
     routes.submit = () =>
       json(409, {
         error: "These sessions have already been submitted by another account.",
@@ -484,6 +484,22 @@ describe("submit({ nonInteractive: true })", () => {
 
     expect(await runSubmit()).toBe(1);
     expect(errors[0]).toContain(`${DUPLICATE_SESSION_ADVICE} ${SHELL_FOLDER_ADVICE}`);
+  });
+
+  it("leaves that out when the variable names no other folder", async () => {
+    routes.submit = () =>
+      json(409, {
+        error: "These sessions have already been submitted by another account.",
+        code: "DUPLICATE_SESSION",
+      });
+    mocked.store.set("claudeDirs", [path.join(mocked.home, ".claude-work")]);
+    for (const value of ["   ", path.join(mocked.home, ".claude")]) {
+      vi.stubEnv("CLAUDE_CONFIG_DIR", value);
+      errors.length = 0;
+      expect(await runSubmit()).toBe(1);
+      expect(errors[0]).toContain(DUPLICATE_SESSION_ADVICE);
+      expect(errors[0]).not.toContain(SHELL_FOLDER_ADVICE);
+    }
   });
 
   it("leaves the Data folders advice out when no folder was added", async () => {
@@ -915,6 +931,9 @@ describe("submit({ nonInteractive: true })", () => {
   it("only marks the counting notice as seen on a first submit, with nothing to compare", async () => {
     mocked.store.set("starConfirmed", true);
     mocked.store.delete("lastSync");
+    // What the server sends for a first submit: the new totals, no previous record
+    routes.submit = () =>
+      json(200, { success: true, rank: 7, accumulatedTokens: 3000, accumulatedCost: 0.12 });
 
     expect(await runSubmit({ nonInteractive: false })).toBe(0);
     expect(logs.some((line) => line.includes(COUNTING_NOTICE))).toBe(false);
