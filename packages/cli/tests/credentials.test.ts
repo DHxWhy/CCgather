@@ -226,7 +226,7 @@ describe("settings env blocks replace the shell's variables", () => {
     write(".claude/settings.json", { env: { CLAUDE_CODE_USE_VERTEX: "0\u0000" } });
     expect(creds({ CLAUDE_CODE_USE_VERTEX: "1" }).ccplan).toBe("vertex");
     write(".claude/settings.json", {});
-    write(".claude.json", { env: { CLAUDE_CODE_USE_VERTEX: "1\u0000" } });
+    write(".claude.json", { env: { ANTHROPIC_AUTH_TOKEN: "t\u0000" } });
     expect(creds({}).ccplan).toBe("max");
   });
 
