@@ -801,6 +801,18 @@ describe("buckets and bounds", () => {
     expect(acc.result().lastTimestamp).toBe("2026-10-01T23:30:00Z");
   });
 
+  it("cuts off at the cutoff's instant, not at its date", () => {
+    // Local midnight in Seoul is 15:00 UTC the day before
+    const acc = createUsageAccumulator({ cutoff: "2026-10-01T15:00:00.000Z" });
+    expect(
+      acc.add(line({ id: "msg_1", req: "r1", ts: "2026-10-01T14:59:59.000Z", output: 4 }), A)
+    ).toBe(false);
+    expect(
+      acc.add(line({ id: "msg_2", req: "r2", ts: "2026-10-01T15:00:00.000Z", output: 2 }), A)
+    ).toBe(true);
+    expect(acc.result().total.outputTokens).toBe(2);
+  });
+
   it("counts a line exactly at the cutoff", () => {
     const acc = createUsageAccumulator({ cutoff: "2026-10-01T00:00:00.000Z" });
     expect(

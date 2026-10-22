@@ -11,6 +11,7 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import type { AutosubmitStatus } from "../src/lib/autosubmit/shared";
+import { FOLDER_CHOICES_CLEARED } from "../src/commands/submit";
 
 interface Choice {
   name: string;
@@ -512,10 +513,6 @@ describe("main menu: auto-submit item", () => {
 
     expect(mocked.store.has("claudeDirs")).toBe(false);
     expect(mocked.store.has("declinedClaudeDirs")).toBe(false);
-    expect(logs).toContainEqual(
-      expect.stringContaining(
-        "The next time you submit from this menu, it asks again which Claude Code data folders to count."
-      )
-    );
+    expect(logs).toContainEqual(expect.stringContaining(FOLDER_CHOICES_CLEARED));
   });
 });

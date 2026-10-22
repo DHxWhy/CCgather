@@ -4,7 +4,7 @@ import { Command } from "commander";
 import inquirer from "inquirer";
 import chalk from "chalk";
 import { execSync } from "child_process";
-import { submit, logResult } from "./commands/submit.js";
+import { submit, logResult, FOLDER_CHOICES_CLEARED } from "./commands/submit.js";
 import {
   autosubmitEnable,
   autosubmitOff,
@@ -302,9 +302,7 @@ async function showSettingsMenu(): Promise<void> {
       const config = getConfig();
       config.delete("claudeDirs");
       config.delete("declinedClaudeDirs");
-      console.log(
-        `\n  ${colors.muted("The next time you submit from this menu, it asks again which Claude Code data folders to count.")}`
-      );
+      console.log(`\n  ${colors.muted(FOLDER_CHOICES_CLEARED)}`);
       await showMenuOnly();
       break;
     }

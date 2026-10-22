@@ -137,6 +137,10 @@ interface SubmitResponse {
 export const COUNTING_NOTICE =
   "This version counts usage the way ccusage does: your token total can rise a little and your cost more (1-hour cache writes, fast mode). Details: What's new on ccgather.com.";
 
+/** Shown after Settings > Data folders forgets the folder answers. */
+export const FOLDER_CHOICES_CLEARED =
+  "Folder choices cleared. Your next submit from this menu asks again about other Claude Code data folders it finds (a folder set in CLAUDE_CONFIG_DIR is counted without asking). Until then, scheduled submits read only the default folders.";
+
 /** How long a non-interactive request may wait for the server before it is abandoned */
 const NON_INTERACTIVE_TIMEOUT_MS = 120_000;
 

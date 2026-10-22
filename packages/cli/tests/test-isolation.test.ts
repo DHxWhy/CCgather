@@ -1,5 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
+import * as fs from "fs";
 import * as os from "os";
+import * as path from "path";
 import { isolateEnvironment } from "./setup/isolation";
 
 // What the setup must clear, listed here on its own so a name dropped there is caught.
@@ -45,16 +47,22 @@ describe("test isolation", () => {
 
   it("the setup file itself clears them when loaded under a polluted shell", async () => {
     const before = { ...process.env };
+    let made: string | undefined;
     try {
       for (const name of MUST_CLEAR) process.env[name] = "/polluted";
       process.env.HOME = "/polluted-home";
       vi.resetModules();
 
       await import("./setup/isolate-environment");
+      made = process.env.HOME;
 
       for (const name of MUST_CLEAR) expect(process.env[name], name).toBeUndefined();
-      expect(process.env.HOME).toMatch(/ccgather-test-home-/);
+      expect(made).toMatch(/ccgather-test-home-/);
     } finally {
+      // The second load made its own HOME; its afterAll is never run from inside a test
+      if (made && made !== before.HOME && path.basename(made).startsWith("ccgather-test-home-")) {
+        fs.rmSync(made, { recursive: true, force: true });
+      }
       for (const name of Object.keys(process.env)) {
         if (!(name in before)) delete process.env[name];
       }
@@ -63,6 +71,11 @@ describe("test isolation", () => {
   });
 
   it("puts the real config store inside the throwaway HOME", async () => {
+    // Checked first: getConfig() creates the store file wherever these point
+    expect(os.homedir()).toMatch(/ccgather-test-home-/);
+    for (const name of ["XDG_CONFIG_HOME", "APPDATA"]) {
+      expect(process.env[name], name).toBeUndefined();
+    }
     const { getConfig } = await import("../src/lib/config");
     expect(getConfig().path.startsWith(os.homedir())).toBe(true);
   });

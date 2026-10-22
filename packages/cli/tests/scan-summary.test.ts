@@ -250,6 +250,15 @@ describe("files read in path order, as ccusage does", () => {
     ]);
   });
 
+  it("reads one project folder in the same order", () => {
+    copiedSession(true);
+    const data = scanUsageDataFromPath(path.join(configDir, "projects", "p"), { days: 0 });
+    expect(data?.dailyUsage.map((d) => [d.date, d.tokens])).toEqual([
+      ["2026-10-01", 21_104],
+      ["2026-10-02", 30_053],
+    ]);
+  });
+
   it("leaves no day behind for a /btw replay without an answer", () => {
     copiedSession(false);
     const data = scanAllProjects();
