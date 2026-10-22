@@ -3,228 +3,187 @@ import * as path from "path";
 import * as os from "os";
 import { execSync } from "child_process";
 
-export type CCPlan = "free" | "pro" | "max" | "team" | "enterprise" | string;
+export type CCPlan = string;
 
-// Authentication method used
-export type AuthMethod = "oauth" | "api_key" | "unknown";
+// How Claude Code signs in: a claude.ai subscription, API usage billing, or a cloud provider.
+export type AuthMethod = "oauth" | "api_key" | "cloud" | "unknown";
 
 export interface CredentialsData {
-  ccplan: CCPlan | null;
+  ccplan: CCPlan | null; // a plan key the server knows (lib/services/auth-plan.ts), or null
   rateLimitTier: string | null;
   authMethod: AuthMethod;
-  rawSubscriptionType: string | null; // Original value for server logging
+  rawSubscriptionType: string | null; // what decided it, for the server's discovery log
 }
 
-interface ClaudeCredentials {
-  claudeAiOauth?: {
-    subscriptionType?: string;
-    rateLimitTier?: string;
-  };
-  // API Key based auth (Anthropic Console) may have different structure
-  anthropicConsole?: {
-    apiKey?: string;
-    organizationId?: string;
-    organizationType?: string; // "team" | "enterprise" | "personal"
-  };
+type Env = Record<string, string | undefined>;
+type JsonObject = Record<string, unknown>;
+
+interface OAuthCredentials {
+  subscriptionType?: unknown;
+  rateLimitTier?: unknown;
 }
 
-/**
- * Get the path to .credentials.json (Linux/Windows)
- */
-function getCredentialsPath(): string {
-  return path.join(os.homedir(), ".claude", ".credentials.json");
-}
+// Claude Code 2.1.306 takes the first provider whose variable is set, in this order, and
+// shows Mantle on top of Bedrock as Mantle.
+const PROVIDERS = [
+  ["CLAUDE_CODE_USE_BEDROCK", "bedrock"],
+  ["CLAUDE_CODE_USE_FOUNDRY", "foundry"],
+  ["CLAUDE_CODE_USE_ANTHROPIC_AWS", "aws_platform"],
+  ["CLAUDE_CODE_USE_ANTHROPIC_GOOGLE_CLOUD", "gcp_platform"],
+  ["CLAUDE_CODE_USE_MANTLE", "mantle"],
+  ["CLAUDE_CODE_USE_VERTEX", "vertex"],
+] as const;
 
-/**
- * Read credentials from macOS Keychain
- * macOS stores Claude Code credentials in Keychain, not in a file
- */
-function readFromMacKeychain(): ClaudeCredentials | null {
+const SUBSCRIPTION_PLANS = ["free", "pro", "max", "team", "enterprise"];
+
+// Claude Code's own reading of these switches.
+const isTruthy = (v: string | undefined): boolean =>
+  v !== undefined && ["1", "true", "yes", "on"].includes(v.toLowerCase().trim());
+
+const filled = (v: unknown): string | null => (typeof v === "string" && v.trim() !== "" ? v : null);
+
+const isObject = (v: unknown): v is JsonObject =>
+  v !== null && typeof v === "object" && !Array.isArray(v);
+
+function readJsonFile(file: string): JsonObject | null {
   try {
-    // Use security command to read from Keychain
+    const value: unknown = JSON.parse(fs.readFileSync(file, "utf-8"));
+    return isObject(value) ? value : null;
+  } catch {
+    return null;
+  }
+}
+
+// The paths Claude Code uses: CLAUDE_CONFIG_DIR replaces ~/.claude and also holds .claude.json.
+function claudePaths(env: Env, home: string) {
+  const configDir = filled(env.CLAUDE_CONFIG_DIR);
+  const dir = configDir ?? path.join(home, ".claude");
+  return {
+    globalConfig: path.join(configDir ?? home, ".claude.json"),
+    userSettings: path.join(dir, "settings.json"),
+    credentials: path.join(dir, ".credentials.json"),
+  };
+}
+
+/** macOS keeps Claude Code's login in the Keychain rather than in a file. */
+function readFromMacKeychain(): JsonObject | null {
+  try {
     const result = execSync('security find-generic-password -s "Claude Code-credentials" -w', {
       encoding: "utf-8",
-      stdio: ["pipe", "pipe", "pipe"], // Suppress stderr
+      stdio: ["pipe", "pipe", "pipe"],
     });
-
-    const credentials: ClaudeCredentials = JSON.parse(result.trim());
-    return credentials;
-  } catch {
-    // Keychain access failed or credentials not found
-    return null;
-  }
-}
-
-/**
- * Read credentials from file (Linux/Windows)
- */
-function readFromFile(): ClaudeCredentials | null {
-  const credentialsPath = getCredentialsPath();
-
-  if (!fs.existsSync(credentialsPath)) {
-    return null;
-  }
-
-  try {
-    const content = fs.readFileSync(credentialsPath, "utf-8");
-    return JSON.parse(content);
+    const parsed: unknown = JSON.parse(result.trim());
+    return isObject(parsed) ? parsed : null;
   } catch {
     return null;
   }
 }
 
-/**
- * Map subscription type to CCPlan
- * - Pass through as-is for badge display (no normalization)
- * - This allows distinguishing max vs max_20x, and discovering new plan types
- */
-function mapSubscriptionToCCPlan(subscriptionType: string | undefined): CCPlan | null {
-  if (!subscriptionType) {
-    return null;
-  }
-
-  // Return as-is (lowercase) for badge display
-  // Examples: "free", "pro", "max", "max_20x", "team", "enterprise", etc.
-  return subscriptionType.toLowerCase();
+function readOAuthCredentials(credentialsFile: string): OAuthCredentials | null {
+  const stored =
+    (process.platform === "darwin" ? readFromMacKeychain() : null) ?? readJsonFile(credentialsFile);
+  return stored && isObject(stored.claudeAiOauth) ? stored.claudeAiOauth : null;
 }
 
-/**
- * Infer CCPlan from rateLimitTier
- * Extracts the most specific plan identifier from tier string
- * Examples:
- * - "default_claude_max_20x" → "max_20x"
- * - "default_claude_max" → "max"
- * - "default_claude_pro" → "pro"
- * - "free" → "free"
- * - "default_claude_team_5x" → "team_5x"
- * - "default_claude_enterprise_10x" → "enterprise_10x"
- */
-function inferPlanFromRateLimitTier(rateLimitTier: string | undefined): CCPlan | null {
-  if (!rateLimitTier) {
-    return null;
+// The saved plan ("max") or a tier that names it ("default_claude_max_20x"); only the
+// server's plan keys are sent.
+function planFrom(oauth: OAuthCredentials): string | null {
+  for (const raw of [oauth.subscriptionType, oauth.rateLimitTier]) {
+    if (typeof raw !== "string") continue;
+    const words = raw.toLowerCase().split(/[^a-z0-9]+/);
+    const plan = SUBSCRIPTION_PLANS.find((p) => words.includes(p));
+    if (plan) return plan;
   }
-
-  const tier = rateLimitTier.toLowerCase();
-
-  // Try to extract plan with multiplier (e.g., "max_20x", "team_5x")
-  // Pattern: default_claude_{plan}_{multiplier} or default_claude_{plan}
-  const match = tier.match(/(?:default_claude_)?(\w+?)(?:_(\d+x))?$/);
-  if (match) {
-    const plan = match[1];
-    const multiplier = match[2];
-
-    // Known plan types
-    if (["max", "pro", "free", "team", "enterprise"].includes(plan)) {
-      return multiplier ? `${plan}_${multiplier}` : plan;
-    }
-  }
-
-  // Fallback: check for known keywords anywhere in string
-  if (tier.includes("enterprise")) return "enterprise";
-  if (tier.includes("team")) return "team";
-  if (tier.includes("max")) return tier.includes("20x") ? "max_20x" : "max";
-  if (tier.includes("pro")) return "pro";
-  if (tier.includes("free")) return "free";
-
-  // Unknown tier - return as-is
-  return tier;
+  return null;
 }
 
-/**
- * Detect if user is using API Key authentication (Team/Enterprise)
- * Team/Enterprise users typically authenticate via Anthropic Console with API keys
- */
-function detectApiKeyAuth(): { isApiKey: boolean; orgType: CCPlan | null } {
-  // Check environment variables that indicate API key usage
-  const anthropicApiKey = process.env.ANTHROPIC_API_KEY;
-  const claudeOAuthToken = process.env.CLAUDE_CODE_OAUTH_TOKEN;
-
-  // If ANTHROPIC_API_KEY is set without OAuth token, likely Team/Enterprise
-  if (anthropicApiKey && !claudeOAuthToken) {
-    // API keys from Team/Enterprise may have specific prefixes or patterns
-    // sk-ant-api03- is typical for console API keys
-    if (anthropicApiKey.startsWith("sk-ant-api")) {
-      return { isApiKey: true, orgType: null }; // Can't determine exact type from key
-    }
-  }
-
-  return { isApiKey: false, orgType: null };
+// Interactive Claude Code uses ANTHROPIC_API_KEY only once the user approves it, and keeps
+// the answer in .claude.json under the key's last 20 characters.
+function apiKeyAnswer(
+  key: string,
+  globalConfig: JsonObject | null
+): "approved" | "rejected" | "new" {
+  const answers = isObject(globalConfig?.customApiKeyResponses)
+    ? globalConfig.customApiKeyResponses
+    : {};
+  const tail = key.trim().slice(-20);
+  if (Array.isArray(answers.approved) && answers.approved.includes(tail)) return "approved";
+  if (Array.isArray(answers.rejected) && answers.rejected.includes(tail)) return "rejected";
+  return "new";
 }
 
-/**
- * Read credentials from platform-specific storage
- * - macOS: Keychain
- * - Linux/Windows: ~/.claude/.credentials.json
- *
- * Also detects API Key authentication (used by Team/Enterprise)
- *
- * Returns account information or null values if not found
- */
-export function readCredentials(): CredentialsData {
-  // Default return value for errors
-  const defaultData: CredentialsData = {
-    ccplan: null,
-    rateLimitTier: null,
-    authMethod: "unknown",
-    rawSubscriptionType: null,
-  };
+const apiBilling = (source: string): CredentialsData => ({
+  ccplan: "api",
+  rateLimitTier: null,
+  authMethod: "api_key",
+  rawSubscriptionType: source,
+});
 
-  // First, check for API Key authentication (Team/Enterprise typically uses this)
-  const apiKeyAuth = detectApiKeyAuth();
-  if (apiKeyAuth.isApiKey) {
-    return {
-      ccplan: apiKeyAuth.orgType || "team", // Default to "team" for API key users
-      rateLimitTier: null,
-      authMethod: "api_key",
-      rawSubscriptionType: "api_key_auth", // Signal to server that this is API key auth
-    };
-  }
-
-  let credentials: ClaudeCredentials | null = null;
-
-  // Try macOS Keychain first (if on macOS)
-  if (process.platform === "darwin") {
-    credentials = readFromMacKeychain();
-  }
-
-  // Fallback to file-based credentials (Linux/Windows, or if Keychain failed)
-  if (!credentials) {
-    credentials = readFromFile();
-  }
-
-  if (!credentials) {
-    return defaultData;
-  }
-
-  // Check for Anthropic Console auth structure (Team/Enterprise)
-  if (credentials.anthropicConsole?.organizationType) {
-    const orgType = credentials.anthropicConsole.organizationType.toLowerCase();
-    return {
-      ccplan: orgType === "enterprise" ? "enterprise" : orgType === "team" ? "team" : orgType,
-      rateLimitTier: null,
-      authMethod: "api_key",
-      rawSubscriptionType: orgType,
-    };
-  }
-
-  // Extract OAuth data (Pro/Max individual users)
-  const oauthData = credentials.claudeAiOauth;
-
-  if (!oauthData) {
-    return defaultData;
-  }
-
-  // Map subscription type to CCPlan, fallback to rateLimitTier inference
-  const rateLimitTier = oauthData.rateLimitTier ?? null;
-  const rawSubscriptionType = oauthData.subscriptionType ?? null;
-  const ccplan =
-    mapSubscriptionToCCPlan(rawSubscriptionType ?? undefined) ||
-    inferPlanFromRateLimitTier(rateLimitTier ?? undefined);
-
+function subscription(oauth: OAuthCredentials | null): CredentialsData {
   return {
-    ccplan,
-    rateLimitTier,
+    ccplan: oauth ? planFrom(oauth) : null,
+    rateLimitTier: typeof oauth?.rateLimitTier === "string" ? oauth.rateLimitTier : null,
     authMethod: "oauth",
-    rawSubscriptionType,
+    rawSubscriptionType:
+      typeof oauth?.subscriptionType === "string" ? oauth.subscriptionType : null,
   };
+}
+
+/**
+ * The credential Claude Code would sign in with, in its documented order
+ * (code.claude.com/docs/en/authentication, "Authentication precedence"): a cloud provider,
+ * ANTHROPIC_AUTH_TOKEN, an approved ANTHROPIC_API_KEY or a key saved by a Claude Console
+ * login, apiKeyHelper, CLAUDE_CODE_OAUTH_TOKEN, an Anthropic profile or federation
+ * credentials, then the /login subscription. Variables in the settings file's env block count
+ * like shell variables.
+ */
+export function readCredentials(
+  env: Env = process.env,
+  home: string = os.homedir()
+): CredentialsData {
+  const paths = claudePaths(env, home);
+  const settings = readJsonFile(paths.userSettings);
+  const settingsEnv = isObject(settings?.env) ? settings.env : {};
+  const variable = (name: string): string | undefined => {
+    const fromSettings = settingsEnv[name];
+    return env[name] ?? (typeof fromSettings === "string" ? fromSettings : undefined);
+  };
+
+  const provider = PROVIDERS.find(([name]) => isTruthy(variable(name)));
+  if (provider) {
+    const [name, plan] = provider;
+    const mantle = plan === "bedrock" && isTruthy(variable("CLAUDE_CODE_USE_MANTLE"));
+    return {
+      ccplan: mantle ? "mantle" : plan,
+      rateLimitTier: null,
+      authMethod: "cloud",
+      rawSubscriptionType: name,
+    };
+  }
+
+  if (filled(variable("ANTHROPIC_AUTH_TOKEN"))) return apiBilling("ANTHROPIC_AUTH_TOKEN");
+
+  const globalConfig = readJsonFile(paths.globalConfig);
+  const apiKey = filled(variable("ANTHROPIC_API_KEY"));
+  const answer = apiKey ? apiKeyAnswer(apiKey, globalConfig) : null;
+  if (answer === "approved") return apiBilling("ANTHROPIC_API_KEY");
+  if (filled(globalConfig?.primaryApiKey)) return apiBilling("console_login");
+  if (filled(settings?.apiKeyHelper)) return apiBilling("apiKeyHelper");
+
+  if (filled(variable("CLAUDE_CODE_OAUTH_TOKEN"))) {
+    return subscription(readOAuthCredentials(paths.credentials));
+  }
+
+  const federation =
+    filled(variable("ANTHROPIC_FEDERATION_RULE_ID")) &&
+    filled(variable("ANTHROPIC_ORGANIZATION_ID"));
+  if (filled(variable("ANTHROPIC_PROFILE")) || federation) return apiBilling("anthropic_profile");
+
+  const oauth = readOAuthCredentials(paths.credentials);
+  if (oauth) return subscription(oauth);
+
+  // A key nobody has answered yet is still what a non-interactive run (`claude -p`) uses.
+  if (answer === "new") return apiBilling("ANTHROPIC_API_KEY");
+
+  return { ccplan: null, rateLimitTier: null, authMethod: "unknown", rawSubscriptionType: null };
 }

@@ -296,6 +296,8 @@ describe("submit({ nonInteractive: true })", () => {
     expect(body.totalTokens).toBe(3000);
     // A plain non-interactive run is not the autosubmit job
     expect(body).not.toHaveProperty("scheduled");
+    expect(body).toHaveProperty("ccplan", null);
+    expect(body.authMethod).toBe("unknown");
     expect(mocked.store.get("lastSync")).not.toBe(INITIAL_LAST_SYNC);
   });
 
@@ -563,6 +565,15 @@ describe("submit({ nonInteractive: true })", () => {
       // ...but it does say it is the autosubmit job, for the admin page
       expect(body.scheduled).toBe(true);
       expect(body.totalTokens).toBe(3000);
+    });
+
+    it("leaves the stored plan alone: no account fields from the scheduler's bare environment", async () => {
+      mocked.store.delete("lastSync");
+      expect(await runSubmit({ scheduled: true })).toBe(0);
+      const body = JSON.parse(String(callsTo("/cli/submit")[0]?.init?.body));
+      for (const field of ["ccplan", "rateLimitTier", "authMethod", "rawSubscriptionType"]) {
+        expect(body, field).not.toHaveProperty(field);
+      }
     });
 
     it("submits when there is no lastSync, or it lies in the future", async () => {

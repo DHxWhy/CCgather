@@ -129,7 +129,7 @@ export interface CCGatherData {
   account?: {
     ccplan: string | null;
     rateLimitTier: string | null;
-    authMethod?: string; // "oauth" | "api_key" | "unknown"
+    authMethod?: string; // "oauth" | "api_key" | "cloud" | "unknown"
     rawSubscriptionType?: string | null; // Original value for discovery
   };
   sessionFingerprint?: SessionFingerprint;

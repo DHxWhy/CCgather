@@ -238,11 +238,17 @@ async function submitToServer(
         cacheReadTokens: data.cacheReadTokens,
         cacheWriteTokens: data.cacheWriteTokens,
         daysTracked: data.daysTracked,
-        // Plan info for badge display (not league placement)
-        ccplan: data.ccplan,
-        rateLimitTier: data.rateLimitTier,
-        authMethod: data.authMethod,
-        rawSubscriptionType: data.rawSubscriptionType,
+        // Plan info for badge display (not league placement). A scheduled run has no shell
+        // environment (API key, provider variables) to read it from, so it sends none and
+        // the server keeps the stored plan.
+        ...(scheduled
+          ? {}
+          : {
+              ccplan: data.ccplan,
+              rateLimitTier: data.rateLimitTier,
+              authMethod: data.authMethod,
+              rawSubscriptionType: data.rawSubscriptionType,
+            }),
         timestamp: new Date().toISOString(),
         dailyUsage: data.dailyUsage,
         // Session fingerprint for duplicate prevention
