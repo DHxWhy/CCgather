@@ -29,7 +29,7 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
     category: "improved",
     title: "CLI v2.3.3 finds your other Claude Code folders and shows how you sign in",
     summary:
-      "The CLI now also reads Claude Code data folders beside ~/.claude, such as ~/.claude-work for a second account, and the npx ccgather menu asks once before counting one it found (a session found twice counts once; Settings > Data folders asks again). A folder elsewhere counts when CLAUDE_CONFIG_DIR names it. Your plan badge follows how Claude Code signs you in: API keys and Console logins show as Claude API and cloud providers by name, never as Team, and an enterprise gateway sign-in leaves the badge as it is.",
+      "The CLI now also reads Claude Code data folders beside ~/.claude, such as ~/.claude-work for a second account, and npx ccgather@latest asks once in its menu before counting one it found (a session found twice counts once; Settings > Data folders asks again). A folder elsewhere counts when CLAUDE_CONFIG_DIR names it. Your plan badge follows how Claude Code signs you in: API keys and Console logins show as Claude API and cloud providers by name, never as Team, and an enterprise gateway sign-in leaves the badge as it is.",
   },
   {
     id: "2026-10-22-cli-autosubmit-v2-3-3",
@@ -37,7 +37,7 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
     category: "improved",
     title: "Scheduled submits and CLI v2.3.3: how they update and what they leave to you",
     summary:
-      "npx ccgather autosubmit status shows what your auto-submit job runs: one that runs the newest ccgather release picks up v2.3.3 on its next run, one that runs your global install of ccgather updates with npm install -g ccgather, and one that runs a set version such as ccgather@2.3.1 needs npx ccgather autosubmit on once (add --pin to keep one). Auto-submit never asks about new data folders or reads your Claude Code sign-in, so a folder found later waits for the npx ccgather menu and your badge for a submit by hand. A cron or Task Scheduler job you set up yourself to run npx ccgather@latest submit, as the README shows, picks up v2.3.3 too and does not ask about folders either, but it reports the sign-in it sees there, which can miss your shell's API key or provider settings.",
+      "npx ccgather autosubmit status shows what your auto-submit job runs: one that runs the newest ccgather release picks up v2.3.3 on its next run, one that runs your global install of ccgather updates with npm install -g ccgather, and one that runs a set version such as ccgather@2.3.1 needs npx ccgather@latest autosubmit on once (add --pin to keep one). Auto-submit never asks about new data folders or reads your Claude Code sign-in, so a folder found later waits for the menu of npx ccgather@latest and your badge for a submit by hand. A cron or Task Scheduler job you set up yourself to run npx ccgather@latest submit, as the README shows, picks up v2.3.3 too and does not ask about folders either, but it reports the sign-in it sees there, which can miss your shell's API key or provider settings.",
   },
   {
     id: "2026-10-21-feedback-replies-in-notifications",
@@ -53,7 +53,7 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
     category: "fixed",
     title: "The longest Claude Code sessions now count",
     summary:
-      "On Node, a transcript over about 512 MiB cannot be read as one string, so the CLI skipped it without a word — and since the longest sessions are usually the heaviest, the biggest totals were the ones missing (one machine: five files, 16.9B tokens). CLI v2.3.1 reads transcripts in chunks and decodes only the lines that hold usage: nothing is skipped, a full scan runs three to four times faster on about a fifth of the memory, and your next submit catches the missing sessions up. From CLI v2.3.2 a job set up through npx runs the newest release each day, so this is the last upgrade it can miss; jobs created with v2.3.0 or v2.3.1 are pinned to that version, so run npx ccgather autosubmit on once (add --pin if you would rather hold a version). From then on the job also reports itself as on, which unlocks the Autopilot badge.",
+      "On Node, a transcript over about 512 MiB cannot be read as one string, so the CLI skipped it without a word — and since the longest sessions are usually the heaviest, the biggest totals were the ones missing (one machine: five files, 16.9B tokens). CLI v2.3.1 reads transcripts in chunks and decodes only the lines that hold usage: nothing is skipped, a full scan runs three to four times faster on about a fifth of the memory, and your next submit catches the missing sessions up. From CLI v2.3.2 a job set up through npx runs the newest release each day, so this is the last upgrade it can miss; jobs created with v2.3.0 or v2.3.1 are pinned to that version, so run npx ccgather@latest autosubmit on once (add --pin if you would rather hold a version). From then on the job also reports itself as on, which unlocks the Autopilot badge.",
   },
   {
     id: "2026-10-12-cli-auto-submit",

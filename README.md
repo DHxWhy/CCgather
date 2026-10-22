@@ -199,7 +199,7 @@ npx ccgather
 ### Scheduled Submit
 
 ```bash
-npx ccgather submit
+npx ccgather@latest submit
 ```
 
 Submits your usage without any prompt, so it can run from a scheduler. Log in once with `npx ccgather` first; `submit` never opens the login flow. It prints one timestamped result line and exits with:
@@ -210,7 +210,7 @@ Submits your usage without any prompt, so it can run from a scheduler. Log in on
 <tr><td align="center">1</td><td>Not logged in, no usage data, rate limited, or a network/server error</td></tr>
 </table>
 
-Claude Code keeps about 30 days of local data, so once a day is plenty. [Auto-submit](#auto-submit) (`npx ccgather autosubmit on`) sets that up for you. To schedule it yourself instead:
+Claude Code keeps about 30 days of local data, so once a day is plenty. [Auto-submit](#auto-submit) (`npx ccgather@latest autosubmit on`) sets that up for you. To schedule it yourself instead:
 
 ```bash
 # cron (macOS/Linux), every day at 21:17 — Node must be on cron's PATH
@@ -229,10 +229,10 @@ A scheduler does not see the API key or cloud-provider variables your shell prof
 Let the CLI set up the daily job for you, using your operating system's own scheduler:
 
 ```bash
-npx ccgather autosubmit on             # turn it on, or update/repair it
-npx ccgather autosubmit status         # what the scheduler has, and what the last run did
-npx ccgather autosubmit off            # remove it
-npx ccgather autosubmit on --at 21:30  # pick the time yourself
+npx ccgather@latest autosubmit on             # turn it on, or update/repair it
+npx ccgather autosubmit status                # what the scheduler has, and what the last run did
+npx ccgather autosubmit off                   # remove it
+npx ccgather@latest autosubmit on --at 21:30  # pick the time yourself
 ```
 
 Without `--at` it runs every day at the time you turned it on plus five minutes (turn it on at 14:17 and it runs at 14:22), in your local time. People turn it on at different moments, so not everyone submits at once, and your machine is usually awake at that time. The main menu has the same thing as its second item, right under Submit usage data: `🔁  Auto-submit: OFF` turns it on, and `Auto-submit: ON · daily 14:23` offers Change time, Turn off and Back. If the machine was off at that time, the job catches up later (except with the Linux cron fallback, which skips that day); a run is skipped if you submitted in the 20 hours before it, so the first one may be. Running `on` again when it is already on refreshes the job and keeps its time. `status` shows what the scheduler has and what the last run did:
@@ -259,7 +259,7 @@ When turning it on, you are offered the GitHub star prompt unless you have alrea
 
 The macOS setup is covered by tests but has not yet been run on a real Mac; Windows and Linux (systemd and cron) have. If the job misbehaves, `npx ccgather autosubmit off` removes it.
 
-Set up through `npx`, the job runs the newest ccgather release each day (`npx --yes ccgather@latest`), so upgrades reach it on their own; `--pin` keeps it on the version you set it up with, and running `on` again moves it. A global install runs its own copy and follows `npm install -g ccgather`; `--auto-update` makes even a global install run `ccgather@latest`. Jobs created through `npx` with v2.3.0 or v2.3.1 are pinned to that version: run `npx ccgather autosubmit on` once to update them.
+Set up through `npx`, the job runs the newest ccgather release each day (`npx --yes ccgather@latest`), so upgrades reach it on their own; `--pin` keeps it on the version you set it up with, and running `on` again moves it. A global install runs its own copy and follows `npm install -g ccgather`; `--auto-update` makes even a global install run `ccgather@latest`. Jobs created through `npx` with v2.3.0 or v2.3.1 are pinned to that version: run `npx ccgather@latest autosubmit on` once to update them (an npm older than 9.6.5 keeps running a cached copy of `npx ccgather` without `@latest`).
 
 - **macOS** may show a "Background Items Added" notification once.
 - **Linux (systemd)** runs the job only while you are signed in and catches up at your next login. To run it while signed out, run `loginctl enable-linger $USER` yourself.
