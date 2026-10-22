@@ -1,9 +1,21 @@
 /**
- * Usage accumulator shared by every scan. It counts a transcript the way ccusage does:
- * one response is written as several lines (one per content block) that repeat the
- * usage with a placeholder output count on the early lines, so a response is counted
- * once, at its largest line. Dedup keys, the replacement order and the advisor entries
- * follow ccusage 20.0.37 (rust/adapters/claude/src/lib.rs).
+ * Usage accumulator shared by every scan. It counts a transcript the way `ccusage claude
+ * daily` does (ccusage 20.0.37, rust/adapters/claude/src/daily.rs): one response is written
+ * as several lines (one per content block) that repeat the usage with a placeholder output
+ * count on the early lines, so a response is counted once, at its largest line. Line shapes,
+ * dedup keys, /btw replays, the replacement order and advisor entries follow daily.rs.
+ *
+ * Deliberate differences from ccusage:
+ * - A response stays on the day and model where its first line was seen; a larger line only
+ *   swaps the token values. ccusage moves it to the surviving line's day. The server never
+ *   lowers a stored day, so moving a response that spans UTC midnight between two submits
+ *   would count it on both days.
+ * - On equal token totals ccusage prefers the costlier line (fast mode); this prefers the line
+ *   that states its speed. Token totals are the same either way.
+ * - ccusage drops a line when a null sits under certain field names anywhere in it (a tool
+ *   input with "model": null drops a real usage line); this checks those fields only where
+ *   they belong. It also does not see raw-text quirks ccusage rejects ("usage": { with a
+ *   space, duplicate keys).
  */
 
 export interface TokenSplit {
@@ -27,14 +39,14 @@ export interface UsageBucket extends TokenSplit {
 
 export interface AccumulatedUsage {
   total: UsageBucket;
-  daily: Map<string, UsageBucket>; // UTC date; a line without a timestamp counts on no day
+  daily: Map<string, UsageBucket>; // UTC date
   projects: Map<string, UsageBucket>;
   firstTimestamp: string | null;
   lastTimestamp: string | null;
 }
 
 export interface UsageContext {
-  sessionKey: string; // the transcript file
+  sessionKey: string; // the transcript file, or its session when the scan knows it
   projectName: string;
 }
 
@@ -48,8 +60,8 @@ interface Entry {
   messageId: string | null;
   requestId: string | null;
   sessionId: string;
-  timestamp: string | null;
-  instant: string; // the timestamp as epoch ms, for keys that need the exact time
+  timestamp: string;
+  instant: number; // epoch ms, for keys that need the exact time
   sidechain: boolean;
   model: string;
   split: TokenSplit;
@@ -57,10 +69,21 @@ interface Entry {
   hasSpeed: boolean;
 }
 
+// One per response, kept for the whole scan: flat fields and shared strings only, since a long
+// history holds hundreds of thousands of responses.
 interface Counted {
-  entry: Entry; // the line that currently stands for the response
+  key: string | null; // the surviving line's exact key (the same string the index uses)
+  sessionId: string;
+  sidechain: boolean;
+  inputTokens: number; // the surviving line's tokens
+  outputTokens: number;
+  cacheWriteTokens: number;
+  cacheWrite1hTokens: number;
+  cacheReadTokens: number;
+  fast: boolean;
+  hasSpeed: boolean;
   model: string; // where the response was first placed
-  date: string | null;
+  date: string;
   project: string;
   session: string;
   excluded: boolean; // first seen before the cutoff: the whole response stays out
@@ -71,10 +94,7 @@ type JsonObject = Record<string, unknown>;
 const isObject = (v: unknown): v is JsonObject =>
   v !== null && typeof v === "object" && !Array.isArray(v);
 
-const count = (v: unknown): number =>
-  typeof v === "number" && Number.isFinite(v) && v > 0 ? v : 0;
-
-const optionalString = (v: unknown): string | null => (typeof v === "string" ? v : null);
+const isCount = (v: unknown): v is number => typeof v === "number" && Number.isInteger(v) && v >= 0;
 
 const splitTotal = (s: TokenSplit): number =>
   s.inputTokens + s.outputTokens + s.cacheWriteTokens + s.cacheReadTokens;
@@ -93,16 +113,31 @@ function emptyBucket(): UsageBucket {
   return { ...emptySplit(), tokens: 0, models: {}, modelTokens: {}, sessions: new Set() };
 }
 
-function readSplit(usage: JsonObject): TokenSplit {
-  const cacheWrite = count(usage.cache_creation_input_tokens);
-  const breakdown = isObject(usage.cache_creation) ? usage.cache_creation : {};
+// Token counts must be non-negative integers; input and output must be there. Cache writes
+// come from the 5-minute + 1-hour breakdown whenever it is present, as in ccusage.
+function readSplit(usage: JsonObject): TokenSplit | null {
+  const optional = (v: unknown) => (v === undefined ? 0 : isCount(v) ? v : null);
+  const input = usage.input_tokens;
+  const output = usage.output_tokens;
+  const flatWrite = optional(usage.cache_creation_input_tokens);
+  const cacheRead = optional(usage.cache_read_input_tokens);
+  if (!isCount(input) || !isCount(output) || flatWrite === null || cacheRead === null) return null;
+
+  let cacheWrite = flatWrite;
+  let oneHour = 0;
+  if (isObject(usage.cache_creation)) {
+    const fiveMinute = optional(usage.cache_creation.ephemeral_5m_input_tokens);
+    const hour = optional(usage.cache_creation.ephemeral_1h_input_tokens);
+    if (fiveMinute === null || hour === null) return null;
+    cacheWrite = fiveMinute + hour;
+    oneHour = hour;
+  }
   return {
-    inputTokens: count(usage.input_tokens),
-    outputTokens: count(usage.output_tokens),
+    inputTokens: input,
+    outputTokens: output,
     cacheWriteTokens: cacheWrite,
-    // The server rejects a 1h share above the cache writes it belongs to.
-    cacheWrite1hTokens: Math.min(count(breakdown.ephemeral_1h_input_tokens), cacheWrite),
-    cacheReadTokens: count(usage.cache_read_input_tokens),
+    cacheWrite1hTokens: oneHour,
+    cacheReadTokens: cacheRead,
   };
 }
 
@@ -114,10 +149,13 @@ function addSplit(target: TokenSplit, s: TokenSplit, sign: number): void {
   target.cacheReadTokens += sign * s.cacheReadTokens;
 }
 
-function utcDate(timestamp: string | null): string | null {
-  if (!timestamp) return null;
-  const ms = Date.parse(timestamp);
-  return Number.isFinite(ms) ? new Date(ms).toISOString().slice(0, 10) : null;
+// RFC 3339 with a zone, as ccusage parses it; anything else is not a usable timestamp.
+const ZONED = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})$/i;
+
+function readInstant(v: unknown): number | null {
+  if (typeof v !== "string" || !ZONED.test(v)) return null;
+  const ms = Date.parse(v);
+  return Number.isFinite(ms) ? ms : null;
 }
 
 // Gateways reuse one placeholder id for every response; real Anthropic ids (and OpenAI
@@ -125,42 +163,85 @@ function utcDate(timestamp: string | null): string | null {
 const isAnthropicMessageId = (id: string): boolean =>
   id.startsWith("msg_") || id.startsWith("resp_");
 
-// ccusage drops a line whose ids, model or session are empty, or whose version is not semver.
-function isValidLine(event: JsonObject, message: JsonObject): boolean {
-  if (typeof event.version === "string" && !/^\d+\.\d+\.\d+/.test(event.version)) return false;
-  if (message.model === null) return false;
-  return [event.sessionId, event.requestId, message.id, message.model].every((v) => v !== "");
+// ccusage drops a line whose ids or model are empty, null or not strings, whose version is
+// not semver, or whose known fields are null.
+function isValidLine(
+  event: JsonObject,
+  line: JsonObject,
+  message: JsonObject,
+  usage: JsonObject
+): boolean {
+  const optionalText = (v: unknown, nonEmpty: boolean) =>
+    v === undefined || (typeof v === "string" && (!nonEmpty || v !== ""));
+  if (event.version !== undefined) {
+    if (typeof event.version !== "string" || !/^\d+\.\d+\.\d+/.test(event.version)) return false;
+  }
+  if (!optionalText(event.sessionId, true)) return false;
+  if (!optionalText(line.requestId, true)) return false;
+  if (!optionalText(message.id, true)) return false;
+  if (!optionalText(message.model, true)) return false;
+  if (usage.speed !== undefined && usage.speed !== "standard" && usage.speed !== "fast") {
+    return false;
+  }
+  if (line.isSidechain !== undefined && typeof line.isSidechain !== "boolean") return false;
+  return [event.cwd, event.isApiErrorMessage, line.costUSD].every((v) => v !== null);
+}
+
+// A direct line carries message.usage; an agent-progress record nests the subagent's message
+// in data.message, with its own timestamp, request id and sidechain flag.
+function locate(event: JsonObject): { line: JsonObject; message: JsonObject } | null {
+  if (isObject(event.message) && isObject(event.message.usage)) {
+    return { line: event, message: event.message };
+  }
+  const progress = isObject(event.data) ? event.data.message : undefined;
+  if (isObject(progress) && isObject(progress.message) && isObject(progress.message.usage)) {
+    return { line: progress, message: progress.message };
+  }
+  return null;
 }
 
 function readEntries(event: JsonObject, ctx: UsageContext): Entry[] {
-  if (event.type !== "assistant" || !isObject(event.message)) return [];
-  const message = event.message;
-  if (!isObject(message.usage) || !isValidLine(event, message)) return [];
-  const usage = message.usage;
+  const found = locate(event);
+  if (!found) return [];
+  const { line, message } = found;
+  const usage = message.usage as JsonObject;
+  if (!isValidLine(event, line, message, usage)) return [];
+  const instant = readInstant(line.timestamp);
+  if (instant === null) return [];
+  const split = readSplit(usage);
+  if (!split) return [];
 
-  const timestamp = optionalString(event.timestamp);
-  const ms = timestamp ? Date.parse(timestamp) : Number.NaN;
   const shared = {
-    requestId: optionalString(event.requestId),
-    sessionId: optionalString(event.sessionId) ?? ctx.sessionKey,
-    timestamp,
-    instant: Number.isFinite(ms) ? String(ms) : (timestamp ?? ""),
-    sidechain: event.isSidechain === true,
+    requestId: typeof line.requestId === "string" ? line.requestId : null,
+    sessionId: typeof event.sessionId === "string" ? event.sessionId : ctx.sessionKey,
+    timestamp: line.timestamp as string,
+    instant,
+    sidechain: line.isSidechain === true,
   };
-  const messageId = optionalString(message.id);
+  const messageId = typeof message.id === "string" ? message.id : null;
   const entries: Entry[] = [
     {
       ...shared,
       messageId,
-      model: optionalString(message.model) || "unknown",
-      split: readSplit(usage),
+      model: typeof message.model === "string" ? message.model : "unknown",
+      split,
       fast: usage.speed === "fast",
-      hasSpeed: usage.speed === "fast" || usage.speed === "standard",
+      hasSpeed: usage.speed !== undefined,
     },
   ];
 
-  // An advisor consultation is billed to the advisor model and is not in the top-level usage.
-  const advisors = (Array.isArray(usage.iterations) ? usage.iterations : []).filter(
+  // An advisor consultation is billed to the advisor model and is not in the top-level
+  // usage. ccusage keeps none of a line's advisors if any iteration is malformed.
+  const iterations = Array.isArray(usage.iterations) ? usage.iterations : [];
+  const wellFormed = iterations.every(
+    (it) =>
+      isObject(it) &&
+      typeof it.type === "string" &&
+      isCount(it.input_tokens) &&
+      isCount(it.output_tokens)
+  );
+  if (!wellFormed) return entries;
+  const advisors = iterations.filter(
     (it): it is JsonObject =>
       isObject(it) &&
       it.type === "advisor_message" &&
@@ -168,11 +249,13 @@ function readEntries(event: JsonObject, ctx: UsageContext): Entry[] {
       it.model !== ""
   );
   advisors.forEach((it, index) => {
+    const advisorSplit = readSplit(it);
+    if (!advisorSplit) return;
     entries.push({
       ...shared,
       messageId: messageId === null ? null : `${messageId}:advisor:${index}`,
       model: it.model as string,
-      split: readSplit(it),
+      split: advisorSplit,
       fast: it.speed === "fast",
       hasSpeed: it.speed === "fast" || it.speed === "standard",
     });
@@ -180,12 +263,12 @@ function readEntries(event: JsonObject, ctx: UsageContext): Entry[] {
   return entries;
 }
 
-// ccusage's should_replace_deduped_entry: a main-chain line beats a sidechain copy, then
-// the larger token total wins, then a line that states its speed beats one that does not.
-function shouldReplace(candidate: Entry, existing: Entry): boolean {
+// ccusage's should_replace_deduped_daily_entry: a main-chain line beats a sidechain copy,
+// then the larger token total wins, then a line that states its speed.
+function shouldReplace(candidate: Entry, existing: Counted): boolean {
   if (candidate.sidechain !== existing.sidechain) return existing.sidechain;
   const a = splitTotal(candidate.split);
-  const b = splitTotal(existing.split);
+  const b = splitTotal(existing);
   if (a !== b) return a > b;
   return candidate.hasSpeed && !existing.hasSpeed;
 }
@@ -197,9 +280,6 @@ function exactKey(e: Entry): string | null {
   return isAnthropicMessageId(e.messageId) ? inSession : `${inSession}\u0000${e.instant}`;
 }
 
-const replayKey = (messageId: string, sessionId: string): string =>
-  `${messageId}\u0000${sessionId}`;
-
 export function createUsageAccumulator(options: { cutoff?: string | null } = {}): UsageAccumulator {
   const cutoff = options.cutoff ?? null;
   const total = emptyBucket();
@@ -208,16 +288,39 @@ export function createUsageAccumulator(options: { cutoff?: string | null } = {})
   let firstTimestamp: string | null = null;
   let lastTimestamp: string | null = null;
 
-  const byKey = new Map<string, Counted>();
-  // /btw sidechains replay parent messages under new request ids: index every response by
-  // (message, session), and sidechain responses once more for parent candidates.
-  const replayAny = new Map<string, Counted[]>();
-  const replaySidechain = new Map<string, Counted[]>();
+  // Strings repeated across responses (sessions, models, days, projects) are kept once.
+  const pool = new Map<string, string>();
+  const shared = (v: string): string => {
+    const kept = pool.get(v);
+    if (kept !== undefined) return kept;
+    pool.set(v, v);
+    return v;
+  };
 
-  const push = (index: Map<string, Counted[]>, key: string, c: Counted): void => {
-    const list = index.get(key);
-    if (!list) index.set(key, [c]);
-    else if (!list.includes(c)) list.push(c);
+  // Lookups by exact key, then by (message, session): /btw sidechains replay parent messages
+  // under new request ids and times. Every response is indexed for sidechain candidates and
+  // sidechain responses once more for parent candidates, as in daily.rs. A slot holds one
+  // response, or a list when several share it (gateways reusing a message id).
+  type Slot = Counted | Counted[];
+  const byKey = new Map<string, Slot>();
+  const replayAny = new Map<string, Slot>();
+  const replaySidechain = new Map<string, Slot>();
+
+  const slotList = (slot: Slot | undefined): Counted[] =>
+    slot === undefined ? [] : Array.isArray(slot) ? slot : [slot];
+
+  const push = (index: Map<string, Slot>, key: string, c: Counted): void => {
+    const slot = index.get(key);
+    if (slot === undefined) index.set(key, c);
+    else if (Array.isArray(slot)) {
+      if (!slot.includes(c)) slot.push(c);
+    } else if (slot !== c) index.set(key, [slot, c]);
+  };
+
+  const indexRoutes = (c: Counted, messageId: string, sessionId: string): void => {
+    const route = `${messageId}\u0000${sessionId}`;
+    push(replayAny, route, c);
+    if (c.sidechain) push(replaySidechain, route, c);
   };
 
   const bucket = (map: Map<string, UsageBucket>, key: string): UsageBucket => {
@@ -229,75 +332,83 @@ export function createUsageAccumulator(options: { cutoff?: string | null } = {})
     return b;
   };
 
-  const place = (c: Counted, e: Entry, sign: 1 | -1): void => {
-    const targets = [total, bucket(projects, c.project)];
-    if (c.date) targets.push(bucket(daily, c.date));
-    const tokens = splitTotal(e.split);
-    for (const b of targets) {
-      addSplit(b, e.split, sign);
+  const place = (c: Counted, split: TokenSplit, fast: boolean, sign: 1 | -1): void => {
+    const tokens = splitTotal(split);
+    for (const b of [total, bucket(projects, c.project), bucket(daily, c.date)]) {
+      addSplit(b, split, sign);
       b.tokens += sign * tokens;
       b.models[c.model] = (b.models[c.model] ?? 0) + sign * tokens;
       const m = (b.modelTokens[c.model] ??= { ...emptySplit(), fast: emptySplit() });
-      addSplit(m, e.split, sign);
-      if (e.fast) addSplit(m.fast, e.split, sign);
+      addSplit(m, split, sign);
+      if (fast) addSplit(m.fast, split, sign);
       if (sign > 0) b.sessions.add(c.session);
     }
   };
 
-  const findReplay = (e: Entry): Counted | undefined => {
+  const find = (e: Entry, key: string | null): Counted | undefined => {
     if (e.messageId === null) return undefined;
-    const index = e.sidechain ? replayAny : replaySidechain;
-    return index.get(replayKey(e.messageId, e.sessionId))?.find((c) => {
-      const requestless = e.requestId === null && c.entry.requestId === null;
-      return (requestless || c.entry.instant === e.instant) && (e.sidechain || c.entry.sidechain);
-    });
+    // The stored key is the surviving line's, so a match also re-checks that line (daily.rs).
+    const exact = key ? slotList(byKey.get(key)).find((c) => c.key === key) : undefined;
+    if (exact) return exact;
+    const routes = e.sidechain ? replayAny : replaySidechain;
+    return slotList(routes.get(`${e.messageId}\u0000${e.sessionId}`)).find(
+      (c) => e.sidechain || c.sidechain
+    );
+  };
+
+  const take = (c: Counted, e: Entry, key: string | null): void => {
+    c.key = key;
+    c.sessionId = shared(e.sessionId);
+    c.sidechain = e.sidechain;
+    c.inputTokens = e.split.inputTokens;
+    c.outputTokens = e.split.outputTokens;
+    c.cacheWriteTokens = e.split.cacheWriteTokens;
+    c.cacheWrite1hTokens = e.split.cacheWrite1hTokens;
+    c.cacheReadTokens = e.split.cacheReadTokens;
+    c.fast = e.fast;
+    c.hasSpeed = e.hasSpeed;
   };
 
   const consider = (e: Entry, ctx: UsageContext): boolean => {
     const key = exactKey(e);
-    const existing = (key ? byKey.get(key) : undefined) ?? findReplay(e);
+    const existing = find(e, key);
 
     if (existing) {
-      const previous = existing.entry;
-      if (e.messageId !== null && previous.sessionId !== e.sessionId) {
+      const previousSession = existing.sessionId;
+      if (e.messageId !== null && previousSession !== e.sessionId) {
         // A cross-session copy can become the survivor: keep both sessions' replay routes.
-        for (const sessionId of [e.sessionId, previous.sessionId]) {
-          push(replayAny, replayKey(e.messageId, sessionId), existing);
-          push(replaySidechain, replayKey(e.messageId, sessionId), existing);
+        for (const sessionId of [e.sessionId, previousSession]) {
+          const route = `${e.messageId}\u0000${sessionId}`;
+          push(replayAny, route, existing);
+          push(replaySidechain, route, existing);
         }
       }
-      if (existing.excluded || !shouldReplace(e, previous)) return false;
-      place(existing, previous, -1);
-      existing.entry = e;
-      place(existing, e, 1);
-      if (key && byKey.get(key) !== existing) byKey.set(key, existing);
-      if (e.messageId !== null) {
-        push(replayAny, replayKey(e.messageId, e.sessionId), existing);
-        if (e.sidechain) push(replaySidechain, replayKey(e.messageId, e.sessionId), existing);
-      }
+      if (existing.excluded || !shouldReplace(e, existing)) return false;
+      place(existing, existing, existing.fast, -1);
+      take(existing, e, key);
+      place(existing, e.split, e.fast, 1);
+      if (key) push(byKey, key, existing);
+      if (e.messageId !== null) indexRoutes(existing, e.messageId, existing.sessionId);
       return true;
     }
 
-    const c: Counted = {
-      entry: e,
-      model: e.model,
-      date: utcDate(e.timestamp),
-      project: ctx.projectName,
-      session: ctx.sessionKey,
-      excluded: Boolean(cutoff && e.timestamp && e.timestamp < cutoff),
-    };
-    if (key) byKey.set(key, c);
+    const c = {
+      model: shared(e.model),
+      date: shared(new Date(e.instant).toISOString().slice(0, 10)),
+      project: shared(ctx.projectName),
+      session: shared(ctx.sessionKey),
+      excluded: Boolean(cutoff && e.timestamp < cutoff),
+    } as Counted;
+    take(c, e, key);
     if (e.messageId !== null) {
-      push(replayAny, replayKey(e.messageId, e.sessionId), c);
-      if (e.sidechain) push(replaySidechain, replayKey(e.messageId, e.sessionId), c);
+      if (key) push(byKey, key, c);
+      indexRoutes(c, e.messageId, c.sessionId);
     }
     if (c.excluded) return false;
 
-    place(c, e, 1);
-    if (e.timestamp && c.date) {
-      if (!firstTimestamp || e.timestamp < firstTimestamp) firstTimestamp = e.timestamp;
-      if (!lastTimestamp || e.timestamp > lastTimestamp) lastTimestamp = e.timestamp;
-    }
+    place(c, e.split, e.fast, 1);
+    if (!firstTimestamp || e.timestamp < firstTimestamp) firstTimestamp = e.timestamp;
+    if (!lastTimestamp || e.timestamp > lastTimestamp) lastTimestamp = e.timestamp;
     return true;
   };
 
