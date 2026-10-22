@@ -499,6 +499,21 @@ describe("main menu: auto-submit item", () => {
     await untilMenu(2);
 
     expect(settingsChoices).toHaveLength(1);
-    expect(values(settingsChoices[0])).toEqual(["auth", "back"]);
+    expect(values(settingsChoices[0])).toEqual(["auth", "dirs", "back"]);
+  });
+
+  it("Data folders forgets the folder answers, so the next submit asks again", async () => {
+    mocked.store.set("claudeDirs", ["/home/u/.claude-work"]);
+    mocked.store.set("declinedClaudeDirs", ["/home/u/.claude-old"]);
+    mainPicks = ["settings"];
+    settingsPicks = ["dirs"];
+    await runCli();
+    await untilMenu(2);
+
+    expect(mocked.store.has("claudeDirs")).toBe(false);
+    expect(mocked.store.has("declinedClaudeDirs")).toBe(false);
+    expect(logs).toContainEqual(
+      expect.stringContaining("The next submit asks again which Claude Code data folders to count.")
+    );
   });
 });

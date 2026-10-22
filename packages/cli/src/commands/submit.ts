@@ -16,7 +16,7 @@ import {
   getSessionPathDebugInfo,
 } from "../lib/ccgather-json.js";
 import { initPricing } from "../lib/pricing.js";
-import { findCandidateClaudeDirs } from "../lib/claude-dirs.js";
+import { findCandidateClaudeDirs, shellOnlyClaudeDirs } from "../lib/claude-dirs.js";
 import { SCHEDULED_MIN_INTERVAL_MS } from "../lib/autosubmit/shared.js";
 import {
   shouldPromptStar,
@@ -450,15 +450,16 @@ function recordScheduledRun(
 }
 
 /**
- * Get plan display color
+ * Ask once which other Claude Code data folders on this computer to count (one computer is
+ * one person) and remember the answer: folders found on disk, and folders only the shell's
+ * CLAUDE_CONFIG_DIR points to, which a scheduled run would otherwise not read.
  */
 async function confirmOtherClaudeDirs(config: Conf<CliConfig>): Promise<void> {
   const claudeDirs = config.get("claudeDirs") ?? [];
   const declinedClaudeDirs = config.get("declinedClaudeDirs") ?? [];
-  const candidates = findCandidateClaudeDirs(process.env, os.homedir(), {
-    claudeDirs,
-    declinedClaudeDirs,
-  });
+  const saved = { claudeDirs, declinedClaudeDirs };
+  const fromShell = shellOnlyClaudeDirs(process.env, os.homedir(), saved);
+  const candidates = [...fromShell, ...findCandidateClaudeDirs(process.env, os.homedir(), saved)];
   if (candidates.length === 0) return;
 
   console.log();
@@ -469,7 +470,11 @@ async function confirmOtherClaudeDirs(config: Conf<CliConfig>): Promise<void> {
       message:
         "Other Claude Code data folders found on this computer. Count them too? " +
         "(CCgather treats one computer as one person)",
-      choices: candidates.map((dir) => ({ name: dir, value: dir, checked: true })),
+      choices: candidates.map((dir) => ({
+        name: fromShell.includes(dir) ? `${dir} ${colors.dim("(CLAUDE_CONFIG_DIR)")}` : dir,
+        value: dir,
+        checked: true,
+      })),
     },
   ]);
   const chosen = Array.isArray(include)
@@ -482,6 +487,9 @@ async function confirmOtherClaudeDirs(config: Conf<CliConfig>): Promise<void> {
   ]);
 }
 
+/**
+ * Get plan display color
+ */
 function getPlanColor(plan: string): (text: string) => string {
   switch (plan.toLowerCase()) {
     case "max":
@@ -644,8 +652,16 @@ export async function submit(options: SubmitOptions = {}): Promise<void> {
     if (nonInteractive) {
       const debugInfo = getSessionPathDebugInfo();
       const searched = debugInfo.searchedPaths.map((pathInfo) => pathInfo.path).join(", ");
+      const unconfirmed = findCandidateClaudeDirs(process.env, os.homedir(), {
+        claudeDirs: config.get("claudeDirs") ?? [],
+        declinedClaudeDirs: config.get("declinedClaudeDirs") ?? [],
+      }).length;
+      const hint =
+        unconfirmed > 0
+          ? ` ${unconfirmed} other data folder(s) found; run \`npx ccgather\` once to choose them.`
+          : "";
       report(
-        `No Claude Code sessions found (searched: ${searched}).`,
+        `No Claude Code sessions found (searched: ${searched}).${hint}`,
         "failed: no Claude Code sessions found",
         true
       );

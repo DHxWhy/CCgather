@@ -406,8 +406,9 @@ interface TranscriptFile {
  * abc.de.jsonl → abc-de.jsonl).
  */
 function deduplicateJsonlFiles(files: string[]): TranscriptFile[] {
-  // Map transcript key → file, keeping the most recently modified copy
-  const transcriptMap = new Map<string, TranscriptFile & { mtimeMs: number }>();
+  // Map transcript key → file. Transcripts only grow, so the largest copy is the most
+  // complete (a backup folder can hold a newer but partial copy); then the newest.
+  const transcriptMap = new Map<string, TranscriptFile & { size: number; mtimeMs: number }>();
   const noIdFiles: TranscriptFile[] = [];
 
   for (const filePath of files) {
@@ -417,16 +418,21 @@ function deduplicateJsonlFiles(files: string[]): TranscriptFile[] {
       continue;
     }
 
+    let size = 0;
     let mtimeMs = 0;
     try {
-      mtimeMs = fs.statSync(filePath).mtimeMs;
+      ({ size, mtimeMs } = fs.statSync(filePath));
     } catch {
-      // If stat fails, treat as oldest (0)
+      // If stat fails, treat as empty and oldest
     }
 
     const existing = transcriptMap.get(identity.key);
-    if (!existing || mtimeMs > existing.mtimeMs) {
-      transcriptMap.set(identity.key, { filePath, sessionId: identity.sessionId, mtimeMs });
+    if (
+      !existing ||
+      size > existing.size ||
+      (size === existing.size && mtimeMs > existing.mtimeMs)
+    ) {
+      transcriptMap.set(identity.key, { filePath, sessionId: identity.sessionId, size, mtimeMs });
     }
   }
 

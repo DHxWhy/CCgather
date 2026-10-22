@@ -46,6 +46,9 @@ function realPath(dir: string): string {
   }
 }
 
+// Only <dir>/projects is read, so two folders sharing it through a link are one folder.
+const projectsKey = (dir: string): string => realPath(path.join(dir, "projects"));
+
 // CLAUDE_CONFIG_DIR set in Claude Code's own settings file applies to its sessions too.
 function settingsConfigDir(home: string): string | null {
   try {
@@ -66,13 +69,15 @@ export function claudeConfigDirCandidates(
   config: ClaudeDirsConfig = {},
   platform: string = process.platform
 ): string[] {
-  const xdg = filled(env.XDG_CONFIG_HOME) ?? path.join(home, ".config");
+  const xdg = filled(env.XDG_CONFIG_HOME);
   const appData = filled(env.APPDATA);
   return [
     ...splitList(filled(env.CLAUDE_CONFIG_DIR)),
     ...splitList(settingsConfigDir(home)),
     ...(platform === "win32" && appData ? [path.join(appData, "claude")] : []),
-    path.join(xdg, "claude"),
+    // ~/.config/claude stays a candidate when XDG_CONFIG_HOME points elsewhere
+    ...(xdg ? [path.join(xdg, "claude")] : []),
+    path.join(home, ".config", "claude"),
     path.join(home, ".claude"),
     ...(config.claudeDirs ?? []),
   ].map((entry) => configDirOf(entry, home));
@@ -94,12 +99,33 @@ export function resolveClaudeConfigDirs(
   const dirs: string[] = [];
   for (const dir of claudeConfigDirCandidates(env, home, config, platform)) {
     if (!hasProjects(dir)) continue;
-    const real = realPath(dir);
+    const real = projectsKey(dir);
     if (seen.has(real)) continue;
     seen.add(real);
     dirs.push(dir);
   }
   return dirs;
+}
+
+/**
+ * Folders read only because the shell sets CLAUDE_CONFIG_DIR. A scheduled run does not get
+ * that variable, so these are offered for saving like the folders found on disk.
+ */
+export function shellOnlyClaudeDirs(
+  env: Env,
+  home: string,
+  config: ClaudeDirsConfig = {},
+  platform: string = process.platform
+): string[] {
+  const known = new Set(
+    [
+      ...resolveClaudeConfigDirs({ ...env, CLAUDE_CONFIG_DIR: undefined }, home, config, platform),
+      ...(config.declinedClaudeDirs ?? []).map((d) => configDirOf(d, home)),
+    ].map(projectsKey)
+  );
+  return resolveClaudeConfigDirs(env, home, config, platform).filter(
+    (dir) => !known.has(projectsKey(dir))
+  );
 }
 
 function subfoldersWithProjects(dir: string): string[] {
@@ -129,12 +155,13 @@ export function findCandidateClaudeDirs(
     [
       ...resolveClaudeConfigDirs(env, home, config, platform),
       ...(config.declinedClaudeDirs ?? []).map((d) => configDirOf(d, home)),
-    ].map(realPath)
+    ].map(projectsKey)
   );
-  const xdg = filled(env.XDG_CONFIG_HOME) ?? path.join(home, ".config");
+  const xdg = filled(env.XDG_CONFIG_HOME);
   const roots: [string, RegExp][] = [
     [home, /^\.claude/],
-    [xdg, /^claude/],
+    ...(xdg ? [[xdg, /^claude/] as [string, RegExp]] : []),
+    [path.join(home, ".config"), /^claude/],
   ];
 
   const found: string[] = [];
@@ -149,7 +176,7 @@ export function findCandidateClaudeDirs(
       if (!pattern.test(entry.name) || !(entry.isDirectory() || entry.isSymbolicLink())) continue;
       const dir = path.join(root, entry.name);
       for (const candidate of hasProjects(dir) ? [dir] : subfoldersWithProjects(dir)) {
-        const real = realPath(candidate);
+        const real = projectsKey(candidate);
         if (skip.has(real)) continue;
         skip.add(real);
         found.push(candidate);

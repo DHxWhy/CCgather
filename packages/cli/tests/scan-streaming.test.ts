@@ -31,6 +31,9 @@ vi.mock("os", async (importOriginal) => {
   return { ...actual, homedir: () => mocked.home };
 });
 
+// The real conf store holds the user's confirmed data folders; a scan must not read them.
+vi.mock("../src/lib/config", () => ({ getConfig: () => ({ get: () => undefined }) }));
+
 vi.mock("../src/lib/credentials", () => ({
   readCredentials: () => ({
     ccplan: null,
@@ -194,6 +197,7 @@ describe("scanAllProjects: streamed transcripts", () => {
     mocked.home = fs.mkdtempSync(path.join(os.tmpdir(), "ccgather-stream-scan-"));
     vi.stubEnv("CLAUDE_CONFIG_DIR", "");
     vi.stubEnv("APPDATA", "");
+    vi.stubEnv("XDG_CONFIG_HOME", "");
     projectDir = path.join(mocked.home, ".claude", "projects", "-home-user-demo");
     fs.mkdirSync(projectDir, { recursive: true });
     vi.mocked(fs.readFileSync).mockClear();

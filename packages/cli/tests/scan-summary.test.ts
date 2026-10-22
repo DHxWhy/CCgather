@@ -10,6 +10,9 @@ vi.mock("os", async (importOriginal) => {
   return { ...actual, homedir: () => mocked.home };
 });
 
+// The real conf store holds the user's confirmed data folders; a scan must not read them.
+vi.mock("../src/lib/config", () => ({ getConfig: () => ({ get: () => undefined }) }));
+
 vi.mock("../src/lib/credentials", () => ({
   readCredentials: () => ({
     ccplan: null,

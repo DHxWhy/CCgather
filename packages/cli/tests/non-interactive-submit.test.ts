@@ -17,7 +17,7 @@ import * as path from "path";
 const mocked = vi.hoisted(() => ({
   home: "",
   store: new Map<string, unknown>(),
-  prompt: vi.fn(async (): Promise<Record<string, unknown>> => {
+  prompt: vi.fn(async (_questions?: unknown): Promise<Record<string, unknown>> => {
     throw new Error("inquirer.prompt must not be called");
   }),
   ora: vi.fn(),
@@ -187,6 +187,7 @@ describe("submit({ nonInteractive: true })", () => {
     mocked.home = fs.mkdtempSync(path.join(os.tmpdir(), "ccgather-submit-"));
     vi.stubEnv("CLAUDE_CONFIG_DIR", "");
     vi.stubEnv("APPDATA", "");
+    vi.stubEnv("XDG_CONFIG_HOME", "");
 
     projectDir = path.join(mocked.home, ".claude", "projects", "-home-user-demo");
     fs.mkdirSync(projectDir, { recursive: true });
@@ -558,6 +559,99 @@ describe("submit({ nonInteractive: true })", () => {
       expect(mocked.store.get("declinedClaudeDirs")).toEqual([]);
       const body = JSON.parse(String(callsTo("/cli/submit")[0]?.init?.body));
       expect(body.totalTokens).toBe(6000);
+    });
+
+    interface Choice {
+      name: string;
+      value: string;
+      checked: boolean;
+    }
+    const askedChoices = (): Choice[] => {
+      const questions = mocked.prompt.mock.calls[0]?.[0] as { choices: Choice[] }[] | undefined;
+      return questions?.[0]?.choices ?? [];
+    };
+
+    it("asks before looking for sessions, so data only in another folder is submitted", async () => {
+      fs.rmSync(path.join(mocked.home, ".claude"), { recursive: true, force: true });
+      const dir = otherFolder();
+      mocked.store.set("starConfirmed", true);
+      mocked.prompt.mockResolvedValueOnce({ include: [dir] });
+
+      expect(await runSubmit({ nonInteractive: false })).toBe(0);
+
+      const body = JSON.parse(String(callsTo("/cli/submit")[0]?.init?.body));
+      expect(body.totalTokens).toBe(3000);
+    });
+
+    it("offers each folder checked, saves the ones left out, keeps earlier answers and asks once", async () => {
+      const dir = otherFolder();
+      const second = path.join(mocked.home, ".claude-second");
+      fs.mkdirSync(path.join(second, "projects", "-home-user-second"), { recursive: true });
+      fs.writeFileSync(
+        path.join(second, "projects", "-home-user-second", "second.jsonl"),
+        usageLine(21).replace('"sessionId":"demo"', '"sessionId":"second"') + "\n"
+      );
+      const earlier = path.join(mocked.home, "earlier");
+      mocked.store.set("claudeDirs", [earlier]);
+      mocked.store.set("declinedClaudeDirs", ["/gone"]);
+      mocked.store.set("starConfirmed", true);
+      mocked.prompt.mockResolvedValueOnce({ include: [dir] });
+
+      expect(await runSubmit({ nonInteractive: false })).toBe(0);
+
+      expect(askedChoices().map((c) => [c.value, c.checked])).toEqual([
+        [second, true],
+        [dir, true],
+      ]);
+      expect(mocked.store.get("claudeDirs")).toEqual([earlier, dir]);
+      expect(mocked.store.get("declinedClaudeDirs")).toEqual(["/gone", second]);
+
+      mocked.prompt.mockClear();
+      expect(await runSubmit({ nonInteractive: false })).toBe(0);
+      expect(mocked.prompt).not.toHaveBeenCalled();
+    });
+
+    it("saves a folder only the shell's CLAUDE_CONFIG_DIR names, so a scheduled run reads it too", async () => {
+      const dir = otherFolder();
+      vi.stubEnv("CLAUDE_CONFIG_DIR", dir);
+      mocked.store.set("starConfirmed", true);
+      mocked.prompt.mockResolvedValueOnce({ include: [dir] });
+
+      expect(await runSubmit({ nonInteractive: false })).toBe(0);
+
+      expect(askedChoices().map((c) => c.value)).toEqual([dir]);
+      expect(askedChoices()[0]?.name).toContain("(CLAUDE_CONFIG_DIR)");
+      expect(mocked.store.get("claudeDirs")).toEqual([dir]);
+
+      vi.stubEnv("CLAUDE_CONFIG_DIR", "");
+      mocked.store.delete("lastSync");
+      expect(await runSubmit({ scheduled: true })).toBe(0);
+      const last = callsTo("/cli/submit").at(-1);
+      expect(JSON.parse(String(last?.init?.body)).totalTokens).toBe(6000);
+    });
+
+    it("tells a non-interactive run that finds no sessions about folders waiting for an answer", async () => {
+      fs.rmSync(path.join(mocked.home, ".claude"), { recursive: true, force: true });
+      otherFolder();
+
+      expect(await runSubmit()).toBe(1);
+
+      expectSingleError("1 other data folder(s) found; run `npx ccgather` once to choose them.");
+    });
+
+    it("reports every folder it searched, from the variable and the saved list", async () => {
+      fs.rmSync(path.join(mocked.home, ".claude"), { recursive: true, force: true });
+      const a = path.join(mocked.home, "env-a");
+      const b = path.join(mocked.home, "env-b");
+      const saved = path.join(mocked.home, "saved");
+      vi.stubEnv("CLAUDE_CONFIG_DIR", `${a},${b}`);
+      mocked.store.set("claudeDirs", [saved]);
+
+      expect(await runSubmit()).toBe(1);
+
+      for (const dir of [a, b, saved]) {
+        expect(errors[0]).toContain(path.join(dir, "projects"));
+      }
     });
   });
 

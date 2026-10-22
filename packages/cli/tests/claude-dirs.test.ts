@@ -10,6 +10,9 @@ vi.mock("os", async (importOriginal) => {
   return { ...actual, homedir: () => mocked.home };
 });
 
+// The real conf store holds the user's confirmed data folders; a scan must not read them.
+vi.mock("../src/lib/config", () => ({ getConfig: () => ({ get: () => undefined }) }));
+
 vi.mock("../src/lib/credentials", () => ({
   readCredentials: () => ({
     ccplan: null,
@@ -23,6 +26,7 @@ import {
   claudeConfigDirCandidates,
   findCandidateClaudeDirs,
   resolveClaudeConfigDirs,
+  shellOnlyClaudeDirs,
 } from "../src/lib/claude-dirs";
 import { scanAllProjects } from "../src/lib/ccgather-json";
 
@@ -78,6 +82,21 @@ describe("resolveClaudeConfigDirs", () => {
     expect(resolveClaudeConfigDirs({}, home, {}, "linux")).toEqual([config]);
   });
 
+  it("keeps ~/.config/claude when XDG_CONFIG_HOME points elsewhere", () => {
+    const xdg = dataDir("xdg/claude");
+    const config = dataDir(".config/claude");
+    expect(
+      resolveClaudeConfigDirs({ XDG_CONFIG_HOME: path.join(home, "xdg") }, home, {}, "linux")
+    ).toEqual([xdg, config]);
+  });
+
+  it("reads %APPDATA%\\claude on Windows only", () => {
+    const appData = path.join(home, "AppData", "Roaming");
+    const win = dataDir("AppData/Roaming/claude");
+    expect(resolveClaudeConfigDirs({ APPDATA: appData }, home, {}, "win32")).toEqual([win]);
+    expect(resolveClaudeConfigDirs({ APPDATA: appData }, home, {}, "linux")).toEqual([]);
+  });
+
   it("follows CLAUDE_CONFIG_DIR set in ~/.claude/settings.json", () => {
     const acc = dataDir("acc2");
     fs.mkdirSync(path.join(home, ".claude"), { recursive: true });
@@ -110,6 +129,15 @@ describe("resolveClaudeConfigDirs", () => {
     ).toEqual([real]);
   });
 
+  it("reads a projects/ folder shared through a link once", () => {
+    const main = dataDir(".claude");
+    const work = path.join(home, ".claude-work");
+    fs.mkdirSync(work, { recursive: true });
+    fs.symlinkSync(path.join(main, "projects"), path.join(work, "projects"));
+    expect(resolveClaudeConfigDirs({}, home, { claudeDirs: [work] }, "linux")).toEqual([main]);
+    expect(findCandidateClaudeDirs({}, home, {}, "linux")).toEqual([]);
+  });
+
   it("lists every place it looked, for the no-sessions report", () => {
     expect(claudeConfigDirCandidates({ CLAUDE_CONFIG_DIR: "~/x" }, home, {}, "linux")).toEqual([
       path.join(home, "x"),
@@ -132,10 +160,33 @@ describe("findCandidateClaudeDirs", () => {
     );
   });
 
+  it("looks for claude* folders in $XDG_CONFIG_HOME and in ~/.config", () => {
+    const xdgWork = dataDir("xdg/claude-work");
+    const configAlt = dataDir(".config/claude-alt");
+    expect(
+      findCandidateClaudeDirs({ XDG_CONFIG_HOME: path.join(home, "xdg") }, home, {}, "linux")
+    ).toEqual([configAlt, xdgWork].sort());
+  });
+
   it("does not offer a folder that is already read", () => {
     const work = dataDir(".claude-work");
     expect(findCandidateClaudeDirs({ CLAUDE_CONFIG_DIR: work }, home, {}, "linux")).toEqual([]);
     expect(findCandidateClaudeDirs({}, home, { claudeDirs: [work] }, "linux")).toEqual([]);
+  });
+});
+
+describe("shellOnlyClaudeDirs", () => {
+  it("lists folders only the shell's CLAUDE_CONFIG_DIR reaches, unless saved or declined", () => {
+    const legacy = dataDir(".claude");
+    const a = dataDir("work-a");
+    const b = dataDir("work-b");
+    const env = { CLAUDE_CONFIG_DIR: `${a},${b}` };
+    expect(shellOnlyClaudeDirs(env, home, {}, "linux")).toEqual([a, b]);
+    expect(
+      shellOnlyClaudeDirs(env, home, { claudeDirs: [a], declinedClaudeDirs: [b] }, "linux")
+    ).toEqual([]);
+    expect(shellOnlyClaudeDirs({ CLAUDE_CONFIG_DIR: legacy }, home, {}, "linux")).toEqual([]);
+    expect(shellOnlyClaudeDirs({}, home, {}, "linux")).toEqual([]);
   });
 });
 
@@ -164,10 +215,31 @@ describe("scanAllProjects over several folders", () => {
       path.join(FIXTURE, "A", "projects", "projA", "s1.jsonl"),
       path.join(copy, "projects", "projA", "s1.jsonl")
     );
+    vi.stubEnv("CLAUDE_CONFIG_DIR", path.join(FIXTURE, "A"));
+    const single = scanAllProjects();
     vi.stubEnv("CLAUDE_CONFIG_DIR", `${path.join(FIXTURE, "A")},${copy}`);
 
-    const day = scanAllProjects()?.dailyUsage[0];
+    const both = scanAllProjects();
 
-    expect(day?.modelTokens?.["claude-opus-4-8"]?.outputTokens).toBe(534);
+    expect(both?.dailyUsage[0]?.modelTokens?.["claude-opus-4-8"]?.outputTokens).toBe(534);
+    expect(both?.stats.sessionsCount).toBe(single?.stats.sessionsCount);
+    expect(both?.sessionFingerprint?.sessionCount).toBe(single?.sessionFingerprint?.sessionCount);
+  });
+
+  it("keeps the larger copy of a transcript, even when a smaller copy is newer", () => {
+    const full = path.join(FIXTURE, "A", "projects", "projA", "s1.jsonl");
+    const firstLine = fs.readFileSync(full, "utf-8").split("\n")[0];
+    const backup = dataDir(".claude-bak");
+    const partial = path.join(backup, "projects", "projA", "s1.jsonl");
+    fs.mkdirSync(path.dirname(partial), { recursive: true });
+    fs.writeFileSync(partial, firstLine + "\n");
+    const later = new Date(Date.now() + 60_000);
+    fs.utimesSync(partial, later, later);
+
+    vi.stubEnv("CLAUDE_CONFIG_DIR", path.join(FIXTURE, "A"));
+    const single = scanAllProjects()?.usage.totalTokens;
+    vi.stubEnv("CLAUDE_CONFIG_DIR", `${path.join(FIXTURE, "A")},${backup}`);
+
+    expect(scanAllProjects()?.usage.totalTokens).toBe(single);
   });
 });

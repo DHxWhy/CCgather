@@ -281,6 +281,10 @@ async function showSettingsMenu(): Promise<void> {
           name: `🔐  ${colors.white("Re-authenticate")}  ${colors.dim("– switch account or fix login issues")}`,
           value: "auth",
         },
+        {
+          name: `📁  ${colors.white("Data folders")}  ${colors.dim("– ask again which Claude Code folders count")}`,
+          value: "dirs",
+        },
         { name: `⬅️   ${chalk.gray("Back")}`, value: "back" },
       ],
       loop: false,
@@ -291,6 +295,17 @@ async function showSettingsMenu(): Promise<void> {
     case "auth": {
       const { auth } = await import("./commands/auth.js");
       await auth({});
+      break;
+    }
+    case "dirs": {
+      // Forget the answers; the next interactive submit asks again
+      const config = getConfig();
+      config.delete("claudeDirs");
+      config.delete("declinedClaudeDirs");
+      console.log(
+        `\n  ${colors.muted("The next submit asks again which Claude Code data folders to count.")}`
+      );
+      await showMenuOnly();
       break;
     }
     case "back":
