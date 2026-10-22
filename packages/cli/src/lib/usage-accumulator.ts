@@ -114,9 +114,13 @@ function emptySplit(): TokenSplit {
   };
 }
 
-// A bucket also counts the responses standing in it, overall and per model, so a day or a
-// model a response moved away from disappears instead of staying at zero.
-type Bucket = UsageBucket & { standing: number; standingByModel: Record<string, number> };
+// A bucket also counts the responses standing in it, overall, per model and per session, so a
+// day, model or session a response moved away from disappears instead of staying at zero.
+type Bucket = UsageBucket & {
+  standing: number;
+  standingByModel: Record<string, number>;
+  standingBySession: Map<string, number>;
+};
 
 function emptyBucket(): Bucket {
   return {
@@ -127,6 +131,7 @@ function emptyBucket(): Bucket {
     sessions: new Set(),
     standing: 0,
     standingByModel: {},
+    standingBySession: new Map(),
   };
 }
 
@@ -178,8 +183,11 @@ const utcDay = (instant: number): string => new Date(instant).toISOString().slic
 function readInstant(v: unknown): number | null {
   if (typeof v !== "string" || !ZONED.test(v)) return null;
   const [year, month, day, hour, minute, second] = v.slice(0, 19).split(/\D/).map(Number);
-  const daysInMonth = new Date(Date.UTC(year, month, 0)).getUTCDate();
-  if (month < 1 || month > 12 || day < 1 || day > daysInMonth) return null;
+  if (month < 1 || month > 12) return null;
+  // Gregorian leap years, year 0 included (Date.UTC would read 0-99 as 1900-1999)
+  const leap = year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
+  const daysInMonth = [31, leap ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31][month - 1] ?? 0;
+  if (day < 1 || day > daysInMonth) return null;
   if (hour > 23 || minute > 59 || second > 59) return null;
   const ms = Date.parse(v);
   return Number.isFinite(ms) ? ms : null;
@@ -366,21 +374,33 @@ export function createUsageAccumulator(options: { cutoff?: string | null } = {})
   // Lookups by exact key, then by (message, session): /btw sidechains replay parent messages
   // under new request ids and times. Every response is indexed for sidechain candidates and
   // sidechain responses once more for parent candidates, as in daily.rs. A slot holds one
-  // response, or a list when several share it (gateways reusing a message id).
-  type Slot = Counted | Counted[];
-  const byKey = new Map<string, Slot>();
-  const replayAny = new Map<string, Slot>();
-  const replaySidechain = new Map<string, Slot>();
+  // entry, or a list when several share it (gateways reusing a message id). A route entry is
+  // the response itself, which matches only while it is still in that session (daily.rs
+  // re-checks the survivor's current session), or an alias a cross-session copy added.
+  type Alias = { alias: Counted };
+  type Slot<T> = T | T[];
+  const byKey = new Map<string, Slot<Counted>>();
+  const replayAny = new Map<string, Slot<Counted | Alias>>();
+  const replaySidechain = new Map<string, Slot<Counted | Alias>>();
+  const aliases = new WeakMap<Counted, Alias>();
+  const aliasOf = (c: Counted): Alias => {
+    let a = aliases.get(c);
+    if (!a) {
+      a = { alias: c };
+      aliases.set(c, a);
+    }
+    return a;
+  };
 
-  const slotList = (slot: Slot | undefined): Counted[] =>
+  const slotList = <T>(slot: Slot<T> | undefined): T[] =>
     slot === undefined ? [] : Array.isArray(slot) ? slot : [slot];
 
-  const push = (index: Map<string, Slot>, key: string, c: Counted): void => {
+  const push = <T>(index: Map<string, Slot<T>>, key: string, item: T): void => {
     const slot = index.get(key);
-    if (slot === undefined) index.set(key, c);
+    if (slot === undefined) index.set(key, item);
     else if (Array.isArray(slot)) {
-      if (!slot.includes(c)) slot.push(c);
-    } else if (slot !== c) index.set(key, [slot, c]);
+      if (!slot.includes(item)) slot.push(item);
+    } else if (slot !== item) index.set(key, [slot, item]);
   };
 
   const indexRoutes = (c: Counted, messageId: string, sessionId: string): void => {
@@ -421,7 +441,14 @@ export function createUsageAccumulator(options: { cutoff?: string | null } = {})
       delete b.models[c.model];
       delete b.modelTokens[c.model];
     }
-    if (sign > 0) b.sessions.add(c.session);
+    const inSession = (b.standingBySession.get(c.session) ?? 0) + sign;
+    if (inSession > 0) {
+      b.standingBySession.set(c.session, inSession);
+      b.sessions.add(c.session);
+    } else {
+      b.standingBySession.delete(c.session);
+      b.sessions.delete(c.session);
+    }
     b.standing += sign;
     return b.standing;
   };
@@ -441,9 +468,12 @@ export function createUsageAccumulator(options: { cutoff?: string | null } = {})
     const exact = key ? slotList(byKey.get(key)).find((c) => c.key === key) : undefined;
     if (exact) return exact;
     const routes = e.sidechain ? replayAny : replaySidechain;
-    return slotList(routes.get(`${e.messageId}\u0000${e.sessionId}`)).find(
-      (c) => e.sidechain || c.sidechain
-    );
+    for (const entry of slotList(routes.get(`${e.messageId}\u0000${e.sessionId}`))) {
+      const isAlias = "alias" in entry;
+      const c = isAlias ? entry.alias : entry;
+      if ((isAlias || c.sessionId === e.sessionId) && (e.sidechain || c.sidechain)) return c;
+    }
+    return undefined;
   };
 
   const take = (c: Counted, e: Entry, key: string | null): void => {
@@ -481,8 +511,8 @@ export function createUsageAccumulator(options: { cutoff?: string | null } = {})
         // A cross-session copy can become the survivor: keep both sessions' replay routes.
         for (const sessionId of [e.sessionId, previousSession]) {
           const route = `${e.messageId}\u0000${sessionId}`;
-          push(replayAny, route, existing);
-          push(replaySidechain, route, existing);
+          push(replayAny, route, aliasOf(existing));
+          push(replaySidechain, route, aliasOf(existing));
         }
       }
       if (existing.excluded || !shouldReplace(e, existing)) return false;

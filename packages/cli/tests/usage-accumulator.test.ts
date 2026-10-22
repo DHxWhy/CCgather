@@ -145,6 +145,26 @@ describe("one response written as several lines", () => {
     expect(day(acc)?.modelTokens["claude-opus-4-8"]?.fast.outputTokens).toBe(0);
   });
 
+  it("takes the replaced line's fast share back while the model keeps other responses", () => {
+    const acc = createUsageAccumulator();
+    const fastLine = (output: number) =>
+      line({
+        id: "msg_1",
+        req: "req_1",
+        output,
+        cr: 100_000,
+        speed: "fast",
+        model: "claude-opus-4-6",
+      });
+    acc.add(line({ id: "msg_0", req: "req_0", output: 1, model: "claude-opus-4-6" }), A);
+    acc.add(fastLine(8), A);
+    acc.add(fastLine(534), A);
+    const split = day(acc)?.modelTokens["claude-opus-4-6"];
+    expect(split?.outputTokens).toBe(535);
+    expect(split?.fast.outputTokens).toBe(534);
+    expect(split?.fast.cacheReadTokens).toBe(100_000);
+  });
+
   it("swaps the fast share too, so it never exceeds the model's share", () => {
     const acc = createUsageAccumulator();
     acc.add(line({ id: "msg_1", req: "req_1", output: 8, speed: "fast" }), A);
@@ -224,6 +244,23 @@ describe("dedup keys (ccusage daily)", () => {
     expect(acc.result().total.outputTokens).toBe(7);
   });
 
+  it("matches a replay route only while the response is still in that session", () => {
+    const acc = createUsageAccumulator();
+    const sub = (session: string, req: string | undefined, output: number) =>
+      line({ id: "msg_x", req, session, output, sidechain: true });
+    acc.add(
+      line({ id: "msg_ref", req: "r_ref", model: "claude-sonnet-4-6", input: 1000, output: 1 }),
+      A
+    );
+    acc.add(sub("s1", "req_b", 1), A);
+    acc.add(sub("s2", "req_a", 5), A);
+    acc.add(sub("s1", "req_a", 6), A);
+    acc.add(sub("s2", "req_b", 3), A);
+    acc.add(sub("s1", undefined, 4), A);
+    // ccusage 20.0.37 on the same lines in the same order
+    expect(day(acc)?.models).toEqual({ "claude-opus-4-8": 9, "claude-sonnet-4-6": 1001 });
+  });
+
   it("lets a parent find a sidechain response through the session of an equal copy", () => {
     const acc = createUsageAccumulator();
     acc.add(line({ id: "msg_x", req: "req_x", session: "s1", output: 10, sidechain: true }), A);
@@ -287,6 +324,9 @@ describe("lines ccusage leaves out", () => {
     ["an offset without a colon", { ts: "2026-10-01T10:00:00+0900" }],
     ["hour 24", { ts: "2026-10-01T24:00:00Z" }],
     ["February 30", { ts: "2026-02-30T10:00:00Z" }],
+    ["April 31", { ts: "2026-04-31T10:00:00Z" }],
+    ["February 29 of a common year", { ts: "2026-02-29T10:00:00Z" }],
+    ["February 29 of 1900", { ts: "1900-02-29T10:00:00Z" }],
     [
       "an iteration with a null speed",
       { iterations: [{ type: "message", input_tokens: 1, output_tokens: 1, speed: null }] },
@@ -319,6 +359,15 @@ describe("lines ccusage leaves out", () => {
     acc.add(line({ id: "msg_1", req: "req_2", output: 9, sidechain: true }), A);
     expect(acc.result().total.outputTokens).toBe(5);
   });
+
+  it.each(["2028-02-29T10:00:00Z", "2000-02-29T10:00:00Z", "0000-02-29T10:00:00Z"])(
+    "counts February 29 of a leap year: %s",
+    (ts) => {
+      const acc = createUsageAccumulator();
+      expect(acc.add(line({ id: "msg_1", req: "r1", ts, output: 2 }), A)).toBe(true);
+      expect(acc.result().total.outputTokens).toBe(2);
+    }
+  );
 
   it("takes the flat cache write count when cache_creation is null", () => {
     const acc = createUsageAccumulator();
@@ -698,6 +747,16 @@ describe("a /btw replay read before its parent", () => {
     expect(day(acc)?.models).toEqual({ "claude-opus-4-8": 7 });
     expect(acc.result().projects.has("elsewhere")).toBe(false);
     expect(acc.result().projects.get("proj")?.tokens).toBe(7);
+    expect([...(day(acc)?.sessions ?? [])]).toEqual(["/p/a.jsonl"]);
+  });
+
+  it("takes the moved response's session off the replay's day", () => {
+    const acc = createUsageAccumulator();
+    acc.add(replay("2026-10-02T08:00:00.000Z"), B);
+    const other = line({ id: "msg_o", req: "req_o", ts: "2026-10-02T09:00:00.000Z", output: 3 });
+    acc.add(other, { sessionKey: "/q/c.jsonl", projectName: "proj" });
+    acc.add(parent, A);
+    expect([...(acc.result().daily.get("2026-10-02")?.sessions ?? [])]).toEqual(["/q/c.jsonl"]);
   });
 
   it("keeps a sidechain response on the day first seen when a larger sidechain line crosses midnight", () => {

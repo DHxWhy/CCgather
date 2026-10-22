@@ -295,6 +295,11 @@ function getCurrentProjectDir(): string | null {
   return null;
 }
 
+// ccusage reads files in path order, by bytes: a session's transcript (s1.jsonl) comes before
+// its subagents/ folder (s1/), so a /btw replay never arrives ahead of the message it copies.
+const byPathBytes = (a: string, b: string): number =>
+  Buffer.compare(Buffer.from(a), Buffer.from(b));
+
 /**
  * Recursively find all .jsonl files
  */
@@ -710,7 +715,8 @@ function summarizeScan(
     }))
     .sort((a, b) => a.date.localeCompare(b.date));
 
-  const dayOf = (ts: string | null) => (ts ? new Date(ts).toISOString().split("T")[0] : null);
+  // From the days that hold a response, so a response that moved days leaves no trace
+  const days = [...acc.daily.keys()].sort();
   return {
     usage: {
       totalTokens: total.tokens,
@@ -721,8 +727,8 @@ function summarizeScan(
       cacheWriteTokens: total.cacheWriteTokens,
     },
     daysTracked: acc.daily.size,
-    firstUsed: dayOf(acc.firstTimestamp),
-    lastUsed: dayOf(acc.lastTimestamp),
+    firstUsed: days[0] ?? null,
+    lastUsed: days[days.length - 1] ?? null,
     models: total.models,
     projects,
     dailyUsage,
@@ -745,7 +751,7 @@ function accountInfo(): CCGatherData["account"] {
  */
 function scanProjectFolder(projectDir: string, options: ScanOptions): CCGatherData | null {
   const acc = createUsageAccumulator({ cutoff: cutoffFor(options.days ?? 30) });
-  const jsonlFiles = findJsonlFiles(projectDir);
+  const jsonlFiles = findJsonlFiles(projectDir).sort(byPathBytes);
   const projectSessions: Record<string, number> = {};
   const { onProgress } = options;
 
@@ -1100,7 +1106,7 @@ export function scanAllProjects(options: ScanOptions = {}): CCGatherData | null 
       continue;
     }
   }
-  const allJsonlFiles = deduplicateJsonlFiles(rawJsonlFiles);
+  const allJsonlFiles = deduplicateJsonlFiles(rawJsonlFiles.sort(byPathBytes));
   const sessionHashes: string[] = [];
 
   if (allJsonlFiles.length === 0) {

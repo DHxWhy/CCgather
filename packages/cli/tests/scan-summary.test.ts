@@ -202,6 +202,81 @@ describe("a /btw replay saved after an earlier submit", () => {
   });
 });
 
+describe("files read in path order, as ccusage does", () => {
+  const event = (
+    id: string,
+    model: string,
+    ts: string,
+    u: Usage,
+    fields: Record<string, unknown>
+  ): string => JSON.stringify({ ...JSON.parse(usageLine(id, model, ts, u)), ...fields });
+
+  // A parent message in s1, its copy in s2, and a /btw replay of it in s2/subagents/
+  const copiedSession = (withAnswer: boolean) => {
+    const parent = { input: 3, output: 100, cacheRead: 20_000 };
+    writeTranscript("p", "s1.jsonl", [
+      usageLine("ref", "claude-sonnet-4-6", "2026-10-01T09:00:00.000Z", { input: 1000, output: 1 }),
+      usageLine("p", "claude-opus-4-8", "2026-10-01T10:00:00.000Z", parent),
+    ]);
+    writeTranscript("p", "s2.jsonl", [
+      event("p", "claude-opus-4-8", "2026-10-01T10:00:00.000Z", parent, { sessionId: "s2" }),
+    ]);
+    const replay = event("p", "claude-opus-4-8", "2026-10-02T08:00:00.000Z", parent, {
+      sessionId: "s2",
+      requestId: "req_replay",
+      isSidechain: true,
+      agentId: "aside_question-1",
+    });
+    const answer = event(
+      "btw",
+      "claude-opus-4-8",
+      "2026-10-02T08:00:05.000Z",
+      { input: 3, output: 50, cacheRead: 30_000 },
+      { sessionId: "s2", isSidechain: true, agentId: "aside_question-1" }
+    );
+    writeTranscript(
+      "p",
+      "s2/subagents/agent-aside_question-1.jsonl",
+      withAnswer ? [replay, answer] : [replay]
+    );
+  };
+
+  it("counts a /btw replay in a session holding a copied message once", () => {
+    copiedSession(true);
+    // ccusage 20.0.37: 2026-10-01 21,104 · 2026-10-02 30,053
+    expect(scanAllProjects()?.dailyUsage.map((d) => [d.date, d.tokens])).toEqual([
+      ["2026-10-01", 21_104],
+      ["2026-10-02", 30_053],
+    ]);
+  });
+
+  it("leaves no day behind for a /btw replay without an answer", () => {
+    copiedSession(false);
+    const data = scanAllProjects();
+    expect(data?.dailyUsage.map((d) => d.date)).toEqual(["2026-10-01"]);
+    expect(data?.stats.lastUsed).toBe("2026-10-01");
+  });
+
+  it("reports the last day from the days that hold usage, not from a line that moved", () => {
+    const parent = { input: 3, output: 100 };
+    // a-replay.jsonl sorts before s1.jsonl, so the replay is seen first and then moves back
+    writeTranscript("p", "a-replay.jsonl", [
+      event("p", "claude-opus-4-8", "2026-10-02T08:00:00.000Z", parent, {
+        requestId: "req_replay",
+        isSidechain: true,
+        agentId: "aside_question-1",
+      }),
+    ]);
+    writeTranscript("p", "s1.jsonl", [
+      usageLine("p", "claude-opus-4-8", "2026-10-01T10:00:00.000Z", parent),
+    ]);
+    const data = scanAllProjects();
+    expect(data?.dailyUsage.map((d) => d.date)).toEqual(["2026-10-01"]);
+    expect(data?.stats.firstUsed).toBe("2026-10-01");
+    expect(data?.stats.lastUsed).toBe("2026-10-01");
+  });
+});
+
 describe("summary fields", () => {
   it("reads the sign-in unless told not to", () => {
     writeTranscript("p", "s1.jsonl", [
@@ -229,6 +304,25 @@ describe("summary fields", () => {
 
     expect(stats?.firstUsed).toBe("2026-10-18");
     expect(stats?.lastUsed).toBe("2026-10-20");
+  });
+
+  it("counts a session-less file holding a copied usage line as a session, as older CLIs did", () => {
+    writeTranscript("p", "s1.jsonl", [
+      usageLine("1", "claude-opus-4-8", "2026-10-01T10:00:00.000Z", { input: 1, output: 50 }),
+    ]);
+    const copy = JSON.parse(
+      usageLine("1", "claude-opus-4-8", "2026-10-01T10:00:00.000Z", { input: 1, output: 50 })
+    ) as Record<string, unknown>;
+    delete copy.sessionId;
+    writeTranscript("p", "zz-journal.jsonl", [
+      JSON.stringify({ type: "workflow" }),
+      JSON.stringify(copy),
+    ]);
+
+    const data = scanAllProjects();
+
+    expect(data?.usage.totalTokens).toBe(51);
+    expect(data?.stats.sessionsCount).toBe(2);
   });
 
   it("does not count a file whose lines only mention a usage key", () => {
