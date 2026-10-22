@@ -29,7 +29,7 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
     category: "improved",
     title: "CLI v2.3.3 finds your other Claude Code folders and shows how you sign in",
     summary:
-      "The CLI now also reads Claude Code data folders beside ~/.claude, such as ~/.claude-work for a second account, and asks once before counting one it found (a session found twice counts once; Settings > Data folders asks again). A folder elsewhere counts when CLAUDE_CONFIG_DIR names it. Your plan badge follows how Claude Code signs you in: API keys and Console logins show as Claude API and cloud providers by name, never as Team, and an enterprise gateway sign-in leaves the badge as it is.",
+      "The CLI now also reads Claude Code data folders beside ~/.claude, such as ~/.claude-work for a second account, and the npx ccgather menu asks once before counting one it found (a session found twice counts once; Settings > Data folders asks again). A folder elsewhere counts when CLAUDE_CONFIG_DIR names it. Your plan badge follows how Claude Code signs you in: API keys and Console logins show as Claude API and cloud providers by name, never as Team, and an enterprise gateway sign-in leaves the badge as it is.",
   },
   {
     id: "2026-10-22-cli-autosubmit-v2-3-3",
@@ -37,7 +37,7 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
     category: "improved",
     title: "Scheduled submits and CLI v2.3.3: how they update and what they leave to you",
     summary:
-      "Jobs that run through npx pick up v2.3.3 on their next run. A job set up from a global install updates with npm install -g ccgather instead, and one set up with v2.3.0 or v2.3.1 or pinned with --pin needs npx ccgather autosubmit on once (add --pin to keep pinning). Auto-submit never asks about new data folders or reads your Claude Code sign-in, so a folder found later waits for the npx ccgather menu and your badge for a submit by hand. A cron or Task Scheduler job that runs npx ccgather submit does not ask about folders either, but it reports the sign-in it sees there, which can miss your shell's API key or provider settings.",
+      "npx ccgather autosubmit status shows what your auto-submit job runs: one that runs the newest ccgather release picks up v2.3.3 on its next run, one that runs your global install of ccgather updates with npm install -g ccgather, and one that runs a set version such as ccgather@2.3.1 needs npx ccgather autosubmit on once (add --pin to keep one). Auto-submit never asks about new data folders or reads your Claude Code sign-in, so a folder found later waits for the npx ccgather menu and your badge for a submit by hand. A cron or Task Scheduler job you set up yourself to run npx ccgather@latest submit, as the README shows, picks up v2.3.3 too and does not ask about folders either, but it reports the sign-in it sees there, which can miss your shell's API key or provider settings.",
   },
   {
     id: "2026-10-21-feedback-replies-in-notifications",
