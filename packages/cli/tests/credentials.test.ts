@@ -235,14 +235,39 @@ describe("settings env blocks replace the shell's variables", () => {
     expect(creds({}).ccplan).toBe("max");
   });
 
-  it("merges the managed files' env before dropping a NUL value, so the user's layer shows", () => {
+  it("merges the managed files' env key by key before dropping a NUL value", () => {
     oauth("max", undefined, { scopes: ["user:inference"] });
     write("managed/managed-settings.json", { env: { CLAUDE_CODE_USE_VERTEX: "1" } });
+    // A drop-in without the key keeps the base file's value
+    write("managed/managed-settings.d/50-off.json", { env: { CLAUDE_CODE_USE_BEDROCK: "0" } });
+    expect(creds({}).ccplan).toBe("vertex");
     write("managed/managed-settings.d/50-off.json", { env: { CLAUDE_CODE_USE_VERTEX: "0\u0000" } });
     expect(creds({}).ccplan).toBe("max");
+    // The merged value is dropped, so the user's settings show through
+    write(".claude/settings.json", { env: { CLAUDE_CODE_USE_VERTEX: "1" } });
+    expect(creds({}).ccplan).toBe("vertex");
+    fs.rmSync(path.join(home, ".claude/settings.json"));
     write("managed/managed-settings.json", { env: { ANTHROPIC_AUTH_TOKEN: "t" } });
     write("managed/managed-settings.d/50-off.json", { env: { ANTHROPIC_AUTH_TOKEN: "u\u0000" } });
     expect(creds({}).ccplan).toBe("max");
+  });
+
+  it("skips an env value String() cannot convert, as Claude Code's schema does, without failing", () => {
+    oauth("max", undefined, { scopes: ["user:inference"] });
+    const broken = { toString: 1 };
+    // A user settings file is skipped whole
+    write(".claude/settings.json", { env: { CLAUDE_CODE_USE_VERTEX: broken } });
+    expect(creds({}).ccplan).toBe("max");
+    write(".claude/settings.json", { env: { FOO: broken }, apiKeyHelper: "h" });
+    expect(creds({}).ccplan).toBe("max");
+    fs.rmSync(path.join(home, ".claude/settings.json"));
+    // A managed file loses its env block
+    write("managed/managed-settings.json", { env: { CLAUDE_CODE_USE_VERTEX: broken } });
+    expect(creds({}).ccplan).toBe("max");
+    write("managed/managed-settings.json", { env: { FOO: broken, CLAUDE_CODE_USE_VERTEX: "1" } });
+    expect(creds({}).ccplan).toBe("max");
+    write("managed/managed-settings.json", { env: { FOO: broken }, forceLoginMethod: "gateway" });
+    expect(creds({}).rawSubscriptionType).toBe("enterprise_gateway");
   });
 
   it("keeps the rest of a managed file whose env or apiKeyHelper is wrong", () => {

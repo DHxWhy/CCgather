@@ -83,10 +83,23 @@ function readGlobalConfig(file: string): JsonObject | null {
   }
 }
 
+// Claude Code's env schema turns each value into text; one that String() cannot convert (an
+// object whose toString is not a function, say) fails it.
+const isTextEnv = (env: unknown): env is JsonObject =>
+  isObject(env) &&
+  Object.values(env).every((value) => {
+    try {
+      String(value);
+      return true;
+    } catch {
+      return false;
+    }
+  });
+
 // Claude Code skips a whole user settings file that fails its schema. The keys read here are
 // checked; the rest of the schema is not.
 const isUsableUserSettings = (s: JsonObject): boolean =>
-  (s.env === undefined || isObject(s.env)) &&
+  (s.env === undefined || isTextEnv(s.env)) &&
   (s.apiKeyHelper === undefined || typeof s.apiKeyHelper === "string");
 
 // A settings document as Claude Code reads one: UTF-16LE when it opens with FF FE, and without
@@ -376,9 +389,10 @@ export function readCredentials(
   const settingsLayers = [...managed].reverse().concat(userSettings ?? {});
   const envOf = (s: JsonObject | null): JsonObject => (isObject(s?.env) ? s.env : {});
   // The managed files' env blocks are merged first, a later drop-in's value replacing an
-  // earlier one, and applied as one layer.
+  // earlier one, and applied as one layer. A managed file loses only an env block that fails
+  // the schema.
   const managedEnv: JsonObject = Object.create(null);
-  for (const layer of managed.map(envOf)) Object.assign(managedEnv, layer);
+  for (const s of managed) if (isTextEnv(s.env)) Object.assign(managedEnv, s.env);
   const variable = (name: string): string | undefined => {
     // A settings file's env schema turns any value into text (null is "null") and it replaces
     // what lies below; .claude.json's legacy env keeps only strings, numbers and booleans. A
