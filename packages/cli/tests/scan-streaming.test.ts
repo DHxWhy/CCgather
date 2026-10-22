@@ -128,6 +128,8 @@ describe("readTranscriptLines", () => {
       "50": many(50).join("\n") + "\n",
       "51-no-newline": many(51).join("\n"),
       "120": many(120).join("\n") + "\n",
+      // 7-byte lines: at chunkBytes=7 each newline is the first byte of a read
+      "chunk-aligned": Array.from({ length: 5 }, () => "abcdefg").join("\n") + "\n",
     };
 
     for (const [name, content] of Object.entries(contents)) {
@@ -150,6 +152,38 @@ describe("readTranscriptLines", () => {
 
     expect(head).toEqual(content.split("\n").slice(0, 3));
     expect(vi.mocked(fs.readSync)).toHaveBeenCalledTimes(1);
+  });
+
+  it("reuses one read buffer from one transcript to the next", () => {
+    const files = ["a", "b", "c"].map((n) => writeFixture(`${n}.jsonl`, usageEvent(n, 1) + "\n"));
+    readTranscriptLines(files[0], { onLine: () => {} });
+
+    const alloc = vi.spyOn(Buffer, "allocUnsafe");
+    try {
+      for (const file of files.slice(1)) readTranscriptLines(file, { onLine: () => {} });
+      expect(alloc.mock.calls.filter(([size]) => size >= 1 << 20)).toEqual([]);
+    } finally {
+      alloc.mockRestore();
+    }
+  });
+
+  it("keeps two reads apart when one starts inside the other's line handler", () => {
+    const outerLines = [usageEvent("o1", 1), usageEvent("o2", 2)];
+    const innerLine = usageEvent("i1", 3, "x".repeat(5000));
+    const outer = writeFixture("outer.jsonl", outerLines.join("\n") + "\n");
+    const inner = writeFixture("inner.jsonl", innerLine + "\n");
+    const got: string[] = [];
+    const innerGot: string[] = [];
+
+    readTranscriptLines(outer, {
+      onLine: (line) => {
+        got.push(line);
+        if (innerGot.length === 0) readTranscriptLines(inner, { onLine: (l) => innerGot.push(l) });
+      },
+    });
+
+    expect(got).toEqual(outerLines);
+    expect(innerGot).toEqual([innerLine]);
   });
 });
 

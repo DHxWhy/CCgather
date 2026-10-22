@@ -445,6 +445,20 @@ const TRANSCRIPT_CHUNK_BYTES = 4 * 1024 * 1024;
 /** A line without this key cannot be a usage event, so it is never decoded. */
 const USAGE_KEY = Buffer.from('"usage"');
 
+// The read buffer is reused from one transcript to the next. A fresh buffer per read (plus
+// a copy of the carried partial line) is memory outside the JS heap, and its churn made V8
+// run a full garbage collection every few reads: about 300 per scan of a long history.
+let spareReadBuffer: Buffer | null = null;
+
+function takeReadBuffer(size: number): Buffer {
+  const buf =
+    spareReadBuffer !== null && spareReadBuffer.length === size
+      ? spareReadBuffer
+      : Buffer.allocUnsafe(size);
+  spareReadBuffer = null; // a nested read gets its own
+  return buf;
+}
+
 export interface ReadTranscriptOptions {
   /** How many leading raw lines to return, split as content.split("\n") splits them. */
   headLines?: number;
@@ -487,33 +501,39 @@ export function readTranscriptLines(
   };
 
   const fd = fs.openSync(filePath, "r");
+  const initial = takeReadBuffer(chunkBytes);
   try {
-    const chunk = Buffer.allocUnsafe(chunkBytes);
-    let carry: Buffer = Buffer.alloc(0);
+    let buf = initial;
+    let kept = 0; // bytes of a partial line moved to the front of buf
     for (;;) {
-      const bytesRead = fs.readSync(fd, chunk, 0, chunkBytes, null);
+      if (kept > buf.length / 2) {
+        // A line longer than half the buffer: grow it for this transcript only
+        const bigger = Buffer.allocUnsafe(buf.length * 2);
+        buf.copy(bigger, 0, 0, kept);
+        buf = bigger;
+      }
+      const bytesRead = fs.readSync(fd, buf, kept, buf.length - kept, null);
       if (bytesRead === 0) break;
-      const buf =
-        carry.length > 0
-          ? Buffer.concat([carry, chunk.subarray(0, bytesRead)])
-          : chunk.subarray(0, bytesRead);
+      const filled = buf.subarray(0, kept + bytesRead);
       let start = 0;
+      // The kept bytes hold no newline, so the search starts after them
       for (
-        let newline = buf.indexOf(0x0a, start);
+        let newline = filled.indexOf(0x0a, kept);
         newline !== -1;
-        newline = buf.indexOf(0x0a, start)
+        newline = filled.indexOf(0x0a, start)
       ) {
-        handleLine(buf, start, newline);
+        handleLine(filled, start, newline);
         start = newline + 1;
         if (onLine === undefined && head.length >= headLines) return head;
       }
-      // The chunk buffer is reused by the next read, so the partial line is copied out
-      carry = Buffer.from(buf.subarray(start));
+      kept = filled.length - start;
+      filled.copyWithin(0, start);
     }
     // What follows the last newline is a line to split("\n"), even when empty
-    handleLine(carry, 0, carry.length);
+    handleLine(buf, 0, kept);
   } finally {
     fs.closeSync(fd);
+    spareReadBuffer = initial;
   }
   return head;
 }
