@@ -13,6 +13,7 @@ import { aggregateByDate } from "@/lib/utils/usage-aggregation";
 import { earliestSubmittedDate, floorSessionsToStored } from "@/lib/utils/submit-merge-policy";
 import { computeDayCost, getPricingData, resolveDayCost } from "@/lib/services/pricing";
 import { isKnownPlanKey, normalizeSubmittedPlan } from "@/lib/services/auth-plan";
+import { readUsageTotals, recalculateRanks } from "@/lib/services/rank-totals";
 import { requestPricingCheck, unpricedClaudeModels } from "@/lib/services/pricing-dispatch";
 import type { PriceCache } from "@/lib/services/pricing";
 import { parseValidationMode } from "@/lib/config/validation-thresholds";
@@ -982,40 +983,12 @@ export async function POST(request: NextRequest) {
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
-    // STEP 2: Calculate cumulative totals from ALL daily usage records
-    // Uses a two-query strategy: primary query includes device_id for breakdown,
-    // fallback query omits device_id to survive missing-column scenarios.
+    // STEP 2: Calculate cumulative totals from ALL daily usage records, per device
+    // (082 get_user_usage_totals, or the capped SELECT path without it).
     // ═══════════════════════════════════════════════════════════════════════════
-    let allDailyUsage:
-      { total_tokens: number; cost_usd: number; sessions: number; device_id?: string }[] | null =
-      null;
-    let sumError: { message: string } | null = null;
-
-    // Primary query: includes device_id for per-device breakdown
-    const primaryResult = await supabase
-      .from("usage_stats")
-      .select("total_tokens, cost_usd, sessions, device_id")
-      .eq("user_id", authenticatedUser.id);
-
-    if (primaryResult.error || !primaryResult.data) {
-      // Fallback query: omit device_id column (survives missing-column/migration scenarios)
-      console.warn(
-        "[CLI Submit] Primary SUM query failed, trying fallback without device_id:",
-        primaryResult.error
-      );
-      const fallbackResult = await supabase
-        .from("usage_stats")
-        .select("total_tokens, cost_usd, sessions")
-        .eq("user_id", authenticatedUser.id);
-
-      if (fallbackResult.error || !fallbackResult.data) {
-        sumError = fallbackResult.error || { message: "No data returned from fallback" };
-      } else {
-        allDailyUsage = fallbackResult.data;
-      }
-    } else {
-      allDailyUsage = primaryResult.data;
-    }
+    const usageTotals = await readUsageTotals(supabase, authenticatedUser.id);
+    const allDailyUsage = usageTotals.rows;
+    const sumError = usageTotals.error;
 
     // Sum all daily usage for true cumulative totals (tokens, cost, sessions)
     let finalTotalTokens = 0;
@@ -1161,72 +1134,12 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Calculate rank
-    // FIX: Update ALL users' global_rank (not just self) to prevent rank drift
-    const { data: rankData } = await supabase
-      .from("users")
-      .select("id")
-      .eq("onboarding_completed", true)
-      .is("deleted_at", null)
-      .eq("shadow_banned", false)
-      .gt("total_tokens", 0)
-      .order("total_tokens", { ascending: false })
-      .order("created_at", { ascending: true });
-
-    let rank = 0;
-    if (rankData && rankData.length > 0) {
-      // Update ALL users' global_rank
-      const updatePromises = rankData.map((user: { id: string }, index: number) =>
-        supabase
-          .from("users")
-          .update({ global_rank: index + 1 })
-          .eq("id", user.id)
-      );
-      await Promise.all(updatePromises);
-
-      // Get current user's rank
-      const currentUserIndex = rankData.findIndex(
-        (u: { id: string }) => u.id === authenticatedUser.id
-      );
-      if (currentUserIndex >= 0) {
-        rank = currentUserIndex + 1;
-      }
-    }
-
-    // Get country rank for badge calculation
-    // FIX: Update ALL users' country_rank in the same country (not just self)
-    let countryRank: number | undefined;
-    if (authenticatedUser.country_code) {
-      const { data: countryRankData } = await supabase
-        .from("users")
-        .select("id")
-        .eq("country_code", authenticatedUser.country_code)
-        .eq("onboarding_completed", true)
-        .is("deleted_at", null)
-        .eq("shadow_banned", false)
-        .gt("total_tokens", 0)
-        .order("total_tokens", { ascending: false })
-        .order("created_at", { ascending: true });
-
-      if (countryRankData && countryRankData.length > 0) {
-        // Update ALL users' country_rank in this country
-        const updatePromises = countryRankData.map((user: { id: string }, index: number) =>
-          supabase
-            .from("users")
-            .update({ country_rank: index + 1 })
-            .eq("id", user.id)
-        );
-        await Promise.all(updatePromises);
-
-        // Get current user's rank for badge calculation
-        const currentUserIndex = countryRankData.findIndex(
-          (u: { id: string }) => u.id === authenticatedUser.id
-        );
-        if (currentUserIndex >= 0) {
-          countryRank = currentUserIndex + 1;
-        }
-      }
-    }
+    // Calculate ranks: 082's functions once its totals function answered, else the JS path
+    const { rank, countryRank } = await recalculateRanks(
+      supabase,
+      authenticatedUser,
+      usageTotals.fromDb
+    );
 
     // Check and award badges
     const usageHistory = body.dailyUsage?.map((d) => ({ date: d.date, tokens: d.tokens })) || [];
