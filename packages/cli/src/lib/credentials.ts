@@ -187,6 +187,19 @@ function isSavedGatewaySignIn(stored: JsonObject | null): boolean {
   return !(Number(gateway.expiresAt) <= Date.now() && !gateway.idpRefreshToken);
 }
 
+// Managed settings can require a gateway sign-in: forceLoginMethod "gateway" or a gateway URL
+// (Claude Code's Gce()). A value its schema rejects counts as unset.
+function managedRequiresGateway(managed: JsonObject[]): boolean {
+  const layers = [...managed].reverse();
+  const method = layers.find((s) =>
+    ["claudeai", "console", "gateway"].includes(String(s.forceLoginMethod))
+  )?.forceLoginMethod;
+  const url = layers.find(
+    (s) => typeof s.forceLoginGatewayUrl === "string" && s.forceLoginGatewayUrl !== ""
+  );
+  return method === "gateway" || url !== undefined;
+}
+
 // A key saved by a Claude Console login: .claude.json's primaryApiKey, or on macOS the
 // Keychain item "Claude Code" (asked for without -w, so the key itself is never read).
 function hasStoredConsoleKey(
@@ -288,8 +301,9 @@ function subscription(oauth: JsonObject | null): CredentialsData {
 /**
  * The credential Claude Code would sign in with, in the order of its 2.1.308 build and the
  * documented precedence (code.claude.com/docs/en/authentication): an enterprise gateway
- * (CLAUDE_CODE_USE_GATEWAY with a base URL and token, or a trusted saved sign-in), a
- * cloud provider, ANTHROPIC_AUTH_TOKEN, an approved ANTHROPIC_API_KEY, apiKeyHelper, a key
+ * (CLAUDE_CODE_USE_GATEWAY with a base URL and token, a trusted saved sign-in, or managed
+ * settings that require one), a cloud provider, ANTHROPIC_AUTH_TOKEN, an approved
+ * ANTHROPIC_API_KEY, apiKeyHelper, a key
  * saved by a Claude Console login (unused while a subscription login or CLAUDE_CODE_OAUTH_TOKEN
  * can sign in), CLAUDE_CODE_OAUTH_TOKEN, an Anthropic profile or federation, then the /login
  * subscription.
@@ -304,8 +318,9 @@ function subscription(oauth: JsonObject | null): CredentialsData {
  * no Keychain, so a gateway saved there is not looked for).
  * Not read: MDM or registry policies, server-managed settings, project and local settings,
  * --settings and other flags, the Windows Credential Manager store, a custom OAuth URL's
- * separate login, credentials a remote host hands to Claude Code, and for a saved gateway the
- * organization's gateway policy and the live TLS check — those cases report what the files say.
+ * separate login, credentials a remote host hands to Claude Code or a session it manages, and
+ * for a saved gateway the organization's gateway policy and the live TLS check — those cases
+ * report what the files say.
  */
 export function readCredentials(
   env: Env = process.env,
@@ -341,14 +356,25 @@ export function readCredentials(
     isTruthy(variable("CLAUDE_CODE_USE_GATEWAY")) &&
     filled(variable("ANTHROPIC_BASE_URL")) !== null &&
     filled(variable("ANTHROPIC_AUTH_TOKEN")) !== null;
-  // No plan key describes a gateway sign-in; null keeps the plan the server has.
+  const provider = PROVIDERS.find(([name]) => isTruthy(variable(name)));
+  // No plan key describes a gateway sign-in; null keeps the plan the server has. The variable
+  // gateway and a restored sign-in come ahead of any provider (Re()); managed settings that
+  // require a gateway apply when no provider is on (LLe()). A saved sign-in that will not be
+  // restored also says null: a policy this does not read (MDM) may still require the gateway.
   if (envGateway || isSavedGatewaySignIn(stored)) return unknown("enterprise_gateway");
+  if (
+    !provider &&
+    ((!isTruthy(variable("CLAUDE_CODE_PROVIDER_MANAGED_BY_HOST")) &&
+      managedRequiresGateway(managed)) ||
+      isObject(stored?.enterpriseGateway))
+  ) {
+    return unknown("enterprise_gateway");
+  }
   // A saved login without an access token is not one Claude Code can use.
   const login = stored?.claudeAiOauth;
   const oauth = isObject(login) && filled(login.accessToken) ? login : null;
   const oauthToken = filled(variable("CLAUDE_CODE_OAUTH_TOKEN"));
 
-  const provider = PROVIDERS.find(([name]) => isTruthy(variable(name)));
   if (provider) {
     const [name, plan] = provider;
     const mantle = plan === "bedrock" && isTruthy(variable("CLAUDE_CODE_USE_MANTLE"));

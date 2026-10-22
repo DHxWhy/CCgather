@@ -354,6 +354,12 @@ describe("API usage billing", () => {
     expect(creds({ CLAUDE_CODE_SIMPLE: "1", CLAUDE_CODE_USE_BEDROCK: "1" }).ccplan).toBe("bedrock");
   });
 
+  it("lets a provider win over ANTHROPIC_AUTH_TOKEN, in bare mode too", () => {
+    const env = { CLAUDE_CODE_USE_BEDROCK: "1", ANTHROPIC_AUTH_TOKEN: "t" };
+    expect(creds(env).ccplan).toBe("bedrock");
+    expect(creds({ ...env, CLAUDE_CODE_SIMPLE: "1" }).ccplan).toBe("bedrock");
+  });
+
   it("reads the bare switch as Claude Code does, from settings env blocks too", () => {
     oauth("max", undefined, { scopes: ["user:inference"] });
     // A key never answered: outside bare mode the login wins
@@ -659,28 +665,61 @@ describe("enterprise gateway", () => {
     expect(creds({ CLAUDE_CODE_USE_BEDROCK: "1" })).toEqual(GATEWAY);
   });
 
-  it("skips a saved sign-in Claude Code would not restore", () => {
-    saved({});
-    expect(creds({}).ccplan).toBe("max");
-    saved({}, { "other.example": "sha256/AAAA" });
-    expect(creds({}).ccplan).toBe("max");
-    saved({}, { "gw.example": "" });
-    expect(creds({}).ccplan).toBe("max");
-    saved({ expiresAt: Date.UTC(2000, 0, 1) }, TRUSTED);
-    expect(creds({}).ccplan).toBe("max");
-    saved({ expiresAt: null }, TRUSTED);
-    expect(creds({}).ccplan).toBe("max");
-    saved({ url: "not a url" }, TRUSTED);
-    expect(creds({}).ccplan).toBe("max");
+  it("lets a provider win over a saved sign-in Claude Code would not restore", () => {
+    const lapsed: [Record<string, unknown>, unknown][] = [
+      [{}, undefined],
+      [{}, { "other.example": "sha256/AAAA" }],
+      [{}, { "gw.example": "" }],
+      [{ expiresAt: Date.UTC(2000, 0, 1) }, TRUSTED],
+      [{ expiresAt: null }, TRUSTED],
+      [{ url: "not a url" }, TRUSTED],
+    ];
+    for (const [gateway, trust] of lapsed) {
+      saved(gateway, trust);
+      expect(creds({ CLAUDE_CODE_USE_BEDROCK: "1" }).ccplan).toBe("bedrock");
+      // Without one it still says nothing: a policy not read here may require the gateway
+      expect(creds({})).toEqual(GATEWAY);
+    }
   });
 
   it("restores one that can refresh or has no expiry, and an IPv6 host without brackets", () => {
+    const bedrock = { CLAUDE_CODE_USE_BEDROCK: "1" };
     saved({ expiresAt: Date.UTC(2000, 0, 1), idpRefreshToken: "r" }, TRUSTED);
-    expect(creds({})).toEqual(GATEWAY);
+    expect(creds(bedrock)).toEqual(GATEWAY);
     saved({ expiresAt: undefined }, TRUSTED);
-    expect(creds({})).toEqual(GATEWAY);
+    expect(creds(bedrock)).toEqual(GATEWAY);
     saved({ url: "https://[::1]:8443" }, { "::1": "sha256/AAAA" });
+    expect(creds(bedrock)).toEqual(GATEWAY);
+  });
+
+  it("reports nothing when managed settings require a gateway and no provider is on", () => {
+    oauth("max", undefined, { scopes: ["user:inference"] });
+    write("managed/managed-settings.json", { forceLoginMethod: "gateway" });
     expect(creds({})).toEqual(GATEWAY);
+    expect(creds({ ANTHROPIC_API_KEY: KEY })).toEqual(GATEWAY);
+    expect(creds({ CLAUDE_CODE_USE_BEDROCK: "1" }).ccplan).toBe("bedrock");
+    expect(creds({ CLAUDE_CODE_PROVIDER_MANAGED_BY_HOST: "1" }).ccplan).toBe("max");
+
+    write("managed/managed-settings.json", { forceLoginGatewayUrl: "https://gw.example" });
+    expect(creds({})).toEqual(GATEWAY);
+    // Values its schema rejects count as unset
+    write("managed/managed-settings.json", { forceLoginGatewayUrl: "", forceLoginMethod: "sso" });
+    expect(creds({}).ccplan).toBe("max");
+    // A drop-in applied later wins
+    write("managed/managed-settings.json", { forceLoginMethod: "gateway" });
+    write("managed/managed-settings.d/50-login.json", { forceLoginMethod: "claudeai" });
+    expect(creds({}).ccplan).toBe("max");
+    write("managed/managed-settings.d/60-login.json", { forceLoginMethod: "gateway" });
+    expect(creds({})).toEqual(GATEWAY);
+  });
+
+  it("ignores a gateway requirement in the user's own settings", () => {
+    oauth("max", undefined, { scopes: ["user:inference"] });
+    write(".claude/settings.json", {
+      forceLoginMethod: "gateway",
+      forceLoginGatewayUrl: "https://gw.example",
+    });
+    expect(creds({}).ccplan).toBe("max");
   });
 
   it("reports nothing for CLAUDE_CODE_USE_GATEWAY with a base URL and a token", () => {
@@ -700,6 +739,14 @@ describe("enterprise gateway", () => {
       env: { CLAUDE_CODE_USE_GATEWAY: true, ANTHROPIC_BASE_URL: "https://gw.example" },
     });
     expect(creds({ ANTHROPIC_AUTH_TOKEN: "t" })).toEqual(GATEWAY);
+  });
+
+  it("takes the gateway token from a settings env block, and needs one", () => {
+    oauth("max", undefined, { scopes: ["user:inference"] });
+    const env = { CLAUDE_CODE_USE_GATEWAY: "1", ANTHROPIC_BASE_URL: "https://gw.example" };
+    expect(creds(env).ccplan).toBe("max");
+    write(".claude/settings.json", { env: { ANTHROPIC_AUTH_TOKEN: "t" } });
+    expect(creds(env)).toEqual(GATEWAY);
   });
 });
 
