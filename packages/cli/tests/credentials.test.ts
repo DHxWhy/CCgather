@@ -228,6 +228,8 @@ describe("settings env blocks replace the shell's variables", () => {
     expect(creds({}).ccplan).toBe("max");
     write(".claude/settings.json", { env: { CLAUDE_CODE_USE_VERTEX: "0\u0000" } });
     expect(creds({ CLAUDE_CODE_USE_VERTEX: "1" }).ccplan).toBe("vertex");
+    write(".claude/settings.json", { env: { CLAUDE_CODE_USE_VERTEX: "0\u0000x" } });
+    expect(creds({ CLAUDE_CODE_USE_VERTEX: "1" }).ccplan).toBe("vertex");
     write(".claude.json", { env: { CLAUDE_CODE_USE_VERTEX: "1" } });
     expect(creds({}).ccplan).toBe("vertex");
     write(".claude/settings.json", {});
@@ -268,6 +270,36 @@ describe("settings env blocks replace the shell's variables", () => {
     expect(creds({}).ccplan).toBe("max");
     write("managed/managed-settings.json", { env: { FOO: broken }, forceLoginMethod: "gateway" });
     expect(creds({}).rawSubscriptionType).toBe("enterprise_gateway");
+  });
+
+  it("survives env values nested in arrays or nested too deep to convert (M10, M11, M22)", () => {
+    oauth("max", undefined, { scopes: ["user:inference"] });
+    const inArray = [{ toString: 1 }];
+    const nested = (depth: number) =>
+      `{"env":{"CLAUDE_CODE_USE_VERTEX":${"[".repeat(depth)}"1"${"]".repeat(depth)}}}`;
+    // A user settings file is skipped whole
+    write(".claude/settings.json", {
+      env: { CLAUDE_CODE_USE_VERTEX: "1", FOO: inArray },
+      apiKeyHelper: "h",
+    });
+    expect(creds({}).ccplan).toBe("max");
+    write(".claude/settings.json", nested(50));
+    expect(creds({}).ccplan).toBe("vertex");
+    write(".claude/settings.json", nested(100_000));
+    expect(creds({}).ccplan).toBe("max");
+    // A managed drop-in loses its whole env block; the files below it still apply
+    write(".claude/settings.json", { env: { CLAUDE_CODE_USE_VERTEX: "1" } });
+    write("managed/managed-settings.json", { env: { CLAUDE_CODE_USE_VERTEX: "0" } });
+    write("managed/managed-settings.d/50-x.json", { env: { CLAUDE_CODE_USE_VERTEX: inArray } });
+    expect(creds({}).ccplan).toBe("max");
+    fs.rmSync(path.join(home, ".claude/settings.json"));
+    write("managed/managed-settings.json", { env: { CLAUDE_CODE_USE_VERTEX: "1" } });
+    write("managed/managed-settings.d/50-x.json", {
+      env: { FOO: inArray, CLAUDE_CODE_USE_VERTEX: "0" },
+    });
+    expect(creds({}).ccplan).toBe("vertex");
+    write("managed/managed-settings.d/50-x.json", nested(100_000));
+    expect(creds({}).ccplan).toBe("vertex");
   });
 
   it("keeps the rest of a managed file whose env or apiKeyHelper is wrong", () => {
@@ -356,6 +388,20 @@ describe("settings env blocks replace the shell's variables", () => {
     expect(creds({}).ccplan).toBe("foundry");
     write("managed/managed-settings.d/.hidden.json", { env: { CLAUDE_CODE_USE_BEDROCK: "1" } });
     expect(creds({}).ccplan).toBe("foundry");
+  });
+
+  it("takes drop-ins in UTF-16 code unit order, as Claude Code's sort() does (K27, K29, K31)", () => {
+    oauth("max", undefined, { scopes: ["user:inference"] });
+    const lastWins = (on: string, off: string) => {
+      fs.rmSync(path.join(home, "managed"), { recursive: true, force: true });
+      write(`managed/managed-settings.d/${on}`, { env: { CLAUDE_CODE_USE_VERTEX: "1" } });
+      write(`managed/managed-settings.d/${off}`, { env: { CLAUDE_CODE_USE_VERTEX: "0" } });
+      return creds({}).ccplan;
+    };
+    expect(lastWins("B.json", "a.json")).toBe("max");
+    expect(lastWins("10-x.json", "9-x.json")).toBe("max");
+    // ß has no decomposed form, so a file system that normalizes names keeps it
+    expect(lastWins("\u00df.json", "z.json")).toBe("vertex");
   });
 
   it("reads .claude.json's legacy env under the settings file", () => {
@@ -571,6 +617,14 @@ describe("API usage billing", () => {
     oauth("max");
     write(".claude/settings.json", { apiKeyHelper: "~/bin/get-key.sh" });
     expect(creds({}).ccplan).toBe("api");
+  });
+
+  it("counts any apiKeyHelper that is not empty, even one of spaces (A03, A10)", () => {
+    oauth("max");
+    write(".claude/settings.json", { apiKeyHelper: "" });
+    expect(creds({}).ccplan).toBe("max");
+    write(".claude/settings.json", { apiKeyHelper: "   " });
+    expect(creds({}).rawSubscriptionType).toBe("apiKeyHelper");
   });
 
   it("takes an approved key, then apiKeyHelper, then a saved Console key", () => {
@@ -829,6 +883,20 @@ describe("enterprise gateway", () => {
       saved(gateway, trust);
       expect(creds({ CLAUDE_CODE_USE_BEDROCK: "1" }).ccplan).toBe("bedrock");
       // Without one it still says nothing: a policy not read here may require the gateway
+      expect(creds({})).toEqual(GATEWAY);
+    }
+  });
+
+  it("does not restore one whose expiry cannot be compared, and does not fail (G01, G02)", () => {
+    const file = path.join(home, ".claude/.credentials.json");
+    for (const expiresAt of [{ toString: 1 }, [{ toString: 1 }], "DEEP"]) {
+      saved({ expiresAt }, TRUSTED);
+      if (expiresAt === "DEEP") {
+        // Too deep for JSON.stringify, so the array goes in as text
+        const deep = `${"[".repeat(100_000)}1${"]".repeat(100_000)}`;
+        fs.writeFileSync(file, fs.readFileSync(file, "utf-8").replace('"DEEP"', deep));
+      }
+      expect(creds({ CLAUDE_CODE_USE_BEDROCK: "1" }).ccplan).toBe("bedrock");
       expect(creds({})).toEqual(GATEWAY);
     }
   });

@@ -83,24 +83,18 @@ function readGlobalConfig(file: string): JsonObject | null {
   }
 }
 
-// Claude Code's env schema turns each value into text; one that String() cannot convert (an
-// object whose toString is not a function, say) fails it.
-const isTextEnv = (env: unknown): env is JsonObject =>
-  isObject(env) &&
-  Object.values(env).every((value) => {
-    try {
-      String(value);
-      return true;
-    } catch {
-      return false;
-    }
-  });
-
-// Claude Code skips a whole user settings file that fails its schema. The keys read here are
-// checked; the rest of the schema is not.
-const isUsableUserSettings = (s: JsonObject): boolean =>
-  (s.env === undefined || isTextEnv(s.env)) &&
-  (s.apiKeyHelper === undefined || typeof s.apiKeyHelper === "string");
+// An env block as Claude Code's schema turns it into text, converted once; null when a value
+// cannot be converted (an object whose toString is not a function, an array nested too deep).
+function textEnv(env: unknown): Record<string, string> | null {
+  if (!isObject(env)) return null;
+  const text: Record<string, string> = Object.create(null);
+  try {
+    for (const [name, value] of Object.entries(env)) text[name] = String(value);
+  } catch {
+    return null;
+  }
+  return text;
+}
 
 // A settings document as Claude Code reads one: UTF-16LE when it opens with FF FE, and without
 // a leading byte-order mark (its Tue() and Oo()). PowerShell writes both.
@@ -146,6 +140,19 @@ export function systemManagedSettingsDir(platform: NodeJS.Platform): string {
   if (platform === "darwin") return "/Library/Application Support/ClaudeCode";
   if (platform === "win32") return "C:\\Program Files\\ClaudeCode";
   return "/etc/claude-code";
+}
+
+// The user's settings with their env block as text, or null when Claude Code would skip the
+// whole file for failing its schema. The keys read here are checked; the rest of the schema is
+// not.
+function readUserSettings(
+  file: string
+): { settings: JsonObject; env: Record<string, string> } | null {
+  const settings = readSettingsFile(file);
+  if (!settings) return null;
+  if (settings.apiKeyHelper !== undefined && typeof settings.apiKeyHelper !== "string") return null;
+  const env = settings.env === undefined ? {} : textEnv(settings.env);
+  return env === null ? null : { settings, env };
 }
 
 // Settings an administrator installs: managed-settings.json, then managed-settings.d/*.json in
@@ -230,7 +237,12 @@ function isSavedGatewaySignIn(stored: JsonObject | null): boolean {
   }
   const trust = stored?.gatewayTrust;
   if (!isObject(trust) || !trust[host]) return false;
-  return !(Number(gateway.expiresAt) <= Date.now() && !gateway.idpRefreshToken);
+  try {
+    return !(Number(gateway.expiresAt) <= Date.now() && !gateway.idpRefreshToken);
+  } catch {
+    // Claude Code compares inside its try too, and then does not restore the sign-in
+    return false;
+  }
 }
 
 // Managed settings can require a gateway sign-in: forceLoginMethod "gateway" or a gateway URL
@@ -358,12 +370,12 @@ function subscription(oauth: JsonObject | null): CredentialsData {
  *
  * Settings env blocks replace the shell's variables as Claude Code applies them: .claude.json's
  * legacy env (strings, numbers and booleans), then the user's settings, then managed settings
- * files (any value, as text). A non-interactive `claude -p` also uses an ANTHROPIC_API_KEY the user rejected
- * or never answered; this reports the interactive choice (the subscription when there is a
- * login), which decides most usage. In bare mode (--bare, CLAUDE_CODE_SIMPLE) no login, OAuth
- * token or profile is used: Anthropic auth is ANTHROPIC_AUTH_TOKEN, ANTHROPIC_API_KEY or an
- * apiKeyHelper given with --settings, while a gateway still applies (on macOS bare mode reads
- * no Keychain, so a gateway saved there is not looked for).
+ * files (any value, as text). A non-interactive `claude -p` also uses an ANTHROPIC_API_KEY the
+ * user rejected or never answered; this reports the interactive choice (the subscription when
+ * there is a login), which decides most usage. In bare mode (--bare, CLAUDE_CODE_SIMPLE) no
+ * login, OAuth token or profile is used: Anthropic auth is ANTHROPIC_AUTH_TOKEN,
+ * ANTHROPIC_API_KEY or an apiKeyHelper given with --settings, while a gateway still applies (on
+ * macOS bare mode reads no Keychain, so a gateway saved there is not looked for).
  * Not read: MDM or registry policies, server-managed settings, project and local settings,
  * --settings and other flags, the Windows managed settings a WSL install inherits
  * (wslInheritsWindowsSettings), the Windows Credential Manager store, a custom OAuth URL's
@@ -380,29 +392,27 @@ export function readCredentials(
   const platform = options.platform ?? process.platform;
   const paths = claudePaths(env, home);
   const globalConfig = readGlobalConfig(paths.globalConfig);
-  const userFile = readSettingsFile(paths.userSettings);
-  const userSettings = userFile && isUsableUserSettings(userFile) ? userFile : null;
+  const user = readUserSettings(paths.userSettings);
   const managed = readManagedSettings(
     options.managedSettingsDir ?? systemManagedSettingsDir(platform)
   );
-  // Last applied first: managed drop-ins, managed, the user's settings, .claude.json's env.
-  const settingsLayers = [...managed].reverse().concat(userSettings ?? {});
-  const envOf = (s: JsonObject | null): JsonObject => (isObject(s?.env) ? s.env : {});
+  // For apiKeyHelper, last applied first: managed drop-ins, managed, the user's settings.
+  const settingsLayers = [...managed].reverse().concat(user?.settings ?? {});
   // The managed files' env blocks are merged first, a later drop-in's value replacing an
   // earlier one, and applied as one layer. A managed file loses only an env block that fails
   // the schema.
-  const managedEnv: JsonObject = Object.create(null);
-  for (const s of managed) if (isTextEnv(s.env)) Object.assign(managedEnv, s.env);
+  const managedEnv: Record<string, string> = Object.create(null);
+  for (const s of managed) Object.assign(managedEnv, textEnv(s.env));
+  const userEnv = user?.env ?? {};
   const variable = (name: string): string | undefined => {
     // A settings file's env schema turns any value into text (null is "null") and it replaces
     // what lies below; .claude.json's legacy env keeps only strings, numbers and booleans. A
     // value holding a NUL character is dropped after the merge, so the layer below shows.
-    for (const layer of [managedEnv, envOf(userSettings)]) {
-      if (!Object.hasOwn(layer, name)) continue;
-      const value = String(layer[name]);
-      if (!value.includes("\u0000")) return value;
+    for (const layer of [managedEnv, userEnv]) {
+      const value = Object.hasOwn(layer, name) ? layer[name] : undefined;
+      if (value !== undefined && !value.includes("\u0000")) return value;
     }
-    const legacy = envOf(globalConfig)[name];
+    const legacy = isObject(globalConfig?.env) ? globalConfig.env[name] : undefined;
     const kept =
       typeof legacy === "string" || typeof legacy === "number" || typeof legacy === "boolean";
     if (kept && !String(legacy).includes("\u0000")) return String(legacy);
@@ -459,7 +469,8 @@ export function readCredentials(
   const apiKey = filled(variable("ANTHROPIC_API_KEY"));
   const answer = apiKey ? apiKeyAnswer(apiKey, globalConfig) : null;
   if (answer === "approved") return apiBilling("ANTHROPIC_API_KEY");
-  if (filled(apiKeyHelper)) return apiBilling("apiKeyHelper");
+  // Claude Code runs any helper that is not empty, even one of spaces.
+  if (typeof apiKeyHelper === "string" && apiKeyHelper !== "") return apiBilling("apiKeyHelper");
   // Claude Code signs in as a subscriber when its OAuth credential can run inference: the
   // token's scopes (CLAUDE_CODE_OAUTH_SCOPES, else user:inference) or the saved login's. Only
   // then is a saved Console key left unused.
