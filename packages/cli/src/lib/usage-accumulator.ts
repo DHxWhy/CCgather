@@ -51,6 +51,7 @@ export interface AccumulatedUsage {
 export interface UsageContext {
   sessionKey: string; // the transcript file, or its session when the scan knows it
   projectName: string;
+  pathSessionId?: string; // ccusage's session for a line without one, from the file's path
 }
 
 export interface UsageAccumulator {
@@ -286,7 +287,8 @@ function readEntries(event: JsonObject, ctx: UsageContext): Entry[] {
 
   const shared = {
     requestId: typeof line.requestId === "string" ? line.requestId : null,
-    sessionId: typeof event.sessionId === "string" ? event.sessionId : ctx.sessionKey,
+    sessionId:
+      typeof event.sessionId === "string" ? event.sessionId : (ctx.pathSessionId ?? ctx.sessionKey),
     instant,
     sidechain: line.isSidechain === true,
   };

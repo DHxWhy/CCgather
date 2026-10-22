@@ -317,9 +317,17 @@ describe("scanAllProjects over several folders", () => {
     fs.utimesSync(partial, later, later);
 
     vi.stubEnv("CLAUDE_CONFIG_DIR", path.join(FIXTURE, "A"));
-    const single = scanAllProjects()?.usage.totalTokens;
+    const single = scanAllProjects();
+    vi.stubEnv("CLAUDE_CONFIG_DIR", backup);
+    const partialOnly = scanAllProjects();
     vi.stubEnv("CLAUDE_CONFIG_DIR", `${path.join(FIXTURE, "A")},${backup}`);
+    const both = scanAllProjects();
 
-    expect(scanAllProjects()?.usage.totalTokens).toBe(single);
+    expect(both?.usage.totalTokens).toBe(single?.usage.totalTokens);
+    // Every copy is read, so the copy that stands shows only in the fingerprint
+    expect(partialOnly?.sessionFingerprint?.combinedHash).not.toBe(
+      single?.sessionFingerprint?.combinedHash
+    );
+    expect(both?.sessionFingerprint?.combinedHash).toBe(single?.sessionFingerprint?.combinedHash);
   });
 });

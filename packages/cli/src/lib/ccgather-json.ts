@@ -327,6 +327,24 @@ function findJsonlFiles(dir: string): string[] {
   return files;
 }
 
+/**
+ * The session ccusage gives a line without a sessionId, from the file's path below projects/
+ * (its extract_session_parts): project/<name>.jsonl is <name>, <session>/subagents/<file> is
+ * <session>, anything else is the folder the file sits in.
+ */
+function pathSessionId(filePath: string): string {
+  const parts = filePath.split(/[/\\]/);
+  const index = parts.indexOf("projects");
+  const relative = index >= 0 ? parts.slice(index + 1) : parts;
+  const name = relative[relative.length - 1] ?? "";
+  const stem = name.endsWith(".jsonl") ? name.slice(0, -".jsonl".length) : "";
+  if (relative.length === 2 && stem) return stem;
+  if (relative.length >= 4 && relative[relative.length - 2] === "subagents") {
+    return relative[relative.length - 3] ?? "unknown";
+  }
+  return relative[Math.max(relative.length - 2, 0)] ?? "unknown";
+}
+
 /** Longest first line read when identifying a transcript. */
 const MAX_FIRST_LINE_BYTES = 1024 * 1024;
 
@@ -772,7 +790,11 @@ function scanProjectFolder(projectDir: string, options: ScanOptions): CCGatherDa
       readTranscriptLines(filePath, {
         onLine: (line) => {
           try {
-            acc.add(JSON.parse(line), { sessionKey: filePath, projectName });
+            acc.add(JSON.parse(line), {
+              sessionKey: filePath,
+              projectName,
+              pathSessionId: pathSessionId(filePath),
+            });
           } catch {
             // Skip invalid JSON lines
           }
@@ -1123,7 +1145,8 @@ export function scanAllProjects(options: ScanOptions = {}): CCGatherData | null 
   // A session's main transcript and its subagent transcripts are separate files,
   // so sessions are counted by sessionId rather than by file. A file that names
   // no session (a workflow journal, say) counts only if it holds usage.
-  const sessionKeyOf = (file: TranscriptFile): string => file.sessionId ?? file.filePath;
+  // Copies of a transcript share the key of the copy that stands for it.
+  const sessionKeyOf = (file: TranscriptFile): string => file.sessionId ?? file.owner;
   const countedSessions = new Set<string>();
   const projectSessions: Record<string, Set<string>> = {};
   const { onProgress } = options;
@@ -1133,6 +1156,7 @@ export function scanAllProjects(options: ScanOptions = {}): CCGatherData | null 
     const { filePath } = file;
     const stands = file.owner === filePath;
     const sessionKey = sessionKeyOf(file);
+    const lineSession = pathSessionId(filePath);
     // A copy's usage goes to the project of the copy that stands for it
     const projectName = extractProjectName(file.owner);
     projectSessions[projectName] ??= new Set();
@@ -1148,7 +1172,7 @@ export function scanAllProjects(options: ScanOptions = {}): CCGatherData | null 
           try {
             const event = JSON.parse(line);
             if (isUsageLine(event)) hasUsage = true;
-            acc.add(event, { sessionKey, projectName });
+            acc.add(event, { sessionKey, projectName, pathSessionId: lineSession });
           } catch {
             // Skip invalid JSON lines
           }

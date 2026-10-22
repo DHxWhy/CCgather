@@ -397,6 +397,89 @@ describe("path order and copies, as ccusage", () => {
   });
 });
 
+// A line without a sessionId takes its session from the file's path, as in ccusage (a
+// copy under the same name is the same session); the expected values are ccusage 20.0.37's.
+describe("lines without a sessionId", () => {
+  const summary = JSON.stringify({ type: "summary", summary: "t", leafUuid: "u1" });
+  const bare = (id: string) =>
+    JSON.stringify({
+      type: "assistant",
+      timestamp: "2026-10-01T10:00:00.000Z",
+      message: {
+        model: "claude-opus-4-8",
+        usage: {
+          input_tokens: 3,
+          output_tokens: 100,
+          cache_creation_input_tokens: 0,
+          cache_read_input_tokens: 1000,
+        },
+        id,
+      },
+    }); // 1,103
+  const write = (file: string, lines: string[], seconds = 0): void => {
+    const target = path.join(configDir, "projects", file);
+    fs.mkdirSync(path.dirname(target), { recursive: true });
+    fs.writeFileSync(target, lines.join("\n") + "\n");
+    const at = new Date(Date.UTC(2026, 8, 21) + seconds * 1000);
+    fs.utimesSync(target, at, at);
+  };
+  const days = () => scanAllProjects()?.dailyUsage.map((d) => [d.date, d.tokens, d.sessions]);
+
+  it("counts copies under the same name once (P1b)", () => {
+    write("pa/j.jsonl", [summary, bare("msg_1")]);
+    write("pz/j.jsonl", [summary, bare("msg_1")]);
+    expect(days()).toEqual([["2026-10-01", 1_103, 1]]);
+  });
+
+  it("counts a renamed copy again, as ccusage does (P1f)", () => {
+    write("pa/j.jsonl", [summary, bare("msg_1")]);
+    write("pz/j-copy.jsonl", [summary, bare("msg_1")]);
+    expect(days()).toEqual([["2026-10-01", 2_206, 1]]);
+  });
+
+  it("takes a subagent file's session from its session folder", () => {
+    write("pa/s1.jsonl", [summary, bare("msg_1")]);
+    write("pa/s1/subagents/agent-a.jsonl", [summary, bare("msg_1")]);
+    expect(days()).toEqual([["2026-10-01", 1_103, 1]]);
+  });
+
+  it("counts one session for a grown copy that opens with a summary (P2)", () => {
+    const line = (req: string, ts: string, u: Record<string, number>, id: string) =>
+      JSON.stringify({
+        type: "assistant",
+        sessionId: "sT",
+        requestId: req,
+        timestamp: ts,
+        message: { model: "claude-opus-4-8", usage: u, id },
+      });
+    const first = line(
+      "req_1",
+      "2026-10-01T10:00:00.000Z",
+      {
+        input_tokens: 3,
+        output_tokens: 100,
+        cache_creation_input_tokens: 0,
+        cache_read_input_tokens: 1000,
+      },
+      "msg_1"
+    );
+    const second = line(
+      "req_2",
+      "2026-10-01T12:00:00.000Z",
+      {
+        input_tokens: 5,
+        output_tokens: 50,
+        cache_creation_input_tokens: 0,
+        cache_read_input_tokens: 2000,
+      },
+      "msg_2"
+    );
+    write("pa/t.jsonl", [summary, first]);
+    write("pz/t.jsonl", [summary, first, second], 60);
+    expect(days()).toEqual([["2026-10-01", 3_158, 1]]);
+  });
+});
+
 describe("first and last day", () => {
   it("reports the first day from the days that hold usage, not from a line that moved", () => {
     const parent = { input: 3, output: 100 };
