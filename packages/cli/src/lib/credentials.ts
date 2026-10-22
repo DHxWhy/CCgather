@@ -70,18 +70,33 @@ function readJsonFile(file: string): JsonObject | null {
   }
 }
 
-// The paths Claude Code uses: CLAUDE_CONFIG_DIR replaces ~/.claude and also holds .claude.json.
+function fileSize(file: string): number {
+  try {
+    const stat = fs.statSync(file);
+    return stat.isFile() ? stat.size : 0;
+  } catch {
+    return 0;
+  }
+}
+
+// The paths Claude Code uses: CLAUDE_CONFIG_DIR replaces ~/.claude and also holds .claude.json,
+// a non-empty legacy .config.json in that folder is read instead of .claude.json, and the login
+// file follows CLAUDE_SECURESTORAGE_CONFIG_DIR when it is set (empty means ~/.claude).
 function claudePaths(env: Env, home: string) {
   const configDir = filled(env.CLAUDE_CONFIG_DIR);
   const dir = configDir ?? path.join(home, ".claude");
+  const legacyConfig = path.join(dir, ".config.json");
+  const secure = env.CLAUDE_SECURESTORAGE_CONFIG_DIR;
+  const secureDir = secure === undefined ? dir : secure || path.join(home, ".claude");
   return {
-    globalConfig: path.join(configDir ?? home, ".claude.json"),
+    globalConfig:
+      fileSize(legacyConfig) > 0 ? legacyConfig : path.join(configDir ?? home, ".claude.json"),
     userSettings: path.join(dir, "settings.json"),
-    credentials: path.join(dir, ".credentials.json"),
+    credentials: path.join(secureDir, ".credentials.json"),
   };
 }
 
-function systemManagedSettingsDir(platform: NodeJS.Platform): string {
+export function systemManagedSettingsDir(platform: NodeJS.Platform): string {
   if (platform === "darwin") return "/Library/Application Support/ClaudeCode";
   if (platform === "win32") return "C:\\Program Files\\ClaudeCode";
   return "/etc/claude-code";
@@ -142,7 +157,8 @@ function runSecurity(args: string[]): string | null {
 // macOS keeps the login in the Keychain; other systems (and older macOS setups) in a file.
 function readSecureStorage(env: Env, file: string, platform: NodeJS.Platform): JsonObject | null {
   if (platform === "darwin") {
-    const stored = runSecurity(["-s", keychainService(env, "-credentials"), "-w"]);
+    const service = keychainService(env, "-credentials");
+    const stored = runSecurity(["-a", keychainAccount(env), "-w", "-s", service]);
     if (stored !== null) {
       try {
         const parsed: unknown = JSON.parse(stored.trim());
@@ -255,13 +271,17 @@ function subscription(oauth: JsonObject | null): CredentialsData {
  * The credential Claude Code would sign in with, in the order of its 2.1.308 build and the
  * documented precedence (code.claude.com/docs/en/authentication): an enterprise gateway, a
  * cloud provider, ANTHROPIC_AUTH_TOKEN, an approved ANTHROPIC_API_KEY, apiKeyHelper, a key
- * saved by a Claude Console login, CLAUDE_CODE_OAUTH_TOKEN, an Anthropic profile or
- * federation, then the /login subscription.
+ * saved by a Claude Console login (unused while a subscription login or CLAUDE_CODE_OAUTH_TOKEN
+ * can sign in), CLAUDE_CODE_OAUTH_TOKEN, an Anthropic profile or federation, then the /login
+ * subscription.
  *
- * Settings env blocks replace the shell's variables, as Claude Code applies them: .claude.json's
- * legacy env, then the user's settings, then managed settings. A non-interactive `claude -p`
- * also uses an ANTHROPIC_API_KEY the user rejected or never answered; this reports the
- * interactive choice (the subscription when there is a login), which decides most usage.
+ * Settings env blocks replace the shell's variables, as Claude Code applies them (strings,
+ * numbers and booleans): .claude.json's legacy env, then the user's settings, then managed
+ * settings files. A non-interactive `claude -p` also uses an ANTHROPIC_API_KEY the user rejected
+ * or never answered; this reports the interactive choice (the subscription when there is a
+ * login), which decides most usage. Not read: MDM or registry policies, server-managed
+ * settings, the Windows Credential Manager store and a custom OAuth URL's separate login —
+ * those cases report what the files say.
  */
 export function readCredentials(
   env: Env = process.env,
@@ -281,7 +301,9 @@ export function readCredentials(
   const variable = (name: string): string | undefined => {
     for (const layer of envLayers) {
       const value = layer[name];
-      if (typeof value === "string") return value;
+      if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
+        return String(value);
+      }
     }
     return env[name];
   };
@@ -290,7 +312,10 @@ export function readCredentials(
   const stored = readSecureStorage(env, paths.credentials, platform);
   // No plan key describes a gateway sign-in; null keeps the plan the server has.
   if (isObject(stored?.enterpriseGateway)) return unknown("enterprise_gateway");
-  const oauth = isObject(stored?.claudeAiOauth) ? stored.claudeAiOauth : null;
+  // A saved login without an access token is not one Claude Code can use.
+  const login = stored?.claudeAiOauth;
+  const oauth = isObject(login) && filled(login.accessToken) ? login : null;
+  const oauthToken = filled(variable("CLAUDE_CODE_OAUTH_TOKEN"));
 
   const provider = PROVIDERS.find(([name]) => isTruthy(variable(name)));
   if (provider) {
@@ -310,9 +335,17 @@ export function readCredentials(
   const answer = apiKey ? apiKeyAnswer(apiKey, globalConfig) : null;
   if (answer === "approved") return apiBilling("ANTHROPIC_API_KEY");
   if (filled(setting("apiKeyHelper"))) return apiBilling("apiKeyHelper");
-  if (hasStoredConsoleKey(env, globalConfig, platform)) return apiBilling("console_login");
+  if (!oauthToken && !isUsableLogin(oauth) && hasStoredConsoleKey(env, globalConfig, platform)) {
+    return apiBilling("console_login");
+  }
 
-  if (filled(variable("CLAUDE_CODE_OAUTH_TOKEN"))) return subscription(oauth);
+  // A long-lived token carries no plan of its own: Claude Code takes it from these variables.
+  if (oauthToken) {
+    return subscription({
+      subscriptionType: variable("CLAUDE_CODE_SUBSCRIPTION_TYPE") || null,
+      rateLimitTier: variable("CLAUDE_CODE_RATE_LIMIT_TIER") || null,
+    });
+  }
 
   // A named profile that does not resolve is ignored, and then neither federation variables
   // nor the active profile are looked at (Claude Code's pe()).
@@ -331,12 +364,10 @@ export function readCredentials(
     const active = readText(path.join(profileDir, "active_config"))?.trim() || "default";
     const type = profileAuthType(profileDir, active);
     if (type === "oidc_federation") return apiBilling("anthropic_profile");
-    // A keyless Console login next to a working /login: which one Claude Code picks depends
-    // on state the CLI cannot see, so it reports nothing rather than a guess.
+    // Next to a working claude.ai login, Claude Code uses the login and warns that the
+    // profile is skipped.
     if (type === "user_oauth") {
-      return isUsableLogin(oauth)
-        ? unknown("anthropic_profile_or_login")
-        : apiBilling("anthropic_profile");
+      return isUsableLogin(oauth) ? subscription(oauth) : apiBilling("anthropic_profile");
     }
   }
 

@@ -17,6 +17,7 @@ import {
   keychainService,
   readCredentials,
   SENT_PLAN_KEYS,
+  systemManagedSettingsDir,
   type ReadCredentialsOptions,
 } from "../src/lib/credentials";
 
@@ -31,9 +32,10 @@ function write(relativePath: string, value: unknown): void {
   fs.writeFileSync(file, typeof value === "string" ? value : JSON.stringify(value));
 }
 
+// A saved /login. Without the inference scope it cannot outrank a saved Console key.
 const oauth = (subscriptionType?: string, rateLimitTier?: string, extra = {}) =>
   write(".claude/.credentials.json", {
-    claudeAiOauth: { subscriptionType, rateLimitTier, ...extra },
+    claudeAiOauth: { accessToken: "a", subscriptionType, rateLimitTier, ...extra },
   });
 
 // Managed settings come from a folder under the test home, never the system's.
@@ -84,6 +86,22 @@ describe("cloud providers (Claude Code's own order)", () => {
     expect(creds(two).ccplan).toBe("bedrock");
   });
 
+  it("takes the providers in Claude Code's order", () => {
+    const order = [
+      "CLAUDE_CODE_USE_BEDROCK",
+      "CLAUDE_CODE_USE_FOUNDRY",
+      "CLAUDE_CODE_USE_ANTHROPIC_AWS",
+      "CLAUDE_CODE_USE_ANTHROPIC_GOOGLE_CLOUD",
+      "CLAUDE_CODE_USE_MANTLE",
+      "CLAUDE_CODE_USE_VERTEX",
+    ];
+    order.forEach((first, i) => {
+      for (const second of order.slice(i + 1)) {
+        expect(creds({ [first]: "1", [second]: "1" }).rawSubscriptionType, second).toBe(first);
+      }
+    });
+  });
+
   it("outranks every Anthropic credential", () => {
     write(".claude.json", { customApiKeyResponses: { approved: [TAIL], rejected: [] } });
     oauth("max");
@@ -102,6 +120,50 @@ describe("settings env blocks replace the shell's variables", () => {
     expect(creds({ CLAUDE_CODE_USE_VERTEX: "1" }).ccplan).toBeNull();
     write(".claude/settings.json", { env: { CLAUDE_CODE_USE_BEDROCK: "1" } });
     expect(creds({ CLAUDE_CODE_USE_BEDROCK: "0" }).ccplan).toBe("bedrock");
+  });
+
+  it("applies numbers and booleans from a settings env block as text, as Claude Code does", () => {
+    oauth("max", undefined, { scopes: ["user:inference"] });
+    write(".claude/settings.json", { env: { CLAUDE_CODE_USE_BEDROCK: true } });
+    expect(creds({}).ccplan).toBe("bedrock");
+    write(".claude/settings.json", { env: { CLAUDE_CODE_USE_VERTEX: 0 } });
+    expect(creds({ CLAUDE_CODE_USE_VERTEX: "1" }).ccplan).toBe("max");
+    write(".claude/settings.json", { env: { CLAUDE_CODE_USE_VERTEX: null } });
+    expect(creds({ CLAUDE_CODE_USE_VERTEX: "1" }).ccplan).toBe("vertex");
+  });
+
+  it("reads the sign-in variables from a settings env block too", () => {
+    oauth("max");
+    write(".claude/settings.json", { env: { ANTHROPIC_AUTH_TOKEN: "t" } });
+    expect(creds({}).rawSubscriptionType).toBe("ANTHROPIC_AUTH_TOKEN");
+    write(".claude.json", { customApiKeyResponses: { approved: [TAIL], rejected: [] } });
+    write(".claude/settings.json", { env: { ANTHROPIC_API_KEY: KEY } });
+    expect(creds({}).rawSubscriptionType).toBe("ANTHROPIC_API_KEY");
+    write(".claude/settings.json", {
+      env: { CLAUDE_CODE_OAUTH_TOKEN: "t", CLAUDE_CODE_SUBSCRIPTION_TYPE: "pro" },
+    });
+    expect(creds({}).ccplan).toBe("pro");
+  });
+
+  it("applies managed-settings.json before its drop-ins, and only .json drop-ins", () => {
+    write("managed/managed-settings.json", { env: { CLAUDE_CODE_USE_FOUNDRY: "1" } });
+    write("managed/managed-settings.d/10-off.json", { env: { CLAUDE_CODE_USE_FOUNDRY: "0" } });
+    expect(creds({}).ccplan).toBeNull();
+    write("managed/managed-settings.d/50-notes.txt", { env: { CLAUDE_CODE_USE_BEDROCK: "1" } });
+    expect(creds({}).ccplan).toBeNull();
+  });
+
+  it("looks for managed settings where Claude Code installs them", () => {
+    expect(systemManagedSettingsDir("linux")).toBe("/etc/claude-code");
+    expect(systemManagedSettingsDir("darwin")).toBe("/Library/Application Support/ClaudeCode");
+    expect(systemManagedSettingsDir("win32")).toBe("C:\\Program Files\\ClaudeCode");
+  });
+
+  it("lets managed settings switch off a user's apiKeyHelper", () => {
+    oauth("max");
+    write(".claude/settings.json", { apiKeyHelper: "~/bin/get-key.sh" });
+    write("managed/managed-settings.json", { apiKeyHelper: "" });
+    expect(creds({}).ccplan).toBe("max");
   });
 
   it("puts managed settings over the user's, drop-in files last", () => {
@@ -172,6 +234,25 @@ describe("API usage billing", () => {
     expect(creds({ ANTHROPIC_API_KEY: KEY }).ccplan).toBe("pro");
     fs.rmSync(path.join(home, ".claude"), { recursive: true, force: true });
     expect(creds({ ANTHROPIC_API_KEY: KEY }).ccplan).toBe("api");
+  });
+
+  it("leaves a saved Console key unused while a subscription can sign in", () => {
+    write(".claude.json", { primaryApiKey: "saved" });
+    oauth("max", undefined, { scopes: ["user:inference"] });
+    expect(creds({}).ccplan).toBe("max");
+    fs.rmSync(path.join(home, ".claude"), { recursive: true, force: true });
+    const token = { CLAUDE_CODE_OAUTH_TOKEN: "t", CLAUDE_CODE_SUBSCRIPTION_TYPE: "pro" };
+    expect(creds(token).ccplan).toBe("pro");
+    expect(creds({}).rawSubscriptionType).toBe("console_login");
+  });
+
+  it("reads a non-empty legacy .config.json instead of .claude.json", () => {
+    oauth("max");
+    write(".claude.json", { customApiKeyResponses: { approved: [], rejected: [TAIL] } });
+    write(".claude/.config.json", { customApiKeyResponses: { approved: [TAIL], rejected: [] } });
+    expect(creds({ ANTHROPIC_API_KEY: KEY }).ccplan).toBe("api");
+    write(".claude/.config.json", "");
+    expect(creds({ ANTHROPIC_API_KEY: KEY }).ccplan).toBe("max");
   });
 
   it("a key saved by a Claude Console login → api, ahead of /login", () => {
@@ -249,20 +330,43 @@ describe("Anthropic profiles and federation", () => {
     expect(creds({ ANTHROPIC_CONFIG_DIR: path.join(home, "anth") }).ccplan).toBe("api");
   });
 
-  it("an active keyless Console login counts alone, and is not guessed next to a working /login", () => {
+  it("an active keyless Console login counts alone; next to a working claude.ai login the login wins", () => {
     const env = { ANTHROPIC_CONFIG_DIR: path.join(home, "anth") };
     profile("anth", "default", { type: "user_oauth" });
     write("anth/credentials/default.json", "{}");
     expect(creds(env).ccplan).toBe("api");
-    oauth("max", undefined, { accessToken: "a", scopes: ["user:profile"] });
+    oauth("max", undefined, { scopes: ["user:profile"] });
     expect(creds(env).ccplan).toBe("api");
-    oauth("max", undefined, { accessToken: "a", scopes: ["user:inference"] });
+    oauth("max", undefined, { accessToken: "", scopes: ["user:inference"] });
+    expect(creds(env).ccplan).toBe("api");
+    oauth("max", undefined, { scopes: ["user:inference"] });
     expect(creds(env)).toEqual({
-      ccplan: null,
+      ccplan: "max",
       rateLimitTier: null,
-      authMethod: "unknown",
-      rawSubscriptionType: "anthropic_profile_or_login",
+      authMethod: "oauth",
+      rawSubscriptionType: "max",
     });
+  });
+
+  it("reads a profile's credentials_path, and an empty credentials file does not count", () => {
+    oauth("max");
+    const env = { ANTHROPIC_CONFIG_DIR: path.join(home, "anth"), ANTHROPIC_PROFILE: "work" };
+    profile("anth", "work", {
+      type: "user_oauth",
+      credentials_path: path.join(home, "keys", "work.json"),
+    });
+    expect(creds(env).ccplan).toBe("max");
+    write("keys/work.json", "  \n");
+    expect(creds(env).ccplan).toBe("max");
+    write("keys/work.json", "{}");
+    expect(creds(env).ccplan).toBe("api");
+  });
+
+  it("does not fall back to HOME/.config when XDG_CONFIG_HOME is set", () => {
+    oauth("max");
+    profile("h/.config/anthropic", "default", { type: "oidc_federation" });
+    const env = { XDG_CONFIG_HOME: path.join(home, "xdg"), HOME: path.join(home, "h") };
+    expect(creds(env).ccplan).toBe("max");
   });
 
   it("finds profiles under XDG_CONFIG_HOME, then HOME/.config", () => {
@@ -300,21 +404,47 @@ describe("subscriptions", () => {
     expect(creds({}).ccplan).toBe("team");
   });
 
-  it("CLAUDE_CODE_OAUTH_TOKEN is a subscription, typed from the saved login when there is one", () => {
-    oauth("pro");
-    expect(creds({ CLAUDE_CODE_OAUTH_TOKEN: "t" }).ccplan).toBe("pro");
-    fs.rmSync(path.join(home, ".claude"), { recursive: true, force: true });
+  it("CLAUDE_CODE_OAUTH_TOKEN is typed by CLAUDE_CODE_SUBSCRIPTION_TYPE, never by a saved login", () => {
+    oauth("max");
     expect(creds({ CLAUDE_CODE_OAUTH_TOKEN: "t" })).toEqual({
       ccplan: null,
       rateLimitTier: null,
       authMethod: "oauth",
       rawSubscriptionType: null,
     });
+    const env = {
+      CLAUDE_CODE_OAUTH_TOKEN: "t",
+      CLAUDE_CODE_SUBSCRIPTION_TYPE: "pro",
+      CLAUDE_CODE_RATE_LIMIT_TIER: "default_claude_ai",
+    };
+    expect(creds(env)).toEqual({
+      ccplan: "pro",
+      rateLimitTier: "default_claude_ai",
+      authMethod: "oauth",
+      rawSubscriptionType: "pro",
+    });
+  });
+
+  it("ignores a saved login without an access token", () => {
+    oauth("max", undefined, { accessToken: "" });
+    expect(creds({}).ccplan).toBeNull();
+  });
+
+  it("reads the login from CLAUDE_SECURESTORAGE_CONFIG_DIR when it is set", () => {
+    oauth("max");
+    write("secure/.credentials.json", {
+      claudeAiOauth: { accessToken: "a", subscriptionType: "team" },
+    });
+    const secure = path.join(home, "secure");
+    expect(creds({ CLAUDE_SECURESTORAGE_CONFIG_DIR: secure }).ccplan).toBe("team");
+    expect(creds({ CLAUDE_SECURESTORAGE_CONFIG_DIR: "" }).ccplan).toBe("max");
   });
 
   it("reads the login, .claude.json and settings.json from CLAUDE_CONFIG_DIR when it is set", () => {
     const dir = path.join(home, "alt");
-    write("alt/.credentials.json", { claudeAiOauth: { subscriptionType: "team" } });
+    write("alt/.credentials.json", {
+      claudeAiOauth: { accessToken: "a", subscriptionType: "team" },
+    });
     oauth("max");
     expect(creds({ CLAUDE_CONFIG_DIR: dir }).ccplan).toBe("team");
 
@@ -344,7 +474,8 @@ describe("subscriptions", () => {
 });
 
 describe("macOS Keychain", () => {
-  const login = (plan: string) => JSON.stringify({ claudeAiOauth: { subscriptionType: plan } });
+  const login = (plan: string) =>
+    JSON.stringify({ claudeAiOauth: { accessToken: "a", subscriptionType: plan } });
   const serviceOf = (args: string[]) => args[args.indexOf("-s") + 1];
 
   it("names the item after CLAUDE_CONFIG_DIR as Claude Code does", () => {
@@ -367,8 +498,16 @@ describe("macOS Keychain", () => {
       if (serviceOf(args) === "Claude Code-credentials-bfc1769a") return login("team");
       return noKeychain();
     });
-    const env = { CLAUDE_CONFIG_DIR: "/tmp/claude-work" };
+    const env = { CLAUDE_CONFIG_DIR: "/tmp/claude-work", USER: "dev" };
     expect(creds(env, { platform: "darwin" }).ccplan).toBe("team");
+    expect(security.run.mock.calls[0]?.[0]).toEqual([
+      "find-generic-password",
+      "-a",
+      "dev",
+      "-w",
+      "-s",
+      "Claude Code-credentials-bfc1769a",
+    ]);
     expect(creds({}, { platform: "darwin" }).ccplan).toBe("max");
   });
 
@@ -376,10 +515,10 @@ describe("macOS Keychain", () => {
     oauth("pro");
     security.run.mockImplementation((args) => (args.includes("-w") ? login("max") : noKeychain()));
     expect(creds({}, { platform: "darwin" }).ccplan).toBe("max");
-    const timeout = security.run.mock.calls[0]?.[1]?.timeout ?? 0;
-    expect(timeout).toBeGreaterThan(0);
-    expect(timeout).toBeLessThanOrEqual(10_000);
+    expect(security.run.mock.calls[0]?.[1]?.timeout).toBe(5000);
 
+    security.run.mockImplementation((args) => (args.includes("-w") ? "not json" : noKeychain()));
+    expect(creds({}, { platform: "darwin" }).ccplan).toBe("pro");
     security.run.mockImplementation(noKeychain);
     expect(creds({}, { platform: "darwin" }).ccplan).toBe("pro");
     expect(creds({}, { platform: "linux" }).ccplan).toBe("pro");
@@ -396,6 +535,11 @@ describe("macOS Keychain", () => {
     const asked = security.run.mock.calls.find(([args]) => serviceOf(args) === "Claude Code");
     expect(asked?.[0]).toEqual(["find-generic-password", "-s", "Claude Code", "-a", "dev"]);
     expect(creds({ USER: "dev" }, { platform: "linux" }).ccplan).toBe("max");
+
+    security.run.mockClear();
+    creds({ USER: "first.last" }, { platform: "darwin" });
+    const dotted = security.run.mock.calls.find(([args]) => serviceOf(args) === "Claude Code");
+    expect(dotted?.[0]?.slice(-2)).toEqual(["-a", "first.last"]);
 
     security.run.mockClear();
     creds({ USER: "dev user" }, { platform: "darwin" });
