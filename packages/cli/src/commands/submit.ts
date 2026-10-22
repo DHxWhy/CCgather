@@ -23,6 +23,7 @@ import {
   shellOnlyClaudeDirs,
 } from "../lib/claude-dirs.js";
 import { SCHEDULED_MIN_INTERVAL_MS } from "../lib/autosubmit/shared.js";
+import { planShortName } from "../lib/plan-names.js";
 import {
   shouldPromptStar,
   shouldRequestStarStatus,
@@ -881,7 +882,7 @@ export async function submit(options: SubmitOptions = {}): Promise<void> {
     const planColor = getPlanColor(usageData.ccplan);
     const planIcon = usageData.ccplan.toLowerCase() === "max" ? "🚀 " : "";
     summaryLines.push(
-      `${colors.muted("Plan")}           ${planIcon}${planColor(usageData.ccplan.toUpperCase())}`
+      `${colors.muted("Plan")}           ${planIcon}${planColor(planShortName(usageData.ccplan).toUpperCase())}`
     );
   }
 
