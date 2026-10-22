@@ -633,6 +633,50 @@ describe("submit({ nonInteractive: true })", () => {
       expect(JSON.parse(String(last?.init?.body)).totalTokens).toBe(6000);
     });
 
+    it("saves a shell folder and says so once, however many times it runs", async () => {
+      const dir = otherFolder();
+      vi.stubEnv("CLAUDE_CONFIG_DIR", dir);
+      mocked.store.set("starConfirmed", true);
+      const notice = `Scheduled submits will also read ${dir} (CLAUDE_CONFIG_DIR).`;
+
+      expect(await runSubmit({ nonInteractive: false })).toBe(0);
+      expect(await runSubmit({ nonInteractive: false })).toBe(0);
+
+      expect(mocked.store.get("claudeDirs")).toEqual([dir]);
+      expect(logs.filter((line) => line.includes(notice))).toHaveLength(1);
+    });
+
+    it("says nothing about shell folders when there are none", async () => {
+      mocked.store.set("starConfirmed", true);
+      expect(await runSubmit({ nonInteractive: false })).toBe(0);
+      expect(logs.some((line) => line.includes("Scheduled submits will also read"))).toBe(false);
+    });
+
+    it("a manual non-interactive submit saves a shell folder quietly, so scheduled runs match", async () => {
+      const dir = otherFolder();
+      vi.stubEnv("CLAUDE_CONFIG_DIR", dir);
+
+      expect(await runSubmit()).toBe(0);
+
+      expect(logs).toHaveLength(1);
+      expect(mocked.store.get("claudeDirs")).toEqual([dir]);
+      vi.stubEnv("CLAUDE_CONFIG_DIR", "");
+      mocked.store.delete("lastSync");
+      expect(await runSubmit({ scheduled: true })).toBe(0);
+      const last = callsTo("/cli/submit").at(-1);
+      expect(JSON.parse(String(last?.init?.body)).totalTokens).toBe(6000);
+    });
+
+    it("a scheduled run does not change the saved folders", async () => {
+      const dir = otherFolder();
+      vi.stubEnv("CLAUDE_CONFIG_DIR", dir);
+      mocked.store.delete("lastSync");
+
+      expect(await runSubmit({ scheduled: true })).toBe(0);
+
+      expect(mocked.store.has("claudeDirs")).toBe(false);
+    });
+
     it("asks about folders found on disk once, next to a saved shell folder", async () => {
       const shell = path.join(mocked.home, "work-shell");
       fs.mkdirSync(path.join(shell, "projects", "-home-user-shell"), { recursive: true });

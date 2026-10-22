@@ -7,21 +7,10 @@ import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
 import { afterAll } from "vitest";
+import { isolateEnvironment } from "./isolation";
 
 const home = fs.mkdtempSync(path.join(os.tmpdir(), "ccgather-test-home-"));
-for (const name of [
-  "CLAUDE_CONFIG_DIR",
-  "CLAUDE_SECURESTORAGE_CONFIG_DIR",
-  "XDG_CONFIG_HOME",
-  "APPDATA",
-  "LOCALAPPDATA",
-  "ANTHROPIC_CONFIG_DIR",
-  "ANTHROPIC_PROFILE",
-]) {
-  delete process.env[name];
-}
-process.env.HOME = home;
-process.env.USERPROFILE = home;
+isolateEnvironment(home);
 
 afterAll(() => {
   fs.rmSync(home, { recursive: true, force: true });

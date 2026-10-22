@@ -26,6 +26,7 @@ import {
   claudeConfigDirCandidates,
   findCandidateClaudeDirs,
   resolveClaudeConfigDirs,
+  saveShellClaudeDirs,
   shellOnlyClaudeDirs,
 } from "../src/lib/claude-dirs";
 import { scanAllProjects } from "../src/lib/ccgather-json";
@@ -200,6 +201,28 @@ describe("shellOnlyClaudeDirs", () => {
     expect(shellOnlyClaudeDirs(env, home, { declinedClaudeDirs: [b] }, "linux")).toEqual([a, b]);
     expect(shellOnlyClaudeDirs({ CLAUDE_CONFIG_DIR: legacy }, home, {}, "linux")).toEqual([]);
     expect(shellOnlyClaudeDirs({}, home, {}, "linux")).toEqual([]);
+  });
+});
+
+describe("saveShellClaudeDirs", () => {
+  it("saves the shell's folders once, and takes them off the declined list", () => {
+    const saved = new Map<string, string[]>();
+    const store = {
+      get: (key: "claudeDirs" | "declinedClaudeDirs") => saved.get(key),
+      set: (key: "claudeDirs" | "declinedClaudeDirs", value: string[]) => {
+        saved.set(key, value);
+      },
+    };
+    const a = dataDir("work-a");
+    const b = dataDir("work-b");
+    saved.set("declinedClaudeDirs", [b, "/gone"]);
+    const env = { CLAUDE_CONFIG_DIR: `${a},${b}` };
+
+    expect(saveShellClaudeDirs(store, env, home, "linux")).toEqual([a, b]);
+    expect(saved.get("claudeDirs")).toEqual([a, b]);
+    expect(saved.get("declinedClaudeDirs")).toEqual(["/gone"]);
+    expect(saveShellClaudeDirs(store, env, home, "linux")).toEqual([]);
+    expect(saved.get("claudeDirs")).toEqual([a, b]);
   });
 });
 

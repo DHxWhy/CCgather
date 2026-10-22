@@ -1,5 +1,4 @@
 import * as os from "os";
-import * as path from "path";
 import ora from "ora";
 import inquirer from "inquirer";
 import type Conf from "conf";
@@ -17,7 +16,7 @@ import {
   getSessionPathDebugInfo,
 } from "../lib/ccgather-json.js";
 import { initPricing } from "../lib/pricing.js";
-import { findCandidateClaudeDirs, shellOnlyClaudeDirs } from "../lib/claude-dirs.js";
+import { findCandidateClaudeDirs, saveShellClaudeDirs } from "../lib/claude-dirs.js";
 import { SCHEDULED_MIN_INTERVAL_MS } from "../lib/autosubmit/shared.js";
 import {
   shouldPromptStar,
@@ -456,19 +455,15 @@ function recordScheduledRun(
  * does not get the variable, reads them too; folders found on disk are asked about once.
  */
 async function confirmOtherClaudeDirs(config: Conf<CliConfig>): Promise<void> {
-  let claudeDirs = config.get("claudeDirs") ?? [];
-  let declinedClaudeDirs = config.get("declinedClaudeDirs") ?? [];
-  const fromShell = shellOnlyClaudeDirs(process.env, os.homedir(), { claudeDirs });
+  const fromShell = saveShellClaudeDirs(config, process.env, os.homedir());
   if (fromShell.length > 0) {
-    claudeDirs = [...claudeDirs, ...fromShell];
-    declinedClaudeDirs = declinedClaudeDirs.filter((dir) => !fromShell.includes(path.resolve(dir)));
-    config.set("claudeDirs", claudeDirs);
-    config.set("declinedClaudeDirs", declinedClaudeDirs);
     console.log(
       `\n  ${colors.muted(`Scheduled submits will also read ${fromShell.join(", ")} (CLAUDE_CONFIG_DIR).`)}`
     );
   }
 
+  const claudeDirs = config.get("claudeDirs") ?? [];
+  const declinedClaudeDirs = config.get("declinedClaudeDirs") ?? [];
   const candidates = findCandidateClaudeDirs(process.env, os.homedir(), {
     claudeDirs,
     declinedClaudeDirs,
@@ -648,8 +643,10 @@ export async function submit(options: SubmitOptions = {}): Promise<void> {
 
   // Other Claude Code data folders on this computer (another account's CLAUDE_CONFIG_DIR):
   // one computer is one person, so ask once which to count and remember the answer. A
-  // non-interactive or scheduled run never asks and reads only the saved list.
+  // non-interactive run never asks; a manual one still saves the shell's folders, so the
+  // scheduled runs after it count the same folders. A scheduled run reads the saved list.
   if (!nonInteractive) await confirmOtherClaudeDirs(config);
+  else if (!scheduled) saveShellClaudeDirs(config, process.env, os.homedir());
 
   // ═══════════════════════════════════════════════════════════════════════════
   // SCAN ALL PROJECTS (v2.0 - Level-based League System)

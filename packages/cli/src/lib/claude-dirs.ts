@@ -130,6 +130,33 @@ export function shellOnlyClaudeDirs(
   );
 }
 
+/** Where the folder answers are kept (the CLI's conf store). */
+export interface ClaudeDirsStore {
+  get(key: "claudeDirs" | "declinedClaudeDirs"): string[] | undefined;
+  set(key: "claudeDirs" | "declinedClaudeDirs", value: string[]): void;
+}
+
+/**
+ * Save the folders only the shell's CLAUDE_CONFIG_DIR reaches, so a scheduled run reads them
+ * too; returns the folders newly saved (none when they already are).
+ */
+export function saveShellClaudeDirs(
+  store: ClaudeDirsStore,
+  env: Env,
+  home: string,
+  platform: string = process.platform
+): string[] {
+  const claudeDirs = store.get("claudeDirs") ?? [];
+  const fromShell = shellOnlyClaudeDirs(env, home, { claudeDirs }, platform);
+  if (fromShell.length === 0) return [];
+  store.set("claudeDirs", [...claudeDirs, ...fromShell]);
+  store.set(
+    "declinedClaudeDirs",
+    (store.get("declinedClaudeDirs") ?? []).filter((dir) => !fromShell.includes(path.resolve(dir)))
+  );
+  return fromShell;
+}
+
 function subfoldersWithProjects(dir: string): string[] {
   try {
     return fs
