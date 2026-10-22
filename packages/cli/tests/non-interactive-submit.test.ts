@@ -432,6 +432,7 @@ describe("submit({ nonInteractive: true })", () => {
     expectSingleError(
       `Failed to submit: These sessions have already been submitted by another account. ${DUPLICATE_SESSION_ADVICE}`
     );
+    expect(errors[0]).not.toContain(SHELL_FOLDER_ADVICE);
   });
 
   it("on an interactive submit, shows the server's hint and the folder advice, not the counting notice", async () => {
