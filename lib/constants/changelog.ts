@@ -21,7 +21,7 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
     category: "improved",
     title: "CLI v2.3.3 counts usage like ccusage and prices it at Anthropic's rates",
     summary:
-      "After you update, your totals may change, and this is why. Claude Code writes one response as several lines and fills in the real output count only on the last; the CLI now counts each response once, at its largest line, as ccusage does, and adds advisor-model usage. Your token total can rise a little and your cost more, because the added tokens are mostly output, the priciest kind. Writes to the 1-hour cache cost twice the input rate (not 1.25x) and fast-mode requests cost more; the CLI now tells the server which ones they were, so your cost follows Anthropic's prices. A day that mixes models is priced as the sum of each model's own cost, as in ccusage. Only days still on your computer are counted again; older days keep the totals they had.",
+      "After you update, your totals may change, and this is why. Claude Code writes one response as several lines and fills in the real output count only on the last; the CLI now counts each response once, at its largest line, as ccusage does, and adds advisor-model usage. Your token total can rise a little and your cost more, because the added tokens are mostly output, the priciest kind. For days from August 1, 2026, writes to the 1-hour cache cost twice the input rate (not 1.25x), fast-mode requests cost more, and a day that mixes models is priced as the sum of each model's own cost, as in ccusage; the CLI now tells the server which tokens were which, so your cost follows Anthropic's prices. Only days still on your computer are counted again; older days keep the totals they had.",
   },
   {
     id: "2026-10-22-cli-data-folders-sign-in",
@@ -35,9 +35,9 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
     id: "2026-10-22-cli-autosubmit-v2-3-3",
     date: "2026-10-22",
     category: "improved",
-    title: "Auto-submit and CLI v2.3.3: how jobs update and what they leave to you",
+    title: "Scheduled submits and CLI v2.3.3: how they update and what they leave to you",
     summary:
-      "Jobs that run through npx pick up v2.3.3 on their next run. A job set up from a global install updates with npm install -g ccgather; one set up with v2.3.0 or v2.3.1, or pinned with --pin, needs npx ccgather autosubmit on once. A scheduled run never asks about new data folders or reads your sign-in, so your badge and the folders it counts change only when you submit from npx ccgather in a terminal.",
+      "Jobs that run through npx pick up v2.3.3 on their next run. A job set up from a global install updates with npm install -g ccgather instead, and one set up with v2.3.0 or v2.3.1 or pinned with --pin needs npx ccgather autosubmit on once (add --pin to keep pinning). Auto-submit never asks about new data folders or reads your Claude Code sign-in, so a folder found later waits for the npx ccgather menu and your badge for a submit by hand. A cron or Task Scheduler job that runs npx ccgather submit does not ask about folders either, but it reports the sign-in it sees there, which can miss your shell's API key or provider settings.",
   },
   {
     id: "2026-10-21-feedback-replies-in-notifications",

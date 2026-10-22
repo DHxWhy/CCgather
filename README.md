@@ -222,6 +222,8 @@ schtasks /create /tn "CCgather submit" /sc daily /st 21:17 /tr "cmd /c npx --yes
 
 Pick a minute of your own rather than copying 21:17: everyone who keeps the example would reach the server in the same second. Task Scheduler skips a run on battery power by default, and both schedulers skip a run while the machine is asleep or off, so pick a time the machine is usually awake and plugged in.
 
+A scheduler does not see the API key or cloud-provider variables your shell profile sets, so a submit it runs reports the Claude Code sign-in it can see (your claude.ai login, say), and your plan badge can switch between that and what a terminal submit reports. Auto-submit avoids this: its runs send no plan, so the badge follows your own submits.
+
 ### Auto-submit
 
 Let the CLI set up the daily job for you, using your operating system's own scheduler:
