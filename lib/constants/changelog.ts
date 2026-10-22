@@ -6,6 +6,8 @@ export interface ChangelogEntry {
   category: ChangelogCategory;
   title: string;
   summary: string;
+  /** Shown as a bulleted list under the summary. */
+  points?: readonly string[];
 }
 
 export const CHANGELOG_CATEGORY = {
@@ -20,8 +22,14 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
     date: "2026-10-22",
     category: "improved",
     title: "CLI v2.3.3 counts usage like ccusage and prices it at Anthropic's rates",
-    summary:
-      "After you update, your totals may change, and this is why. Claude Code writes one response as several lines and fills in the real output count only on the last; the CLI now counts each response once, at its largest line, as ccusage does, and adds advisor-model usage. Your token total can rise a little and your cost more, because the added tokens are mostly output, the priciest kind. For days from August 1, 2026, writes to the 1-hour cache cost twice the input rate (not 1.25x), fast-mode requests cost more, and a day that mixes models is priced as the sum of each model's own cost, as in ccusage; the CLI now tells the server which tokens were which, so your cost follows Anthropic's prices. Only days still on your computer are counted again; older days keep the totals they had.",
+    summary: "After you update, your totals may change. Here is why:",
+    points: [
+      "Claude Code writes one response as several lines and fills in the real output count only on the last. The CLI now counts each response once, at its largest line, as ccusage does.",
+      "Advisor-model usage is counted too.",
+      "Your token total can rise a little and your cost more, because the added tokens are mostly output, the priciest kind.",
+      "For days from August 1, 2026, 1-hour cache writes cost twice the input rate (not 1.25x), fast-mode requests cost more, and a day that mixes models is priced as the sum of each model's own cost, as in ccusage. The CLI now tells the server which tokens were which, so your cost follows Anthropic's prices.",
+      "Only days still on your computer are counted again; older days keep the totals they had.",
+    ],
   },
   {
     id: "2026-10-22-cli-data-folders-sign-in",
@@ -29,15 +37,28 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
     category: "improved",
     title: "CLI v2.3.3 finds your other Claude Code folders and shows how you sign in",
     summary:
-      "The CLI now also reads Claude Code data folders beside ~/.claude, such as ~/.claude-work for a second account, and npx ccgather@latest asks once in its menu before counting one it found (a session found twice counts once; Settings > Data folders asks again). A folder elsewhere counts when CLAUDE_CONFIG_DIR names it. Your plan badge follows how Claude Code signs you in: API keys and Console logins show as Claude API and cloud providers by name, never as Team, and an enterprise gateway sign-in leaves the badge as it is.",
+      "The CLI reads more of your Claude Code data and names your plan the way Claude Code does:",
+    points: [
+      "It also reads Claude Code data folders beside ~/.claude, such as ~/.claude-work for a second account. npx ccgather@latest asks once in its menu before counting one it found.",
+      "A session found in two folders counts once. Settings > Data folders asks again.",
+      "A folder elsewhere counts when CLAUDE_CONFIG_DIR names it.",
+      "Your plan badge follows how Claude Code signs you in: API keys and Console logins show as Claude API and cloud providers by name, never as Team.",
+      "An enterprise gateway sign-in leaves the badge as it is.",
+    ],
   },
   {
     id: "2026-10-22-cli-autosubmit-v2-3-3",
     date: "2026-10-22",
     category: "improved",
     title: "Scheduled submits and CLI v2.3.3: how they update and what they leave to you",
-    summary:
-      "npx ccgather@latest autosubmit status shows what your auto-submit job runs: one that runs the newest ccgather release picks up v2.3.3 on its next run, one that runs your global install of ccgather updates with npm install -g ccgather, and one that runs a set version such as ccgather@2.3.1 needs npx ccgather@latest autosubmit on once (add --pin to keep one). Auto-submit never asks about new data folders or reads your Claude Code sign-in, so a folder found later waits for the menu of npx ccgather@latest and your badge for a submit by hand. A cron or Task Scheduler job you set up yourself to run npx ccgather@latest submit, as the README shows, picks up v2.3.3 too and does not ask about folders either, but it reports the sign-in it sees there, which can miss your shell's API key or provider settings.",
+    summary: "npx ccgather@latest autosubmit status shows what your auto-submit job runs:",
+    points: [
+      "The newest ccgather release: it picks up v2.3.3 on its next run.",
+      "Your global install of ccgather: update it with npm install -g ccgather.",
+      "A set version such as ccgather@2.3.1: run npx ccgather@latest autosubmit on once (add --pin to keep one).",
+      "Auto-submit never asks about new data folders or reads your Claude Code sign-in, so a folder found later waits for the menu of npx ccgather@latest and your badge for a submit by hand.",
+      "A cron or Task Scheduler job you set up yourself to run npx ccgather@latest submit, as the README shows, picks up v2.3.3 too and does not ask about folders either, but it reports the sign-in it sees there, which can miss your shell's API key or provider settings.",
+    ],
   },
   {
     id: "2026-10-21-feedback-replies-in-notifications",

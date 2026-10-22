@@ -114,6 +114,13 @@ function EntryRow({ entry, isLast }: { entry: ChangelogEntry; isLast: boolean })
         <p className="mt-0.5 text-xs leading-relaxed text-[var(--color-text-secondary)]">
           {entry.summary}
         </p>
+        {entry.points && entry.points.length > 0 && (
+          <ul className="mt-1 list-disc space-y-0.5 pl-4 text-xs leading-relaxed text-[var(--color-text-secondary)] marker:text-[var(--color-text-muted)]">
+            {entry.points.map((point) => (
+              <li key={point}>{point}</li>
+            ))}
+          </ul>
+        )}
       </div>
     </li>
   );

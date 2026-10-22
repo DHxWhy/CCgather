@@ -39,6 +39,15 @@ describe("변경 이력 데이터", () => {
     }
   });
 
+  it("글머리표가 있으면 빈 줄 없이, 같은 줄 두 번 없이 쓴다 (목록 key 가 겹치지 않도록)", () => {
+    for (const entry of CHANGELOG) {
+      if (!entry.points) continue;
+      expect(entry.points.length, entry.id).toBeGreaterThan(0);
+      for (const point of entry.points) expect(point.trim().length, entry.id).toBeGreaterThan(0);
+      expect(new Set(entry.points).size, entry.id).toBe(entry.points.length);
+    }
+  });
+
   it("모달이 스크롤 어포던스를 줄 만큼 항목이 충분하다 (6번째가 반쯤 걸침)", () => {
     expect(CHANGELOG.length).toBeGreaterThan(6);
   });
@@ -108,6 +117,13 @@ describe("헤더 배선", () => {
 
   it("LIVE API 는 public 라우트다 (비로그인은 307 HTML 을 받아 JSON parse 실패)", () => {
     expect(read("middleware.ts")).toContain('"/api/whats-new"');
+  });
+
+  it("항목의 글머리표를 요약 아래 목록으로 그린다", () => {
+    const modal = read("components/layout/WhatsNewModal.tsx");
+    expect(modal).toMatch(
+      /entry\.points\.map\(\(point\) => \(\s*<li key=\{point\}>\{point\}<\/li>/
+    );
   });
 
   it("changelog 모듈은 런타임 import 가 없다 (클라이언트·vitest 안전)", () => {
