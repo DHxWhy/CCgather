@@ -152,7 +152,105 @@ describe("costs are rounded once, per day, project and total", () => {
   });
 });
 
+describe("costs over several days", () => {
+  it("rounds each day and the total once, from unrounded sums", () => {
+    writeTranscript("p", "s1.jsonl", [
+      usageLine("1", "claude-haiku-4-5", "2026-10-19T05:00:00.000Z", { input: 4000 }),
+      usageLine("2", "claude-haiku-4-5", "2026-10-20T05:00:00.000Z", { input: 4000 }),
+    ]);
+
+    const data = scanAllProjects();
+
+    // $0.004 a day: each day rounds to 0.00, the total of $0.008 to 0.01.
+    expect(data?.dailyUsage.map((d) => d.cost)).toEqual([0, 0]);
+    expect(data?.usage.totalCost).toBe(0.01);
+    expect(data?.projects.p?.cost).toBe(0.01);
+  });
+});
+
+describe("a /btw replay saved after an earlier submit", () => {
+  it("keeps the parent's tokens on the parent's day, so a resubmit does not count them twice", () => {
+    const big = { input: 6, output: 300, cacheRead: 50_000 };
+    writeTranscript("p", "s1.jsonl", [
+      usageLine("p1", "claude-opus-4-8", "2026-10-01T10:00:00.000Z", big),
+    ]);
+    const before = scanAllProjects()?.dailyUsage;
+
+    // /btw writes its replay of the parent and its own answer under s1/subagents/, which a
+    // scan reads before s1.jsonl.
+    const replay = JSON.parse(
+      usageLine("p1", "claude-opus-4-8", "2026-10-02T08:00:00.000Z", big)
+    ) as Record<string, unknown>;
+    const answer = JSON.parse(
+      usageLine("a1", "claude-opus-4-8", "2026-10-02T08:00:05.000Z", { input: 3, output: 40 })
+    ) as Record<string, unknown>;
+    writeTranscript(
+      "p",
+      "s1/subagents/agent-aside_question-1.jsonl",
+      [
+        { ...replay, requestId: "req_replay", isSidechain: true, agentId: "aside_question-1" },
+        { ...answer, isSidechain: true, agentId: "aside_question-1" },
+      ].map((event) => JSON.stringify(event))
+    );
+    const after = scanAllProjects()?.dailyUsage;
+
+    expect(before?.map((d) => [d.date, d.tokens])).toEqual([["2026-10-01", 50_306]]);
+    expect(after?.map((d) => [d.date, d.tokens])).toEqual([
+      ["2026-10-01", 50_306],
+      ["2026-10-02", 43],
+    ]);
+  });
+});
+
 describe("summary fields", () => {
+  it("reads the sign-in unless told not to", () => {
+    writeTranscript("p", "s1.jsonl", [
+      usageLine("1", "claude-haiku-4-5", "2026-10-20T05:00:00.000Z", { input: 10 }),
+    ]);
+
+    expect(scanAllProjects()?.account).toEqual({
+      ccplan: null,
+      rateLimitTier: null,
+      authMethod: "unknown",
+      rawSubscriptionType: null,
+    });
+    expect(scanAllProjects({ readAccount: false })?.account).toBeUndefined();
+  });
+
+  it("reports the first and last day even when the later file is read first", () => {
+    writeTranscript("p", "a.jsonl", [
+      usageLine("2", "claude-haiku-4-5", "2026-10-20T05:00:00.000Z", { input: 10 }),
+    ]);
+    writeTranscript("p", "b.jsonl", [
+      usageLine("1", "claude-haiku-4-5", "2026-10-18T05:00:00.000Z", { input: 10 }, "s2"),
+    ]);
+
+    const stats = scanAllProjects()?.stats;
+
+    expect(stats?.firstUsed).toBe("2026-10-18");
+    expect(stats?.lastUsed).toBe("2026-10-20");
+  });
+
+  it("counts a file without a session id that holds only agent-progress usage", () => {
+    const progress = JSON.stringify({
+      type: "progress",
+      data: {
+        message: {
+          timestamp: "2026-10-20T05:00:00.000Z",
+          requestId: "req_sub",
+          message: {
+            id: "msg_sub",
+            model: "claude-haiku-4-5",
+            usage: { input_tokens: 4, output_tokens: 6 },
+          },
+        },
+      },
+    });
+    writeTranscript("p", "journal.jsonl", [progress]);
+
+    expect(scanAllProjects()?.stats.sessionsCount).toBe(1);
+  });
+
   it("reports the first and last day used", () => {
     writeTranscript("p", "s1.jsonl", [
       usageLine("1", "claude-haiku-4-5", "2026-10-18T05:00:00.000Z", { input: 10 }),

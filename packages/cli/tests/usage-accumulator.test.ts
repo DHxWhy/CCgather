@@ -7,16 +7,18 @@ interface LineSpec {
   session?: string | null;
   ts?: string | null;
   model?: string | null;
-  input?: number;
+  input?: number | null; // null leaves input_tokens out
   output?: number;
   cw?: number;
   cache?: [fiveMinute: number, oneHour: number];
   cr?: number;
   speed?: string;
-  sidechain?: boolean;
+  sidechain?: unknown;
   iterations?: unknown[];
   type?: string;
   version?: string;
+  top?: Record<string, unknown>; // more top-level fields
+  usageExtra?: Record<string, unknown>; // more usage fields
 }
 
 function line(o: LineSpec): Record<string, unknown> {
@@ -27,11 +29,12 @@ function line(o: LineSpec): Record<string, unknown> {
     ...(o.req !== undefined ? { requestId: o.req } : {}),
     ...(o.sidechain !== undefined ? { isSidechain: o.sidechain } : {}),
     ...(o.version !== undefined ? { version: o.version } : {}),
+    ...o.top,
     message: {
       ...(o.id !== undefined ? { id: o.id } : {}),
       model: o.model === undefined ? "claude-opus-4-8" : o.model,
       usage: {
-        input_tokens: o.input ?? 0,
+        ...(o.input === null ? {} : { input_tokens: o.input ?? 0 }),
         output_tokens: o.output ?? 0,
         cache_creation_input_tokens: o.cw ?? 0,
         cache_read_input_tokens: o.cr ?? 0,
@@ -45,6 +48,7 @@ function line(o: LineSpec): Record<string, unknown> {
           : {}),
         ...(o.speed ? { speed: o.speed } : {}),
         ...(o.iterations ? { iterations: o.iterations } : {}),
+        ...o.usageExtra,
       },
     },
   };
@@ -160,6 +164,13 @@ describe("dedup keys (ccusage daily)", () => {
     expect(acc.result().total.outputTokens).toBe(10);
   });
 
+  it("collapses a requestless resp_ id within a session, like msg_", () => {
+    const acc = createUsageAccumulator();
+    acc.add(line({ id: "resp_1", ts: "2026-10-01T10:00:00.000Z", output: 3 }), A);
+    acc.add(line({ id: "resp_1", ts: "2026-10-01T10:00:05.000Z", output: 8 }), A);
+    expect(acc.result().total.outputTokens).toBe(8);
+  });
+
   it("counts a gateway id reused without a request id once per timestamp", () => {
     const acc = createUsageAccumulator();
     acc.add(line({ id: "gw-1", ts: "2026-10-01T10:00:00.000Z", output: 5 }), A);
@@ -252,10 +263,46 @@ describe("lines ccusage leaves out", () => {
     ["fractional tokens", { output: 1.5 }],
     ["no timestamp", { ts: null }],
     ["a timestamp without a zone", { ts: "2026-10-01T10:00:00" }],
+    ["a lowercase timestamp", { ts: "2026-10-01t10:00:00.000z" }],
+    ["a timestamp with nanoseconds", { ts: "2026-10-01T10:00:00.123456789Z" }],
+    ["a timestamp with one fractional digit", { ts: "2026-10-01T10:00:00.1Z" }],
+    ["no input tokens", { input: null }],
+    ["a sidechain flag that is not a boolean", { sidechain: "true" }],
+    ["a null cwd", { top: { cwd: null } }],
+    ["a null isApiErrorMessage", { top: { isApiErrorMessage: null } }],
+    ["a cost that is not a number", { top: { costUSD: "0.1" } }],
+    ["a cache breakdown that is not an object", { usageExtra: { cache_creation: "x" } }],
+    ["a negative 1-hour cache count", { cache: [5, -1] }],
+    ["a version with two parts", { version: "2.1" }],
+    [
+      "an iteration with a null cache count",
+      {
+        iterations: [
+          { type: "message", input_tokens: 1, output_tokens: 1, cache_read_input_tokens: null },
+        ],
+      },
+    ],
   ])("skips a line with %s", (_label, spec) => {
     const acc = createUsageAccumulator();
     expect(acc.add(line({ id: "msg_1", req: "req_1", output: 5, ...spec }), A)).toBe(false);
     expect(acc.result().total.tokens).toBe(0);
+  });
+
+  it("counts a line whose isSidechain is null as a main-chain line, as ccusage does", () => {
+    const acc = createUsageAccumulator();
+    expect(acc.add(line({ id: "msg_1", req: "req_1", output: 5, sidechain: null }), A)).toBe(true);
+    acc.add(line({ id: "msg_1", req: "req_2", output: 9, sidechain: true }), A);
+    expect(acc.result().total.outputTokens).toBe(5);
+  });
+
+  it("takes whole seconds or milliseconds, Z or an offset, by UTC day", () => {
+    const acc = createUsageAccumulator();
+    expect(
+      acc.add(line({ id: "msg_1", req: "r1", ts: "2026-10-01T10:00:00Z", output: 1 }), A)
+    ).toBe(true);
+    acc.add(line({ id: "msg_2", req: "r2", ts: "2026-10-02T08:00:00+09:00", output: 2 }), A);
+    expect(day(acc)?.outputTokens).toBe(3);
+    expect(acc.result().daily.has("2026-10-02")).toBe(false);
   });
 
   it("skips a line without output tokens", () => {
@@ -354,6 +401,70 @@ describe("token shares", () => {
     expect(day(acc)?.modelTokens["claude-opus-5-5"]?.fast.inputTokens).toBe(10);
   });
 
+  it.each<[string, unknown]>([
+    ["an unknown speed", advisor("claude-opus-4-8", 100, 10, { speed: "turbo" })],
+    [
+      "a negative cache count",
+      advisor("claude-opus-4-8", 100, 10, { cache_read_input_tokens: -1 }),
+    ],
+    ["no input tokens", { type: "message", model: null, output_tokens: 3 }],
+  ])("drops every advisor of a line with an iteration that has %s", (_label, odd) => {
+    const acc = createUsageAccumulator();
+    expect(
+      acc.add(
+        line({
+          id: "msg_1",
+          req: "req_1",
+          output: 5,
+          iterations: [advisor("claude-sonnet-4-6", 7, 3), odd],
+        }),
+        A
+      )
+    ).toBe(true);
+    expect(day(acc)?.models).toEqual({ "claude-opus-4-8": 5 });
+  });
+
+  it("reads advisors from direct lines only, not from agent-progress records", () => {
+    const acc = createUsageAccumulator();
+    acc.add(
+      {
+        type: "progress",
+        sessionId: "s1",
+        data: {
+          message: {
+            timestamp: "2026-10-01T10:00:00.000Z",
+            requestId: "req_sub",
+            message: {
+              id: "msg_sub",
+              model: "claude-haiku-4-5",
+              usage: {
+                input_tokens: 4,
+                output_tokens: 6,
+                iterations: [advisor("claude-opus-4-8", 100, 10)],
+              },
+            },
+          },
+        },
+      },
+      A
+    );
+    expect(day(acc)?.models).toEqual({ "claude-haiku-4-5": 10 });
+  });
+
+  it("lets an advisor line that states its speed take over a tie", () => {
+    const acc = createUsageAccumulator();
+    const withAdvisor = (extra: Record<string, unknown>) =>
+      line({
+        id: "msg_1",
+        req: "req_1",
+        output: 5,
+        iterations: [advisor("claude-opus-4-6", 100, 10, extra)],
+      });
+    acc.add(withAdvisor({}), A);
+    acc.add(withAdvisor({ speed: "fast" }), A);
+    expect(day(acc)?.modelTokens["claude-opus-4-6"]?.fast.outputTokens).toBe(10);
+  });
+
   it("drops every advisor of a line whose iterations are malformed, but counts the line", () => {
     const acc = createUsageAccumulator();
     acc.add(
@@ -406,6 +517,74 @@ describe("line shapes", () => {
     expect(day(acc)?.models).toEqual({ "claude-haiku-4-5": 10 });
   });
 
+  it("reads a progress record's sidechain flag and request id from data.message", () => {
+    const progress = (session: string, output: number) => ({
+      type: "progress",
+      sessionId: session,
+      data: {
+        message: {
+          timestamp: "2026-10-01T10:00:00.000Z",
+          requestId: "req_sub",
+          isSidechain: true,
+          message: {
+            id: "msg_sub",
+            model: "claude-haiku-4-5",
+            usage: { input_tokens: 0, output_tokens: output },
+          },
+        },
+      },
+    });
+    const acc = createUsageAccumulator();
+    acc.add(progress("s1", 5), A);
+    acc.add(
+      line({
+        id: "msg_sub",
+        req: "req_sub",
+        model: "claude-haiku-4-5",
+        output: 9,
+        sidechain: true,
+      }),
+      A
+    );
+    expect(acc.result().total.outputTokens).toBe(9);
+
+    const other = createUsageAccumulator();
+    other.add(progress("s1", 5), A);
+    other.add(
+      line({
+        id: "msg_sub",
+        req: "req_sub",
+        session: "s2",
+        model: "claude-haiku-4-5",
+        output: 5,
+        sidechain: true,
+      }),
+      B
+    );
+    expect(other.result().total.outputTokens).toBe(5);
+  });
+
+  it("does not check an agent-progress record's own version", () => {
+    const acc = createUsageAccumulator();
+    const progress = {
+      type: "progress",
+      sessionId: "s1",
+      version: "dev",
+      data: {
+        message: {
+          timestamp: "2026-10-01T10:00:00.000Z",
+          requestId: "req_sub",
+          message: {
+            id: "msg_sub",
+            model: "claude-haiku-4-5",
+            usage: { input_tokens: 4, output_tokens: 6 },
+          },
+        },
+      },
+    };
+    expect(acc.add(progress, A)).toBe(true);
+  });
+
   it("reads a usage line whatever its type, as ccusage does", () => {
     const acc = createUsageAccumulator();
     expect(acc.add(line({ id: "msg_1", req: "r1", output: 5, type: "something-new" }), A)).toBe(
@@ -421,7 +600,70 @@ describe("line shapes", () => {
   });
 });
 
+describe("a /btw replay read before its parent", () => {
+  // subagents/ sorts before the transcript it sits next to, so the replay comes first.
+  const replay = (ts: string) =>
+    line({ id: "msg_p", req: "req_replay", ts, output: 7, cr: 1000, sidechain: true });
+  const parent = line({
+    id: "msg_p",
+    req: "req_p",
+    ts: "2026-10-01T10:00:00.000Z",
+    output: 7,
+    cr: 1000,
+  });
+
+  it("puts the response back on the parent's day when the parent's line takes over", () => {
+    const acc = createUsageAccumulator();
+    acc.add(replay("2026-10-02T08:00:00.000Z"), B);
+    expect(acc.add(parent, A)).toBe(true);
+    expect(day(acc)?.tokens).toBe(1007);
+    expect(acc.result().daily.has("2026-10-02")).toBe(false);
+    expect(acc.result().firstTimestamp).toBe("2026-10-01T10:00:00.000Z");
+  });
+
+  it("leaves no empty model or day behind", () => {
+    const acc = createUsageAccumulator();
+    acc.add(replay("2026-10-02T08:00:00.000Z"), B);
+    const answer = line({
+      id: "msg_a",
+      req: "req_a",
+      ts: "2026-10-02T08:00:01.000Z",
+      model: "claude-sonnet-4-6",
+      output: 30,
+      sidechain: true,
+    });
+    acc.add(answer, B);
+    acc.add(parent, A);
+    const replayDay = acc.result().daily.get("2026-10-02");
+    expect(replayDay?.models).toEqual({ "claude-sonnet-4-6": 30 });
+    expect(Object.keys(replayDay?.modelTokens ?? {})).toEqual(["claude-sonnet-4-6"]);
+  });
+
+  it("leaves the response out when the parent's day is before the cutoff", () => {
+    const acc = createUsageAccumulator({ cutoff: "2026-10-02T00:00:00.000Z" });
+    acc.add(replay("2026-10-03T08:00:00.000Z"), B);
+    expect(acc.add(parent, A)).toBe(false);
+    expect(acc.result().total.tokens).toBe(0);
+  });
+});
+
 describe("buckets and bounds", () => {
+  it("keeps the earliest and latest timestamps whatever order lines come in", () => {
+    const acc = createUsageAccumulator();
+    acc.add(line({ id: "msg_2", req: "r2", ts: "2026-10-20T05:00:00.000Z", output: 1 }), A);
+    acc.add(line({ id: "msg_1", req: "r1", ts: "2026-10-18T05:00:00.000Z", output: 1 }), A);
+    acc.add(line({ id: "msg_3", req: "r3", ts: "2026-10-19T05:00:00.000Z", output: 1 }), A);
+    expect(acc.result().firstTimestamp).toBe("2026-10-18T05:00:00.000Z");
+    expect(acc.result().lastTimestamp).toBe("2026-10-20T05:00:00.000Z");
+  });
+
+  it("counts a line exactly at the cutoff", () => {
+    const acc = createUsageAccumulator({ cutoff: "2026-10-01T00:00:00.000Z" });
+    expect(
+      acc.add(line({ id: "msg_1", req: "r1", ts: "2026-10-01T00:00:00.000Z", output: 4 }), A)
+    ).toBe(true);
+  });
+
   it("leaves out lines before the cutoff, with the rest of their response", () => {
     const acc = createUsageAccumulator({ cutoff: "2026-10-01T00:00:00.000Z" });
     acc.add(line({ id: "msg_1", req: "r1", ts: "2026-09-30T23:59:59.000Z", output: 8 }), A);

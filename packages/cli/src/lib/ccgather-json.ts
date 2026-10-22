@@ -7,7 +7,7 @@ import { getConfig } from "./config.js";
 import { claudeConfigDirCandidates, resolveClaudeConfigDirs } from "./claude-dirs.js";
 import type { ClaudeDirsConfig } from "./claude-dirs.js";
 import { estimateCostRaw } from "./pricing.js";
-import { createUsageAccumulator } from "./usage-accumulator.js";
+import { createUsageAccumulator, isUsageLine } from "./usage-accumulator.js";
 import type { AccumulatedUsage, ModelSplit, TokenSplit } from "./usage-accumulator.js";
 
 interface ShareTokens {
@@ -506,39 +506,44 @@ export function readTranscriptLines(
     if (mayHoldUsage && line.trim()) onLine(line);
   };
 
-  const fd = fs.openSync(filePath, "r");
+  // The buffer is taken before the file opens and always handed back, so a failed open or
+  // allocation leaks neither.
   const initial = takeReadBuffer(chunkBytes);
   try {
-    let buf = initial;
-    let kept = 0; // bytes of a partial line moved to the front of buf
-    for (;;) {
-      if (kept > buf.length / 2) {
-        // A line longer than half the buffer: grow it for this transcript only
-        const bigger = Buffer.allocUnsafe(buf.length * 2);
-        buf.copy(bigger, 0, 0, kept);
-        buf = bigger;
+    const fd = fs.openSync(filePath, "r");
+    try {
+      let buf = initial;
+      let kept = 0; // bytes of a partial line moved to the front of buf
+      for (;;) {
+        if (kept > buf.length / 2) {
+          // A line longer than half the buffer: grow it for this transcript only
+          const bigger = Buffer.allocUnsafe(buf.length * 2);
+          buf.copy(bigger, 0, 0, kept);
+          buf = bigger;
+        }
+        const bytesRead = fs.readSync(fd, buf, kept, buf.length - kept, null);
+        if (bytesRead === 0) break;
+        const filled = buf.subarray(0, kept + bytesRead);
+        let start = 0;
+        // The kept bytes hold no newline, so the search starts after them
+        for (
+          let newline = filled.indexOf(0x0a, kept);
+          newline !== -1;
+          newline = filled.indexOf(0x0a, start)
+        ) {
+          handleLine(filled, start, newline);
+          start = newline + 1;
+          if (onLine === undefined && head.length >= headLines) return head;
+        }
+        kept = filled.length - start;
+        filled.copyWithin(0, start);
       }
-      const bytesRead = fs.readSync(fd, buf, kept, buf.length - kept, null);
-      if (bytesRead === 0) break;
-      const filled = buf.subarray(0, kept + bytesRead);
-      let start = 0;
-      // The kept bytes hold no newline, so the search starts after them
-      for (
-        let newline = filled.indexOf(0x0a, kept);
-        newline !== -1;
-        newline = filled.indexOf(0x0a, start)
-      ) {
-        handleLine(filled, start, newline);
-        start = newline + 1;
-        if (onLine === undefined && head.length >= headLines) return head;
-      }
-      kept = filled.length - start;
-      filled.copyWithin(0, start);
+      // What follows the last newline is a line to split("\n"), even when empty
+      handleLine(buf, 0, kept);
+    } finally {
+      fs.closeSync(fd);
     }
-    // What follows the last newline is a line to split("\n"), even when empty
-    handleLine(buf, 0, kept);
   } finally {
-    fs.closeSync(fd);
     spareReadBuffer = initial;
   }
   return head;
@@ -1126,7 +1131,7 @@ export function scanAllProjects(options: ScanOptions = {}): CCGatherData | null 
         onLine: (line) => {
           try {
             const event = JSON.parse(line);
-            if (event?.type === "assistant" && event.message?.usage) hasUsage = true;
+            if (isUsageLine(event)) hasUsage = true;
             acc.add(event, { sessionKey, projectName });
           } catch {
             // Skip invalid JSON lines

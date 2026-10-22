@@ -22,6 +22,7 @@ vi.mock("fs", async (importOriginal) => {
   return {
     ...actual,
     readSync: vi.fn(actual.readSync),
+    openSync: vi.fn(actual.openSync),
     readFileSync: vi.fn(actual.readFileSync),
   };
 });
@@ -155,6 +156,14 @@ describe("readTranscriptLines", () => {
 
     expect(head).toEqual(content.split("\n").slice(0, 3));
     expect(vi.mocked(fs.readSync)).toHaveBeenCalledTimes(1);
+  });
+
+  it("opens no file when the read buffer cannot be made", () => {
+    const file = writeFixture("one.jsonl", usageEvent("a", 1) + "\n");
+    vi.mocked(fs.openSync).mockClear();
+
+    expect(() => readTranscriptLines(file, { onLine: () => {}, chunkBytes: -1 })).toThrow();
+    expect(vi.mocked(fs.openSync)).not.toHaveBeenCalled();
   });
 
   it("reuses one read buffer from one transcript to the next", () => {
