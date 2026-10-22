@@ -16,7 +16,11 @@ import {
   getSessionPathDebugInfo,
 } from "../lib/ccgather-json.js";
 import { initPricing } from "../lib/pricing.js";
-import { findCandidateClaudeDirs, saveShellClaudeDirs } from "../lib/claude-dirs.js";
+import {
+  findCandidateClaudeDirs,
+  saveShellClaudeDirs,
+  savedShellDirsNotice,
+} from "../lib/claude-dirs.js";
 import { SCHEDULED_MIN_INTERVAL_MS } from "../lib/autosubmit/shared.js";
 import {
   shouldPromptStar,
@@ -136,6 +140,10 @@ interface SubmitResponse {
 /** Shown once, after the first interactive submit with this version. */
 export const COUNTING_NOTICE =
   "This version counts usage the way ccusage does: your token total can rise a little and your cost more (1-hour cache writes, fast mode). Details: What's new on ccgather.com.";
+
+/** Added to a refused submit when another account owns sessions and extra folders are read. */
+export const DUPLICATE_SESSION_ADVICE =
+  "If a data folder you added belongs to another CCgather account, choose folders again and leave that one unchecked: npx ccgather > Settings > Data folders.";
 
 /** Shown after Settings > Data folders forgets the folder answers. */
 export const FOLDER_CHOICES_CLEARED =
@@ -473,9 +481,7 @@ function recordScheduledRun(
 async function confirmOtherClaudeDirs(config: Conf<CliConfig>): Promise<void> {
   const fromShell = saveShellClaudeDirs(config, process.env, os.homedir());
   if (fromShell.length > 0) {
-    console.log(
-      `\n  ${colors.muted(`Scheduled submits will also read ${fromShell.join(", ")} (CLAUDE_CONFIG_DIR).`)}`
-    );
+    console.log(`\n  ${colors.muted(savedShellDirsNotice(fromShell))}`);
   }
 
   const claudeDirs = config.get("claudeDirs") ?? [];
@@ -512,7 +518,7 @@ async function confirmOtherClaudeDirs(config: Conf<CliConfig>): Promise<void> {
 function duplicateSessionAdvice(config: Conf<CliConfig>, result: SubmitResponse): string | null {
   if (result.code !== "DUPLICATE_SESSION") return null;
   if ((config.get("claudeDirs") ?? []).length === 0) return null;
-  return "If a data folder you added belongs to another CCgather account, choose folders again: npx ccgather > Settings > Data folders.";
+  return DUPLICATE_SESSION_ADVICE;
 }
 
 /**
@@ -874,10 +880,13 @@ export async function submit(options: SubmitOptions = {}): Promise<void> {
     config.set("lastSync", new Date().toISOString());
     console.log();
 
-    // Once per computer: 2.3.3 counts usage like ccusage, so the numbers can move
+    // Once per computer: 2.3.3 counts usage like ccusage, so the numbers can move. A first
+    // submit has no earlier total to compare, so it only marks the notice as seen.
     if (config.get("countingNoticeShown") !== true) {
-      console.log(`  ${colors.muted(COUNTING_NOTICE)}`);
-      console.log();
+      if (starState.hasSubmittedBefore) {
+        console.log(`  ${colors.muted(COUNTING_NOTICE)}`);
+        console.log();
+      }
       config.set("countingNoticeShown", true);
     }
 

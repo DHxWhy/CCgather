@@ -72,7 +72,14 @@ vi.mock("readline", async (importOriginal) => {
 
 vi.mock("../src/commands/auth", () => ({ auth: mocked.auth }));
 
-import { COUNTING_NOTICE, formatAgo, submit, SubmitOptions } from "../src/commands/submit";
+import {
+  COUNTING_NOTICE,
+  DUPLICATE_SESSION_ADVICE,
+  formatAgo,
+  submit,
+  SubmitOptions,
+} from "../src/commands/submit";
+import { savedShellDirsNotice } from "../src/lib/claude-dirs";
 
 class ExitCalled extends Error {
   constructor(readonly code: number | string | null | undefined) {
@@ -389,8 +396,45 @@ describe("submit({ nonInteractive: true })", () => {
     expect(await runSubmit()).toBe(1);
 
     expectSingleError(
-      "Failed to submit: These sessions have already been submitted by another account. If a data folder you added belongs to another CCgather account, choose folders again: npx ccgather > Settings > Data folders."
+      `Failed to submit: These sessions have already been submitted by another account. ${DUPLICATE_SESSION_ADVICE}`
     );
+  });
+
+  it("on an interactive submit, shows the server's hint and the folder advice, not the counting notice", async () => {
+    routes.submit = () =>
+      json(409, {
+        error: "These sessions have already been submitted by another account.",
+        hint: "Each project's data can only be submitted by one account (1 Project 1 Person).",
+        code: "DUPLICATE_SESSION",
+      });
+    mocked.store.set("claudeDirs", [path.join(mocked.home, ".claude-work")]);
+    mocked.store.set("starConfirmed", true);
+
+    expect(await runSubmit({ nonInteractive: false })).toBe(1);
+
+    const text = logs.join("\n");
+    expect(text).toContain("These sessions have already been submitted by another account.");
+    expect(text).toContain(
+      "Each project's data can only be submitted by one account (1 Project 1 Person)."
+    );
+    expect(text).toContain(DUPLICATE_SESSION_ADVICE);
+    expect(text).not.toContain(COUNTING_NOTICE);
+    expect(mocked.store.has("countingNoticeShown")).toBe(false);
+  });
+
+  it("gives the folder advice only for sessions another account owns", async () => {
+    routes.submit = () =>
+      json(503, {
+        error: "Could not verify session ownership. Please try again.",
+        code: "HASH_LOOKUP_FAILED",
+      });
+    mocked.store.set("claudeDirs", [path.join(mocked.home, ".claude-work")]);
+    mocked.store.set("starConfirmed", true);
+
+    expect(await runSubmit()).toBe(1);
+    expect(errors[0]).not.toContain(DUPLICATE_SESSION_ADVICE);
+    expect(await runSubmit({ nonInteractive: false })).toBe(1);
+    expect(logs.join("\n")).not.toContain(DUPLICATE_SESSION_ADVICE);
   });
 
   it("leaves the Data folders advice out when no folder was added", async () => {
@@ -653,9 +697,7 @@ describe("submit({ nonInteractive: true })", () => {
       expect(mocked.prompt).not.toHaveBeenCalled();
       expect(mocked.store.get("claudeDirs")).toEqual([dir]);
       expect(mocked.store.get("declinedClaudeDirs")).toEqual([]);
-      expect(logs.join("\n")).toContain(
-        `Scheduled submits will also read ${dir} (CLAUDE_CONFIG_DIR).`
-      );
+      expect(logs.join("\n")).toContain(savedShellDirsNotice([dir]));
 
       vi.stubEnv("CLAUDE_CONFIG_DIR", "");
       mocked.store.delete("lastSync");
@@ -668,7 +710,7 @@ describe("submit({ nonInteractive: true })", () => {
       const dir = otherFolder();
       vi.stubEnv("CLAUDE_CONFIG_DIR", dir);
       mocked.store.set("starConfirmed", true);
-      const notice = `Scheduled submits will also read ${dir} (CLAUDE_CONFIG_DIR).`;
+      const notice = savedShellDirsNotice([dir]);
 
       expect(await runSubmit({ nonInteractive: false })).toBe(0);
       expect(await runSubmit({ nonInteractive: false })).toBe(0);
@@ -686,17 +728,14 @@ describe("submit({ nonInteractive: true })", () => {
 
       expect(await runSubmit({ nonInteractive: false })).toBe(0);
 
-      expect(logs).toContainEqual(
-        expect.stringContaining(
-          `Scheduled submits will also read ${first}, ${second} (CLAUDE_CONFIG_DIR).`
-        )
-      );
+      expect(logs).toContainEqual(expect.stringContaining(savedShellDirsNotice([first, second])));
     });
 
     it("says nothing about shell folders when there are none", async () => {
       mocked.store.set("starConfirmed", true);
       expect(await runSubmit({ nonInteractive: false })).toBe(0);
-      expect(logs.some((line) => line.includes("Scheduled submits will also read"))).toBe(false);
+      const tail = savedShellDirsNotice(["\u0000"]).split("\u0000")[1];
+      expect(logs.some((line) => line.includes(tail))).toBe(false);
     });
 
     it("a manual non-interactive submit saves a shell folder quietly, so scheduled runs match", async () => {
@@ -803,6 +842,15 @@ describe("submit({ nonInteractive: true })", () => {
 
     expect(await runSubmit({ nonInteractive: false })).toBe(0);
     expect(shown()).toBe(1);
+  });
+
+  it("only marks the counting notice as seen on a first submit, with nothing to compare", async () => {
+    mocked.store.set("starConfirmed", true);
+    mocked.store.delete("lastSync");
+
+    expect(await runSubmit({ nonInteractive: false })).toBe(0);
+    expect(logs.some((line) => line.includes(COUNTING_NOTICE))).toBe(false);
+    expect(mocked.store.get("countingNoticeShown")).toBe(true);
   });
 
   it("does not show the counting notice outside an interactive submit", async () => {

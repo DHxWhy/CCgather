@@ -157,6 +157,11 @@ export function saveShellClaudeDirs(
   return fromShell;
 }
 
+/** Said once saveShellClaudeDirs has saved these folders. */
+export function savedShellDirsNotice(dirs: string[]): string {
+  return `Saved ${dirs.join(", ")} from CLAUDE_CONFIG_DIR: every submit on this computer counts ${dirs.length === 1 ? "it" : "them"} now.`;
+}
+
 function subfoldersWithProjects(dir: string): string[] {
   try {
     return fs

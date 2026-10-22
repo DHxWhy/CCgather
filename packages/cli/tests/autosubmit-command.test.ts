@@ -56,6 +56,7 @@ import {
   Backend,
   ResolveDeps,
 } from "../src/lib/autosubmit/shared";
+import { savedShellDirsNotice } from "../src/lib/claude-dirs";
 
 const NODE = "/usr/bin/node";
 const NPX = "/usr/lib/node_modules/npm/bin/npx-cli.js";
@@ -203,10 +204,33 @@ describe("autosubmit on", () => {
       );
 
       expect(mocked.store.get("claudeDirs")).toEqual([dir]);
-      expect(logs.at(-1)).toBe(`  Scheduled submits will also read ${dir} (CLAUDE_CONFIG_DIR).`);
+      expect(logs.at(-1)).toBe(`  ${savedShellDirsNotice([dir])}`);
     } finally {
       vi.unstubAllEnvs();
       fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("names every shell folder it saves", async () => {
+    const fs = await import("fs");
+    const os = await import("os");
+    const path = await import("path");
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "ccgather-shell-dirs-"));
+    const [first, second] = [path.join(root, "a"), path.join(root, "b")];
+    for (const dir of [first, second])
+      fs.mkdirSync(path.join(dir, "projects"), { recursive: true });
+    vi.stubEnv("CLAUDE_CONFIG_DIR", `${first},${second}`);
+    try {
+      await autosubmitEnable(
+        {},
+        { backend: fakeBackend(), resolveDeps: fakeDeps(), now: AT_14_17, isTTY: false }
+      );
+
+      expect(mocked.store.get("claudeDirs")).toEqual([first, second]);
+      expect(logs.at(-1)).toBe(`  ${savedShellDirsNotice([first, second])}`);
+    } finally {
+      vi.unstubAllEnvs();
+      fs.rmSync(root, { recursive: true, force: true });
     }
   });
 
@@ -317,7 +341,7 @@ describe("autosubmit on", () => {
         );
 
         expect(mocked.store.get("claudeDirs")).toEqual([dir]);
-        expect(logs.at(-1)).toBe(`  Scheduled submits will also read ${dir} (CLAUDE_CONFIG_DIR).`);
+        expect(logs.at(-1)).toBe(`  ${savedShellDirsNotice([dir])}`);
       } finally {
         vi.unstubAllEnvs();
         fs.rmSync(dir, { recursive: true, force: true });

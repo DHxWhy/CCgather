@@ -3,7 +3,7 @@ import * as os from "os";
 import * as path from "path";
 import inquirer from "inquirer";
 import { getConfig, isAuthenticated } from "../lib/config.js";
-import { saveShellClaudeDirs } from "../lib/claude-dirs.js";
+import { saveShellClaudeDirs, savedShellDirsNotice } from "../lib/claude-dirs.js";
 import { reportAutosubmit } from "../lib/api.js";
 import type { CliConfig } from "../lib/config.js";
 import type Conf from "conf";
@@ -227,7 +227,7 @@ export async function autosubmitEnable(
   // The job does not get this shell's CLAUDE_CONFIG_DIR: save its folders so the job reads them
   const fromShell = saveShellClaudeDirs(config, process.env, os.homedir());
   if (fromShell.length > 0) {
-    lines.push(`  Scheduled submits will also read ${fromShell.join(", ")} (CLAUDE_CONFIG_DIR).`);
+    lines.push(`  ${savedShellDirsNotice(fromShell)}`);
   }
   for (const line of lines) console.log(line);
 
