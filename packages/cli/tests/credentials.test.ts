@@ -336,9 +336,15 @@ describe("API usage billing", () => {
     });
   });
 
-  it("in bare mode takes only ANTHROPIC_API_KEY, and never reads a login", () => {
+  it("in bare mode uses no login: only ANTHROPIC_AUTH_TOKEN or ANTHROPIC_API_KEY", () => {
     oauth("max", undefined, { scopes: ["user:inference"] });
     expect(creds({ CLAUDE_CODE_SIMPLE: "1", ANTHROPIC_API_KEY: KEY }).ccplan).toBe("api");
+    expect(creds({ CLAUDE_CODE_SIMPLE: "1", ANTHROPIC_AUTH_TOKEN: "t" })).toEqual({
+      ccplan: "api",
+      rateLimitTier: null,
+      authMethod: "api_key",
+      rawSubscriptionType: "ANTHROPIC_AUTH_TOKEN",
+    });
     expect(creds({ CLAUDE_CODE_SIMPLE: "1" })).toEqual({
       ccplan: null,
       rateLimitTier: null,
@@ -346,12 +352,35 @@ describe("API usage billing", () => {
       rawSubscriptionType: "bare_mode",
     });
     expect(creds({ CLAUDE_CODE_SIMPLE: "1", CLAUDE_CODE_USE_BEDROCK: "1" }).ccplan).toBe("bedrock");
+  });
 
-    // Neither the login file nor the Keychain is read: a gateway sign-in there does not apply
-    write(".claude/.credentials.json", { enterpriseGateway: { url: "https://gw.example" } });
-    expect(creds({ CLAUDE_CODE_SIMPLE: "1", ANTHROPIC_API_KEY: KEY }).ccplan).toBe("api");
+  it("reads the bare switch as Claude Code does, from settings env blocks too", () => {
+    oauth("max", undefined, { scopes: ["user:inference"] });
+    // A key never answered: outside bare mode the login wins
+    const key = { ANTHROPIC_API_KEY: KEY };
+    expect(creds(key).ccplan).toBe("max");
+    expect(creds({ ...key, CLAUDE_CODE_SIMPLE: "true" }).ccplan).toBe("api");
+    expect(creds({ ...key, CLAUDE_CODE_SIMPLE: "0" }).ccplan).toBe("max");
+
+    write(".claude/settings.json", { env: { CLAUDE_CODE_SIMPLE: "1" } });
+    expect(creds(key).ccplan).toBe("api");
+    write(".claude/settings.json", { env: { ANTHROPIC_API_KEY: KEY } });
+    expect(creds({ CLAUDE_CODE_SIMPLE: "1" }).ccplan).toBe("api");
+    fs.rmSync(path.join(home, ".claude/settings.json"));
+    write("managed/managed-settings.json", { env: { CLAUDE_CODE_SIMPLE: "1" } });
+    expect(creds(key).ccplan).toBe("api");
+  });
+
+  it("in bare mode still finds a gateway saved in the file, but reads no Keychain", () => {
+    write(".claude/.credentials.json", {
+      enterpriseGateway: { url: "https://gw.example", jwt: "j", expiresAt: Date.UTC(2100, 0, 1) },
+      gatewayTrust: { "gw.example": "sha256/AAAA" },
+    });
+    const env = { CLAUDE_CODE_SIMPLE: "1", ANTHROPIC_API_KEY: KEY };
+    expect(creds(env, { platform: "linux" }).rawSubscriptionType).toBe("enterprise_gateway");
+    expect(creds(env, { platform: "win32" }).rawSubscriptionType).toBe("enterprise_gateway");
     security.run.mockClear();
-    creds({ CLAUDE_CODE_SIMPLE: "1" }, { platform: "darwin" });
+    expect(creds(env, { platform: "darwin" }).ccplan).toBe("api");
     expect(security.run).not.toHaveBeenCalled();
   });
 
@@ -602,18 +631,75 @@ describe("subscriptions", () => {
     write("alt/settings.json", { env: { CLAUDE_CODE_USE_VERTEX: "1" } });
     expect(creds({ CLAUDE_CONFIG_DIR: dir }).ccplan).toBe("vertex");
   });
+});
 
-  it("reports nothing for an enterprise gateway sign-in, ahead of every provider", () => {
+describe("enterprise gateway", () => {
+  const GATEWAY = {
+    ccplan: null,
+    rateLimitTier: null,
+    authMethod: "unknown",
+    rawSubscriptionType: "enterprise_gateway",
+  };
+  const TRUSTED = { "gw.example": "sha256/AAAA" };
+  // A saved gateway sign-in next to a working login
+  const saved = (gateway: Record<string, unknown>, gatewayTrust?: unknown) =>
     write(".claude/.credentials.json", {
-      enterpriseGateway: { url: "https://gw.example" },
-      claudeAiOauth: { subscriptionType: "max" },
+      enterpriseGateway: {
+        url: "https://gw.example",
+        jwt: "j",
+        expiresAt: Date.UTC(2100, 0, 1),
+        ...gateway,
+      },
+      ...(gatewayTrust === undefined ? {} : { gatewayTrust }),
+      claudeAiOauth: { accessToken: "a", subscriptionType: "max", scopes: ["user:inference"] },
     });
-    expect(creds({ CLAUDE_CODE_USE_BEDROCK: "1" })).toEqual({
-      ccplan: null,
-      rateLimitTier: null,
-      authMethod: "unknown",
-      rawSubscriptionType: "enterprise_gateway",
+
+  it("reports nothing for a trusted saved sign-in, ahead of every provider", () => {
+    saved({}, TRUSTED);
+    expect(creds({ CLAUDE_CODE_USE_BEDROCK: "1" })).toEqual(GATEWAY);
+  });
+
+  it("skips a saved sign-in Claude Code would not restore", () => {
+    saved({});
+    expect(creds({}).ccplan).toBe("max");
+    saved({}, { "other.example": "sha256/AAAA" });
+    expect(creds({}).ccplan).toBe("max");
+    saved({}, { "gw.example": "" });
+    expect(creds({}).ccplan).toBe("max");
+    saved({ expiresAt: Date.UTC(2000, 0, 1) }, TRUSTED);
+    expect(creds({}).ccplan).toBe("max");
+    saved({ expiresAt: null }, TRUSTED);
+    expect(creds({}).ccplan).toBe("max");
+    saved({ url: "not a url" }, TRUSTED);
+    expect(creds({}).ccplan).toBe("max");
+  });
+
+  it("restores one that can refresh or has no expiry, and an IPv6 host without brackets", () => {
+    saved({ expiresAt: Date.UTC(2000, 0, 1), idpRefreshToken: "r" }, TRUSTED);
+    expect(creds({})).toEqual(GATEWAY);
+    saved({ expiresAt: undefined }, TRUSTED);
+    expect(creds({})).toEqual(GATEWAY);
+    saved({ url: "https://[::1]:8443" }, { "::1": "sha256/AAAA" });
+    expect(creds({})).toEqual(GATEWAY);
+  });
+
+  it("reports nothing for CLAUDE_CODE_USE_GATEWAY with a base URL and a token", () => {
+    const env = {
+      CLAUDE_CODE_USE_GATEWAY: "1",
+      ANTHROPIC_BASE_URL: "https://gw.example",
+      ANTHROPIC_AUTH_TOKEN: "t",
+    };
+    expect(creds(env)).toEqual(GATEWAY);
+    expect(creds({ ...env, CLAUDE_CODE_USE_BEDROCK: "1" })).toEqual(GATEWAY);
+    expect(creds({ ...env, CLAUDE_CODE_SIMPLE: "1" })).toEqual(GATEWAY);
+    // Without the URL, or with the switch off, the token is an API credential
+    expect(creds({ ...env, ANTHROPIC_BASE_URL: " " }).ccplan).toBe("api");
+    expect(creds({ ...env, CLAUDE_CODE_USE_GATEWAY: "0" }).ccplan).toBe("api");
+
+    write(".claude/settings.json", {
+      env: { CLAUDE_CODE_USE_GATEWAY: true, ANTHROPIC_BASE_URL: "https://gw.example" },
     });
+    expect(creds({ ANTHROPIC_AUTH_TOKEN: "t" })).toEqual(GATEWAY);
   });
 });
 

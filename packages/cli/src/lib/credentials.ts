@@ -171,6 +171,22 @@ function readSecureStorage(env: Env, file: string, platform: NodeJS.Platform): J
   return readJsonFile(file);
 }
 
+// Claude Code restores a saved gateway sign-in at start-up only for a host this machine trusts,
+// and not once it has expired without a refresh token (its Xmn()).
+function isSavedGatewaySignIn(stored: JsonObject | null): boolean {
+  const gateway = stored?.enterpriseGateway;
+  if (!isObject(gateway)) return false;
+  let host: string;
+  try {
+    host = new URL(String(gateway.url)).hostname.replace(/^\[|\]$/g, "");
+  } catch {
+    return false;
+  }
+  const trust = stored?.gatewayTrust;
+  if (!isObject(trust) || !trust[host]) return false;
+  return !(Number(gateway.expiresAt) <= Date.now() && !gateway.idpRefreshToken);
+}
+
 // A key saved by a Claude Console login: .claude.json's primaryApiKey, or on macOS the
 // Keychain item "Claude Code" (asked for without -w, so the key itself is never read).
 function hasStoredConsoleKey(
@@ -271,7 +287,8 @@ function subscription(oauth: JsonObject | null): CredentialsData {
 
 /**
  * The credential Claude Code would sign in with, in the order of its 2.1.308 build and the
- * documented precedence (code.claude.com/docs/en/authentication): an enterprise gateway, a
+ * documented precedence (code.claude.com/docs/en/authentication): an enterprise gateway
+ * (CLAUDE_CODE_USE_GATEWAY with a base URL and token, or a trusted saved sign-in), a
  * cloud provider, ANTHROPIC_AUTH_TOKEN, an approved ANTHROPIC_API_KEY, apiKeyHelper, a key
  * saved by a Claude Console login (unused while a subscription login or CLAUDE_CODE_OAUTH_TOKEN
  * can sign in), CLAUDE_CODE_OAUTH_TOKEN, an Anthropic profile or federation, then the /login
@@ -281,12 +298,14 @@ function subscription(oauth: JsonObject | null): CredentialsData {
  * numbers and booleans): .claude.json's legacy env, then the user's settings, then managed
  * settings files. A non-interactive `claude -p` also uses an ANTHROPIC_API_KEY the user rejected
  * or never answered; this reports the interactive choice (the subscription when there is a
- * login), which decides most usage. In bare mode (--bare, CLAUDE_CODE_SIMPLE) Anthropic auth is
- * only ANTHROPIC_API_KEY or an apiKeyHelper given with --settings, and no login is read.
+ * login), which decides most usage. In bare mode (--bare, CLAUDE_CODE_SIMPLE) no login, OAuth
+ * token or profile is used: Anthropic auth is ANTHROPIC_AUTH_TOKEN, ANTHROPIC_API_KEY or an
+ * apiKeyHelper given with --settings, while a gateway still applies (on macOS bare mode reads
+ * no Keychain, so a gateway saved there is not looked for).
  * Not read: MDM or registry policies, server-managed settings, project and local settings,
  * --settings and other flags, the Windows Credential Manager store, a custom OAuth URL's
- * separate login and credentials a remote host hands to Claude Code — those cases report what
- * the files say.
+ * separate login, credentials a remote host hands to Claude Code, and for a saved gateway the
+ * organization's gateway policy and the live TLS check — those cases report what the files say.
  */
 export function readCredentials(
   env: Env = process.env,
@@ -315,9 +334,15 @@ export function readCredentials(
   const setting = (key: string): unknown => settingsLayers.find((s) => s[key] !== undefined)?.[key];
 
   const bare = isTruthy(variable("CLAUDE_CODE_SIMPLE"));
-  const stored = bare ? null : readSecureStorage(env, paths.credentials, platform);
+  // Bare mode skips the Keychain; the file is still read at start-up for a gateway sign-in.
+  const stored =
+    bare && platform === "darwin" ? null : readSecureStorage(env, paths.credentials, platform);
+  const envGateway =
+    isTruthy(variable("CLAUDE_CODE_USE_GATEWAY")) &&
+    filled(variable("ANTHROPIC_BASE_URL")) !== null &&
+    filled(variable("ANTHROPIC_AUTH_TOKEN")) !== null;
   // No plan key describes a gateway sign-in; null keeps the plan the server has.
-  if (isObject(stored?.enterpriseGateway)) return unknown("enterprise_gateway");
+  if (envGateway || isSavedGatewaySignIn(stored)) return unknown("enterprise_gateway");
   // A saved login without an access token is not one Claude Code can use.
   const login = stored?.claudeAiOauth;
   const oauth = isObject(login) && filled(login.accessToken) ? login : null;
@@ -335,13 +360,13 @@ export function readCredentials(
     };
   }
 
+  if (filled(variable("ANTHROPIC_AUTH_TOKEN"))) return apiBilling("ANTHROPIC_AUTH_TOKEN");
+
   if (bare) {
     return filled(variable("ANTHROPIC_API_KEY"))
       ? apiBilling("ANTHROPIC_API_KEY")
       : unknown("bare_mode");
   }
-
-  if (filled(variable("ANTHROPIC_AUTH_TOKEN"))) return apiBilling("ANTHROPIC_AUTH_TOKEN");
 
   const apiKey = filled(variable("ANTHROPIC_API_KEY"));
   const answer = apiKey ? apiKeyAnswer(apiKey, globalConfig) : null;
