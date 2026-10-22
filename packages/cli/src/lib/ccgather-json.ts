@@ -407,27 +407,28 @@ function identifyTranscript(filePath: string): TranscriptIdentity | null {
 interface TranscriptFile {
   filePath: string;
   sessionId: string | null;
+  owner: string; // the copy that stands for this transcript (the file itself when it does)
 }
 
 /**
- * Deduplicate jsonl files that hold the same transcript.
- * Handles cases where the same project was accessed from different OS paths
- * (e.g., Windows WSL /mnt/c/... → Ubuntu /home/...) and session files
- * were copied between directories (possibly with filename changes like
- * abc.de.jsonl → abc-de.jsonl).
+ * Every transcript file, in the order given, marking the one copy that stands for each
+ * transcript: the same session found under two paths (a Windows WSL /mnt/c/... path and
+ * /home/..., say) or copied between folders, possibly renamed (abc.de.jsonl → abc-de.jsonl).
  */
-function deduplicateJsonlFiles(files: string[]): TranscriptFile[] {
-  // Map transcript key → file. Transcripts only grow, so the largest copy is the most
-  // complete (a backup folder can hold a newer but partial copy); then the newest.
-  const transcriptMap = new Map<string, TranscriptFile & { size: number; mtimeMs: number }>();
-  const noIdFiles: TranscriptFile[] = [];
-
-  for (const filePath of files) {
+function markTranscriptCopies(files: string[]): TranscriptFile[] {
+  // Transcripts only grow, so the largest copy is the most complete (a backup folder can hold
+  // a newer but partial copy); then the newest; then the first.
+  const standing = new Map<string, { filePath: string; size: number; mtimeMs: number }>();
+  const keys = new Map<TranscriptFile, string>();
+  const marked = files.map((filePath) => {
     const identity = identifyTranscript(filePath);
-    if (!identity) {
-      noIdFiles.push({ filePath, sessionId: null });
-      continue;
-    }
+    const file: TranscriptFile = {
+      filePath,
+      sessionId: identity?.sessionId ?? null,
+      owner: filePath,
+    };
+    if (!identity) return file;
+    keys.set(file, identity.key);
 
     let size = 0;
     let mtimeMs = 0;
@@ -437,20 +438,18 @@ function deduplicateJsonlFiles(files: string[]): TranscriptFile[] {
       // If stat fails, treat as empty and oldest
     }
 
-    const existing = transcriptMap.get(identity.key);
+    const existing = standing.get(identity.key);
     if (
       !existing ||
       size > existing.size ||
       (size === existing.size && mtimeMs > existing.mtimeMs)
     ) {
-      transcriptMap.set(identity.key, { filePath, sessionId: identity.sessionId, size, mtimeMs });
+      standing.set(identity.key, { filePath, size, mtimeMs });
     }
-  }
-
-  return [
-    ...Array.from(transcriptMap.values(), ({ filePath, sessionId }) => ({ filePath, sessionId })),
-    ...noIdFiles,
-  ];
+    return file;
+  });
+  for (const [file, key] of keys) file.owner = standing.get(key)?.filePath ?? file.filePath;
+  return marked;
 }
 
 /** Raw lines at the top of a transcript that make its session hash. */
@@ -1112,11 +1111,9 @@ export function scanAllProjects(options: ScanOptions = {}): CCGatherData | null 
       continue;
     }
   }
-  // One copy of each transcript is kept, and read at its own place in path order
-  const allJsonlFiles = sortByPath(
-    deduplicateJsonlFiles(sortByPath(rawJsonlFiles, (file) => file)),
-    (file) => file.filePath
-  );
+  // Every copy is read in path order, as ccusage reads them, and the accumulator drops a line
+  // it has seen. The copy that stands for a transcript gives its session and fingerprint.
+  const allJsonlFiles = markTranscriptCopies(sortByPath(rawJsonlFiles, (file) => file));
   const sessionHashes: string[] = [];
 
   if (allJsonlFiles.length === 0) {
@@ -1132,9 +1129,12 @@ export function scanAllProjects(options: ScanOptions = {}): CCGatherData | null 
   const { onProgress } = options;
 
   for (let i = 0; i < allJsonlFiles.length; i++) {
-    const { filePath } = allJsonlFiles[i];
-    const sessionKey = sessionKeyOf(allJsonlFiles[i]);
-    const projectName = extractProjectName(filePath);
+    const file = allJsonlFiles[i];
+    const { filePath } = file;
+    const stands = file.owner === filePath;
+    const sessionKey = sessionKeyOf(file);
+    // A copy's usage goes to the project of the copy that stands for it
+    const projectName = extractProjectName(file.owner);
     projectSessions[projectName] ??= new Set();
     let hasUsage = false;
 
@@ -1154,12 +1154,12 @@ export function scanAllProjects(options: ScanOptions = {}): CCGatherData | null 
           }
         },
       });
-      sessionHashes.push(hashSessionLines(filePath, rawHead));
+      if (stands) sessionHashes.push(hashSessionLines(filePath, rawHead));
     } catch {
       // Skip unreadable files
     }
 
-    if (allJsonlFiles[i].sessionId || hasUsage) {
+    if (stands && (file.sessionId || hasUsage)) {
       countedSessions.add(sessionKey);
       projectSessions[projectName].add(sessionKey);
     }

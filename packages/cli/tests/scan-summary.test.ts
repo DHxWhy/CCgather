@@ -299,6 +299,104 @@ describe("files read in path order, as ccusage does", () => {
   });
 });
 
+// Every file is read in path order, copies included, as ccusage reads them; the expected
+// values are ccusage 20.0.37's on the same files
+describe("path order and copies, as ccusage", () => {
+  const P = { input: 3, output: 100, cacheRead: 20_000 }; // 20,103
+  const parentIn = (session: string) =>
+    JSON.stringify({
+      ...JSON.parse(usageLine("p", "claude-opus-4-8", "2026-10-01T10:00:00.000Z", P)),
+      sessionId: session,
+    });
+  const replay = JSON.stringify({
+    ...JSON.parse(
+      usageLine("p", "claude-opus-4-8", "2026-10-02T08:00:00.000Z", {
+        input: 3,
+        output: 100,
+        cacheRead: 30_000,
+      })
+    ),
+    sessionId: "sA",
+    requestId: "req_replay",
+    isSidechain: true,
+  }); // 30,103
+  const other = usageLine("q", "claude-sonnet-4-6", "2026-10-01T11:00:00.000Z", {
+    input: 1000,
+    output: 1,
+  }); // 1,001
+  const head = (session: string) =>
+    JSON.stringify({ type: "queue-operation", operation: "enqueue", sessionId: session });
+  const aside = JSON.stringify({
+    type: "user",
+    isSidechain: true,
+    agentId: "aside_question-1",
+    sessionId: "sA",
+    message: { role: "user", content: "task" },
+  });
+  const at = (seconds: number) => new Date(Date.UTC(2026, 8, 21) + seconds * 1000);
+  const write = (root: string, file: string, lines: string[], seconds = 0): void => {
+    const target = path.join(root, file);
+    fs.mkdirSync(path.dirname(target), { recursive: true });
+    fs.writeFileSync(target, lines.join("\n") + "\n");
+    fs.utimesSync(target, at(seconds), at(seconds));
+  };
+  const days = () => scanAllProjects()?.dailyUsage.map((d) => [d.date, d.tokens]);
+
+  it("reads files by their path bytes, so B.jsonl comes before a.jsonl", () => {
+    const line = (session: string, ts: string) =>
+      JSON.stringify({
+        ...JSON.parse(usageLine("x", "claude-opus-4-8", ts, { input: 3, output: 5 })),
+        sessionId: session,
+      });
+    write(configDir, "projects/p/B.jsonl", [line("s1", "2026-10-01T10:00:00.000Z")]);
+    write(configDir, "projects/p/a.jsonl", [line("s2", "2026-10-02T10:00:00.000Z")]);
+    expect(days()).toEqual([["2026-10-01", 8]]);
+  });
+
+  it("reads an older copy where it sits, before the replay it answers (Y70)", () => {
+    write(configDir, "projects/pa/sA.jsonl", [head("sA"), parentIn("sA")]);
+    write(configDir, "projects/pa/sA/subagents/agent-aside_question-1.jsonl", [aside, replay]);
+    write(configDir, "projects/pb/sB.jsonl", [head("sB"), parentIn("sB")]);
+    write(configDir, "projects/pz/sA.jsonl", [head("sA"), parentIn("sA")], 60);
+    expect(days()).toEqual([["2026-10-01", 20_103]]);
+  });
+
+  it("reads a backup folder that sorts first (Y72)", () => {
+    const bak = path.join(configDir, "c", ".claude-bak");
+    const live = path.join(configDir, "c", ".claude");
+    write(bak, "projects/p/sA.jsonl", [head("sA"), parentIn("sA")], 100);
+    write(bak, "projects/p/sA/subagents/agent-aside_question-1.jsonl", [aside, replay], 100);
+    write(bak, "projects/p/sB.jsonl", [head("sB"), parentIn("sB")], 100);
+    write(live, "projects/p/sA.jsonl", [head("sA"), parentIn("sA"), other], 200);
+    write(live, "projects/p/sA/subagents/agent-aside_question-1.jsonl", [aside, replay]);
+    write(live, "projects/p/sB.jsonl", [head("sB"), parentIn("sB")]);
+    vi.stubEnv("CLAUDE_CONFIG_DIR", `${bak},${live}`);
+    expect(days()).toEqual([["2026-10-01", 21_104]]);
+  });
+
+  it("counts a replay read before the only copy that holds its parent, as ccusage (Y73)", () => {
+    write(configDir, "projects/pa/sA.jsonl", [head("sA"), other]);
+    write(configDir, "projects/pa/sA/subagents/agent-aside_question-1.jsonl", [aside, replay]);
+    write(configDir, "projects/pb/sB.jsonl", [head("sB"), parentIn("sB")]);
+    write(configDir, "projects/pz/sA.jsonl", [head("sA"), other, parentIn("sA")]);
+    expect(days()).toEqual([
+      ["2026-10-01", 21_104],
+      ["2026-10-02", 30_103],
+    ]);
+  });
+
+  it("lets the first of two equal copies stand for the session and project", () => {
+    // pr-old/ sorts before pr/: "-" is below "/"
+    for (const folder of ["pr", "pr-old"]) {
+      write(configDir, `projects/${folder}/sA.jsonl`, [head("sA"), parentIn("sA")]);
+    }
+    const data = scanAllProjects();
+    expect(Object.keys(data?.projects ?? {})).toEqual(["pr-old"]);
+    expect(data?.projects["pr-old"]?.tokens).toBe(20_103);
+    expect(data?.stats.sessionsCount).toBe(1);
+  });
+});
+
 describe("first and last day", () => {
   it("reports the first day from the days that hold usage, not from a line that moved", () => {
     const parent = { input: 3, output: 100 };
