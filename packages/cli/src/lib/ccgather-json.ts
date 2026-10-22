@@ -296,9 +296,9 @@ function getCurrentProjectDir(): string | null {
 }
 
 // ccusage reads files in path order, by bytes, each path's key made once (sort_by_cached_key):
-// a session's transcript (s1.jsonl) comes before its subagents/ folder (s1/), so a /btw replay
-// never arrives ahead of the message it copies. Data folders are compared as resolved paths
-// (ccusage sorts the strings it is given), which differs only for spellings such as a/../b.
+// a session's transcript (s1.jsonl) comes before its subagents/ folder (s1/). Data folders are
+// compared as resolved paths (ccusage sorts the strings it is given), which differs only for
+// spellings such as a/../b or a relative CLAUDE_CONFIG_DIR.
 function sortByPath<T>(items: T[], pathOf: (item: T) => string): T[] {
   return items
     .map((item) => ({ item, key: Buffer.from(pathOf(item)) }))
@@ -333,7 +333,8 @@ function findJsonlFiles(dir: string): string[] {
  * <session>, anything else is the folder the file sits in.
  */
 function pathSessionId(filePath: string): string {
-  const parts = filePath.split(/[/\\]/);
+  // Only Windows reads a backslash as a separator, as Rust's Path does
+  const parts = filePath.split(process.platform === "win32" ? /[/\\]/ : "/");
   const index = parts.indexOf("projects");
   const relative = index >= 0 ? parts.slice(index + 1) : parts;
   const name = relative[relative.length - 1] ?? "";
@@ -435,7 +436,8 @@ interface TranscriptFile {
  */
 function markTranscriptCopies(files: string[]): TranscriptFile[] {
   // Transcripts only grow, so the largest copy is the most complete (a backup folder can hold
-  // a newer but partial copy); then the newest; then the first.
+  // a newer but partial copy); then the newest; then the first. CLI 2.3.2 kept the newest, so a
+  // session whose newest copy is partial now hashes into the fingerprint differently.
   const standing = new Map<string, { filePath: string; size: number; mtimeMs: number }>();
   const keys = new Map<TranscriptFile, string>();
   const marked = files.map((filePath) => {
@@ -1113,10 +1115,9 @@ export function scanAllProjects(options: ScanOptions = {}): CCGatherData | null 
   // Default: 0 = no limit for all-time data
   const acc = createUsageAccumulator({ cutoff: cutoffFor(options.days ?? 0) });
 
-  // Collect all JSONL files from all project directories, deduplicating copies of the
-  // same transcript. This handles cases where the same project was accessed from
-  // different OS paths (e.g., Windows WSL /mnt/c/... → Ubuntu /home/...) and session
-  // files were copied.
+  // Every transcript file under each project folder. Copies of one transcript (a project
+  // reached through two OS paths, Windows WSL /mnt/c/... and /home/..., or files copied
+  // between folders) are all read; markTranscriptCopies picks the one that stands for it.
   const rawJsonlFiles: string[] = [];
   for (const projectsDir of projectsDirs) {
     try {

@@ -401,7 +401,7 @@ describe("path order and copies, as ccusage", () => {
 // copy under the same name is the same session); the expected values are ccusage 20.0.37's.
 describe("lines without a sessionId", () => {
   const summary = JSON.stringify({ type: "summary", summary: "t", leafUuid: "u1" });
-  const bare = (id: string) =>
+  const bare = (id: string, output = 100) =>
     JSON.stringify({
       type: "assistant",
       timestamp: "2026-10-01T10:00:00.000Z",
@@ -409,13 +409,13 @@ describe("lines without a sessionId", () => {
         model: "claude-opus-4-8",
         usage: {
           input_tokens: 3,
-          output_tokens: 100,
+          output_tokens: output,
           cache_creation_input_tokens: 0,
           cache_read_input_tokens: 1000,
         },
         id,
       },
-    }); // 1,103
+    }); // 1,103 with the default output
   const write = (file: string, lines: string[], seconds = 0): void => {
     const target = path.join(configDir, "projects", file);
     fs.mkdirSync(path.dirname(target), { recursive: true });
@@ -442,6 +442,34 @@ describe("lines without a sessionId", () => {
     write("pa/s1/subagents/agent-a.jsonl", [summary, bare("msg_1")]);
     expect(days()).toEqual([["2026-10-01", 1_103, 1]]);
   });
+
+  it("takes the folder a deeper file sits in, so a reused gateway id counts per folder (D3)", () => {
+    // ccusage's keeps_gateway_daily_usage_from_distinct_sessions_with_reused_message_id
+    write("p/session-a/chat.jsonl", [bare("ocgo")]);
+    write("p/session-b/chat.jsonl", [bare("ocgo", 1)]);
+    expect(days()).toEqual([["2026-10-01", 2_107, 2]]);
+  });
+
+  it("goes by the first folder named projects, as ccusage does (PT2)", () => {
+    const data = path.join(configDir, "projects", "cfg");
+    for (const name of ["s1", "s2"]) {
+      const target = path.join(data, "projects", "pa", `${name}.jsonl`);
+      fs.mkdirSync(path.dirname(target), { recursive: true });
+      fs.writeFileSync(target, [summary, bare("msg_1")].join("\n") + "\n");
+    }
+    vi.stubEnv("CLAUDE_CONFIG_DIR", data);
+    expect(days()).toEqual([["2026-10-01", 1_103, 1]]);
+  });
+
+  it.skipIf(process.platform === "win32")(
+    "keeps a backslash in a file name as part of the name off Windows (BS1)",
+    () => {
+      // Same content, so one transcript copied: one session, but two path sessions in ccusage
+      write("p/a\\b.jsonl", [summary, bare("msg_1")]);
+      write("p/a.jsonl", [summary, bare("msg_1")]);
+      expect(days()).toEqual([["2026-10-01", 2_206, 1]]);
+    }
+  );
 
   it("does the same in a one-project scan", () => {
     write("pa/s1.jsonl", [summary, bare("msg_1")]);

@@ -21,6 +21,10 @@
  *   per-model split still adds up to its totals.
  * - A cache_creation array is not a breakdown here (ccusage reads [5m, 1h] from it); the line
  *   is dropped.
+ * - What the scans read (ccgather-json.ts): only files inside a project folder (ccusage also
+ *   reads a file right under projects/), a file named just ".jsonl" (ccusage skips it), and no
+ *   file whose name is not valid UTF-8. Paths are resolved before sorting and before a line's
+ *   session is taken from them; ccusage uses the folder strings it is given.
  */
 
 export interface TokenSplit {
@@ -39,7 +43,7 @@ export interface UsageBucket extends TokenSplit {
   tokens: number; // input + output + cache write + cache read
   models: Record<string, number>;
   modelTokens: Record<string, ModelSplit>;
-  sessions: Set<string>; // transcript files that contributed
+  sessions: Set<string>; // the scan's session keys that contributed
 }
 
 export interface AccumulatedUsage {
@@ -49,7 +53,7 @@ export interface AccumulatedUsage {
 }
 
 export interface UsageContext {
-  sessionKey: string; // the transcript file, or its session when the scan knows it
+  sessionKey: string; // what the scan counts the file's session as (its sessionId, or a file)
   projectName: string;
   pathSessionId?: string; // ccusage's session for a line without one, from the file's path
 }
