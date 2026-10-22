@@ -307,7 +307,8 @@ function sortByPath<T>(items: T[], pathOf: (item: T) => string): T[] {
 }
 
 /**
- * Recursively find all .jsonl files
+ * Recursively find all .jsonl files. Links are not followed, as in ccusage: a linked file can
+ * be a second path to a transcript that is read anyway.
  */
 function findJsonlFiles(dir: string): string[] {
   const files: string[] = [];
@@ -317,7 +318,7 @@ function findJsonlFiles(dir: string): string[] {
       const fullPath = path.join(dir, entry.name);
       if (entry.isDirectory()) {
         files.push(...findJsonlFiles(fullPath));
-      } else if (entry.name.endsWith(".jsonl")) {
+      } else if (entry.isFile() && entry.name.endsWith(".jsonl")) {
         files.push(fullPath);
       }
     }

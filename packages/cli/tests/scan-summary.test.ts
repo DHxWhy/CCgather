@@ -73,6 +73,12 @@ function writeTranscript(project: string, file: string, lines: string[]): string
 beforeEach(() => {
   mocked.home = fs.mkdtempSync(path.join(os.tmpdir(), "ccgather-summary-home-"));
   configDir = fs.mkdtempSync(path.join(os.tmpdir(), "ccgather-summary-"));
+  // Sessions and projects are read below the first folder named projects in a path
+  if (configDir.split(path.sep).includes("projects")) {
+    throw new Error(
+      `these tests need a temp folder outside any folder named projects: ${configDir}`
+    );
+  }
   vi.stubEnv("CLAUDE_CONFIG_DIR", configDir);
   vi.stubEnv("APPDATA", "");
   vi.stubEnv("XDG_CONFIG_HOME", "");
@@ -471,6 +477,18 @@ describe("lines without a sessionId", () => {
     }
   );
 
+  it("reads a backslash as a separator on Windows, as Rust's Path does there", () => {
+    const platform = Object.getOwnPropertyDescriptor(process, "platform");
+    Object.defineProperty(process, "platform", { value: "win32" });
+    try {
+      write("p/a\\b.jsonl", [summary, bare("msg_1")]);
+      write("p/a.jsonl", [summary, bare("msg_1")]);
+      expect(days()).toEqual([["2026-10-01", 1_103, 1]]);
+    } finally {
+      if (platform) Object.defineProperty(process, "platform", platform);
+    }
+  });
+
   it("does the same in a one-project scan", () => {
     write("pa/s1.jsonl", [summary, bare("msg_1")]);
     write("pa/s1/subagents/agent-a.jsonl", [summary, bare("msg_1")]);
@@ -512,6 +530,58 @@ describe("lines without a sessionId", () => {
     write("pa/t.jsonl", [summary, first]);
     write("pz/t.jsonl", [summary, first, second], 60);
     expect(days()).toEqual([["2026-10-01", 3_158, 1]]);
+  });
+});
+
+// What the scan reads: the expected values are ccusage 20.0.37's, but for the one difference noted
+describe("files the scan reads", () => {
+  const usage = (id: string, output: number, session?: string) =>
+    JSON.stringify({
+      type: "assistant",
+      ...(session ? { sessionId: session } : {}),
+      timestamp: "2026-10-01T10:00:00.000Z",
+      message: {
+        model: "claude-opus-4-8",
+        usage: {
+          input_tokens: 3,
+          output_tokens: output,
+          cache_creation_input_tokens: 0,
+          cache_read_input_tokens: 1000,
+        },
+        id,
+      },
+    });
+  const write = (file: string, line: string) => {
+    const target = path.join(configDir, file);
+    fs.mkdirSync(path.dirname(target), { recursive: true });
+    fs.writeFileSync(target, line + "\n");
+  };
+  const link = (file: string, target: string) => {
+    const at = path.join(configDir, file);
+    fs.mkdirSync(path.dirname(at), { recursive: true });
+    fs.symlinkSync(target, at);
+  };
+  const days = () => scanAllProjects()?.dailyUsage.map((d) => [d.date, d.tokens]);
+
+  beforeEach(() => {
+    write("projects/p/s.jsonl", usage("msg_1", 100, "s")); // 1,103
+  });
+
+  it("does not follow a linked file to another transcript (L6)", () => {
+    write("projects/q/s2.jsonl", usage("msg_l6", 7)); // 1,010
+    link("projects/p/link.jsonl", "../q/s2.jsonl");
+    expect(days()).toEqual([["2026-10-01", 2_113]]);
+  });
+
+  it("does not follow a linked file out of the data folder (L1)", () => {
+    write("store/x.jsonl", usage("msg_l1", 7, "sL1"));
+    link("projects/p/link.jsonl", "../../store/x.jsonl");
+    expect(days()).toEqual([["2026-10-01", 1_103]]);
+  });
+
+  it("skips a project folder whose name starts with a dot (ccusage reads it: 2,113)", () => {
+    write("projects/.hp/a.jsonl", usage("msg_h1", 7, "sH1"));
+    expect(days()).toEqual([["2026-10-01", 1_103]]);
   });
 });
 
