@@ -139,7 +139,7 @@ interface SubmitResponse {
 
 /** Shown once, after the first interactive submit with this version. */
 export const COUNTING_NOTICE =
-  "This version counts usage the way ccusage does: your token total can rise a little and your cost more (1-hour cache writes, fast mode). Details: What's new on ccgather.com.";
+  "This version counts usage the way ccusage does: your token total can rise a little and your cost more (output counted in full, 1-hour cache writes, fast mode). Details: What's new on ccgather.com.";
 
 /** Added to a refused submit when another account owns sessions and extra folders are read. */
 export const DUPLICATE_SESSION_ADVICE =
