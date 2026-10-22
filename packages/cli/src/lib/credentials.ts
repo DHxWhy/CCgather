@@ -375,11 +375,15 @@ export function readCredentials(
   // Last applied first: managed drop-ins, managed, the user's settings, .claude.json's env.
   const settingsLayers = [...managed].reverse().concat(userSettings ?? {});
   const envOf = (s: JsonObject | null): JsonObject => (isObject(s?.env) ? s.env : {});
+  // The managed files' env blocks are merged first, a later drop-in's value replacing an
+  // earlier one, and applied as one layer.
+  const managedEnv: JsonObject = Object.create(null);
+  for (const layer of managed.map(envOf)) Object.assign(managedEnv, layer);
   const variable = (name: string): string | undefined => {
     // A settings file's env schema turns any value into text (null is "null") and it replaces
     // what lies below; .claude.json's legacy env keeps only strings, numbers and booleans. A
-    // value holding a NUL character is dropped, so the layer below shows through.
-    for (const layer of settingsLayers.map(envOf)) {
+    // value holding a NUL character is dropped after the merge, so the layer below shows.
+    for (const layer of [managedEnv, envOf(userSettings)]) {
       if (!Object.hasOwn(layer, name)) continue;
       const value = String(layer[name]);
       if (!value.includes("\u0000")) return value;

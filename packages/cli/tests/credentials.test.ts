@@ -207,6 +207,9 @@ describe("settings env blocks replace the shell's variables", () => {
     withBom(".claude.json", { customApiKeyResponses: { approved: [TAIL], rejected: [] } });
     oauth("max", undefined, { scopes: ["user:inference"] });
     expect(creds({ ANTHROPIC_API_KEY: KEY }).ccplan).toBe("api");
+    fs.rmSync(path.join(home, ".claude/.credentials.json"));
+    withBom(".claude.json", { primaryApiKey: "sk-ant-api03-saved" });
+    expect(creds({}).rawSubscriptionType).toBe("console_login");
 
     fs.rmSync(path.join(home, ".claude.json"));
     withBom(".claude/.credentials.json", {
@@ -225,9 +228,32 @@ describe("settings env blocks replace the shell's variables", () => {
     expect(creds({}).ccplan).toBe("max");
     write(".claude/settings.json", { env: { CLAUDE_CODE_USE_VERTEX: "0\u0000" } });
     expect(creds({ CLAUDE_CODE_USE_VERTEX: "1" }).ccplan).toBe("vertex");
+    write(".claude.json", { env: { CLAUDE_CODE_USE_VERTEX: "1" } });
+    expect(creds({}).ccplan).toBe("vertex");
     write(".claude/settings.json", {});
     write(".claude.json", { env: { ANTHROPIC_AUTH_TOKEN: "t\u0000" } });
     expect(creds({}).ccplan).toBe("max");
+  });
+
+  it("merges the managed files' env before dropping a NUL value, so the user's layer shows", () => {
+    oauth("max", undefined, { scopes: ["user:inference"] });
+    write("managed/managed-settings.json", { env: { CLAUDE_CODE_USE_VERTEX: "1" } });
+    write("managed/managed-settings.d/50-off.json", { env: { CLAUDE_CODE_USE_VERTEX: "0\u0000" } });
+    expect(creds({}).ccplan).toBe("max");
+    write("managed/managed-settings.json", { env: { ANTHROPIC_AUTH_TOKEN: "t" } });
+    write("managed/managed-settings.d/50-off.json", { env: { ANTHROPIC_AUTH_TOKEN: "u\u0000" } });
+    expect(creds({}).ccplan).toBe("max");
+  });
+
+  it("keeps the rest of a managed file whose env or apiKeyHelper is wrong", () => {
+    oauth("max", undefined, { scopes: ["user:inference"] });
+    write("managed/managed-settings.json", { env: ["x"], forceLoginMethod: "gateway" });
+    expect(creds({}).rawSubscriptionType).toBe("enterprise_gateway");
+    write("managed/managed-settings.json", {
+      apiKeyHelper: 123,
+      env: { CLAUDE_CODE_USE_VERTEX: "1" },
+    });
+    expect(creds({}).ccplan).toBe("vertex");
   });
 
   it("skips a user settings file whose env or apiKeyHelper Claude Code's schema rejects", () => {
