@@ -16,6 +16,14 @@ export const CHANGELOG_CATEGORY = {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    id: "2026-10-22-cli-ccusage-counting",
+    date: "2026-10-22",
+    category: "improved",
+    title: "CLI v2.3.3 counts usage like ccusage and prices it at Anthropic's rates",
+    summary:
+      "After you update, your totals may change, and this is why. Claude Code writes one response as several lines and fills in the real output count only on the last; the CLI now counts each response once, at its largest line, as ccusage does, and adds advisor-model usage. Your token total can rise a little and your cost more, because what was missing was output, the priciest kind of token. Cache writes to the 1-hour cache also cost twice the input rate (not 1.25x) and fast-mode requests cost more; the CLI now tells the server which ones they were, so your cost follows Anthropic's prices and can go up noticeably. A day that mixes models is priced as the sum of each model's own cost, as in ccusage. The CLI also reads every Claude Code data folder on your computer, such as another account's CLAUDE_CONFIG_DIR, and asks once before counting one it found on disk (a session found twice counts once; Settings > Data folders asks again). Your plan badge follows how Claude Code signs you in, with its own names: API keys, Console logins and cloud providers show as such, never as Team, and signing in through an enterprise gateway leaves your badge as it is. Auto-submit jobs set up with v2.3.2 pick up the new release on their next run.",
+  },
+  {
     id: "2026-10-21-feedback-replies-in-notifications",
     date: "2026-10-21",
     category: "fixed",
