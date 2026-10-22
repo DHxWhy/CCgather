@@ -138,6 +138,12 @@ describe("resolveClaudeConfigDirs", () => {
     expect(findCandidateClaudeDirs({}, home, {}, "linux")).toEqual([]);
   });
 
+  it("lists each place once when XDG_CONFIG_HOME is ~/.config", () => {
+    expect(
+      claudeConfigDirCandidates({ XDG_CONFIG_HOME: path.join(home, ".config") }, home, {}, "linux")
+    ).toEqual([path.join(home, ".config", "claude"), path.join(home, ".claude")]);
+  });
+
   it("lists every place it looked, for the no-sessions report", () => {
     expect(claudeConfigDirCandidates({ CLAUDE_CONFIG_DIR: "~/x" }, home, {}, "linux")).toEqual([
       path.join(home, "x"),
@@ -168,6 +174,13 @@ describe("findCandidateClaudeDirs", () => {
     ).toEqual([configAlt, xdgWork].sort());
   });
 
+  it("offers a ~/.claude* link to a data folder elsewhere", () => {
+    const real = dataDir("elsewhere/acct");
+    const link = path.join(home, ".claude-acct");
+    fs.symlinkSync(real, link);
+    expect(findCandidateClaudeDirs({}, home, {}, "linux")).toEqual([link]);
+  });
+
   it("does not offer a folder that is already read", () => {
     const work = dataDir(".claude-work");
     expect(findCandidateClaudeDirs({ CLAUDE_CONFIG_DIR: work }, home, {}, "linux")).toEqual([]);
@@ -176,15 +189,15 @@ describe("findCandidateClaudeDirs", () => {
 });
 
 describe("shellOnlyClaudeDirs", () => {
-  it("lists folders only the shell's CLAUDE_CONFIG_DIR reaches, unless saved or declined", () => {
+  it("lists folders only the shell's CLAUDE_CONFIG_DIR reaches, unless already saved", () => {
     const legacy = dataDir(".claude");
     const a = dataDir("work-a");
     const b = dataDir("work-b");
     const env = { CLAUDE_CONFIG_DIR: `${a},${b}` };
     expect(shellOnlyClaudeDirs(env, home, {}, "linux")).toEqual([a, b]);
-    expect(
-      shellOnlyClaudeDirs(env, home, { claudeDirs: [a], declinedClaudeDirs: [b] }, "linux")
-    ).toEqual([]);
+    expect(shellOnlyClaudeDirs(env, home, { claudeDirs: [a] }, "linux")).toEqual([b]);
+    // The variable outranks an earlier "no" to the same folder found on disk
+    expect(shellOnlyClaudeDirs(env, home, { declinedClaudeDirs: [b] }, "linux")).toEqual([a, b]);
     expect(shellOnlyClaudeDirs({ CLAUDE_CONFIG_DIR: legacy }, home, {}, "linux")).toEqual([]);
     expect(shellOnlyClaudeDirs({}, home, {}, "linux")).toEqual([]);
   });
@@ -224,6 +237,35 @@ describe("scanAllProjects over several folders", () => {
     expect(both?.dailyUsage[0]?.modelTokens?.["claude-opus-4-8"]?.outputTokens).toBe(534);
     expect(both?.stats.sessionsCount).toBe(single?.stats.sessionsCount);
     expect(both?.sessionFingerprint?.sessionCount).toBe(single?.sessionFingerprint?.sessionCount);
+  });
+
+  it("keeps the newer of two same-size copies, whatever order the folders come in", () => {
+    const content = fs.readFileSync(path.join(FIXTURE, "A", "projects", "projA", "s1.jsonl"));
+    const a = dataDir("a");
+    const b = dataDir("b");
+    const copyA = path.join(a, "projects", "x", "sR.de.jsonl");
+    const copyB = path.join(b, "projects", "y", "sR-de.jsonl");
+    for (const file of [copyA, copyB]) {
+      fs.mkdirSync(path.dirname(file), { recursive: true });
+      fs.writeFileSync(file, content);
+    }
+    const at = (seconds: number) => new Date(Date.UTC(2026, 9, 1) + seconds * 1000);
+    const fingerprint = (dirs: string[]) => {
+      vi.stubEnv("CLAUDE_CONFIG_DIR", dirs.join(","));
+      return scanAllProjects()?.sessionFingerprint?.combinedHash;
+    };
+
+    fs.utimesSync(copyA, at(0), at(0));
+    fs.utimesSync(copyB, at(60), at(60));
+    const onlyB = fingerprint([b]);
+    expect(fingerprint([a, b])).toBe(onlyB);
+    expect(fingerprint([b, a])).toBe(onlyB);
+
+    fs.utimesSync(copyA, at(120), at(120));
+    const onlyA = fingerprint([a]);
+    expect(onlyA).not.toBe(onlyB);
+    expect(fingerprint([a, b])).toBe(onlyA);
+    expect(fingerprint([b, a])).toBe(onlyA);
   });
 
   it("keeps the larger copy of a transcript, even when a smaller copy is newer", () => {

@@ -513,7 +513,9 @@ describe("main menu: auto-submit item", () => {
     expect(mocked.store.has("claudeDirs")).toBe(false);
     expect(mocked.store.has("declinedClaudeDirs")).toBe(false);
     expect(logs).toContainEqual(
-      expect.stringContaining("The next submit asks again which Claude Code data folders to count.")
+      expect.stringContaining(
+        "Your next npx ccgather submit asks again which Claude Code data folders to count."
+      )
     );
   });
 });

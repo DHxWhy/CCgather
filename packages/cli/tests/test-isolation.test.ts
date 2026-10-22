@@ -1,26 +1,18 @@
 import { describe, it, expect } from "vitest";
-import * as fs from "fs";
-import * as path from "path";
+import * as os from "os";
 
-// A scan reads the saved data folders from the conf store (an external module, so mocking
-// "os" does not move it) and folders from XDG_CONFIG_HOME and CLAUDE_CONFIG_DIR. A test that
-// reaches the scan without pinning all three reads the developer's real transcripts.
+// tests/setup/isolate-environment.ts runs before every test file. These check that it did,
+// with the real os module and the real config store.
 describe("test isolation", () => {
-  it("every test that imports the scan or submit mocks the config store and pins both variables", () => {
-    const dir = __dirname;
-    const offenders = fs
-      .readdirSync(dir)
-      .filter((name) => name.endsWith(".test.ts"))
-      .filter((name) => {
-        const source = fs.readFileSync(path.join(dir, name), "utf-8");
-        const reachesScan = /from "\.\.\/src\/(lib\/ccgather-json|commands\/submit)"/.test(source);
-        const isolated =
-          source.includes('vi.mock("../src/lib/config"') &&
-          source.includes('vi.stubEnv("XDG_CONFIG_HOME"') &&
-          source.includes('vi.stubEnv("CLAUDE_CONFIG_DIR"');
-        return reachesScan && !isolated;
-      });
+  it("runs every test file with a throwaway HOME and no Claude folder variables", () => {
+    expect(os.homedir()).toMatch(/ccgather-test-home-/);
+    for (const name of ["CLAUDE_CONFIG_DIR", "XDG_CONFIG_HOME", "APPDATA"]) {
+      expect(process.env[name], name).toBeUndefined();
+    }
+  });
 
-    expect(offenders).toEqual([]);
+  it("puts the real config store inside the throwaway HOME", async () => {
+    const { getConfig } = await import("../src/lib/config");
+    expect(getConfig().path.startsWith(os.homedir())).toBe(true);
   });
 });

@@ -80,7 +80,9 @@ export function claudeConfigDirCandidates(
     path.join(home, ".config", "claude"),
     path.join(home, ".claude"),
     ...(config.claudeDirs ?? []),
-  ].map((entry) => configDirOf(entry, home));
+  ]
+    .map((entry) => configDirOf(entry, home))
+    .filter((dir, index, all) => all.indexOf(dir) === index); // XDG_CONFIG_HOME may be ~/.config
 }
 
 /**
@@ -109,7 +111,8 @@ export function resolveClaudeConfigDirs(
 
 /**
  * Folders read only because the shell sets CLAUDE_CONFIG_DIR. A scheduled run does not get
- * that variable, so these are offered for saving like the folders found on disk.
+ * that variable, so these are saved for it (the variable already says they are Claude Code's
+ * data; an earlier "no" for the same folder found on disk gives way to it).
  */
 export function shellOnlyClaudeDirs(
   env: Env,
@@ -118,10 +121,9 @@ export function shellOnlyClaudeDirs(
   platform: string = process.platform
 ): string[] {
   const known = new Set(
-    [
-      ...resolveClaudeConfigDirs({ ...env, CLAUDE_CONFIG_DIR: undefined }, home, config, platform),
-      ...(config.declinedClaudeDirs ?? []).map((d) => configDirOf(d, home)),
-    ].map(projectsKey)
+    resolveClaudeConfigDirs({ ...env, CLAUDE_CONFIG_DIR: undefined }, home, config, platform).map(
+      projectsKey
+    )
   );
   return resolveClaudeConfigDirs(env, home, config, platform).filter(
     (dir) => !known.has(projectsKey(dir))

@@ -1,4 +1,5 @@
 import * as os from "os";
+import * as path from "path";
 import ora from "ora";
 import inquirer from "inquirer";
 import type Conf from "conf";
@@ -450,16 +451,28 @@ function recordScheduledRun(
 }
 
 /**
- * Ask once which other Claude Code data folders on this computer to count (one computer is
- * one person) and remember the answer: folders found on disk, and folders only the shell's
- * CLAUDE_CONFIG_DIR points to, which a scheduled run would otherwise not read.
+ * Other Claude Code data folders on this computer (one computer is one person). Folders the
+ * shell's CLAUDE_CONFIG_DIR points to are saved without asking, so a scheduled run, which
+ * does not get the variable, reads them too; folders found on disk are asked about once.
  */
 async function confirmOtherClaudeDirs(config: Conf<CliConfig>): Promise<void> {
-  const claudeDirs = config.get("claudeDirs") ?? [];
-  const declinedClaudeDirs = config.get("declinedClaudeDirs") ?? [];
-  const saved = { claudeDirs, declinedClaudeDirs };
-  const fromShell = shellOnlyClaudeDirs(process.env, os.homedir(), saved);
-  const candidates = [...fromShell, ...findCandidateClaudeDirs(process.env, os.homedir(), saved)];
+  let claudeDirs = config.get("claudeDirs") ?? [];
+  let declinedClaudeDirs = config.get("declinedClaudeDirs") ?? [];
+  const fromShell = shellOnlyClaudeDirs(process.env, os.homedir(), { claudeDirs });
+  if (fromShell.length > 0) {
+    claudeDirs = [...claudeDirs, ...fromShell];
+    declinedClaudeDirs = declinedClaudeDirs.filter((dir) => !fromShell.includes(path.resolve(dir)));
+    config.set("claudeDirs", claudeDirs);
+    config.set("declinedClaudeDirs", declinedClaudeDirs);
+    console.log(
+      `\n  ${colors.muted(`Scheduled submits will also read ${fromShell.join(", ")} (CLAUDE_CONFIG_DIR).`)}`
+    );
+  }
+
+  const candidates = findCandidateClaudeDirs(process.env, os.homedir(), {
+    claudeDirs,
+    declinedClaudeDirs,
+  });
   if (candidates.length === 0) return;
 
   console.log();
@@ -470,11 +483,7 @@ async function confirmOtherClaudeDirs(config: Conf<CliConfig>): Promise<void> {
       message:
         "Other Claude Code data folders found on this computer. Count them too? " +
         "(CCgather treats one computer as one person)",
-      choices: candidates.map((dir) => ({
-        name: fromShell.includes(dir) ? `${dir} ${colors.dim("(CLAUDE_CONFIG_DIR)")}` : dir,
-        value: dir,
-        checked: true,
-      })),
+      choices: candidates.map((dir) => ({ name: dir, value: dir, checked: true })),
     },
   ]);
   const chosen = Array.isArray(include)

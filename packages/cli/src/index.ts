@@ -303,7 +303,7 @@ async function showSettingsMenu(): Promise<void> {
       config.delete("claudeDirs");
       config.delete("declinedClaudeDirs");
       console.log(
-        `\n  ${colors.muted("The next submit asks again which Claude Code data folders to count.")}`
+        `\n  ${colors.muted("Your next npx ccgather submit asks again which Claude Code data folders to count.")}`
       );
       await showMenuOnly();
       break;

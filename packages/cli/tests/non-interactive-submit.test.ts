@@ -611,23 +611,70 @@ describe("submit({ nonInteractive: true })", () => {
       expect(mocked.prompt).not.toHaveBeenCalled();
     });
 
-    it("saves a folder only the shell's CLAUDE_CONFIG_DIR names, so a scheduled run reads it too", async () => {
+    it("saves a folder only the shell's CLAUDE_CONFIG_DIR names, without asking, for scheduled runs", async () => {
       const dir = otherFolder();
       vi.stubEnv("CLAUDE_CONFIG_DIR", dir);
       mocked.store.set("starConfirmed", true);
-      mocked.prompt.mockResolvedValueOnce({ include: [dir] });
+      mocked.store.set("declinedClaudeDirs", [dir]);
 
       expect(await runSubmit({ nonInteractive: false })).toBe(0);
 
-      expect(askedChoices().map((c) => c.value)).toEqual([dir]);
-      expect(askedChoices()[0]?.name).toContain("(CLAUDE_CONFIG_DIR)");
+      expect(mocked.prompt).not.toHaveBeenCalled();
       expect(mocked.store.get("claudeDirs")).toEqual([dir]);
+      expect(mocked.store.get("declinedClaudeDirs")).toEqual([]);
+      expect(logs.join("\n")).toContain(
+        `Scheduled submits will also read ${dir} (CLAUDE_CONFIG_DIR).`
+      );
 
       vi.stubEnv("CLAUDE_CONFIG_DIR", "");
       mocked.store.delete("lastSync");
       expect(await runSubmit({ scheduled: true })).toBe(0);
       const last = callsTo("/cli/submit").at(-1);
       expect(JSON.parse(String(last?.init?.body)).totalTokens).toBe(6000);
+    });
+
+    it("asks about folders found on disk once, next to a saved shell folder", async () => {
+      const shell = path.join(mocked.home, "work-shell");
+      fs.mkdirSync(path.join(shell, "projects", "-home-user-shell"), { recursive: true });
+      fs.writeFileSync(
+        path.join(shell, "projects", "-home-user-shell", "shell.jsonl"),
+        usageLine(31).replace('"sessionId":"demo"', '"sessionId":"shell"') + "\n"
+      );
+      const disk = otherFolder();
+      vi.stubEnv("CLAUDE_CONFIG_DIR", shell);
+      mocked.store.set("starConfirmed", true);
+      mocked.prompt.mockResolvedValueOnce({ include: [] });
+
+      expect(await runSubmit({ nonInteractive: false })).toBe(0);
+
+      expect(mocked.prompt).toHaveBeenCalledTimes(1);
+      expect(askedChoices().map((c) => c.value)).toEqual([disk]);
+      expect(mocked.store.get("claudeDirs")).toEqual([shell]);
+      expect(mocked.store.get("declinedClaudeDirs")).toEqual([disk]);
+
+      mocked.prompt.mockClear();
+      expect(await runSubmit({ nonInteractive: false })).toBe(0);
+      expect(mocked.prompt).not.toHaveBeenCalled();
+    });
+
+    it("does not count a declined folder in the no-sessions hint", async () => {
+      fs.rmSync(path.join(mocked.home, ".claude"), { recursive: true, force: true });
+      mocked.store.set("declinedClaudeDirs", [otherFolder()]);
+
+      expect(await runSubmit()).toBe(1);
+
+      expect(errors[0]).toContain("No Claude Code sessions found");
+      expect(errors[0]).not.toContain("other data folder(s) found");
+    });
+
+    it("lists ~/.config/claude once in the no-sessions report when XDG_CONFIG_HOME is ~/.config", async () => {
+      fs.rmSync(path.join(mocked.home, ".claude"), { recursive: true, force: true });
+      vi.stubEnv("XDG_CONFIG_HOME", path.join(mocked.home, ".config"));
+
+      expect(await runSubmit()).toBe(1);
+
+      const config = path.join(mocked.home, ".config", "claude", "projects");
+      expect(errors[0]?.split(config).length).toBe(2);
     });
 
     it("tells a non-interactive run that finds no sessions about folders waiting for an answer", async () => {
@@ -717,6 +764,22 @@ describe("submit({ nonInteractive: true })", () => {
       for (const field of ["ccplan", "rateLimitTier", "authMethod", "rawSubscriptionType"]) {
         expect(body, field).not.toHaveProperty(field);
       }
+    });
+
+    it("an interactive submit still reads the sign-in and sends the plan", async () => {
+      mocked.store.set("starConfirmed", true);
+      mocked.readCredentials.mockReturnValueOnce({
+        ccplan: "max",
+        rateLimitTier: "default_claude_max_20x",
+        authMethod: "oauth",
+        rawSubscriptionType: "max",
+      });
+
+      expect(await runSubmit({ nonInteractive: false })).toBe(0);
+
+      const body = JSON.parse(String(callsTo("/cli/submit")[0]?.init?.body));
+      expect(body.ccplan).toBe("max");
+      expect(body.rateLimitTier).toBe("default_claude_max_20x");
     });
 
     it("does not read the sign-in at all, so a LaunchAgent never asks the Keychain", async () => {
