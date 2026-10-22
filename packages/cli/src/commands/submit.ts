@@ -145,7 +145,7 @@ export const COUNTING_NOTICE =
 
 /** Added to a refused submit when another account owns sessions and extra folders are read. */
 export const DUPLICATE_SESSION_ADVICE =
-  "If a data folder you added belongs to another CCgather account, choose folders again and uncheck it: npx ccgather@latest > Settings > Data folders.";
+  "If a data folder you added belongs to another CCgather account, choose folders again and uncheck it: run npx ccgather@latest, then Settings, then Data folders.";
 
 /** Added to that advice while CLAUDE_CONFIG_DIR names other folders: they are saved again each time. */
 export const SHELL_FOLDER_ADVICE =

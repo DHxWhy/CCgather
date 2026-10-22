@@ -165,7 +165,7 @@ describe("folder wording", () => {
 
   it("tells how to leave out a folder that belongs to another account", () => {
     expect(DUPLICATE_SESSION_ADVICE).toBe(
-      "If a data folder you added belongs to another CCgather account, choose folders again and uncheck it: npx ccgather@latest > Settings > Data folders."
+      "If a data folder you added belongs to another CCgather account, choose folders again and uncheck it: run npx ccgather@latest, then Settings, then Data folders."
     );
     expect(SHELL_FOLDER_ADVICE).toBe(
       "If that folder is named in CLAUDE_CONFIG_DIR, CCgather counts it whenever that variable names it, so choose folders and submit in a terminal where CLAUDE_CONFIG_DIR leaves it out."
