@@ -1,6 +1,7 @@
 import * as fs from "fs";
 import * as path from "path";
 import * as os from "os";
+import { FAST_MODE_MULTIPLIERS } from "./fast-mode.js";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // LiteLLM Dynamic Pricing Module
@@ -20,8 +21,22 @@ const FETCH_TIMEOUT_MS = 5000;
 interface ModelPricing {
   input: number; // per million tokens
   output: number;
-  cacheWrite: number;
+  cacheWrite: number; // 5-minute cache write
+  cacheWrite1h?: number; // 1-hour cache write; cacheWrite1hRate() fills it in when absent
   cacheRead: number;
+}
+
+/** 1-hour cache writes cost 2x the base input price wherever no table lists them. */
+export function cacheWrite1hRate(price: ModelPricing): number {
+  const listed = price.cacheWrite1h;
+  return typeof listed === "number" && Number.isFinite(listed) && listed > 0
+    ? listed
+    : price.input * 2;
+}
+
+// LiteLLM is a third-party file: a price cell must be a finite, non-negative number.
+function isPrice(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value) && value >= 0;
 }
 
 interface PricingCache {
@@ -177,24 +192,28 @@ function extractClaudePricing(
     // Only process Claude models (after stripping provider prefix).
     if (!normalized.startsWith("claude-")) continue;
 
-    const inputCostPerToken = value.input_cost_per_token as number | undefined;
-    const outputCostPerToken = value.output_cost_per_token as number | undefined;
+    const inputCostPerToken = value.input_cost_per_token;
+    const outputCostPerToken = value.output_cost_per_token;
 
-    if (inputCostPerToken == null || outputCostPerToken == null) continue;
+    if (!isPrice(inputCostPerToken) || !isPrice(outputCostPerToken)) continue;
 
     const input = inputCostPerToken * 1_000_000;
     const output = outputCostPerToken * 1_000_000;
 
-    const cacheWritePerToken = value.cache_creation_input_token_cost as number | undefined;
-    const cacheReadPerToken = value.cache_read_input_token_cost as number | undefined;
+    const cacheWritePerToken = value.cache_creation_input_token_cost;
+    const cacheWrite1hPerToken = value.cache_creation_input_token_cost_above_1hr;
+    const cacheReadPerToken = value.cache_read_input_token_cost;
 
-    const cacheWrite = cacheWritePerToken != null ? cacheWritePerToken * 1_000_000 : input * 1.25;
-    const cacheRead = cacheReadPerToken != null ? cacheReadPerToken * 1_000_000 : input * 0.1;
+    const cacheWrite = isPrice(cacheWritePerToken) ? cacheWritePerToken * 1_000_000 : input * 1.25;
+    const cacheRead = isPrice(cacheReadPerToken) ? cacheReadPerToken * 1_000_000 : input * 0.1;
 
     const pricing: ModelPricing = {
       input: Math.round(input * 1000) / 1000,
       output: Math.round(output * 1000) / 1000,
       cacheWrite: Math.round(cacheWrite * 1000) / 1000,
+      ...(isPrice(cacheWrite1hPerToken)
+        ? { cacheWrite1h: Math.round(cacheWrite1hPerToken * 1_000_000 * 1000) / 1000 }
+        : {}),
       cacheRead: Math.round(cacheRead * 1000) / 1000,
     };
 
@@ -321,21 +340,26 @@ function fallbackForModel(model: string): ModelPricing {
  * 4. Family prefix match (longest-key wins)
  * 5. Hardcoded fallback by family detection
  */
+// Model ids come from transcripts: a name like "constructor" must not resolve to an
+// Object.prototype member, so the table is read through its own keys only.
+function ownPrice(table: Record<string, ModelPricing>, key: string): ModelPricing | undefined {
+  return Object.hasOwn(table, key) ? table[key] : undefined;
+}
+
 function matchModel(model: string): ModelPricing {
   if (pricingData) {
     const normalized = stripProviderPrefix(model);
 
-    // 1. Exact match (try original then prefix-stripped form).
-    if (pricingData[model]) return pricingData[model];
-    if (pricingData[normalized]) return pricingData[normalized];
-
-    // 2. Without date suffix.
+    // 1. Exact match (original, prefix-stripped), 2. without the date suffix,
+    // 3. without the version suffix.
     const withoutDate = normalized.replace(/-\d{8}$/, "");
-    if (pricingData[withoutDate]) return pricingData[withoutDate];
-
-    // 3. Without version suffix.
     const withoutVersion = normalized.replace(/-v\d+:\d+$/, "").replace(/-\d{8}$/, "");
-    if (pricingData[withoutVersion]) return pricingData[withoutVersion];
+    const exact =
+      ownPrice(pricingData, model) ??
+      ownPrice(pricingData, normalized) ??
+      ownPrice(pricingData, withoutDate) ??
+      ownPrice(pricingData, withoutVersion);
+    if (exact) return exact;
 
     // Family tier guard (mirrors lib/services/pricing.ts): stop the fuzzy loop
     // below from matching a new minor (opus-4-8) to the synthetic legacy
@@ -369,9 +393,47 @@ function matchModel(model: string): ModelPricing {
   return fallbackForModel(model);
 }
 
+export function fastModeMultiplier(model: string): number {
+  const id = stripProviderPrefix(model.toLowerCase())
+    .replace(/-v\d+:\d+$/, "")
+    .replace(/-\d{8}$/, "");
+  return Object.hasOwn(FAST_MODE_MULTIPLIERS, id)
+    ? FAST_MODE_MULTIPLIERS[id as keyof typeof FAST_MODE_MULTIPLIERS]
+    : 1;
+}
+
+export interface CostTokens {
+  inputTokens: number;
+  outputTokens: number;
+  cacheWriteTokens: number;
+  cacheWrite1hTokens?: number; // the part of cacheWriteTokens written to the 1-hour cache
+  cacheReadTokens: number;
+}
+
+function rawCost(price: ModelPricing, t: CostTokens): number {
+  const oneHour = t.cacheWrite1hTokens ?? 0;
+  return (
+    (t.inputTokens / 1_000_000) * price.input +
+    (t.outputTokens / 1_000_000) * price.output +
+    ((t.cacheWriteTokens - oneHour) / 1_000_000) * price.cacheWrite +
+    (oneHour / 1_000_000) * cacheWrite1hRate(price) +
+    (t.cacheReadTokens / 1_000_000) * price.cacheRead
+  );
+}
+
 /**
- * Estimate cost based on model and tokens (including cache tokens).
- * Same signature as the previous hardcoded version.
+ * Unrounded cost of one model's tokens, the way the server prices a day: 5-minute and
+ * 1-hour cache writes at their own rates, plus the fast premium on the fast part.
+ * Sum these and round once — rounding each response to cents dropped sub-cent ones.
+ */
+export function estimateCostRaw(model: string, tokens: CostTokens & { fast?: CostTokens }): number {
+  const price = matchModel(model);
+  const base = rawCost(price, tokens);
+  return tokens.fast ? base + (fastModeMultiplier(model) - 1) * rawCost(price, tokens.fast) : base;
+}
+
+/**
+ * Estimate cost based on model and tokens (including cache tokens), rounded to cents.
  * Call initPricing() once before using this for best accuracy.
  */
 export function estimateCost(
@@ -381,12 +443,11 @@ export function estimateCost(
   cacheWriteTokens: number = 0,
   cacheReadTokens: number = 0
 ): number {
-  const price = matchModel(model);
-
-  const inputCost = (inputTokens / 1_000_000) * price.input;
-  const outputCost = (outputTokens / 1_000_000) * price.output;
-  const cacheWriteCost = (cacheWriteTokens / 1_000_000) * price.cacheWrite;
-  const cacheReadCost = (cacheReadTokens / 1_000_000) * price.cacheRead;
-
-  return Math.round((inputCost + outputCost + cacheWriteCost + cacheReadCost) * 100) / 100;
+  const cost = estimateCostRaw(model, {
+    inputTokens,
+    outputTokens,
+    cacheWriteTokens,
+    cacheReadTokens,
+  });
+  return Math.round(cost * 100) / 100;
 }

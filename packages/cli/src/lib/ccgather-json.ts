@@ -3,13 +3,20 @@ import * as path from "path";
 import * as os from "os";
 import * as crypto from "crypto";
 import { readCredentials } from "./credentials.js";
-import { estimateCost } from "./pricing.js";
+import { estimateCostRaw } from "./pricing.js";
+import { createUsageAccumulator } from "./usage-accumulator.js";
+import type { AccumulatedUsage, ModelSplit, TokenSplit } from "./usage-accumulator.js";
 
-export interface ModelTokenSplit {
+interface ShareTokens {
   inputTokens: number;
   outputTokens: number;
   cacheWriteTokens: number;
+  cacheWrite1hTokens?: number; // the part of cacheWriteTokens written to the 1-hour cache
   cacheReadTokens: number;
+}
+
+export interface ModelTokenSplit extends ShareTokens {
+  fast?: ShareTokens; // the part of this model's tokens sent in fast mode
 }
 
 export interface DailyUsage {
@@ -605,6 +612,175 @@ export interface ScanOptions {
   onProgress?: (current: number, total: number) => void; // Progress callback
 }
 
+function cutoffFor(days: number): string | null {
+  if (days <= 0) return null;
+  const cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() - days);
+  cutoff.setHours(0, 0, 0, 0);
+  return cutoff.toISOString();
+}
+
+const cents = (usd: number): number => Math.round(usd * 100) / 100;
+
+// Unrounded per model, rounded once by the caller.
+function costOf(modelTokens: Record<string, ModelSplit>): number {
+  let cost = 0;
+  for (const [model, split] of Object.entries(modelTokens)) {
+    cost += estimateCostRaw(model, split);
+  }
+  return cost;
+}
+
+function shareOf(t: TokenSplit): ShareTokens {
+  return {
+    inputTokens: t.inputTokens,
+    outputTokens: t.outputTokens,
+    cacheWriteTokens: t.cacheWriteTokens,
+    ...(t.cacheWrite1hTokens > 0 ? { cacheWrite1hTokens: t.cacheWrite1hTokens } : {}),
+    cacheReadTokens: t.cacheReadTokens,
+  };
+}
+
+// The 1h and fast parts are sent only when present, so a day without them looks
+// exactly like an older CLI's.
+function toWireSplit(split: ModelSplit): ModelTokenSplit {
+  const fast = split.fast;
+  const hasFast =
+    fast.inputTokens + fast.outputTokens + fast.cacheWriteTokens + fast.cacheReadTokens > 0;
+  return hasFast ? { ...shareOf(split), fast: shareOf(fast) } : shareOf(split);
+}
+
+interface ScanSummary {
+  usage: CCGatherData["usage"];
+  daysTracked: number;
+  firstUsed: string | null;
+  lastUsed: string | null;
+  models: Record<string, number>;
+  projects: CCGatherData["projects"];
+  dailyUsage: DailyUsage[];
+}
+
+function summarizeScan(
+  acc: AccumulatedUsage,
+  projectSessions: Record<string, number>
+): ScanSummary | null {
+  const { total } = acc;
+  // Total tokens includes cache tokens (matches ccusage calculation)
+  if (total.tokens === 0) return null;
+
+  const projects: CCGatherData["projects"] = {};
+  for (const [name, sessions] of Object.entries(projectSessions)) {
+    const b = acc.projects.get(name);
+    projects[name] = {
+      tokens: b?.tokens ?? 0,
+      cost: b ? cents(costOf(b.modelTokens)) : 0,
+      sessions,
+      models: b?.models ?? {},
+    };
+  }
+
+  const dailyUsage: DailyUsage[] = [...acc.daily.entries()]
+    .map(([date, b]) => ({
+      date,
+      tokens: b.tokens,
+      cost: cents(costOf(b.modelTokens)),
+      inputTokens: b.inputTokens,
+      outputTokens: b.outputTokens,
+      cacheWriteTokens: b.cacheWriteTokens,
+      cacheReadTokens: b.cacheReadTokens,
+      sessions: b.sessions.size,
+      models: b.models,
+      modelTokens: Object.fromEntries(
+        Object.entries(b.modelTokens).map(([model, split]) => [model, toWireSplit(split)])
+      ),
+    }))
+    .sort((a, b) => a.date.localeCompare(b.date));
+
+  const dayOf = (ts: string | null) => (ts ? new Date(ts).toISOString().split("T")[0] : null);
+  return {
+    usage: {
+      totalTokens: total.tokens,
+      totalCost: cents(costOf(total.modelTokens)),
+      inputTokens: total.inputTokens,
+      outputTokens: total.outputTokens,
+      cacheReadTokens: total.cacheReadTokens,
+      cacheWriteTokens: total.cacheWriteTokens,
+    },
+    daysTracked: acc.daily.size,
+    firstUsed: dayOf(acc.firstTimestamp),
+    lastUsed: dayOf(acc.lastTimestamp),
+    models: total.models,
+    projects,
+    dailyUsage,
+  };
+}
+
+function accountInfo(): CCGatherData["account"] {
+  const credentials = readCredentials();
+  return {
+    ccplan: credentials.ccplan,
+    rateLimitTier: credentials.rateLimitTier,
+    authMethod: credentials.authMethod,
+    rawSubscriptionType: credentials.rawSubscriptionType,
+  };
+}
+
+/**
+ * Scan one project folder's transcripts (default: last 30 days, 0 = all).
+ * Sessions are counted per file.
+ */
+function scanProjectFolder(projectDir: string, options: ScanOptions): CCGatherData | null {
+  const acc = createUsageAccumulator({ cutoff: cutoffFor(options.days ?? 30) });
+  const jsonlFiles = findJsonlFiles(projectDir);
+  const projectSessions: Record<string, number> = {};
+  const { onProgress } = options;
+
+  for (let i = 0; i < jsonlFiles.length; i++) {
+    const filePath = jsonlFiles[i];
+    if (onProgress) {
+      onProgress(i + 1, jsonlFiles.length);
+    }
+    const projectName = extractProjectName(filePath);
+    projectSessions[projectName] = (projectSessions[projectName] ?? 0) + 1;
+
+    try {
+      readTranscriptLines(filePath, {
+        onLine: (line) => {
+          try {
+            acc.add(JSON.parse(line), { sessionKey: filePath, projectName });
+          } catch {
+            // Skip invalid JSON lines
+          }
+        },
+      });
+    } catch {
+      // Skip unreadable files
+    }
+  }
+
+  const summary = summarizeScan(acc.result(), projectSessions);
+  if (!summary) return null;
+
+  return {
+    version: CCGATHER_JSON_VERSION,
+    lastUpdated: new Date().toISOString(),
+    lastScanned: new Date().toISOString(),
+    usage: summary.usage,
+    stats: {
+      daysTracked: summary.daysTracked,
+      sessionsCount: jsonlFiles.length,
+      firstUsed: summary.firstUsed,
+      lastUsed: summary.lastUsed,
+    },
+    models: summary.models,
+    projects: summary.projects,
+    dailyUsage: summary.dailyUsage,
+    account: accountInfo(),
+    // Generate session fingerprint for duplicate prevention
+    sessionFingerprint: generateSessionFingerprint(jsonlFiles),
+  };
+}
+
 /**
  * Scan JSONL files and generate ccgather.json data
  * Only scans the current project directory (based on cwd)
@@ -617,241 +793,7 @@ export function scanUsageData(options: ScanOptions = {}): CCGatherData | null {
   if (!currentProjectDir) {
     return null;
   }
-
-  // Calculate cutoff date (default: 30 days, 0 = no limit)
-  const days = options.days ?? 30;
-  let cutoffDate: string | null = null;
-
-  if (days > 0) {
-    const cutoff = new Date();
-    cutoff.setDate(cutoff.getDate() - days);
-    cutoff.setHours(0, 0, 0, 0);
-    cutoffDate = cutoff.toISOString();
-  }
-
-  let totalInputTokens = 0;
-  let totalOutputTokens = 0;
-  let totalCacheRead = 0;
-  let totalCacheWrite = 0;
-  let totalCost = 0;
-  let sessionsCount = 0;
-  const dates = new Set<string>();
-  const models: Record<string, number> = {};
-  const projects: Record<
-    string,
-    {
-      tokens: number;
-      cost: number;
-      sessions: number;
-      models: Record<string, number>;
-    }
-  > = {};
-  // Daily usage tracking
-  const dailyData: Record<
-    string,
-    {
-      tokens: number;
-      cost: number;
-      inputTokens: number;
-      outputTokens: number;
-      cacheWriteTokens: number;
-      cacheReadTokens: number;
-      sessions: Set<string>;
-      models: Record<string, number>;
-    }
-  > = {};
-  let firstTimestamp: string | null = null;
-  let lastTimestamp: string | null = null;
-
-  const jsonlFiles = findJsonlFiles(currentProjectDir);
-  sessionsCount = jsonlFiles.length;
-  const seenUsageEvents = new Set<string>();
-  const { onProgress } = options;
-
-  for (let i = 0; i < jsonlFiles.length; i++) {
-    const filePath = jsonlFiles[i];
-
-    // Call progress callback if provided
-    if (onProgress) {
-      onProgress(i + 1, jsonlFiles.length);
-    }
-    const projectName = extractProjectName(filePath);
-
-    // Initialize project if not exists
-    if (!projects[projectName]) {
-      projects[projectName] = {
-        tokens: 0,
-        cost: 0,
-        sessions: 0,
-        models: {},
-      };
-    }
-    projects[projectName].sessions++;
-
-    try {
-      readTranscriptLines(filePath, {
-        onLine: (line) => {
-          try {
-            const event = JSON.parse(line);
-
-            if (event.type === "assistant" && event.message?.usage) {
-              // Streaming writes one line per content block, each repeating the
-              // message's full usage — count each message once.
-              const eventKey = event.message.id
-                ? `${event.message.id}:${event.requestId ?? ""}`
-                : null;
-              if (eventKey) {
-                if (seenUsageEvents.has(eventKey)) return;
-                seenUsageEvents.add(eventKey);
-              }
-              // Skip events older than cutoff date (if set)
-              if (cutoffDate && event.timestamp && event.timestamp < cutoffDate) {
-                return;
-              }
-
-              const usage = event.message.usage;
-              const model = event.message.model || "unknown";
-              const inputTokens = usage.input_tokens || 0;
-              const outputTokens = usage.output_tokens || 0;
-              const cacheWrite = usage.cache_creation_input_tokens || 0;
-              const cacheRead = usage.cache_read_input_tokens || 0;
-
-              totalInputTokens += inputTokens;
-              totalOutputTokens += outputTokens;
-              totalCacheRead += cacheRead;
-              totalCacheWrite += cacheWrite;
-
-              // Calculate cost for this message (including cache tokens)
-              const messageCost = estimateCost(
-                model,
-                inputTokens,
-                outputTokens,
-                cacheWrite,
-                cacheRead
-              );
-              totalCost += messageCost;
-
-              // Track model usage (global) - includes cache tokens
-              const totalModelTokens = inputTokens + outputTokens + cacheWrite + cacheRead;
-              models[model] = (models[model] || 0) + totalModelTokens;
-
-              // Track project usage
-              projects[projectName].tokens += totalModelTokens;
-              projects[projectName].cost += messageCost;
-              projects[projectName].models[model] =
-                (projects[projectName].models[model] || 0) + totalModelTokens;
-
-              // Track dates and daily usage (UTC timezone for global consistency)
-              if (event.timestamp) {
-                const date = new Date(event.timestamp).toISOString().split("T")[0];
-                dates.add(date);
-
-                // Initialize daily data if not exists
-                if (!dailyData[date]) {
-                  dailyData[date] = {
-                    tokens: 0,
-                    cost: 0,
-                    inputTokens: 0,
-                    outputTokens: 0,
-                    cacheWriteTokens: 0,
-                    cacheReadTokens: 0,
-                    sessions: new Set(),
-                    models: {},
-                  };
-                }
-
-                // Track daily usage
-                dailyData[date].tokens += totalModelTokens;
-                dailyData[date].cost += messageCost;
-                dailyData[date].inputTokens += inputTokens;
-                dailyData[date].outputTokens += outputTokens;
-                dailyData[date].cacheWriteTokens += cacheWrite;
-                dailyData[date].cacheReadTokens += cacheRead;
-                dailyData[date].sessions.add(filePath);
-                dailyData[date].models[model] =
-                  (dailyData[date].models[model] || 0) + totalModelTokens;
-
-                // Track first and last timestamps
-                if (!firstTimestamp || event.timestamp < firstTimestamp) {
-                  firstTimestamp = event.timestamp;
-                }
-                if (!lastTimestamp || event.timestamp > lastTimestamp) {
-                  lastTimestamp = event.timestamp;
-                }
-              }
-            }
-          } catch {
-            // Skip invalid JSON lines
-          }
-        },
-      });
-    } catch {
-      // Skip unreadable files
-    }
-  }
-
-  // Total tokens includes cache tokens (matches ccusage calculation)
-  const totalTokens = totalInputTokens + totalOutputTokens + totalCacheWrite + totalCacheRead;
-
-  if (totalTokens === 0) {
-    return null;
-  }
-
-  // Round project costs
-  for (const projectName of Object.keys(projects)) {
-    projects[projectName].cost = Math.round(projects[projectName].cost * 100) / 100;
-  }
-
-  // Convert daily data to sorted array
-  const dailyUsage: DailyUsage[] = Object.entries(dailyData)
-    .map(([date, data]) => ({
-      date,
-      tokens: data.tokens,
-      cost: Math.round(data.cost * 100) / 100,
-      inputTokens: data.inputTokens,
-      outputTokens: data.outputTokens,
-      cacheWriteTokens: data.cacheWriteTokens,
-      cacheReadTokens: data.cacheReadTokens,
-      sessions: data.sessions.size,
-      models: data.models,
-    }))
-    .sort((a, b) => a.date.localeCompare(b.date));
-
-  // Read account credentials
-  const credentials = readCredentials();
-
-  // Generate session fingerprint for duplicate prevention
-  const sessionFingerprint = generateSessionFingerprint(jsonlFiles);
-
-  return {
-    version: CCGATHER_JSON_VERSION,
-    lastUpdated: new Date().toISOString(),
-    lastScanned: new Date().toISOString(),
-    usage: {
-      totalTokens,
-      totalCost: Math.round(totalCost * 100) / 100,
-      inputTokens: totalInputTokens,
-      outputTokens: totalOutputTokens,
-      cacheReadTokens: totalCacheRead,
-      cacheWriteTokens: totalCacheWrite,
-    },
-    stats: {
-      daysTracked: dates.size,
-      sessionsCount,
-      firstUsed: firstTimestamp ? new Date(firstTimestamp).toISOString().split("T")[0] : null,
-      lastUsed: lastTimestamp ? new Date(lastTimestamp).toISOString().split("T")[0] : null,
-    },
-    models,
-    projects,
-    dailyUsage,
-    account: {
-      ccplan: credentials.ccplan,
-      rateLimitTier: credentials.rateLimitTier,
-      authMethod: credentials.authMethod,
-      rawSubscriptionType: credentials.rawSubscriptionType,
-    },
-    sessionFingerprint,
-  };
+  return scanProjectFolder(currentProjectDir, options);
 }
 
 /**
@@ -940,223 +882,7 @@ export function scanUsageDataFromPath(
   projectPath: string,
   options: ScanOptions = {}
 ): CCGatherData | null {
-  // Calculate cutoff date (default: 30 days, 0 = no limit)
-  const days = options.days ?? 30;
-  let cutoffDate: string | null = null;
-
-  if (days > 0) {
-    const cutoff = new Date();
-    cutoff.setDate(cutoff.getDate() - days);
-    cutoff.setHours(0, 0, 0, 0);
-    cutoffDate = cutoff.toISOString();
-  }
-
-  let totalInputTokens = 0;
-  let totalOutputTokens = 0;
-  let totalCacheRead = 0;
-  let totalCacheWrite = 0;
-  let totalCost = 0;
-  let sessionsCount = 0;
-  const dates = new Set<string>();
-  const models: Record<string, number> = {};
-  const projects: Record<
-    string,
-    {
-      tokens: number;
-      cost: number;
-      sessions: number;
-      models: Record<string, number>;
-    }
-  > = {};
-  const dailyData: Record<
-    string,
-    {
-      tokens: number;
-      cost: number;
-      inputTokens: number;
-      outputTokens: number;
-      cacheWriteTokens: number;
-      cacheReadTokens: number;
-      sessions: Set<string>;
-      models: Record<string, number>;
-    }
-  > = {};
-  let firstTimestamp: string | null = null;
-  let lastTimestamp: string | null = null;
-
-  const jsonlFiles = findJsonlFiles(projectPath);
-  sessionsCount = jsonlFiles.length;
-  const seenUsageEvents = new Set<string>();
-  const { onProgress } = options;
-
-  for (let i = 0; i < jsonlFiles.length; i++) {
-    const filePath = jsonlFiles[i];
-
-    if (onProgress) {
-      onProgress(i + 1, jsonlFiles.length);
-    }
-    const projectName = extractProjectName(filePath);
-
-    if (!projects[projectName]) {
-      projects[projectName] = {
-        tokens: 0,
-        cost: 0,
-        sessions: 0,
-        models: {},
-      };
-    }
-    projects[projectName].sessions++;
-
-    try {
-      readTranscriptLines(filePath, {
-        onLine: (line) => {
-          try {
-            const event = JSON.parse(line);
-
-            if (event.type === "assistant" && event.message?.usage) {
-              // Streaming writes one line per content block, each repeating the
-              // message's full usage — count each message once.
-              const eventKey = event.message.id
-                ? `${event.message.id}:${event.requestId ?? ""}`
-                : null;
-              if (eventKey) {
-                if (seenUsageEvents.has(eventKey)) return;
-                seenUsageEvents.add(eventKey);
-              }
-              if (cutoffDate && event.timestamp && event.timestamp < cutoffDate) {
-                return;
-              }
-
-              const usage = event.message.usage;
-              const model = event.message.model || "unknown";
-              const inputTokens = usage.input_tokens || 0;
-              const outputTokens = usage.output_tokens || 0;
-              const cacheWrite = usage.cache_creation_input_tokens || 0;
-              const cacheRead = usage.cache_read_input_tokens || 0;
-
-              totalInputTokens += inputTokens;
-              totalOutputTokens += outputTokens;
-              totalCacheRead += cacheRead;
-              totalCacheWrite += cacheWrite;
-
-              const messageCost = estimateCost(
-                model,
-                inputTokens,
-                outputTokens,
-                cacheWrite,
-                cacheRead
-              );
-              totalCost += messageCost;
-
-              const totalModelTokens = inputTokens + outputTokens + cacheWrite + cacheRead;
-              models[model] = (models[model] || 0) + totalModelTokens;
-
-              projects[projectName].tokens += totalModelTokens;
-              projects[projectName].cost += messageCost;
-              projects[projectName].models[model] =
-                (projects[projectName].models[model] || 0) + totalModelTokens;
-
-              if (event.timestamp) {
-                const date = new Date(event.timestamp).toISOString().split("T")[0];
-                dates.add(date);
-
-                if (!dailyData[date]) {
-                  dailyData[date] = {
-                    tokens: 0,
-                    cost: 0,
-                    inputTokens: 0,
-                    outputTokens: 0,
-                    cacheWriteTokens: 0,
-                    cacheReadTokens: 0,
-                    sessions: new Set(),
-                    models: {},
-                  };
-                }
-
-                dailyData[date].tokens += totalModelTokens;
-                dailyData[date].cost += messageCost;
-                dailyData[date].inputTokens += inputTokens;
-                dailyData[date].outputTokens += outputTokens;
-                dailyData[date].cacheWriteTokens += cacheWrite;
-                dailyData[date].cacheReadTokens += cacheRead;
-                dailyData[date].sessions.add(filePath);
-                dailyData[date].models[model] =
-                  (dailyData[date].models[model] || 0) + totalModelTokens;
-
-                if (!firstTimestamp || event.timestamp < firstTimestamp) {
-                  firstTimestamp = event.timestamp;
-                }
-                if (!lastTimestamp || event.timestamp > lastTimestamp) {
-                  lastTimestamp = event.timestamp;
-                }
-              }
-            }
-          } catch {
-            // Skip invalid JSON lines
-          }
-        },
-      });
-    } catch {
-      // Skip unreadable files
-    }
-  }
-
-  const totalTokens = totalInputTokens + totalOutputTokens + totalCacheWrite + totalCacheRead;
-
-  if (totalTokens === 0) {
-    return null;
-  }
-
-  for (const projectName of Object.keys(projects)) {
-    projects[projectName].cost = Math.round(projects[projectName].cost * 100) / 100;
-  }
-
-  const dailyUsage: DailyUsage[] = Object.entries(dailyData)
-    .map(([date, data]) => ({
-      date,
-      tokens: data.tokens,
-      cost: Math.round(data.cost * 100) / 100,
-      inputTokens: data.inputTokens,
-      outputTokens: data.outputTokens,
-      cacheWriteTokens: data.cacheWriteTokens,
-      cacheReadTokens: data.cacheReadTokens,
-      sessions: data.sessions.size,
-      models: data.models,
-    }))
-    .sort((a, b) => a.date.localeCompare(b.date));
-
-  const credentials = readCredentials();
-  const sessionFingerprint = generateSessionFingerprint(jsonlFiles);
-
-  return {
-    version: CCGATHER_JSON_VERSION,
-    lastUpdated: new Date().toISOString(),
-    lastScanned: new Date().toISOString(),
-    usage: {
-      totalTokens,
-      totalCost: Math.round(totalCost * 100) / 100,
-      inputTokens: totalInputTokens,
-      outputTokens: totalOutputTokens,
-      cacheReadTokens: totalCacheRead,
-      cacheWriteTokens: totalCacheWrite,
-    },
-    stats: {
-      daysTracked: dates.size,
-      sessionsCount,
-      firstUsed: firstTimestamp ? new Date(firstTimestamp).toISOString().split("T")[0] : null,
-      lastUsed: lastTimestamp ? new Date(lastTimestamp).toISOString().split("T")[0] : null,
-    },
-    models,
-    projects,
-    dailyUsage,
-    account: {
-      ccplan: credentials.ccplan,
-      rateLimitTier: credentials.rateLimitTier,
-      authMethod: credentials.authMethod,
-      rawSubscriptionType: credentials.rawSubscriptionType,
-    },
-    sessionFingerprint,
-  };
+  return scanProjectFolder(projectPath, options);
 }
 
 /**
@@ -1349,50 +1075,8 @@ export function scanAllProjects(options: ScanOptions = {}): CCGatherData | null 
     return null;
   }
 
-  // Calculate cutoff date (default: 0 = no limit for all-time data)
-  const days = options.days ?? 0;
-  let cutoffDate: string | null = null;
-
-  if (days > 0) {
-    const cutoff = new Date();
-    cutoff.setDate(cutoff.getDate() - days);
-    cutoff.setHours(0, 0, 0, 0);
-    cutoffDate = cutoff.toISOString();
-  }
-
-  let totalInputTokens = 0;
-  let totalOutputTokens = 0;
-  let totalCacheRead = 0;
-  let totalCacheWrite = 0;
-  let totalCost = 0;
-  let sessionsCount = 0;
-  const dates = new Set<string>();
-  const models: Record<string, number> = {};
-  const projects: Record<
-    string,
-    {
-      tokens: number;
-      cost: number;
-      sessions: number;
-      models: Record<string, number>;
-    }
-  > = {};
-  const dailyData: Record<
-    string,
-    {
-      tokens: number;
-      cost: number;
-      inputTokens: number;
-      outputTokens: number;
-      cacheWriteTokens: number;
-      cacheReadTokens: number;
-      sessions: Set<string>;
-      models: Record<string, number>;
-      modelTokens: Record<string, ModelTokenSplit>;
-    }
-  > = {};
-  let firstTimestamp: string | null = null;
-  let lastTimestamp: string | null = null;
+  // Default: 0 = no limit for all-time data
+  const acc = createUsageAccumulator({ cutoff: cutoffFor(options.days ?? 0) });
 
   // Collect all JSONL files from all project directories, deduplicating copies of the
   // same transcript. This handles cases where the same project was accessed from
@@ -1415,7 +1099,6 @@ export function scanAllProjects(options: ScanOptions = {}): CCGatherData | null 
     }
   }
   const allJsonlFiles = deduplicateJsonlFiles(rawJsonlFiles);
-  const seenUsageEvents = new Set<string>();
   const sessionHashes: string[] = [];
 
   if (allJsonlFiles.length === 0) {
@@ -1434,16 +1117,7 @@ export function scanAllProjects(options: ScanOptions = {}): CCGatherData | null 
     const { filePath } = allJsonlFiles[i];
     const sessionKey = sessionKeyOf(allJsonlFiles[i]);
     const projectName = extractProjectName(filePath);
-
-    if (!projects[projectName]) {
-      projects[projectName] = {
-        tokens: 0,
-        cost: 0,
-        sessions: 0,
-        models: {},
-      };
-      projectSessions[projectName] = new Set();
-    }
+    projectSessions[projectName] ??= new Set();
     let hasUsage = false;
 
     try {
@@ -1455,98 +1129,8 @@ export function scanAllProjects(options: ScanOptions = {}): CCGatherData | null 
         onLine: (line) => {
           try {
             const event = JSON.parse(line);
-
-            if (event.type === "assistant" && event.message?.usage) {
-              hasUsage = true;
-              // Streaming writes one line per content block, each repeating the
-              // message's full usage — count each message once.
-              const eventKey = event.message.id
-                ? `${event.message.id}:${event.requestId ?? ""}`
-                : null;
-              if (eventKey) {
-                if (seenUsageEvents.has(eventKey)) return;
-                seenUsageEvents.add(eventKey);
-              }
-              if (cutoffDate && event.timestamp && event.timestamp < cutoffDate) {
-                return;
-              }
-
-              const usage = event.message.usage;
-              const model = event.message.model || "unknown";
-              const inputTokens = usage.input_tokens || 0;
-              const outputTokens = usage.output_tokens || 0;
-              const cacheWrite = usage.cache_creation_input_tokens || 0;
-              const cacheRead = usage.cache_read_input_tokens || 0;
-
-              totalInputTokens += inputTokens;
-              totalOutputTokens += outputTokens;
-              totalCacheRead += cacheRead;
-              totalCacheWrite += cacheWrite;
-
-              const messageCost = estimateCost(
-                model,
-                inputTokens,
-                outputTokens,
-                cacheWrite,
-                cacheRead
-              );
-              totalCost += messageCost;
-
-              const totalModelTokens = inputTokens + outputTokens + cacheWrite + cacheRead;
-              models[model] = (models[model] || 0) + totalModelTokens;
-
-              projects[projectName].tokens += totalModelTokens;
-              projects[projectName].cost += messageCost;
-              projects[projectName].models[model] =
-                (projects[projectName].models[model] || 0) + totalModelTokens;
-
-              if (event.timestamp) {
-                const date = new Date(event.timestamp).toISOString().split("T")[0];
-                dates.add(date);
-
-                if (!dailyData[date]) {
-                  dailyData[date] = {
-                    tokens: 0,
-                    cost: 0,
-                    inputTokens: 0,
-                    outputTokens: 0,
-                    cacheWriteTokens: 0,
-                    cacheReadTokens: 0,
-                    sessions: new Set(),
-                    models: {},
-                    modelTokens: {},
-                  };
-                }
-
-                dailyData[date].tokens += totalModelTokens;
-                dailyData[date].cost += messageCost;
-                dailyData[date].inputTokens += inputTokens;
-                dailyData[date].outputTokens += outputTokens;
-                dailyData[date].cacheWriteTokens += cacheWrite;
-                dailyData[date].cacheReadTokens += cacheRead;
-                dailyData[date].sessions.add(sessionKey);
-                dailyData[date].models[model] =
-                  (dailyData[date].models[model] || 0) + totalModelTokens;
-
-                const split = (dailyData[date].modelTokens[model] ??= {
-                  inputTokens: 0,
-                  outputTokens: 0,
-                  cacheWriteTokens: 0,
-                  cacheReadTokens: 0,
-                });
-                split.inputTokens += inputTokens;
-                split.outputTokens += outputTokens;
-                split.cacheWriteTokens += cacheWrite;
-                split.cacheReadTokens += cacheRead;
-
-                if (!firstTimestamp || event.timestamp < firstTimestamp) {
-                  firstTimestamp = event.timestamp;
-                }
-                if (!lastTimestamp || event.timestamp > lastTimestamp) {
-                  lastTimestamp = event.timestamp;
-                }
-              }
-            }
+            if (event?.type === "assistant" && event.message?.usage) hasUsage = true;
+            acc.add(event, { sessionKey, projectName });
           } catch {
             // Skip invalid JSON lines
           }
@@ -1568,65 +1152,28 @@ export function scanAllProjects(options: ScanOptions = {}): CCGatherData | null 
     }
   }
 
-  const totalTokens = totalInputTokens + totalOutputTokens + totalCacheWrite + totalCacheRead;
-
-  if (totalTokens === 0) {
-    return null;
-  }
-
-  sessionsCount = countedSessions.size;
-
-  for (const projectName of Object.keys(projects)) {
-    projects[projectName].cost = Math.round(projects[projectName].cost * 100) / 100;
-    projects[projectName].sessions = projectSessions[projectName].size;
-  }
-
-  const dailyUsage: DailyUsage[] = Object.entries(dailyData)
-    .map(([date, data]) => ({
-      date,
-      tokens: data.tokens,
-      cost: Math.round(data.cost * 100) / 100,
-      inputTokens: data.inputTokens,
-      outputTokens: data.outputTokens,
-      cacheWriteTokens: data.cacheWriteTokens,
-      cacheReadTokens: data.cacheReadTokens,
-      sessions: data.sessions.size,
-      models: data.models,
-      modelTokens: data.modelTokens,
-    }))
-    .sort((a, b) => a.date.localeCompare(b.date));
-
-  const credentials = readCredentials();
-  const sessionFingerprint = buildSessionFingerprint(sessionHashes);
+  const summary = summarizeScan(
+    acc.result(),
+    Object.fromEntries(Object.entries(projectSessions).map(([name, set]) => [name, set.size]))
+  );
+  if (!summary) return null;
 
   return {
     version: CCGATHER_JSON_VERSION,
     lastUpdated: new Date().toISOString(),
     lastScanned: new Date().toISOString(),
-    usage: {
-      totalTokens,
-      totalCost: Math.round(totalCost * 100) / 100,
-      inputTokens: totalInputTokens,
-      outputTokens: totalOutputTokens,
-      cacheReadTokens: totalCacheRead,
-      cacheWriteTokens: totalCacheWrite,
-    },
+    usage: summary.usage,
     stats: {
-      daysTracked: dates.size,
-      sessionsCount,
-      firstUsed: firstTimestamp ? new Date(firstTimestamp).toISOString().split("T")[0] : null,
-      lastUsed: lastTimestamp ? new Date(lastTimestamp).toISOString().split("T")[0] : null,
+      daysTracked: summary.daysTracked,
+      sessionsCount: countedSessions.size,
+      firstUsed: summary.firstUsed,
+      lastUsed: summary.lastUsed,
     },
-    models,
-    projects,
-    dailyUsage,
-    account: {
-      ccplan: credentials.ccplan,
-      rateLimitTier: credentials.rateLimitTier,
-      authMethod: credentials.authMethod,
-      rawSubscriptionType: credentials.rawSubscriptionType,
-    },
-    sessionFingerprint,
+    models: summary.models,
+    projects: summary.projects,
+    dailyUsage: summary.dailyUsage,
+    account: accountInfo(),
+    sessionFingerprint: buildSessionFingerprint(sessionHashes),
   };
 }
 

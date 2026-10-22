@@ -4,3 +4,5 @@ out
 build
 coverage
 *.md
+# Fixtures stay byte-identical to their source (the parity test checks sha256)
+packages/cli/tests/fixtures/
