@@ -70,6 +70,20 @@ function readJsonFile(file: string): JsonObject | null {
   }
 }
 
+// A settings document as Claude Code reads one: UTF-16LE when it opens with FF FE, and without
+// a leading byte-order mark (its Tue() and Oo()). PowerShell writes both.
+function readSettingsFile(file: string): JsonObject | null {
+  try {
+    const bytes = fs.readFileSync(file);
+    const utf16 = bytes.length >= 2 && bytes[0] === 0xff && bytes[1] === 0xfe;
+    const text = bytes.toString(utf16 ? "utf16le" : "utf8");
+    const value: unknown = JSON.parse(text.startsWith("\uFEFF") ? text.slice(1) : text);
+    return isObject(value) ? value : null;
+  } catch {
+    return null;
+  }
+}
+
 function fileSize(file: string): number {
   try {
     const stat = fs.statSync(file);
@@ -114,7 +128,7 @@ function readManagedSettings(dir: string): JsonObject[] {
   } catch {
     // no drop-in folder
   }
-  return files.map(readJsonFile).filter((s): s is JsonObject => s !== null);
+  return files.map(readSettingsFile).filter((s): s is JsonObject => s !== null);
 }
 
 /**
@@ -303,8 +317,8 @@ function subscription(oauth: JsonObject | null): CredentialsData {
 /**
  * The credential Claude Code would sign in with, in the order of its 2.1.308 build and the
  * documented precedence (code.claude.com/docs/en/authentication): an enterprise gateway
- * (CLAUDE_CODE_USE_GATEWAY with a base URL and token, a trusted saved sign-in, or managed
- * settings that require one), a cloud provider, ANTHROPIC_AUTH_TOKEN, an approved
+ * (CLAUDE_CODE_USE_GATEWAY with a base URL and token, or a trusted saved sign-in), a cloud
+ * provider, a gateway that managed settings require, ANTHROPIC_AUTH_TOKEN, an approved
  * ANTHROPIC_API_KEY, apiKeyHelper, a key
  * saved by a Claude Console login (unused while a subscription login or CLAUDE_CODE_OAUTH_TOKEN
  * can sign in), CLAUDE_CODE_OAUTH_TOKEN, an Anthropic profile or federation, then the /login
@@ -319,7 +333,8 @@ function subscription(oauth: JsonObject | null): CredentialsData {
  * apiKeyHelper given with --settings, while a gateway still applies (on macOS bare mode reads
  * no Keychain, so a gateway saved there is not looked for).
  * Not read: MDM or registry policies, server-managed settings, project and local settings,
- * --settings and other flags, the Windows Credential Manager store, a custom OAuth URL's
+ * --settings and other flags, the Windows managed settings a WSL install inherits
+ * (wslInheritsWindowsSettings), the Windows Credential Manager store, a custom OAuth URL's
  * separate login, credentials a remote host hands to Claude Code or a session it manages, and
  * for a saved gateway the organization's gateway policy and the live TLS check — those cases
  * report what the files say.
@@ -332,19 +347,22 @@ export function readCredentials(
   const platform = options.platform ?? process.platform;
   const paths = claudePaths(env, home);
   const globalConfig = readJsonFile(paths.globalConfig);
-  const userSettings = readJsonFile(paths.userSettings);
+  const userSettings = readSettingsFile(paths.userSettings);
   const managed = readManagedSettings(
     options.managedSettingsDir ?? systemManagedSettingsDir(platform)
   );
   // Last applied first: managed drop-ins, managed, the user's settings, .claude.json's env.
   const settingsLayers = [...managed].reverse().concat(userSettings ?? {});
-  const envLayers = [...settingsLayers, globalConfig].map((s) => (isObject(s?.env) ? s.env : {}));
+  const envOf = (s: JsonObject | null): JsonObject => (isObject(s?.env) ? s.env : {});
   const variable = (name: string): string | undefined => {
-    for (const layer of envLayers) {
-      const value = layer[name];
-      if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
-        return String(value);
-      }
+    // A settings file's env schema turns any value into text (null is "null") and it replaces
+    // what lies below; .claude.json's legacy env keeps only strings, numbers and booleans.
+    for (const layer of settingsLayers.map(envOf)) {
+      if (Object.hasOwn(layer, name)) return String(layer[name]);
+    }
+    const legacy = envOf(globalConfig)[name];
+    if (typeof legacy === "string" || typeof legacy === "number" || typeof legacy === "boolean") {
+      return String(legacy);
     }
     return env[name];
   };
@@ -366,8 +384,7 @@ export function readCredentials(
   if (envGateway || isSavedGatewaySignIn(stored)) return unknown("enterprise_gateway");
   if (
     !provider &&
-    ((!isTruthy(variable("CLAUDE_CODE_PROVIDER_MANAGED_BY_HOST")) &&
-      managedRequiresGateway(managed)) ||
+    ((!isTruthy(env.CLAUDE_CODE_PROVIDER_MANAGED_BY_HOST) && managedRequiresGateway(managed)) ||
       isObject(stored?.enterpriseGateway))
   ) {
     return unknown("enterprise_gateway");

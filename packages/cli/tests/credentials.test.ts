@@ -130,20 +130,52 @@ describe("settings env blocks replace the shell's variables", () => {
     expect(creds({ CLAUDE_CODE_USE_BEDROCK: "0" }).ccplan).toBe("bedrock");
   });
 
-  it("applies numbers and booleans from a settings env block as text, as Claude Code does", () => {
+  it("turns every settings env value into text, as Claude Code's settings schema does", () => {
     oauth("max", undefined, { scopes: ["user:inference"] });
+    const shellOn = { CLAUDE_CODE_USE_VERTEX: "1" };
     write(".claude/settings.json", { env: { CLAUDE_CODE_USE_BEDROCK: true } });
     expect(creds({}).ccplan).toBe("bedrock");
-    write(".claude/settings.json", { env: { CLAUDE_CODE_USE_VERTEX: 0 } });
-    expect(creds({ CLAUDE_CODE_USE_VERTEX: "1" }).ccplan).toBe("max");
+    // 0, null ("null") and an object ("[object Object]") switch the shell's value off
+    for (const off of [0, null, { a: 1 }]) {
+      write(".claude/settings.json", { env: { CLAUDE_CODE_USE_VERTEX: off } });
+      expect(creds(shellOn).ccplan).toBe("max");
+    }
+    write(".claude/settings.json", { env: { CLAUDE_CODE_USE_VERTEX: ["1"] } });
+    expect(creds({}).ccplan).toBe("vertex");
+  });
+
+  it("lets a null in the user's settings replace .claude.json's value, but not the other way", () => {
+    write(".claude.json", { env: { CLAUDE_CODE_USE_VERTEX: "1" } });
     write(".claude/settings.json", { env: { CLAUDE_CODE_USE_VERTEX: null } });
+    expect(creds({}).ccplan).toBeNull();
+    // .claude.json's legacy env drops what is not a string, number or boolean
+    write(".claude.json", { env: { CLAUDE_CODE_USE_VERTEX: null } });
+    write(".claude/settings.json", {});
     expect(creds({ CLAUDE_CODE_USE_VERTEX: "1" }).ccplan).toBe("vertex");
   });
 
-  it("lets a null in the user's settings leave a lower layer's value in place", () => {
-    write(".claude.json", { env: { CLAUDE_CODE_USE_VERTEX: "1" } });
-    write(".claude/settings.json", { env: { CLAUDE_CODE_USE_VERTEX: null } });
+  it("lets a managed drop-in's null switch off its base file's value", () => {
+    write("managed/managed-settings.json", { env: { CLAUDE_CODE_USE_VERTEX: "1" } });
     expect(creds({}).ccplan).toBe("vertex");
+    write("managed/managed-settings.d/50-off.json", { env: { CLAUDE_CODE_USE_VERTEX: null } });
+    expect(creds({}).ccplan).toBeNull();
+  });
+
+  it("reads settings files saved as UTF-8 with a byte-order mark or as UTF-16LE", () => {
+    oauth("max", undefined, { scopes: ["user:inference"] });
+    const save = (file: string, value: unknown, encoding: "bom" | "utf16le") => {
+      const target = path.join(home, file);
+      fs.mkdirSync(path.dirname(target), { recursive: true });
+      const text = "\uFEFF" + JSON.stringify(value);
+      fs.writeFileSync(target, Buffer.from(text, encoding === "bom" ? "utf8" : "utf16le"));
+    };
+    for (const encoding of ["bom", "utf16le"] as const) {
+      save(".claude/settings.json", { env: { CLAUDE_CODE_USE_VERTEX: "0" } }, encoding);
+      expect(creds({ CLAUDE_CODE_USE_VERTEX: "1" }).ccplan).toBe("max");
+      save("managed/managed-settings.json", { forceLoginMethod: "gateway" }, encoding);
+      expect(creds({}).rawSubscriptionType).toBe("enterprise_gateway");
+      fs.rmSync(path.join(home, "managed"), { recursive: true });
+    }
   });
 
   it("reads the token's plan and tier from a settings env block", () => {
@@ -698,7 +730,17 @@ describe("enterprise gateway", () => {
     expect(creds({})).toEqual(GATEWAY);
     expect(creds({ ANTHROPIC_API_KEY: KEY })).toEqual(GATEWAY);
     expect(creds({ CLAUDE_CODE_USE_BEDROCK: "1" }).ccplan).toBe("bedrock");
+    // Only the shell's value counts: Claude Code takes it from no settings file. (What a host
+    // then hands over is not read here; the saved login stands in for it.)
     expect(creds({ CLAUDE_CODE_PROVIDER_MANAGED_BY_HOST: "1" }).ccplan).toBe("max");
+    write(".claude/settings.json", { env: { CLAUDE_CODE_PROVIDER_MANAGED_BY_HOST: "1" } });
+    expect(creds({})).toEqual(GATEWAY);
+    write("managed/managed-settings.json", {
+      forceLoginMethod: "gateway",
+      env: { CLAUDE_CODE_PROVIDER_MANAGED_BY_HOST: "1" },
+    });
+    expect(creds({})).toEqual(GATEWAY);
+    fs.rmSync(path.join(home, ".claude/settings.json"));
 
     write("managed/managed-settings.json", { forceLoginGatewayUrl: "https://gw.example" });
     expect(creds({})).toEqual(GATEWAY);
