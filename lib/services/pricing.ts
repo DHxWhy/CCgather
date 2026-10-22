@@ -469,38 +469,23 @@ function splitCost(price: ModelPricing, multiplier: number, split: ModelTokenSpl
   return split.fast ? base + (multiplier - 1) * rawCost(price, split.fast) : base;
 }
 
-function addCounts(a: TokenCounts, b: TokenCounts): TokenCounts {
-  return {
-    inputTokens: a.inputTokens + b.inputTokens,
-    outputTokens: a.outputTokens + b.outputTokens,
-    cacheWriteTokens: a.cacheWriteTokens + b.cacheWriteTokens,
-    cacheReadTokens: a.cacheReadTokens + b.cacheReadTokens,
-    cacheWrite1hTokens: (a.cacheWrite1hTokens ?? 0) + (b.cacheWrite1hTokens ?? 0),
-  };
-}
-
-const NO_TOKENS: TokenCounts = {
-  inputTokens: 0,
-  outputTokens: 0,
-  cacheWriteTokens: 0,
-  cacheReadTokens: 0,
-};
-
 /**
  * Price a day per model; returns null when the split can't be trusted so the
  * caller falls back to `computeDayCost`.
  *
  * SECURITY — every input is user-supplied. The split is accepted only as a
  * refinement of the already-declared `day.models` (the field `primary_model`
- * comes from), and is clamped to the priciest single-model reading of the day.
- * Drop any of those checks and a caller can keep the day totals intact while
- * billing them to a pricier model than `primary_model` reports: cost inflation
- * with no visible signal. The clamp holds even if the upstream price table
- * stops having one model that is priciest on all four token types.
- * The 1h and fast shares are claims the server cannot check either: they must fit
- * inside each model's own tokens and the clamp reads the day with them, so at worst
- * they bill declared tokens at a declared model's fast or 1h rate (up to 6x on Opus
- * 4.6/4.7). A day with a fast share is annotated V10_fast_mode_share for review.
+ * comes from): each model's tokens must equal its declared total, and each token
+ * type must add up to the day's total. Drop either check and a caller can keep the
+ * day totals intact while billing them to a pricier model than `primary_model`
+ * reports: cost inflation with no visible signal. Within them a caller can still
+ * choose how a model's tokens divide across types, so at worst each type is billed
+ * at the priciest declared model's rate for it. The 1h and fast shares are claims
+ * too: they must fit inside each model's own tokens (fast up to 6x on Opus 4.6/4.7,
+ * annotated V10_fast_mode_share). There is no further clamp: like ccusage, a day
+ * costs its per-model sum. (Until 2026-10-22 a clamp to the priciest single-model
+ * reading of the day sat here; it cut honest mixed-model days, ~6% on a real
+ * Opus 5.5 + Sonnet 4.6 day.)
  * Summed unrounded, rounded once — per-model rounding drops sub-cent models.
  */
 export function computeDayCostByModel(
@@ -576,29 +561,14 @@ export function computeDayCostByModel(
     return price;
   };
 
-  // The day as a whole, with its 1h and fast shares, read as each billed model.
-  let dayOneHour = 0;
-  let dayFast = NO_TOKENS;
-  for (const { split } of splits) {
-    dayOneHour += split.cacheWrite1hTokens ?? 0;
-    if (split.fast) dayFast = addCounts(dayFast, split.fast);
-  }
-  const wholeDay: ModelTokenSplit = { ...dayTotals, cacheWrite1hTokens: dayOneHour, fast: dayFast };
-
   let total = 0;
-  let ceiling = 0;
   for (const { model, split } of splits) {
-    const price = priceOf(model);
-    const multiplier = fastModeMultiplier(model);
-    total += splitCost(price, multiplier, split);
-    // Ceiling spans only the models actually being billed: a model declared with
-    // zero tokens must not be able to raise the cap it is clamped against.
-    ceiling = Math.max(ceiling, splitCost(price, multiplier, wholeDay));
+    total += splitCost(priceOf(model), fastModeMultiplier(model), split);
   }
 
   // A non-finite figure means a bad price slipped in: refuse, so the caller falls back.
-  if (!Number.isFinite(total) || !Number.isFinite(ceiling)) return null;
-  return Math.round(Math.min(total, ceiling) * 100) / 100;
+  if (!Number.isFinite(total)) return null;
+  return Math.round(total * 100) / 100;
 }
 
 // Per-model pricing applies from this date on. Earlier days keep the PRIMARY-MODEL

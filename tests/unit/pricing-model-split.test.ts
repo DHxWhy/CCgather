@@ -297,94 +297,74 @@ describe("computeDayCostByModel", () => {
     });
   });
 
-  describe("the clamp ceiling spans only the models actually billed", () => {
+  describe("prices each model at its own rates, like ccusage", () => {
     const SPLIT_PEAKS = {
       "cheap-in-pricey-out": { input: 1, output: 100, cacheWrite: 1, cacheRead: 1 },
       "pricey-in-cheap-out": { input: 100, output: 1, cacheWrite: 1, cacheRead: 1 },
       "declared-but-unused": { input: 1000, output: 1000, cacheWrite: 1000, cacheRead: 1000 },
     };
-
-    it("a model declared with zero tokens cannot raise the ceiling", () => {
-      const dayTotals = {
-        inputTokens: 1 * M,
+    const dayTotals = {
+      inputTokens: 1 * M,
+      outputTokens: 1 * M,
+      cacheWriteTokens: 0,
+      cacheReadTokens: 0,
+    };
+    const modelTokens = {
+      "cheap-in-pricey-out": {
+        inputTokens: 0,
         outputTokens: 1 * M,
         cacheWriteTokens: 0,
         cacheReadTokens: 0,
-      };
-      const capped = computeDayCostByModel(SPLIT_PEAKS, {
-        modelTokens: {
-          "cheap-in-pricey-out": {
-            inputTokens: 0,
-            outputTokens: 1 * M,
-            cacheWriteTokens: 0,
-            cacheReadTokens: 0,
-          },
-          "pricey-in-cheap-out": {
-            inputTokens: 1 * M,
-            outputTokens: 0,
-            cacheWriteTokens: 0,
-            cacheReadTokens: 0,
-          },
-        },
-        declaredModels: {
-          "cheap-in-pricey-out": 1 * M,
-          "pricey-in-cheap-out": 1 * M,
-          "declared-but-unused": 0,
-        },
-        dayTotals,
-      });
-
-      expect(capped).toBe(101);
-    });
-  });
-
-  describe("clamps when no single model is priciest on every token type", () => {
-    const SPLIT_PEAKS = {
-      "cheap-in-pricey-out": { input: 1, output: 100, cacheWrite: 1, cacheRead: 1 },
-      "pricey-in-cheap-out": { input: 100, output: 1, cacheWrite: 1, cacheRead: 1 },
+      },
+      "pricey-in-cheap-out": {
+        inputTokens: 1 * M,
+        outputTokens: 0,
+        cacheWriteTokens: 0,
+        cacheReadTokens: 0,
+      },
     };
 
-    it("caps the split at the priciest single-model reading of the same day", () => {
-      const dayTotals = {
-        inputTokens: 1 * M,
-        outputTokens: 1 * M,
-        cacheWriteTokens: 0,
-        cacheReadTokens: 0,
-      };
-      const declaredModels = { "cheap-in-pricey-out": 1 * M, "pricey-in-cheap-out": 1 * M };
-
-      const clamped = computeDayCostByModel(SPLIT_PEAKS, {
-        modelTokens: {
-          "cheap-in-pricey-out": {
-            inputTokens: 0,
-            outputTokens: 1 * M,
-            cacheWriteTokens: 0,
-            cacheReadTokens: 0,
-          },
-          "pricey-in-cheap-out": {
-            inputTokens: 1 * M,
-            outputTokens: 0,
-            cacheWriteTokens: 0,
-            cacheReadTokens: 0,
-          },
-        },
-        declaredModels,
+    it("even when no single model is priciest on every token type", () => {
+      // 1M output at $100 + 1M input at $100. The single-model clamp removed on
+      // 2026-10-22 would have cut this day to its priciest one-model reading, $101.
+      const cost = computeDayCostByModel(SPLIT_PEAKS, {
+        modelTokens,
+        declaredModels: { "cheap-in-pricey-out": 1 * M, "pricey-in-cheap-out": 1 * M },
         dayTotals,
       });
+      expect(cost).toBe(200);
+    });
 
-      const ceiling = Math.max(
-        ...Object.keys(declaredModels).map((model) =>
-          computeDayCost(SPLIT_PEAKS, { model, ...dayTotals })
-        )
+    it("a model declared with zero tokens bills nothing, listed in the split or not", () => {
+      const declaredModels = {
+        "cheap-in-pricey-out": 1 * M,
+        "pricey-in-cheap-out": 1 * M,
+        "declared-but-unused": 0,
+      };
+      expect(computeDayCostByModel(SPLIT_PEAKS, { modelTokens, declaredModels, dayTotals })).toBe(
+        200
       );
-
-      expect(ceiling).toBe(101);
-      expect(clamped).toBe(101);
+      const withZeroEntry = {
+        ...modelTokens,
+        "declared-but-unused": {
+          inputTokens: 0,
+          outputTokens: 0,
+          cacheWriteTokens: 0,
+          cacheReadTokens: 0,
+        },
+      };
+      expect(
+        computeDayCostByModel(SPLIT_PEAKS, {
+          modelTokens: withZeroEntry,
+          declaredModels,
+          dayTotals,
+        })
+      ).toBe(200);
     });
   });
 
-  describe("clamps to the priciest declared single-model reading", () => {
-    it("never exceeds what declaring one expensive model already allows", () => {
+  describe("stays within each token type's priciest declared rate", () => {
+    it("never bills a token type above the priciest declared model's rate for it", () => {
       const dayTotals = {
         inputTokens: 1 * M,
         outputTokens: 1 * M,
@@ -410,11 +390,21 @@ describe("computeDayCostByModel", () => {
         declaredModels,
         dayTotals,
       });
-      const ceiling = Math.max(
-        ...Object.keys(declaredModels).map((model) => computeDayCost(null, { model, ...dayTotals }))
-      );
+      const priciest = (tokens: Partial<typeof dayTotals>) =>
+        Math.max(
+          ...Object.keys(declaredModels).map((model) =>
+            computeDayCost(null, {
+              model,
+              ...dayTotals,
+              inputTokens: 0,
+              outputTokens: 0,
+              ...tokens,
+            })
+          )
+        );
+      const bound = priciest({ inputTokens: 1 * M }) + priciest({ outputTokens: 1 * M });
       expect(perModel).not.toBeNull();
-      expect(perModel!).toBeLessThanOrEqual(ceiling);
+      expect(perModel!).toBeLessThanOrEqual(bound);
     });
   });
 });
@@ -591,7 +581,7 @@ describe("1-hour cache writes and fast mode", () => {
     ).toBeNull();
   });
 
-  it("adds a fast premium in full while the day stays under its ceiling", () => {
+  it("adds the fast premium in full", () => {
     const fastDay = { ...zero, inputTokens: 1 * M, outputTokens: 1 * M };
     const opus = listed("claude-opus-4-6");
     const cost = computeDayCostByModel(TABLE, {
@@ -605,7 +595,8 @@ describe("1-hour cache writes and fast mode", () => {
     expect(cost).toBe(cents((opus.input + opus.output) * 6 + 1));
   });
 
-  it("clamps a fast premium to the priciest single-model reading of the day", () => {
+  it("bills a fast premium in full even above any single-model reading, like ccusage", () => {
+    const opus = listed("claude-opus-4-6");
     const cost = computeDayCostByModel(TABLE, {
       modelTokens: {
         "claude-test-pricey-out": { ...zero, outputTokens: 1 * M },
@@ -614,8 +605,7 @@ describe("1-hour cache writes and fast mode", () => {
       declaredModels: { "claude-test-pricey-out": 1 * M, "claude-opus-4-6": 1 * M },
       dayTotals: { ...zero, inputTokens: 1 * M, outputTokens: 1 * M },
     });
-    // Billed 1000 + Opus 4.6 input x6; the pricey model's reading of the whole day
-    // (1M input at $1, 1M output at $1000, fast at its 1x) caps it at 1001.
-    expect(cost).toBe(1001);
+    // 1000 + Opus 4.6 input x6; the removed clamp would have capped it at 1001.
+    expect(cost).toBe(cents(1000 + opus.input * 6));
   });
 });

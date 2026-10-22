@@ -49,7 +49,7 @@ validators. **None of these block the submission** — they annotate it.
 | `V2_aggregate_*` | same date split across multiple entries to dodge a per-day check | SOFT |
 | `V4_future_date` | dates beyond today (UTC, +1 day buffer) | *(advisory)* |
 | `V6_cache_ratio_high` | cache-read share far beyond what real heavy-cache users show | SOFT |
-| `V10_fast_mode_share` | the day's per-model split claims fast-mode tokens on a model with a fast premium (up to 6x). The share is unverifiable and only bounded by the model's own tokens; the clamp reads the same claim. 1-hour cache shares (≤ cache writes, 1.6x the 5-minute rate) are not flagged — most days have them | INFO |
+| `V10_fast_mode_share` | the day's per-model split claims fast-mode tokens on a model with a fast premium (up to 6x). The share is unverifiable and only bounded by the model's own tokens (there is no day-level clamp — like ccusage, a day costs its per-model sum). 1-hour cache shares (≤ cache writes, 1.6x the 5-minute rate) are not flagged — most days have them | INFO |
 | `V8` / `V9` | payload shape & numeric overflow guards | *(advisory)* |
 
 Thresholds are calibrated against real heavy-user data and carry a wide safety
