@@ -48,7 +48,7 @@ interface PricingCache {
 // or when the id has no LiteLLM entry. Per-million-token rates from the official
 // pricing page (platform.claude.com/docs/en/about-claude/pricing, verified 2026-09-24).
 // Opus 4 / 4.1 stayed at the legacy higher tier; Opus 4.5+ moved to a new lower tier.
-const FALLBACK_PRICING: Record<string, ModelPricing> = {
+const FALLBACK_PRICING = {
   // Fable 5.1 / Mythos 5.1 — same $10/$50, but cache reads are 0.025x ($0.25);
   // every other model uses the standard 0.1x (official pricing footnote).
   "fable-5-1": { input: 10, output: 50, cacheWrite: 12.5, cacheRead: 0.25 },
@@ -72,7 +72,7 @@ const FALLBACK_PRICING: Record<string, ModelPricing> = {
   "haiku-3-5": { input: 0.8, output: 4, cacheWrite: 1, cacheRead: 0.08 },
   // Generic safety net (matches Sonnet pricing, the most common Claude tier)
   default: { input: 3, output: 15, cacheWrite: 3.75, cacheRead: 0.3 },
-};
+} satisfies Record<string, ModelPricing>;
 
 // Provider / region prefixes that may wrap a Claude model identifier in
 // LiteLLM keys (e.g., "anthropic.claude-opus-4-7",
