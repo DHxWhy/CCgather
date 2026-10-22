@@ -16,7 +16,7 @@ interface LineSpec {
   sidechain?: unknown;
   iterations?: unknown[];
   type?: string;
-  version?: string;
+  version?: string | null;
   top?: Record<string, unknown>; // more top-level fields
   usageExtra?: Record<string, unknown>; // more usage fields
 }
@@ -224,6 +224,14 @@ describe("dedup keys (ccusage daily)", () => {
     expect(acc.result().total.outputTokens).toBe(7);
   });
 
+  it("lets a parent find a sidechain response through the session of an equal copy", () => {
+    const acc = createUsageAccumulator();
+    acc.add(line({ id: "msg_x", req: "req_x", session: "s1", output: 10, sidechain: true }), A);
+    acc.add(line({ id: "msg_x", req: "req_x", session: "s2", output: 10, sidechain: true }), B);
+    acc.add(line({ id: "msg_x", req: "req_main", session: "s2", output: 10 }), B);
+    expect(acc.result().total.outputTokens).toBe(10);
+  });
+
   it("re-indexes a response under the key of the line that took it over", () => {
     const acc = createUsageAccumulator();
     acc.add(line({ id: "msg_q", req: "req_s", output: 3, sidechain: true }), B);
@@ -274,6 +282,23 @@ describe("lines ccusage leaves out", () => {
     ["a cache breakdown that is not an object", { usageExtra: { cache_creation: "x" } }],
     ["a negative 1-hour cache count", { cache: [5, -1] }],
     ["a version with two parts", { version: "2.1" }],
+    ["a null version", { version: null }],
+    ["a null speed", { usageExtra: { speed: null } }],
+    ["an offset without a colon", { ts: "2026-10-01T10:00:00+0900" }],
+    ["hour 24", { ts: "2026-10-01T24:00:00Z" }],
+    ["February 30", { ts: "2026-02-30T10:00:00Z" }],
+    [
+      "an iteration with a null speed",
+      { iterations: [{ type: "message", input_tokens: 1, output_tokens: 1, speed: null }] },
+    ],
+    [
+      "an iteration with a null cache write count",
+      {
+        iterations: [
+          { type: "message", input_tokens: 1, output_tokens: 1, cache_creation_input_tokens: null },
+        ],
+      },
+    ],
     [
       "an iteration with a null cache count",
       {
@@ -293,6 +318,12 @@ describe("lines ccusage leaves out", () => {
     expect(acc.add(line({ id: "msg_1", req: "req_1", output: 5, sidechain: null }), A)).toBe(true);
     acc.add(line({ id: "msg_1", req: "req_2", output: 9, sidechain: true }), A);
     expect(acc.result().total.outputTokens).toBe(5);
+  });
+
+  it("takes the flat cache write count when cache_creation is null", () => {
+    const acc = createUsageAccumulator();
+    acc.add(line({ id: "msg_1", req: "r1", cw: 999, usageExtra: { cache_creation: null } }), A);
+    expect(acc.result().total.cacheWriteTokens).toBe(999);
   });
 
   it("takes whole seconds or milliseconds, Z or an offset, by UTC day", () => {
@@ -408,6 +439,17 @@ describe("token shares", () => {
       advisor("claude-opus-4-8", 100, 10, { cache_read_input_tokens: -1 }),
     ],
     ["no input tokens", { type: "message", model: null, output_tokens: 3 }],
+    ["a model that is not text", { type: "message", model: 5, input_tokens: 1, output_tokens: 1 }],
+    [
+      "a cache breakdown that is not an object",
+      advisor("claude-opus-4-8", 100, 10, { cache_creation: "x" }),
+    ],
+    [
+      "a negative 1-hour cache count",
+      advisor("claude-opus-4-8", 100, 10, {
+        cache_creation: { ephemeral_5m_input_tokens: 1, ephemeral_1h_input_tokens: -1 },
+      }),
+    ],
   ])("drops every advisor of a line with an iteration that has %s", (_label, odd) => {
     const acc = createUsageAccumulator();
     expect(
@@ -639,6 +681,35 @@ describe("a /btw replay read before its parent", () => {
     expect(Object.keys(replayDay?.modelTokens ?? {})).toEqual(["claude-sonnet-4-6"]);
   });
 
+  it("moves it to the parent's model and project too", () => {
+    const acc = createUsageAccumulator();
+    acc.add(
+      line({
+        id: "msg_p",
+        req: "req_replay",
+        ts: "2026-10-02T08:00:00.000Z",
+        model: "claude-haiku-4-5",
+        output: 7,
+        sidechain: true,
+      }),
+      { sessionKey: "/q/aside.jsonl", projectName: "elsewhere" }
+    );
+    acc.add(line({ id: "msg_p", req: "req_p", ts: "2026-10-01T10:00:00.000Z", output: 7 }), A);
+    expect(day(acc)?.models).toEqual({ "claude-opus-4-8": 7 });
+    expect(acc.result().projects.has("elsewhere")).toBe(false);
+    expect(acc.result().projects.get("proj")?.tokens).toBe(7);
+  });
+
+  it("keeps a sidechain response on the day first seen when a larger sidechain line crosses midnight", () => {
+    const acc = createUsageAccumulator();
+    const sub = (ts: string, output: number) =>
+      line({ id: "msg_s", req: "req_s", ts, output, sidechain: true });
+    acc.add(sub("2026-10-01T23:59:59.000Z", 8), B);
+    acc.add(sub("2026-10-02T00:00:01.000Z", 534), B);
+    expect(day(acc)?.outputTokens).toBe(534);
+    expect(acc.result().daily.has("2026-10-02")).toBe(false);
+  });
+
   it("leaves the response out when the parent's day is before the cutoff", () => {
     const acc = createUsageAccumulator({ cutoff: "2026-10-02T00:00:00.000Z" });
     acc.add(replay("2026-10-03T08:00:00.000Z"), B);
@@ -655,6 +726,20 @@ describe("buckets and bounds", () => {
     acc.add(line({ id: "msg_3", req: "r3", ts: "2026-10-19T05:00:00.000Z", output: 1 }), A);
     expect(acc.result().firstTimestamp).toBe("2026-10-18T05:00:00.000Z");
     expect(acc.result().lastTimestamp).toBe("2026-10-20T05:00:00.000Z");
+  });
+
+  it("compares times as instants, so an offset timestamp is placed and cut off correctly", () => {
+    const cut = createUsageAccumulator({ cutoff: "2026-10-01T00:00:00.000Z" });
+    // 08:00 at +09:00 is 23:00 UTC the day before the cutoff
+    expect(
+      cut.add(line({ id: "msg_1", req: "r1", ts: "2026-10-01T08:00:00+09:00", output: 4 }), A)
+    ).toBe(false);
+
+    const acc = createUsageAccumulator();
+    acc.add(line({ id: "msg_1", req: "r1", ts: "2026-10-01T23:30:00Z", output: 1 }), A);
+    acc.add(line({ id: "msg_2", req: "r2", ts: "2026-10-02T08:00:00+09:00", output: 1 }), A);
+    expect(acc.result().firstTimestamp).toBe("2026-10-02T08:00:00+09:00");
+    expect(acc.result().lastTimestamp).toBe("2026-10-01T23:30:00Z");
   });
 
   it("counts a line exactly at the cutoff", () => {

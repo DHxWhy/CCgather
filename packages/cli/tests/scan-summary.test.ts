@@ -231,6 +231,15 @@ describe("summary fields", () => {
     expect(stats?.lastUsed).toBe("2026-10-20");
   });
 
+  it("does not count a file whose lines only mention a usage key", () => {
+    writeTranscript("p", "s1.jsonl", [
+      usageLine("1", "claude-haiku-4-5", "2026-10-20T05:00:00.000Z", { input: 10 }),
+    ]);
+    writeTranscript("p", "notes.jsonl", [JSON.stringify({ type: "system", usage: "n/a" })]);
+
+    expect(scanAllProjects()?.stats.sessionsCount).toBe(1);
+  });
+
   it("counts a file without a session id that holds only agent-progress usage", () => {
     const progress = JSON.stringify({
       type: "progress",

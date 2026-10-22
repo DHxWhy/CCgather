@@ -19,6 +19,8 @@
  *   space, duplicate keys, 5.0 for an integer, a lone surrogate escape).
  * - A "<synthetic>" message keeps that model name (ccusage leaves it unnamed), so a day's
  *   per-model split still adds up to its totals.
+ * - A cache_creation array is not a breakdown here (ccusage reads [5m, 1h] from it); the line
+ *   is dropped.
  */
 
 export interface TokenSplit {
@@ -172,8 +174,13 @@ const ZONED = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{3})?(Z|[+-]\d{2}:\d{2})
 
 const utcDay = (instant: number): string => new Date(instant).toISOString().slice(0, 10);
 
+// Date.parse rolls 24:00 and Feb 30 over to the next day; ccusage rejects them.
 function readInstant(v: unknown): number | null {
   if (typeof v !== "string" || !ZONED.test(v)) return null;
+  const [year, month, day, hour, minute, second] = v.slice(0, 19).split(/\D/).map(Number);
+  const daysInMonth = new Date(Date.UTC(year, month, 0)).getUTCDate();
+  if (month < 1 || month > 12 || day < 1 || day > daysInMonth) return null;
+  if (hour > 23 || minute > 59 || second > 59) return null;
   const ms = Date.parse(v);
   return Number.isFinite(ms) ? ms : null;
 }
@@ -339,8 +346,13 @@ export function createUsageAccumulator(options: { cutoff?: string | null } = {})
   const total = emptyBucket();
   const daily = new Map<string, Bucket>();
   const projects = new Map<string, Bucket>();
+  const cutoffInstant = cutoff === null ? null : Date.parse(cutoff);
+  const beforeCutoff = (instant: number): boolean =>
+    cutoffInstant !== null && instant < cutoffInstant;
   let firstTimestamp: string | null = null;
   let lastTimestamp: string | null = null;
+  let firstInstant = Infinity;
+  let lastInstant = -Infinity;
 
   // Strings repeated across responses (sessions, models, days, projects) are kept once.
   const pool = new Map<string, string>();
@@ -447,9 +459,16 @@ export function createUsageAccumulator(options: { cutoff?: string | null } = {})
     c.hasSpeed = e.hasSpeed;
   };
 
-  const noteTimestamp = (timestamp: string): void => {
-    if (!firstTimestamp || timestamp < firstTimestamp) firstTimestamp = timestamp;
-    if (!lastTimestamp || timestamp > lastTimestamp) lastTimestamp = timestamp;
+  // Compared as instants: a timestamp with an offset sorts wrongly as text.
+  const noteTimestamp = (e: Entry): void => {
+    if (e.instant < firstInstant) {
+      firstInstant = e.instant;
+      firstTimestamp = e.timestamp;
+    }
+    if (e.instant > lastInstant) {
+      lastInstant = e.instant;
+      lastTimestamp = e.timestamp;
+    }
   };
 
   const consider = (e: Entry, ctx: UsageContext): boolean => {
@@ -477,14 +496,14 @@ export function createUsageAccumulator(options: { cutoff?: string | null } = {})
         existing.date = shared(utcDay(e.instant));
         existing.project = shared(ctx.projectName);
         existing.session = shared(ctx.sessionKey);
-        existing.excluded = Boolean(cutoff && e.timestamp < cutoff);
+        existing.excluded = beforeCutoff(e.instant);
       }
       take(existing, e, key);
       if (key) push(byKey, key, existing);
       if (e.messageId !== null) indexRoutes(existing, e.messageId, existing.sessionId);
       if (existing.excluded) return false;
       place(existing, e.split, e.fast, 1);
-      if (moves) noteTimestamp(e.timestamp);
+      if (moves) noteTimestamp(e);
       return true;
     }
 
@@ -503,7 +522,7 @@ export function createUsageAccumulator(options: { cutoff?: string | null } = {})
       date: shared(utcDay(e.instant)),
       project: shared(ctx.projectName),
       session: shared(ctx.sessionKey),
-      excluded: Boolean(cutoff && e.timestamp < cutoff),
+      excluded: beforeCutoff(e.instant),
     };
     if (e.messageId !== null) {
       if (key) push(byKey, key, c);
@@ -512,7 +531,7 @@ export function createUsageAccumulator(options: { cutoff?: string | null } = {})
     if (c.excluded) return false;
 
     place(c, e.split, e.fast, 1);
-    noteTimestamp(e.timestamp);
+    noteTimestamp(e);
     return true;
   };
 
