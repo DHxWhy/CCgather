@@ -212,13 +212,14 @@ describe("files read in path order, as ccusage does", () => {
   ): string => JSON.stringify({ ...JSON.parse(usageLine(id, model, ts, u)), ...fields });
 
   // A parent message in s1, its copy in s2, and a /btw replay of it in s2/subagents/
-  const copiedSession = (withAnswer: boolean) => {
+  const copiedSession = (withAnswer: boolean, copyHead: string[] = []) => {
     const parent = { input: 3, output: 100, cacheRead: 20_000 };
     writeTranscript("p", "s1.jsonl", [
       usageLine("ref", "claude-sonnet-4-6", "2026-10-01T09:00:00.000Z", { input: 1000, output: 1 }),
       usageLine("p", "claude-opus-4-8", "2026-10-01T10:00:00.000Z", parent),
     ]);
     writeTranscript("p", "s2.jsonl", [
+      ...copyHead,
       event("p", "claude-opus-4-8", "2026-10-01T10:00:00.000Z", parent, { sessionId: "s2" }),
     ]);
     const replay = event("p", "claude-opus-4-8", "2026-10-02T08:00:00.000Z", parent, {
@@ -244,6 +245,18 @@ describe("files read in path order, as ccusage does", () => {
   it("counts a /btw replay in a session holding a copied message once", () => {
     copiedSession(true);
     // ccusage 20.0.37: 2026-10-01 21,104 · 2026-10-02 30,053
+    expect(scanAllProjects()?.dailyUsage.map((d) => [d.date, d.tokens])).toEqual([
+      ["2026-10-01", 21_104],
+      ["2026-10-02", 30_053],
+    ]);
+  });
+
+  // A first line that names no session leaves the copy unidentified for deduplication
+  it.each([
+    ["a blank line", [""]],
+    ["a line that is not JSON", ["{not json"]],
+  ])("reads a copy in path order when its first line is %s", (_label, copyHead) => {
+    copiedSession(true, copyHead);
     expect(scanAllProjects()?.dailyUsage.map((d) => [d.date, d.tokens])).toEqual([
       ["2026-10-01", 21_104],
       ["2026-10-02", 30_053],
@@ -283,6 +296,27 @@ describe("files read in path order, as ccusage does", () => {
     expect(data?.dailyUsage.map((d) => d.date)).toEqual(["2026-10-01"]);
     expect(data?.stats.firstUsed).toBe("2026-10-01");
     expect(data?.stats.lastUsed).toBe("2026-10-01");
+  });
+});
+
+describe("first and last day", () => {
+  it("reports the first day from the days that hold usage, not from a line that moved", () => {
+    const parent = { input: 3, output: 100 };
+    const event = (ts: string, fields: Record<string, unknown>) =>
+      JSON.stringify({ ...JSON.parse(usageLine("p", "claude-opus-4-8", ts, parent)), ...fields });
+    // The replay is read first and is the earliest line; the parent's line takes it back
+    writeTranscript("p", "a-replay.jsonl", [
+      event("2026-10-01T08:00:00.000Z", {
+        requestId: "req_replay",
+        isSidechain: true,
+        agentId: "aside_question-1",
+      }),
+    ]);
+    writeTranscript("p", "s1.jsonl", [event("2026-10-02T10:00:00.000Z", {})]);
+    const data = scanAllProjects();
+    expect(data?.dailyUsage.map((d) => d.date)).toEqual(["2026-10-02"]);
+    expect(data?.stats.firstUsed).toBe("2026-10-02");
+    expect(data?.stats.lastUsed).toBe("2026-10-02");
   });
 });
 

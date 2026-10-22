@@ -176,6 +176,29 @@ describe("one response written as several lines", () => {
 });
 
 describe("dedup keys (ccusage daily)", () => {
+  // ccusage daily.rs dedupes_daily_sidechain_replay_after_cross_session_survivor_replacement
+  it("matches a /btw replay in the old session after another session's copy took over", () => {
+    const acc = createUsageAccumulator();
+    const ts = "2026-03-20T09:46:40.000Z";
+    const parent = { id: "msg-parent", req: "req-parent", ts, output: 10 };
+    acc.add(line({ ...parent, session: "session-b", cr: 20 }), A);
+    acc.add(line({ ...parent, session: "session-a", cr: 30 }), A);
+    const replay = { ...parent, req: "req-sidechain-replay", session: "session-b", cr: 50_000 };
+    expect(acc.add(line({ ...replay, sidechain: true }), A)).toBe(false);
+    expect(acc.result().total.tokens).toBe(40);
+  });
+
+  it("matches it too when every line is a sidechain line", () => {
+    const acc = createUsageAccumulator();
+    const x = { id: "msg_x", req: "req_1", input: 1, sidechain: true };
+    acc.add(line({ ...x, session: "s1", ts: "2026-10-01T10:00:00.000Z", output: 8 }), A);
+    acc.add(line({ ...x, session: "s2", ts: "2026-10-01T10:00:00.000Z", output: 534 }), A);
+    const replay = { ...x, req: "req_9", session: "s1", ts: "2026-10-02T08:00:00.000Z" };
+    expect(acc.add(line({ ...replay, output: 534 }), A)).toBe(false);
+    expect([...acc.result().daily.keys()]).toEqual(["2026-10-01"]);
+    expect(acc.result().total.tokens).toBe(535);
+  });
+
   it("collapses a requestless Anthropic id within a session, not across sessions", () => {
     const acc = createUsageAccumulator();
     acc.add(line({ id: "msg_x", session: "s1", ts: "2026-10-01T10:00:00.000Z", output: 5 }), A);
@@ -358,6 +381,29 @@ describe("lines ccusage leaves out", () => {
     expect(acc.add(line({ id: "msg_1", req: "req_1", output: 5, sidechain: null }), A)).toBe(true);
     acc.add(line({ id: "msg_1", req: "req_2", output: 9, sidechain: true }), A);
     expect(acc.result().total.outputTokens).toBe(5);
+  });
+
+  // Month lengths written out here, not taken from the code under test
+  it.each([
+    ["2026-01", 31],
+    ["2026-02", 28],
+    ["2026-03", 31],
+    ["2026-04", 30],
+    ["2026-05", 31],
+    ["2026-06", 30],
+    ["2026-07", 31],
+    ["2026-08", 31],
+    ["2026-09", 30],
+    ["2026-10", 31],
+    ["2026-11", 30],
+    ["2026-12", 31],
+    ["2028-02", 29],
+  ])("counts the last day of %s (day %i) and skips the day number after it", (month, last) => {
+    const acc = createUsageAccumulator();
+    const at = (d: number) => `${month}-${String(d).padStart(2, "0")}T10:00:00Z`;
+    expect(acc.add(line({ id: "msg_1", req: "r1", ts: at(last), output: 2 }), A)).toBe(true);
+    expect(acc.add(line({ id: "msg_2", req: "r2", ts: at(last + 1), output: 3 }), A)).toBe(false);
+    expect([...acc.result().daily.keys()]).toEqual([`${month}-${last}`]);
   });
 
   it.each(["2028-02-29T10:00:00Z", "2000-02-29T10:00:00Z", "0000-02-29T10:00:00Z"])(

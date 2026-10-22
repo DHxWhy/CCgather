@@ -517,9 +517,10 @@ export function createUsageAccumulator(options: { cutoff?: string | null } = {})
       }
       if (existing.excluded || !shouldReplace(e, existing)) return false;
       place(existing, existing, existing.fast, -1);
-      // A /btw replay under subagents/ is read before the transcript it copies (folders sort
-      // first) and carries the replay's time; when the parent's own line takes over, the
-      // response goes back to the parent's day, model and project.
+      // A /btw replay can be read before the line it copies when its file sorts first (the
+      // copy sits in another session's or project's transcript) and carries the replay's
+      // time; when the parent's own line takes over, the response goes back to the parent's
+      // day, model, project and session.
       const moves = existing.sidechain && !e.sidechain;
       if (moves) {
         existing.model = shared(e.model);

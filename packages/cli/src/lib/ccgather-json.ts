@@ -295,10 +295,16 @@ function getCurrentProjectDir(): string | null {
   return null;
 }
 
-// ccusage reads files in path order, by bytes: a session's transcript (s1.jsonl) comes before
-// its subagents/ folder (s1/), so a /btw replay never arrives ahead of the message it copies.
-const byPathBytes = (a: string, b: string): number =>
-  Buffer.compare(Buffer.from(a), Buffer.from(b));
+// ccusage reads files in path order, by bytes, each path's key made once (sort_by_cached_key):
+// a session's transcript (s1.jsonl) comes before its subagents/ folder (s1/), so a /btw replay
+// never arrives ahead of the message it copies. Data folders are compared as resolved paths
+// (ccusage sorts the strings it is given), which differs only for spellings such as a/../b.
+function sortByPath<T>(items: T[], pathOf: (item: T) => string): T[] {
+  return items
+    .map((item) => ({ item, key: Buffer.from(pathOf(item)) }))
+    .sort((a, b) => Buffer.compare(a.key, b.key))
+    .map(({ item }) => item);
+}
 
 /**
  * Recursively find all .jsonl files
@@ -751,7 +757,7 @@ function accountInfo(): CCGatherData["account"] {
  */
 function scanProjectFolder(projectDir: string, options: ScanOptions): CCGatherData | null {
   const acc = createUsageAccumulator({ cutoff: cutoffFor(options.days ?? 30) });
-  const jsonlFiles = findJsonlFiles(projectDir).sort(byPathBytes);
+  const jsonlFiles = sortByPath(findJsonlFiles(projectDir), (file) => file);
   const projectSessions: Record<string, number> = {};
   const { onProgress } = options;
 
@@ -1106,7 +1112,11 @@ export function scanAllProjects(options: ScanOptions = {}): CCGatherData | null 
       continue;
     }
   }
-  const allJsonlFiles = deduplicateJsonlFiles(rawJsonlFiles.sort(byPathBytes));
+  // One copy of each transcript is kept, and read at its own place in path order
+  const allJsonlFiles = sortByPath(
+    deduplicateJsonlFiles(sortByPath(rawJsonlFiles, (file) => file)),
+    (file) => file.filePath
+  );
   const sessionHashes: string[] = [];
 
   if (allJsonlFiles.length === 0) {
