@@ -311,6 +311,15 @@ describe("settings env blocks replace the shell's variables", () => {
       env: { CLAUDE_CODE_USE_VERTEX: "1" },
     });
     expect(creds({}).ccplan).toBe("vertex");
+    // A drop-in too loses only its env block (D08-D10)
+    write("managed/managed-settings.json", {});
+    const dropIn = "managed/managed-settings.d/50-x.json";
+    write(dropIn, { env: { FOO: { toString: 1 } }, apiKeyHelper: "h" });
+    expect(creds({}).rawSubscriptionType).toBe("apiKeyHelper");
+    write(dropIn, { env: { FOO: { toString: 1 } }, forceLoginMethod: "gateway" });
+    expect(creds({}).rawSubscriptionType).toBe("enterprise_gateway");
+    write(dropIn, { env: { FOO: [{ toString: 1 }] }, forceLoginGatewayUrl: "https://gw.example" });
+    expect(creds({}).rawSubscriptionType).toBe("enterprise_gateway");
   });
 
   it("skips a user settings file whose env or apiKeyHelper Claude Code's schema rejects", () => {
@@ -390,7 +399,7 @@ describe("settings env blocks replace the shell's variables", () => {
     expect(creds({}).ccplan).toBe("foundry");
   });
 
-  it("takes drop-ins in UTF-16 code unit order, as Claude Code's sort() does (K27, K29, K31)", () => {
+  it("takes drop-ins in UTF-16 code unit order, like Claude Code's sort() (K27, K29, K31)", () => {
     oauth("max", undefined, { scopes: ["user:inference"] });
     const lastWins = (on: string, off: string) => {
       fs.rmSync(path.join(home, "managed"), { recursive: true, force: true });
@@ -402,6 +411,12 @@ describe("settings env blocks replace the shell's variables", () => {
     expect(lastWins("10-x.json", "9-x.json")).toBe("max");
     // ß has no decomposed form, so a file system that normalizes names keeps it
     expect(lastWins("\u00df.json", "z.json")).toBe("vertex");
+  });
+
+  it("skips a legacy .claude.json env value that is not text, a number or a boolean (M14)", () => {
+    oauth("max", undefined, { scopes: ["user:inference"] });
+    write(".claude.json", { env: { CLAUDE_CODE_USE_VERTEX: { toString: 1 } } });
+    expect(creds({ CLAUDE_CODE_USE_VERTEX: "1" }).ccplan).toBe("vertex");
   });
 
   it("reads .claude.json's legacy env under the settings file", () => {
@@ -549,6 +564,21 @@ describe("API usage billing", () => {
       rawSubscriptionType: "bare_mode",
     });
     expect(creds({ CLAUDE_CODE_SIMPLE: "1", CLAUDE_CODE_USE_BEDROCK: "1" }).ccplan).toBe("bedrock");
+  });
+
+  it("in bare mode uses no apiKeyHelper from the settings, blank or not (H09-H12, H21)", () => {
+    oauth("max", undefined, { scopes: ["user:inference"] });
+    for (const helper of ["   ", "~/bin/get-key.sh"]) {
+      for (const file of [".claude/settings.json", "managed/managed-settings.json"]) {
+        write(file, { apiKeyHelper: helper });
+        expect(creds({ CLAUDE_CODE_SIMPLE: "1" }).rawSubscriptionType, file).toBe("bare_mode");
+        fs.rmSync(path.join(home, file));
+      }
+    }
+    write(".claude/settings.json", { apiKeyHelper: "   " });
+    expect(creds({ CLAUDE_CODE_SIMPLE: "1", ANTHROPIC_API_KEY: KEY }).rawSubscriptionType).toBe(
+      "ANTHROPIC_API_KEY"
+    );
   });
 
   it("lets a provider win over ANTHROPIC_AUTH_TOKEN, in bare mode too", () => {
@@ -887,10 +917,13 @@ describe("enterprise gateway", () => {
     }
   });
 
-  it("does not restore one whose expiry cannot be compared, and does not fail (G01, G02)", () => {
+  it("does not restore an uncomparable expiry, refresh token or not (G01, G02, G12, G13)", () => {
     const file = path.join(home, ".claude/.credentials.json");
-    for (const expiresAt of [{ toString: 1 }, [{ toString: 1 }], "DEEP"]) {
-      saved({ expiresAt }, TRUSTED);
+    const cases = [{ toString: 1 }, [{ toString: 1 }], "DEEP"].flatMap((expiresAt) =>
+      [undefined, "r"].map((idpRefreshToken) => ({ expiresAt, idpRefreshToken }))
+    );
+    for (const { expiresAt, idpRefreshToken } of cases) {
+      saved({ expiresAt, idpRefreshToken }, TRUSTED);
       if (expiresAt === "DEEP") {
         // Too deep for JSON.stringify, so the array goes in as text
         const deep = `${"[".repeat(100_000)}1${"]".repeat(100_000)}`;

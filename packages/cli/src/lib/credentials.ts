@@ -37,7 +37,10 @@ export const PROVIDERS = [
 
 export const SUBSCRIPTION_PLANS = ["free", "pro", "max", "team", "enterprise"] as const;
 
-/** Every ccplan value this CLI sends; tests/unit/plan-keys-parity.test.ts keeps it inside the server's keys. */
+/**
+ * Every ccplan value this CLI sends; tests/unit/plan-keys-parity.test.ts keeps it inside the
+ * server's keys.
+ */
 export const SENT_PLAN_KEYS: readonly string[] = [
   ...SUBSCRIPTION_PLANS,
   "api",
