@@ -175,7 +175,75 @@ describe("settings env blocks replace the shell's variables", () => {
       save("managed/managed-settings.json", { forceLoginMethod: "gateway" }, encoding);
       expect(creds({}).rawSubscriptionType).toBe("enterprise_gateway");
       fs.rmSync(path.join(home, "managed"), { recursive: true });
+      save("managed/managed-settings.d/50-login.json", { forceLoginMethod: "gateway" }, encoding);
+      expect(creds({}).rawSubscriptionType).toBe("enterprise_gateway");
+      fs.rmSync(path.join(home, "managed"), { recursive: true });
     }
+  });
+
+  it("drops only one byte-order mark, and reads no other encoding", () => {
+    oauth("max", undefined, { scopes: ["user:inference"] });
+    const off = JSON.stringify({ env: { CLAUDE_CODE_USE_VERTEX: "0" } });
+    const target = path.join(home, ".claude/settings.json");
+    for (const bytes of [
+      Buffer.from("\uFEFF\uFEFF" + off, "utf8"),
+      Buffer.from(" \uFEFF" + off, "utf8"),
+      // UTF-16BE: FE FF and big-endian code units
+      Buffer.from("\uFEFF" + off, "utf16le").swap16(),
+    ]) {
+      fs.writeFileSync(target, bytes);
+      expect(creds({ CLAUDE_CODE_USE_VERTEX: "1" }).ccplan).toBe("vertex");
+    }
+  });
+
+  it("reads .claude.json without its byte-order mark, but not the login file or a profile", () => {
+    const withBom = (file: string, value: unknown) => {
+      const target = path.join(home, file);
+      fs.mkdirSync(path.dirname(target), { recursive: true });
+      fs.writeFileSync(target, "\uFEFF" + JSON.stringify(value));
+    };
+    withBom(".claude.json", { env: { CLAUDE_CODE_USE_VERTEX: "1" } });
+    expect(creds({}).ccplan).toBe("vertex");
+    withBom(".claude.json", { customApiKeyResponses: { approved: [TAIL], rejected: [] } });
+    oauth("max", undefined, { scopes: ["user:inference"] });
+    expect(creds({ ANTHROPIC_API_KEY: KEY }).ccplan).toBe("api");
+
+    fs.rmSync(path.join(home, ".claude.json"));
+    withBom(".claude/.credentials.json", {
+      claudeAiOauth: { accessToken: "a", subscriptionType: "max" },
+    });
+    expect(creds({}).ccplan).toBeNull();
+    oauth("max", undefined, { scopes: ["user:inference"] });
+    withBom("anth/configs/work.json", { authentication: { type: "oidc_federation" } });
+    const named = { ANTHROPIC_CONFIG_DIR: path.join(home, "anth"), ANTHROPIC_PROFILE: "work" };
+    expect(creds(named).ccplan).toBe("max");
+  });
+
+  it("drops a settings env value that holds a NUL character, so the layer below shows", () => {
+    oauth("max", undefined, { scopes: ["user:inference"] });
+    write(".claude/settings.json", { env: { ANTHROPIC_AUTH_TOKEN: "t\u0000" } });
+    expect(creds({}).ccplan).toBe("max");
+    write(".claude/settings.json", { env: { CLAUDE_CODE_USE_VERTEX: "0\u0000" } });
+    expect(creds({ CLAUDE_CODE_USE_VERTEX: "1" }).ccplan).toBe("vertex");
+    write(".claude/settings.json", {});
+    write(".claude.json", { env: { CLAUDE_CODE_USE_VERTEX: "1\u0000" } });
+    expect(creds({}).ccplan).toBe("max");
+  });
+
+  it("skips a user settings file whose env or apiKeyHelper Claude Code's schema rejects", () => {
+    oauth("max", undefined, { scopes: ["user:inference"] });
+    for (const broken of [
+      { env: { CLAUDE_CODE_USE_VERTEX: "1" }, apiKeyHelper: 123 },
+      { env: null, apiKeyHelper: "h" },
+      { env: ["x"], apiKeyHelper: "h" },
+    ]) {
+      write(".claude/settings.json", broken);
+      expect(creds({}).ccplan).toBe("max");
+    }
+    // A managed file only loses the key it got wrong
+    write(".claude/settings.json", { apiKeyHelper: "h" });
+    write("managed/managed-settings.json", { apiKeyHelper: 123 });
+    expect(creds({}).rawSubscriptionType).toBe("apiKeyHelper");
   });
 
   it("reads the token's plan and tier from a settings env block", () => {

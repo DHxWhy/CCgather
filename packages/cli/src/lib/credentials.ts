@@ -70,6 +70,25 @@ function readJsonFile(file: string): JsonObject | null {
   }
 }
 
+// .claude.json as Claude Code reads it: UTF-8 without a leading byte-order mark (its nd()). The
+// login file and profiles keep theirs and then fail to parse there too.
+function readGlobalConfig(file: string): JsonObject | null {
+  const text = readText(file);
+  if (text === null) return null;
+  try {
+    const value: unknown = JSON.parse(text.startsWith("\uFEFF") ? text.slice(1) : text);
+    return isObject(value) ? value : null;
+  } catch {
+    return null;
+  }
+}
+
+// Claude Code skips a whole user settings file that fails its schema. The keys read here are
+// checked; the rest of the schema is not.
+const isUsableUserSettings = (s: JsonObject): boolean =>
+  (s.env === undefined || isObject(s.env)) &&
+  (s.apiKeyHelper === undefined || typeof s.apiKeyHelper === "string");
+
 // A settings document as Claude Code reads one: UTF-16LE when it opens with FF FE, and without
 // a leading byte-order mark (its Tue() and Oo()). PowerShell writes both.
 function readSettingsFile(file: string): JsonObject | null {
@@ -324,9 +343,9 @@ function subscription(oauth: JsonObject | null): CredentialsData {
  * can sign in), CLAUDE_CODE_OAUTH_TOKEN, an Anthropic profile or federation, then the /login
  * subscription.
  *
- * Settings env blocks replace the shell's variables, as Claude Code applies them (strings,
- * numbers and booleans): .claude.json's legacy env, then the user's settings, then managed
- * settings files. A non-interactive `claude -p` also uses an ANTHROPIC_API_KEY the user rejected
+ * Settings env blocks replace the shell's variables as Claude Code applies them: .claude.json's
+ * legacy env (strings, numbers and booleans), then the user's settings, then managed settings
+ * files (any value, as text). A non-interactive `claude -p` also uses an ANTHROPIC_API_KEY the user rejected
  * or never answered; this reports the interactive choice (the subscription when there is a
  * login), which decides most usage. In bare mode (--bare, CLAUDE_CODE_SIMPLE) no login, OAuth
  * token or profile is used: Anthropic auth is ANTHROPIC_AUTH_TOKEN, ANTHROPIC_API_KEY or an
@@ -335,9 +354,10 @@ function subscription(oauth: JsonObject | null): CredentialsData {
  * Not read: MDM or registry policies, server-managed settings, project and local settings,
  * --settings and other flags, the Windows managed settings a WSL install inherits
  * (wslInheritsWindowsSettings), the Windows Credential Manager store, a custom OAuth URL's
- * separate login, credentials a remote host hands to Claude Code or a session it manages, and
- * for a saved gateway the organization's gateway policy and the live TLS check — those cases
- * report what the files say.
+ * separate login, credentials a remote host hands to Claude Code or a session it manages, a user
+ * settings file that breaks Claude Code's schema elsewhere than env and apiKeyHelper (it skips
+ * the whole file), and for a saved gateway the organization's gateway policy and the live TLS
+ * check — those cases report what the files say.
  */
 export function readCredentials(
   env: Env = process.env,
@@ -346,8 +366,9 @@ export function readCredentials(
 ): CredentialsData {
   const platform = options.platform ?? process.platform;
   const paths = claudePaths(env, home);
-  const globalConfig = readJsonFile(paths.globalConfig);
-  const userSettings = readSettingsFile(paths.userSettings);
+  const globalConfig = readGlobalConfig(paths.globalConfig);
+  const userFile = readSettingsFile(paths.userSettings);
+  const userSettings = userFile && isUsableUserSettings(userFile) ? userFile : null;
   const managed = readManagedSettings(
     options.managedSettingsDir ?? systemManagedSettingsDir(platform)
   );
@@ -356,17 +377,21 @@ export function readCredentials(
   const envOf = (s: JsonObject | null): JsonObject => (isObject(s?.env) ? s.env : {});
   const variable = (name: string): string | undefined => {
     // A settings file's env schema turns any value into text (null is "null") and it replaces
-    // what lies below; .claude.json's legacy env keeps only strings, numbers and booleans.
+    // what lies below; .claude.json's legacy env keeps only strings, numbers and booleans. A
+    // value holding a NUL character is dropped, so the layer below shows through.
     for (const layer of settingsLayers.map(envOf)) {
-      if (Object.hasOwn(layer, name)) return String(layer[name]);
+      if (!Object.hasOwn(layer, name)) continue;
+      const value = String(layer[name]);
+      if (!value.includes("\u0000")) return value;
     }
     const legacy = envOf(globalConfig)[name];
-    if (typeof legacy === "string" || typeof legacy === "number" || typeof legacy === "boolean") {
-      return String(legacy);
-    }
+    const kept =
+      typeof legacy === "string" || typeof legacy === "number" || typeof legacy === "boolean";
+    if (kept && !String(legacy).includes("\u0000")) return String(legacy);
     return env[name];
   };
-  const setting = (key: string): unknown => settingsLayers.find((s) => s[key] !== undefined)?.[key];
+  // A managed file's apiKeyHelper that is not text is dropped by its schema.
+  const apiKeyHelper = settingsLayers.find((s) => typeof s.apiKeyHelper === "string")?.apiKeyHelper;
 
   const bare = isTruthy(variable("CLAUDE_CODE_SIMPLE"));
   // Bare mode skips the Keychain; the file is still read at start-up for a gateway sign-in.
@@ -416,7 +441,7 @@ export function readCredentials(
   const apiKey = filled(variable("ANTHROPIC_API_KEY"));
   const answer = apiKey ? apiKeyAnswer(apiKey, globalConfig) : null;
   if (answer === "approved") return apiBilling("ANTHROPIC_API_KEY");
-  if (filled(setting("apiKeyHelper"))) return apiBilling("apiKeyHelper");
+  if (filled(apiKeyHelper)) return apiBilling("apiKeyHelper");
   // Claude Code signs in as a subscriber when its OAuth credential can run inference: the
   // token's scopes (CLAUDE_CODE_OAUTH_SCOPES, else user:inference) or the saved login's. Only
   // then is a saved Console key left unused.
