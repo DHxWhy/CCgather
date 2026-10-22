@@ -346,6 +346,13 @@ describe("API usage billing", () => {
       rawSubscriptionType: "bare_mode",
     });
     expect(creds({ CLAUDE_CODE_SIMPLE: "1", CLAUDE_CODE_USE_BEDROCK: "1" }).ccplan).toBe("bedrock");
+
+    // Neither the login file nor the Keychain is read: a gateway sign-in there does not apply
+    write(".claude/.credentials.json", { enterpriseGateway: { url: "https://gw.example" } });
+    expect(creds({ CLAUDE_CODE_SIMPLE: "1", ANTHROPIC_API_KEY: KEY }).ccplan).toBe("api");
+    security.run.mockClear();
+    creds({ CLAUDE_CODE_SIMPLE: "1" }, { platform: "darwin" });
+    expect(security.run).not.toHaveBeenCalled();
   });
 
   it("uses a Console key when the OAuth token's scopes cannot run inference", () => {
