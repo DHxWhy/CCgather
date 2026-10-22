@@ -24,8 +24,10 @@
  * - What the scans read (ccgather-json.ts): only files inside a project folder (ccusage also
  *   reads a file right under projects/), no project folder whose name starts with a dot
  *   (ccusage reads it; Claude Code never names one so), a file named just ".jsonl" (ccusage
- *   skips it), and no file whose name is not valid UTF-8. Paths are resolved before sorting and before a line's
- *   session is taken from them; ccusage uses the folder strings it is given.
+ *   skips it), and no file whose name is not valid UTF-8. Two data folders that reach the
+ *   same projects/ folder through a link are read once (ccusage reads both). Paths are
+ *   resolved before sorting and before a line's session is taken from them; ccusage uses the
+ *   folder strings it is given.
  */
 
 export interface TokenSplit {

@@ -9,6 +9,12 @@ import * as path from "path";
 import { afterAll } from "vitest";
 import { isolateEnvironment } from "./isolation";
 
+// Sessions and projects are read below the first folder named projects in a path, so a temp
+// folder inside one would change what the scan tests read.
+if (os.tmpdir().split(path.sep).includes("projects")) {
+  throw new Error(`the tests need a temp folder outside any folder named projects: ${os.tmpdir()}`);
+}
+
 const home = fs.mkdtempSync(path.join(os.tmpdir(), "ccgather-test-home-"));
 isolateEnvironment(home);
 

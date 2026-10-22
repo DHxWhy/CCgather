@@ -306,6 +306,18 @@ function sortByPath<T>(items: T[], pathOf: (item: T) => string): T[] {
     .map(({ item }) => item);
 }
 
+// readdir on Windows reports every reparse point as a link, cloud placeholders included; lstat
+// tells a real link from a file there (the answer is the same elsewhere).
+function isPlainFile(entry: fs.Dirent, fullPath: string): boolean {
+  if (entry.isFile()) return true;
+  if (!entry.isSymbolicLink()) return false;
+  try {
+    return fs.lstatSync(fullPath).isFile();
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Recursively find all .jsonl files. Links are not followed, as in ccusage: a linked file can
  * be a second path to a transcript that is read anyway.
@@ -318,7 +330,7 @@ function findJsonlFiles(dir: string): string[] {
       const fullPath = path.join(dir, entry.name);
       if (entry.isDirectory()) {
         files.push(...findJsonlFiles(fullPath));
-      } else if (entry.isFile() && entry.name.endsWith(".jsonl")) {
+      } else if (entry.name.endsWith(".jsonl") && isPlainFile(entry, fullPath)) {
         files.push(fullPath);
       }
     }

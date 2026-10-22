@@ -73,12 +73,6 @@ function writeTranscript(project: string, file: string, lines: string[]): string
 beforeEach(() => {
   mocked.home = fs.mkdtempSync(path.join(os.tmpdir(), "ccgather-summary-home-"));
   configDir = fs.mkdtempSync(path.join(os.tmpdir(), "ccgather-summary-"));
-  // Sessions and projects are read below the first folder named projects in a path
-  if (configDir.split(path.sep).includes("projects")) {
-    throw new Error(
-      `these tests need a temp folder outside any folder named projects: ${configDir}`
-    );
-  }
   vi.stubEnv("CLAUDE_CONFIG_DIR", configDir);
   vi.stubEnv("APPDATA", "");
   vi.stubEnv("XDG_CONFIG_HOME", "");
@@ -576,6 +570,14 @@ describe("files the scan reads", () => {
   it("does not follow a linked file out of the data folder (L1)", () => {
     write("store/x.jsonl", usage("msg_l1", 7, "sL1"));
     link("projects/p/link.jsonl", "../../store/x.jsonl");
+    expect(days()).toEqual([["2026-10-01", 1_103]]);
+  });
+
+  it("does not follow a linked folder inside a project or a linked project folder (L2, L3)", () => {
+    write("store/d/y.jsonl", usage("msg_l2", 7, "sL2"));
+    link("projects/p/ld", "../../store/d");
+    write("store/proj/z.jsonl", usage("msg_l3", 7, "sL3"));
+    link("projects/pl", "../store/proj");
     expect(days()).toEqual([["2026-10-01", 1_103]]);
   });
 
