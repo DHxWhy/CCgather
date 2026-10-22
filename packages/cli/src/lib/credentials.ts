@@ -335,7 +335,14 @@ export function readCredentials(
   const answer = apiKey ? apiKeyAnswer(apiKey, globalConfig) : null;
   if (answer === "approved") return apiBilling("ANTHROPIC_API_KEY");
   if (filled(setting("apiKeyHelper"))) return apiBilling("apiKeyHelper");
-  if (!oauthToken && !isUsableLogin(oauth) && hasStoredConsoleKey(env, globalConfig, platform)) {
+  // Claude Code signs in as a subscriber when its OAuth credential can run inference: the
+  // token's scopes (CLAUDE_CODE_OAUTH_SCOPES, else user:inference) or the saved login's. Only
+  // then is a saved Console key left unused.
+  const tokenScopes = variable("CLAUDE_CODE_OAUTH_SCOPES")?.split(/\s+/).filter(Boolean) ?? [];
+  const subscribes = oauthToken
+    ? (tokenScopes.length > 0 ? tokenScopes : ["user:inference"]).includes("user:inference")
+    : isUsableLogin(oauth);
+  if (!subscribes && hasStoredConsoleKey(env, globalConfig, platform)) {
     return apiBilling("console_login");
   }
 

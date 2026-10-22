@@ -132,6 +132,28 @@ describe("settings env blocks replace the shell's variables", () => {
     expect(creds({ CLAUDE_CODE_USE_VERTEX: "1" }).ccplan).toBe("vertex");
   });
 
+  it("lets a null in the user's settings leave a lower layer's value in place", () => {
+    write(".claude.json", { env: { CLAUDE_CODE_USE_VERTEX: "1" } });
+    write(".claude/settings.json", { env: { CLAUDE_CODE_USE_VERTEX: null } });
+    expect(creds({}).ccplan).toBe("vertex");
+  });
+
+  it("reads the token's plan and tier from a settings env block", () => {
+    write(".claude/settings.json", {
+      env: {
+        CLAUDE_CODE_OAUTH_TOKEN: "t",
+        CLAUDE_CODE_SUBSCRIPTION_TYPE: "max",
+        CLAUDE_CODE_RATE_LIMIT_TIER: "default_claude_max_20x",
+      },
+    });
+    expect(creds({})).toEqual({
+      ccplan: "max",
+      rateLimitTier: "default_claude_max_20x",
+      authMethod: "oauth",
+      rawSubscriptionType: "max",
+    });
+  });
+
   it("reads the sign-in variables from a settings env block too", () => {
     oauth("max");
     write(".claude/settings.json", { env: { ANTHROPIC_AUTH_TOKEN: "t" } });
@@ -244,6 +266,30 @@ describe("API usage billing", () => {
     const token = { CLAUDE_CODE_OAUTH_TOKEN: "t", CLAUDE_CODE_SUBSCRIPTION_TYPE: "pro" };
     expect(creds(token).ccplan).toBe("pro");
     expect(creds({}).rawSubscriptionType).toBe("console_login");
+  });
+
+  it("reads .claude.json when the legacy .config.json is empty, and .config.json from CLAUDE_CONFIG_DIR", () => {
+    oauth("max");
+    write(".claude.json", { customApiKeyResponses: { approved: [TAIL], rejected: [] } });
+    write(".claude/.config.json", "");
+    expect(creds({ ANTHROPIC_API_KEY: KEY }).ccplan).toBe("api");
+
+    write("alt/.config.json", { customApiKeyResponses: { approved: [TAIL], rejected: [] } });
+    write("alt/.credentials.json", {
+      claudeAiOauth: { accessToken: "a", subscriptionType: "team" },
+    });
+    const env = { CLAUDE_CONFIG_DIR: path.join(home, "alt"), ANTHROPIC_API_KEY: KEY };
+    expect(creds(env).ccplan).toBe("api");
+  });
+
+  it("uses a Console key when the OAuth token's scopes cannot run inference", () => {
+    write(".claude.json", { primaryApiKey: "saved" });
+    const token = { CLAUDE_CODE_OAUTH_TOKEN: "t", CLAUDE_CODE_SUBSCRIPTION_TYPE: "pro" };
+    expect(creds({ ...token, CLAUDE_CODE_OAUTH_SCOPES: "user:profile" }).ccplan).toBe("api");
+    expect(
+      creds({ ...token, CLAUDE_CODE_OAUTH_SCOPES: "user:profile  user:inference" }).ccplan
+    ).toBe("pro");
+    expect(creds({ ...token, CLAUDE_CODE_OAUTH_SCOPES: " " }).ccplan).toBe("pro");
   });
 
   it("reads a non-empty legacy .config.json instead of .claude.json", () => {
@@ -438,6 +484,12 @@ describe("subscriptions", () => {
     const secure = path.join(home, "secure");
     expect(creds({ CLAUDE_SECURESTORAGE_CONFIG_DIR: secure }).ccplan).toBe("team");
     expect(creds({ CLAUDE_SECURESTORAGE_CONFIG_DIR: "" }).ccplan).toBe("max");
+    // Empty means ~/.claude even when CLAUDE_CONFIG_DIR names another folder
+    write("alt/.credentials.json", {
+      claudeAiOauth: { accessToken: "a", subscriptionType: "team" },
+    });
+    const both = { CLAUDE_CONFIG_DIR: path.join(home, "alt"), CLAUDE_SECURESTORAGE_CONFIG_DIR: "" };
+    expect(creds(both).ccplan).toBe("max");
   });
 
   it("reads the login, .claude.json and settings.json from CLAUDE_CONFIG_DIR when it is set", () => {
