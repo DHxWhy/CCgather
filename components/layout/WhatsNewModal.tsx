@@ -1,7 +1,7 @@
 "use client";
 
 import { Fragment, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { GitBranch, GitCommitVertical, X } from "lucide-react";
+import { ChevronDown, GitBranch, GitCommitVertical, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   CHANGELOG,
@@ -85,6 +85,10 @@ function CommitRail({ isLast, dotClass }: { isLast: boolean; dotClass?: string }
 function EntryRow({ entry, isLast }: { entry: ChangelogEntry; isLast: boolean }) {
   const style = CATEGORY_STYLE[entry.category];
   const meta = CHANGELOG_CATEGORY[entry.category];
+  // Bullets start folded so a long release reads as one line until asked for
+  const [open, setOpen] = useState(false);
+  const points = entry.points ?? [];
+  const detailsId = `whats-new-${entry.id}-details`;
 
   return (
     <li data-entry className="flex gap-3 pb-5">
@@ -114,12 +118,31 @@ function EntryRow({ entry, isLast }: { entry: ChangelogEntry; isLast: boolean })
         <p className="mt-0.5 text-xs leading-relaxed text-[var(--color-text-secondary)]">
           {entry.summary}
         </p>
-        {entry.points && entry.points.length > 0 && (
-          <ul className="mt-1 list-disc space-y-0.5 pl-4 text-xs leading-relaxed text-[var(--color-text-secondary)] marker:text-[var(--color-text-muted)]">
-            {entry.points.map((point) => (
-              <li key={point}>{point}</li>
-            ))}
-          </ul>
+        {points.length > 0 && (
+          <>
+            <button
+              type="button"
+              aria-expanded={open}
+              aria-controls={detailsId}
+              onClick={() => setOpen((value) => !value)}
+              className="mt-1 inline-flex items-center gap-1 rounded text-[11px] text-[var(--color-text-muted)] transition-colors hover:text-[var(--color-text-secondary)] focus-visible:outline focus-visible:outline-1 focus-visible:outline-[var(--color-claude-coral)]"
+            >
+              <ChevronDown
+                aria-hidden
+                className={cn("h-3 w-3 transition-transform", open && "rotate-180")}
+              />
+              {open ? "Hide details" : `Show details (${points.length})`}
+            </button>
+            <ul
+              id={detailsId}
+              hidden={!open}
+              className="mt-1 list-disc space-y-0.5 pl-4 text-xs leading-relaxed text-[var(--color-text-secondary)] marker:text-[var(--color-text-muted)]"
+            >
+              {points.map((point) => (
+                <li key={point}>{point}</li>
+              ))}
+            </ul>
+          </>
         )}
       </div>
     </li>

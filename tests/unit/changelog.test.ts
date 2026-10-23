@@ -119,11 +119,12 @@ describe("헤더 배선", () => {
     expect(read("middleware.ts")).toContain('"/api/whats-new"');
   });
 
-  it("항목의 글머리표를 요약 아래 목록으로 그린다", () => {
+  it("항목의 글머리표를 요약 아래 목록으로 그리고, 처음엔 접어 두었다가 펼친다", () => {
     const modal = read("components/layout/WhatsNewModal.tsx");
-    expect(modal).toMatch(
-      /entry\.points\.map\(\(point\) => \(\s*<li key=\{point\}>\{point\}<\/li>/
-    );
+    expect(modal).toMatch(/points\.map\(\(point\) => \(\s*<li key=\{point\}>\{point\}<\/li>/);
+    expect(modal).toContain("const [open, setOpen] = useState(false);");
+    expect(modal).toContain("aria-expanded={open}");
+    expect(modal).toContain("hidden={!open}");
   });
 
   it("changelog 모듈은 런타임 import 가 없다 (클라이언트·vitest 안전)", () => {
