@@ -45,12 +45,17 @@ function parseDollars(cell: string): number | null {
 
 /** "Claude Opus 5.5 ([retired…](…))" → "claude-opus-5-5" */
 export function modelNameToId(cell: string): string | null {
-  const name = cell
+  let name = cell
     .replace(/\[([^\]]*)\]\([^)]*\)/g, "$1") // markdown links → text
-    .replace(/<[^>]+>/g, "") // <sup> etc.
-    .replace(/\([^)]*\)/g, "") // "(limited availability)" / "(retired …)"
-    .trim()
-    .toLowerCase();
+    .replace(/<[^>]+>/g, ""); // <sup> etc.
+  // "(limited availability)" / "(retired …)", innermost first: a note with its own
+  // parentheses ("… Google Cloud (Google managed)") must go as a whole
+  let previous: string;
+  do {
+    previous = name;
+    name = name.replace(/\([^()]*\)/g, "");
+  } while (name !== previous);
+  name = name.trim().toLowerCase();
   if (!/^claude [a-z]+ \d+(\.\d+)?$/.test(name)) return null;
   return name.replace(/\./g, "-").replace(/\s+/g, "-");
 }

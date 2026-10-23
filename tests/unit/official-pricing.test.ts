@@ -85,9 +85,47 @@ describe("parseOfficialPricing", () => {
     expect(t["claude-opus-9"]).toBeUndefined();
   });
 
+  it("reads retired rows whose note has its own parentheses (page of 2026-10-23)", () => {
+    // Rows copied from the live page (column padding removed). The retired note names
+    // "Claude Models on Google Cloud (Google managed)", so the model cell nests
+    // parentheses; reading one level left a stray ")" and the sync saw four models as removed.
+    const page = `
+## Model pricing
+
+| Model | Base input tokens | 5m cache writes | 1h cache writes | Cache hits and refreshes | Output tokens |
+| :---- | :---- | :---- | :---- | :---- | :---- |
+| Claude Opus 4.1 ([retired, except on Bedrock and Claude Models on Google Cloud (Google managed)](https://platform.claude.com/docs/en/about-claude/model-deprecations)) | $15 / MTok | $18.75 / MTok | $30 / MTok | $1.50 / MTok | $75 / MTok |
+| Claude Opus 4 ([retired, except on Claude Models on Google Cloud (Google managed)](https://platform.claude.com/docs/en/about-claude/model-deprecations)) | $15 / MTok | $18.75 / MTok | $30 / MTok | $1.50 / MTok | $75 / MTok |
+| Claude Sonnet 4 ([retired, except on Bedrock and Claude Models on Google Cloud (Google managed)](https://platform.claude.com/docs/en/about-claude/model-deprecations)) | $3 / MTok | $3.75 / MTok | $6 / MTok | $0.30 / MTok | $15 / MTok |
+| Claude Haiku 3.5 ([retired, except on Claude Models on Google Cloud (Google managed)](https://platform.claude.com/docs/en/about-claude/model-deprecations)) | $0.80 / MTok | $1 / MTok | $1.60 / MTok | $0.08 / MTok | $4 / MTok |
+`;
+    const parsed = parseOfficialPricing(page);
+    expect(Object.keys(parsed)).toEqual([
+      "claude-opus-4-1",
+      "claude-opus-4",
+      "claude-sonnet-4",
+      "claude-haiku-3-5",
+    ]);
+    expect(parsed["claude-sonnet-4"]).toEqual({
+      input: 3,
+      output: 15,
+      cacheWrite: 3.75,
+      cacheWrite1h: 6,
+      cacheRead: 0.3,
+    });
+    expect(modelNameToId(" Claude Opus 4.1 (a (b (c))) ")).toBe("claude-opus-4-1");
+  });
+
   it("modelNameToId rejects non-model rows", () => {
     expect(modelNameToId(" Model ")).toBeNull();
     expect(modelNameToId(" :---- ")).toBeNull();
+    // An unbalanced note still fails closed: the row is skipped and the sync blocks
+    expect(
+      modelNameToId(
+        " Claude Opus 4.1 ([retired, except on Claude Models on Google Cloud (Google managed](https://x)) "
+      )
+    ).toBeNull();
+    expect(modelNameToId(" Claude Opus 4.1 ([retired](https://x))) ")).toBeNull();
   });
 });
 
