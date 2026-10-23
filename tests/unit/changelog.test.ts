@@ -125,6 +125,11 @@ describe("헤더 배선", () => {
     expect(modal).toContain("const [open, setOpen] = useState(false);");
     expect(modal).toContain("aria-expanded={open}");
     expect(modal).toContain("hidden={!open}");
+    // The button toggles, points at the list it opens, and names its entry for screen readers
+    expect(modal).toContain("onClick={() => setOpen((value) => !value)}");
+    expect(modal).toContain("aria-controls={detailsId}");
+    expect(modal).toMatch(/<ul\s+id=\{detailsId\}/);
+    expect(modal).toContain('<span className="sr-only">: {entry.title}</span>');
   });
 
   it("changelog 모듈은 런타임 import 가 없다 (클라이언트·vitest 안전)", () => {

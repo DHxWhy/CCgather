@@ -125,13 +125,14 @@ function EntryRow({ entry, isLast }: { entry: ChangelogEntry; isLast: boolean })
               aria-expanded={open}
               aria-controls={detailsId}
               onClick={() => setOpen((value) => !value)}
-              className="mt-1 inline-flex items-center gap-1 rounded text-[11px] text-[var(--color-text-muted)] transition-colors hover:text-[var(--color-text-secondary)] focus-visible:outline focus-visible:outline-1 focus-visible:outline-[var(--color-claude-coral)]"
+              className="mt-0.5 inline-flex items-center gap-1 rounded py-1 text-[11px] text-[var(--color-text-secondary)] transition-colors hover:text-[var(--color-text-primary)] focus-visible:outline focus-visible:outline-1 focus-visible:outline-[var(--color-claude-coral)]"
             >
               <ChevronDown
                 aria-hidden
                 className={cn("h-3 w-3 transition-transform", open && "rotate-180")}
               />
               {open ? "Hide details" : `Show details (${points.length})`}
+              <span className="sr-only">: {entry.title}</span>
             </button>
             <ul
               id={detailsId}
