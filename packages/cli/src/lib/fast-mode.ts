@@ -2,6 +2,8 @@
 // tests/unit/fast-mode-parity.test.ts holds the two equal. Fast mode multiplies a
 // request's whole token cost. Ids not listed pay 1x.
 export const FAST_MODE_MULTIPLIERS = {
+  "claude-fable-5-2": 2,
+  "claude-mythos-5-2": 2,
   "claude-opus-5-5": 2,
   "claude-opus-5": 2,
   "claude-opus-4-8": 2,

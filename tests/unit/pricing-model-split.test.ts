@@ -463,6 +463,10 @@ describe("1-hour cache writes and fast mode", () => {
   });
 
   it("knows the official fast multipliers", () => {
+    expect(fastModeMultiplier("claude-fable-5-2")).toBe(2);
+    expect(fastModeMultiplier("claude-mythos-5-2")).toBe(2);
+    expect(fastModeMultiplier("global.anthropic.claude-fable-5-2")).toBe(2);
+    expect(fastModeMultiplier("claude-fable-5-1")).toBe(1);
     expect(fastModeMultiplier("claude-opus-5-5")).toBe(2);
     expect(fastModeMultiplier("claude-opus-5")).toBe(2);
     expect(fastModeMultiplier("claude-opus-4-8")).toBe(2);

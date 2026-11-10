@@ -18,6 +18,14 @@ export const CHANGELOG_CATEGORY = {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    id: "2026-11-10-fable-5-2-pricing",
+    date: "2026-11-10",
+    category: "improved",
+    title: "Claude Fable 5.2 costs, synced from Anthropic",
+    summary:
+      "Claude Code usage on Fable 5.2 and Mythos 5.2 is priced at $8/$40 with $0.20/MTok cache reads, and fast mode on them at 2x, from Anthropic's official price list.",
+  },
+  {
     id: "2026-10-22-cli-ccusage-counting",
     date: "2026-10-22",
     category: "improved",

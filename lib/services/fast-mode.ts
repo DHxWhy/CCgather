@@ -1,9 +1,12 @@
-// Fast mode multiplies a request's whole token cost. Opus 5.5 / 5 / 4.8: official
-// pricing page ("Fast mode pricing" — $8/$40 and $10/$50, 2x the standard rates).
-// Opus 4.6 / 4.7: ccusage's fast-multiplier-overrides.json. Ids not listed pay 1x.
+// Fast mode multiplies a request's whole token cost. Fable 5.2 / Mythos 5.2 / Opus 5.5 /
+// 5 / 4.8: official pricing page ("Fast mode pricing" — $16/$80, $8/$40 and $10/$50,
+// 2x the standard rates). Opus 4.6 / 4.7: ccusage's fast-multiplier-overrides.json.
+// Ids not listed pay 1x.
 // The CLI keeps a copy for its local estimate (packages/cli/src/lib/fast-mode.ts);
 // tests/unit/fast-mode-parity.test.ts holds the two equal.
 export const FAST_MODE_MULTIPLIERS = {
+  "claude-fable-5-2": 2,
+  "claude-mythos-5-2": 2,
   "claude-opus-5-5": 2,
   "claude-opus-5": 2,
   "claude-opus-4-8": 2,
