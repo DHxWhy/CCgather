@@ -11,6 +11,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import * as crypto from "crypto";
 import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
@@ -222,10 +223,31 @@ describe("scanAllProjects: subagent transcripts", () => {
     const data = scanAllProjects();
 
     expect(data?.usage.totalTokens).toBe(EXPECTED_TOKENS);
-    expect(data?.sessionFingerprint?.sessionCount).toBe(TRANSCRIPT_FILES + 1);
+    expect(data?.sessionFingerprint?.sessionCount).toBe(TRANSCRIPT_FILES);
     expect(data?.stats.sessionsCount).toBe(1);
     expect(data?.dailyUsage.map((day) => day.sessions)).toEqual([1]);
     expect(data?.projects["-home-user-demo"].sessions).toBe(1);
+  });
+
+  // A run that stops right after launch leaves a journal whose name and only line are the
+  // same on every machine, so its hash is too. The server refuses a whole submit when another
+  // account already holds one of its hashes.
+  it("leaves a journal that holds only its launched record out of the fingerprint", () => {
+    const journal = `${SESSION}/subagents/workflows/wf_1/journal.jsonl`;
+    const content = JSON.stringify({ type: "launched" }) + "\n";
+    writeProject(
+      projectsDir,
+      "-home-user-demo",
+      { [journal]: content },
+      new Date("2026-09-01T11:00:00.000Z")
+    );
+
+    const data = scanAllProjects();
+
+    const sharedHash = crypto.createHash("sha256").update(`journal.jsonl:${content}`).digest("hex");
+    expect(data?.sessionFingerprint?.sessionHashes).not.toContain(sharedHash);
+    expect(data?.sessionFingerprint?.sessionCount).toBe(TRANSCRIPT_FILES);
+    expect(data?.usage.totalTokens).toBe(EXPECTED_TOKENS);
   });
 
   it("counts a transcript with usage but no sessionId on its first line as a session", () => {
@@ -245,6 +267,7 @@ describe("scanAllProjects: subagent transcripts", () => {
     const data = scanAllProjects();
 
     expect(data?.usage.totalTokens).toBe(EXPECTED_TOKENS + TOKENS_PER_MESSAGE);
+    expect(data?.sessionFingerprint?.sessionCount).toBe(TRANSCRIPT_FILES + 1);
     expect(data?.stats.sessionsCount).toBe(2);
     expect(data?.projects["-home-user-demo"].sessions).toBe(2);
   });

@@ -113,7 +113,10 @@ describe("scanAllProjects: session fingerprint", () => {
   it("keeps session hashes byte-identical to the published algorithm", () => {
     const data = scanAllProjects();
 
+    // A file that names no session and holds no usage is left out: nothing in it is the
+    // user's own, so its hash can match another account's (see scan-subagents.test.ts).
     const expected = Object.entries(sessions)
+      .filter(([name]) => name !== "empty.jsonl")
       .map(([name, content]) => publishedSessionHash(name, content))
       .sort();
 
