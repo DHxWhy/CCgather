@@ -1192,7 +1192,13 @@ export function scanAllProjects(options: ScanOptions = {}): CCGatherData | null 
           }
         },
       });
-      if (stands) sessionHashes.push(hashSessionLines(filePath, rawHead));
+      // A file that names no session and holds no usage (a workflow journal, say) stays out
+      // of the fingerprint. Nothing in it is this user's own: a journal that holds only
+      // {"type":"launched"} hashes the same on every machine, and the server refuses a whole
+      // submit when another account already holds one of its hashes.
+      if (stands && (file.sessionId || hasUsage)) {
+        sessionHashes.push(hashSessionLines(filePath, rawHead));
+      }
     } catch {
       // Skip unreadable files
     }
