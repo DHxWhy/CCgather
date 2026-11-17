@@ -55,7 +55,7 @@
   "pnpm": {
     "overrides": {
       "fast-uri": "3.1.8",
-      "vite": "7.3.6",
+      "vite": "8.3.5",
       "picomatch": "4.0.4",
       "rollup": "4.60.4",
       "postcss": "8.5.26",
