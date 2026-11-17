@@ -18,6 +18,14 @@ export const CHANGELOG_CATEGORY = {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    id: "2026-11-17-shared-journal-fingerprint",
+    date: "2026-11-17",
+    category: "fixed",
+    title: "Duplicate-submission check no longer trips on a file every computer shares",
+    summary:
+      "A Claude Code workflow journal that holds only its launch line is identical on every computer, so its session fingerprint could match another account's and the whole submit was refused. The server now ignores that fingerprint for every CLI version, and CLI v2.3.4 leaves files with no session and no usage out of the fingerprint. Totals do not change. Thanks to JakeB-5, who reported it and wrote the CLI fix.",
+  },
+  {
     id: "2026-11-10-fable-5-2-pricing",
     date: "2026-11-10",
     category: "improved",
