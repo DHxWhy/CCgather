@@ -33,6 +33,7 @@ import {
   storeSessionHashes,
   type SessionHashRow,
 } from "@/lib/utils/session-hash-query";
+import { dropSharedSessionHashes } from "@/lib/utils/shared-session-hashes";
 
 interface DailyUsage {
   date: string;
@@ -334,7 +335,9 @@ export async function POST(request: NextRequest) {
     // deviceId with no fingerprint is either a broken client or an attacker rotating
     // deviceId to make the same logs sum repeatedly. Collapse it into the single
     // 'legacy' bucket, where the freeze guard keeps MAX and rotation gains nothing.
-    const hasFingerprint = !!body.sessionFingerprint?.sessionHashes?.length;
+    // A hash that is the same on every machine proves neither the machine nor the owner.
+    const sessionHashes = dropSharedSessionHashes(body.sessionFingerprint?.sessionHashes);
+    const hasFingerprint = sessionHashes.length > 0;
     const deviceId =
       validatedDeviceId !== "legacy" && !hasFingerprint ? "legacy" : validatedDeviceId;
 
@@ -358,9 +361,7 @@ export async function POST(request: NextRequest) {
     // device set is derived here instead of costing a second full scan later.
     let staleDeviceIdsFromHashes: string[] = [];
 
-    if (body.sessionFingerprint?.sessionHashes?.length) {
-      const { sessionHashes } = body.sessionFingerprint;
-
+    if (hasFingerprint) {
       // Fail-closed: this lookup IS the anti-theft and anti-double-count gate.
       // Accepting the payload while it is silently broken was the original bug.
       let existingHashes: SessionHashRow[];
