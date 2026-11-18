@@ -27,13 +27,19 @@ import {
   computeReviewStatus,
 } from "@/lib/services/submit-validators";
 import { notifyValidationIssue } from "@/lib/services/validation-notify";
-import { alertOps } from "@/lib/services/ops-alert";
+import { alertOpsOncePerUser } from "@/lib/services/ops-alert";
 import {
   fetchSessionHashRows,
+  hashStoreDeadline,
+  storeAlert,
   storeSessionHashes,
   type SessionHashRow,
 } from "@/lib/utils/session-hash-query";
-import { dropSharedSessionHashes } from "@/lib/utils/shared-session-hashes";
+import {
+  describeDuplicateRefusal,
+  dropSharedSessionHashes,
+} from "@/lib/utils/shared-session-hashes";
+import { readCliVersion, readDeclaredCount } from "@/lib/utils/submit-payload";
 
 interface DailyUsage {
   date: string;
@@ -127,6 +133,7 @@ interface AuthenticatedUser {
   current_level?: number | null;
   auto_sync_enabled?: boolean | null;
   github_starred_at?: string | null;
+  shadow_banned?: boolean | null;
 }
 
 // Rate limit settings: 2 submissions per hour
@@ -135,6 +142,7 @@ const RATE_LIMIT_WINDOW_HOURS = 1;
 const RATE_LIMIT_MAX_SUBMISSIONS = 2;
 
 export async function POST(request: NextRequest) {
+  const requestStartedAt = Date.now();
   try {
     const body: SubmitPayload = await request.json();
 
@@ -175,7 +183,7 @@ export async function POST(request: NextRequest) {
     const { data: user, error: tokenError } = await supabase
       .from("users")
       .select(
-        "id, username, github_id, total_tokens, total_cost, total_sessions, country_code, last_submission_at, global_rank, country_rank, current_level, auto_sync_enabled, github_starred_at"
+        "id, username, github_id, total_tokens, total_cost, total_sessions, country_code, last_submission_at, global_rank, country_rank, current_level, auto_sync_enabled, github_starred_at, shadow_banned"
       )
       .eq("api_key", token)
       .maybeSingle();
@@ -320,9 +328,9 @@ export async function POST(request: NextRequest) {
     // ═══════════════════════════════════════════════════════════════════════════
     // STEP 0.5: Validate deviceId input (before session hash storage)
     // ═══════════════════════════════════════════════════════════════════════════
-    const rawDeviceId = body.deviceId || "legacy";
-    const cliVersion =
-      typeof body.cliVersion === "string" ? body.cliVersion.slice(0, 32) : "pre-2.2.0";
+    const rawDeviceId =
+      typeof body.deviceId === "string" && body.deviceId ? body.deviceId : "legacy";
+    const cliVersion = readCliVersion(body.cliVersion);
     // The autosubmit job marks its submits so the admin page can tell them apart
     const scheduled = body.scheduled === true;
     const submissionSource = scheduled ? "cli-scheduled" : "cli";
@@ -368,11 +376,17 @@ export async function POST(request: NextRequest) {
       try {
         existingHashes = await fetchSessionHashRows(supabase, sessionHashes);
       } catch (lookupError) {
-        await alertOps("Session hash lookup failed", {
-          username: authenticatedUser.username,
-          hashCount: sessionHashes.length,
-          deviceId,
-          error: lookupError instanceof Error ? lookupError.message : String(lookupError),
+        await alertOpsOncePerUser(supabase, {
+          type: "session_hash_lookup_failed",
+          userId: authenticatedUser.id,
+          title: "Session hash lookup failed",
+          message: `지문 조회 실패로 제출을 받지 못함: @${authenticatedUser.username}`,
+          detail: {
+            username: authenticatedUser.username,
+            hashCount: sessionHashes.length,
+            deviceId,
+            error: lookupError instanceof Error ? lookupError.message : String(lookupError),
+          },
         });
         return NextResponse.json(
           {
@@ -400,9 +414,31 @@ export async function POST(request: NextRequest) {
 
       const foreignHashes = existingHashes.filter((h) => h.user_id !== authenticatedUser.id);
       if (foreignHashes.length > 0) {
+        const refusal = describeDuplicateRefusal(foreignHashes, sessionHashes.length);
         console.log(
-          `[CLI Submit] Duplicate session detected! User ${authenticatedUser.username} tried to submit sessions owned by another user. Conflicting hashes: ${foreignHashes.length}`
+          `[CLI Submit] Duplicate session detected! User ${authenticatedUser.username} tried to submit sessions owned by another user. Conflicting hashes: ${refusal.conflicting} of ${refusal.submitted}, held by ${refusal.owners} other account(s)`
         );
+        // The refusal reads to the user as "someone else's data" and they cannot tell which
+        // file caused it. Ops gets the hashes: one that turns out to be the same on every
+        // machine belongs in SHARED_SESSION_HASHES. Any account can repeat a refused submit
+        // without limit, so this is pushed once per account in 20 hours.
+        if (refusal.sharedFileSuspected) {
+          await alertOpsOncePerUser(supabase, {
+            type: "duplicate_refusal_few_hashes",
+            userId: authenticatedUser.id,
+            title: "Submit refused over a few hashes",
+            message: `제출 거절 확인 필요: @${authenticatedUser.username} — 지문 ${refusal.submitted}개 중 ${refusal.conflicting}개가 다른 계정 소유`,
+            detail: {
+              username: authenticatedUser.username,
+              conflicting: refusal.conflicting,
+              submitted: refusal.submitted,
+              owners: refusal.owners,
+              cliVersion,
+              deviceId,
+              hashes: refusal.hashes.join(" "),
+            },
+          });
+        }
         return NextResponse.json(
           {
             error: "These sessions have already been submitted by another account.",
@@ -413,7 +449,7 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      // Store only the hashes the lookup did not find, 500 per request. Sending the
+      // Store only the hashes the lookup did not find, in small statements. Sending the
       // whole payload as one upsert hit statement timeout (57014) for heavy daily
       // submitters and failed silently, leaving a hole in the 1 Project 1 Person gate.
       const storeStartedAt = Date.now();
@@ -422,20 +458,33 @@ export async function POST(request: NextRequest) {
         knownHashes: existingHashes.map((h) => h.session_hash),
         userId: authenticatedUser.id,
         deviceId: deviceId !== "legacy" ? deviceId : null,
+        deadline: hashStoreDeadline(requestStartedAt),
       });
 
-      if (stored.failedChunks > 0) {
-        await alertOps("Session hash store failed", {
-          username: authenticatedUser.username,
-          attempted: stored.attempted,
-          chunks: stored.chunks,
-          failedChunks: stored.failedChunks,
-          deviceId,
-          error: stored.lastError ?? "unknown",
+      // A hash that was not written is one another account could still claim first; the
+      // next submit finds it missing from the lookup and sends it again.
+      const storeProblem = storeAlert(stored);
+      if (storeProblem) {
+        await alertOpsOncePerUser(supabase, {
+          type: storeProblem.type,
+          userId: authenticatedUser.id,
+          title: storeProblem.title,
+          message: `지문 저장 확인 필요: @${authenticatedUser.username} — 새 지문 ${stored.attempted}개 중 ${stored.attempted - stored.stored}개를 적지 못함`,
+          detail: {
+            username: authenticatedUser.username,
+            attempted: stored.attempted,
+            stored: stored.stored,
+            failed: stored.failed,
+            deferred: stored.deferred,
+            ms: Date.now() - storeStartedAt,
+            deviceId,
+            error: stored.lastError ?? "none",
+            statements: stored.statements,
+          },
         });
       } else if (stored.attempted > 0) {
         console.log(
-          `[CLI Submit] Stored ${stored.attempted} new session hashes in ${stored.chunks} chunk(s) for ${authenticatedUser.username} (${Date.now() - storeStartedAt}ms)`
+          `[CLI Submit] Stored ${stored.stored} new session hashes in ${stored.statements} chunk(s) for ${authenticatedUser.username} (${Date.now() - storeStartedAt}ms)`
         );
       }
     }
@@ -872,6 +921,28 @@ export async function POST(request: NextRequest) {
           upsertSucceeded = true;
         }
       }
+    }
+
+    // Usage accepted with no ownership check: the 1 Project 1 Person gate runs on the
+    // session fingerprint, which every CLI since fingerprints were introduced sends. Refusing
+    // instead would only teach a modified client to send made-up hashes, so the submit stands
+    // and ops is told. A shadow-banned account is already kept off the public boards.
+    if (upsertSucceeded && !hasFingerprint && authenticatedUser.shadow_banned !== true) {
+      await alertOpsOncePerUser(supabase, {
+        type: "submit_without_fingerprint",
+        userId: authenticatedUser.id,
+        title: "Submit accepted without a session fingerprint",
+        message: `지문 없는 제출: @${authenticatedUser.username} (CLI ${cliVersion})`,
+        detail: {
+          username: authenticatedUser.username,
+          cliVersion,
+          deviceId: validatedDeviceId,
+          declaredSessions: readDeclaredCount(body.sessionFingerprint?.sessionCount),
+          totalTokens: body.totalTokens,
+          daysWritten: writtenDayTotals.size,
+          scheduled,
+        },
+      });
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
