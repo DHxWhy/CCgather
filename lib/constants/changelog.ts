@@ -18,6 +18,22 @@ export const CHANGELOG_CATEGORY = {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    id: "2026-11-18-submit-limit-counts-each-submit",
+    date: "2026-11-18",
+    category: "fixed",
+    title: "The hourly submit limit now counts each submit once",
+    summary:
+      "The limit of two Claude Code usage submits per hour was read from the timestamps on the rows a submit wrote, so one submit that covered several days could look like several, and the next one was refused for an hour. Each submit is now recorded once, so you get the two per hour the limit promises, on every CLI version. A client that keeps failing is held to ten attempts an hour. Totals do not change.",
+  },
+  {
+    id: "2026-11-18-session-fingerprints-smaller-batches",
+    date: "2026-11-18",
+    category: "improved",
+    title: "Large submits save every session fingerprint for the duplicate-submission check",
+    summary:
+      "When one submit carried thousands of new session fingerprints, part of them could run into the database's time limit and stay unsaved until a later submit. The server now saves fingerprints in smaller batches, splits and retries a batch that fails, and leaves what is left for the next submit to pick up. Usage and rank were not affected, and totals do not change.",
+  },
+  {
     id: "2026-11-17-shared-journal-fingerprint",
     date: "2026-11-17",
     category: "fixed",
