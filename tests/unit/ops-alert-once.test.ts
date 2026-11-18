@@ -175,6 +175,16 @@ describe("alertOpsOncePerUser", () => {
     expect(webhook).toHaveBeenCalledTimes(1);
   });
 
+  it("창을 따로 준 알림은 그 창 안의 기록에만 묶인다", async () => {
+    const hourly = { ...refusal(), windowMs: 3_600_000 };
+    const inside = fakeAlertsTable([seeded({ created_at: hoursAgo(0.9) })]);
+    const outside = fakeAlertsTable([seeded({ created_at: hoursAgo(1.1) })]);
+
+    expect(await alertOpsOncePerUser(inside.client, hourly)).toBe("deduped");
+    expect(await alertOpsOncePerUser(outside.client, hourly)).toBe("notified");
+    expect(webhook).toHaveBeenCalledTimes(1);
+  });
+
   it("다른 사용자의 기록은 막지 않는다", async () => {
     const table = fakeAlertsTable([seeded({ metadata: { user_id: "u2" } })]);
 
@@ -230,6 +240,20 @@ describe("alertOpsOncePerUser", () => {
     );
   });
 
+  it("기록을 남기지 못하는 동안에도 따로 준 창이 지나면 다시 보낸다", async () => {
+    const table = fakeAlertsTable([], { insertFails: true });
+    const hourly = { ...refusal("u-hourly"), windowMs: 3_600_000 };
+
+    const first = await alertOpsOncePerUser(table.client, hourly);
+    vi.setSystemTime(NOW.getTime() + 59 * 60_000);
+    const within = await alertOpsOncePerUser(table.client, hourly);
+    vi.setSystemTime(NOW.getTime() + 61 * 60_000);
+    const after = await alertOpsOncePerUser(table.client, hourly);
+
+    expect([first, within, after]).toEqual(["notified", "deduped", "notified"]);
+    expect(webhook).toHaveBeenCalledTimes(2);
+  });
+
   it("기록을 남기지 못하는 동안에도 같은 계정의 같은 종류는 한 번만 보낸다", async () => {
     const table = fakeAlertsTable([], { insertFails: true });
 
@@ -242,14 +266,16 @@ describe("alertOpsOncePerUser", () => {
     expect(heldLines()).toMatchObject([{ userId: "u-unrecorded", type: refusal().type }]);
   });
 
-  it("기록 없이 보낸 알림도 20시간이 지나면 다시 보낸다", async () => {
+  it("기록 없이 보낸 알림은 20시간 안에는 묶이고, 20시간이 지나면 다시 보낸다", async () => {
     const table = fakeAlertsTable([], { insertFails: true });
 
     await alertOpsOncePerUser(table.client, refusal("u-unrecorded-later"));
+    vi.setSystemTime(new Date(NOW.getTime() + 19.9 * 3_600_000));
+    const within = await alertOpsOncePerUser(table.client, refusal("u-unrecorded-later"));
     vi.setSystemTime(new Date(NOW.getTime() + 20.1 * 3_600_000));
     const later = await alertOpsOncePerUser(table.client, refusal("u-unrecorded-later"));
 
-    expect(later).toBe("notified");
+    expect([within, later]).toEqual(["deduped", "notified"]);
     expect(webhook).toHaveBeenCalledTimes(2);
   });
 

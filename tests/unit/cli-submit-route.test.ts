@@ -65,8 +65,9 @@ interface World {
   user: Record<string, unknown> | null;
   /** session_hash → who holds it */
   ledger: Map<string, { user_id: string; device_id: string | null }>;
-  /** usage_stats.submitted_at values of the last hour */
-  recentStamps: string[];
+  /** submit_events rows of this account */
+  events: { id: number; outcome: string; created_at: string; [column: string]: unknown }[];
+  eventsError: string | null;
   lookupError: string | null;
   hashStoreError: string | null;
   /** Runs as each ledger lookup starts, with the number of lookups started before it */
@@ -96,7 +97,8 @@ function makeWorld(overrides: Partial<Omit<World, "queries">> = {}): World {
       shadow_banned: false,
     },
     ledger: new Map(),
-    recentStamps: [],
+    events: [],
+    eventsError: null,
     lookupError: null,
     hashStoreError: null,
     onLookup: null,
@@ -124,9 +126,31 @@ function makeWorld(overrides: Partial<Omit<World, "queries">> = {}): World {
     }
     if (query.table === "users" && verb === "update") return { error: null };
     if (query.table === "usage_stats" && verb === "select") {
-      return first?.args[0] === "submitted_at"
-        ? { data: world.recentStamps.map((submitted_at) => ({ submitted_at })), error: null }
-        : { data: [], error: null };
+      if (first?.args[0] === "submitted_at")
+        throw new Error("the limit no longer reads usage rows");
+      return { data: [], error: null };
+    }
+    if (query.table === "submit_events" && verb === "select") {
+      if (world.eventsError) return { data: null, error: { message: world.eventsError } };
+      const since = query.steps.find((step) => step.method === "gte")?.args[1] as string;
+      const before = query.steps.find((step) => step.method === "lt")?.args[1] as
+        number | undefined;
+      return {
+        data: world.events
+          .filter((row) => row.created_at >= since && (before === undefined || row.id < before))
+          .sort((a, b) => b.id - a.id),
+        error: null,
+      };
+    }
+    if (query.table === "submit_events" && verb === "insert") {
+      if (world.eventsError) return { data: null, error: { message: world.eventsError } };
+      const id = Math.max(0, ...world.events.map((row) => row.id)) + 1;
+      world.events.push({
+        ...(first?.args[0] as { outcome: string }),
+        id,
+        created_at: new Date().toISOString(),
+      });
+      return { data: { id }, error: null };
     }
     if (query.table === "usage_stats" && verb === "upsert") return { error: null };
     if (query.table === "usage_stats" && verb === "delete") return { error: null, count: 0 };
@@ -581,16 +605,72 @@ describe("POST /api/cli/submit — 그 밖의 문지기", () => {
     expect(did(world, "submitted_sessions", "select")).toHaveLength(0);
   });
 
-  it("최근 한 시간의 사용량 행에 시각이 2가지면 429 이고 지문 조회도 쓰기도 하지 않는다", async () => {
+  it("최근 한 시간에 받은 제출이 2건이면 429 이고 조회도 쓰기도 기록도 하지 않는다", async () => {
     const minutesAgo = (minutes: number) => new Date(Date.now() - minutes * 60_000).toISOString();
-    const world = makeWorld({ recentStamps: [minutesAgo(20), minutesAgo(20), minutesAgo(19)] });
+    const world = makeWorld({
+      events: [
+        { id: 1, outcome: "accepted", created_at: minutesAgo(50) },
+        { id: 2, outcome: "accepted", created_at: minutesAgo(20) },
+      ],
+    });
 
     const response = await submit();
 
     expect(response.status).toBe(429);
-    expect(await response.json()).toMatchObject({ retryAfterMinutes: 40 });
+    expect(await response.json()).toMatchObject({
+      error: "Rate limit exceeded. Maximum 2 submissions per hour.",
+      retryAfterMinutes: 10,
+    });
     expect(did(world, "submitted_sessions", "select")).toHaveLength(0);
     expect(wroteNothing(world)).toBe(true);
+    expect(world.events).toHaveLength(2);
+  });
+
+  it("받은 제출은 시도와 수락을 한 행씩 남긴다", async () => {
+    const world = makeWorld();
+
+    const response = await submit();
+
+    expect(response.status).toBe(200);
+    expect(world.events).toMatchObject([
+      { outcome: "attempt", user_id: "u1" },
+      {
+        outcome: "accepted",
+        user_id: "u1",
+        device_id: DEVICE,
+        cli_version: "2.3.4",
+        submission_source: "cli",
+        detail: { daysSubmitted: 1, daysWritten: 1 },
+      },
+    ]);
+  });
+
+  it("거절된 제출은 시도와 거절을 한 행씩 남긴다", async () => {
+    const world = makeWorld({
+      ledger: new Map([[hash("b"), { user_id: "u2", device_id: null }]]),
+    });
+
+    const response = await submit();
+
+    expect(response.status).toBe(409);
+    expect(world.events).toMatchObject([
+      { outcome: "attempt", user_id: "u1" },
+      {
+        outcome: "duplicate_session",
+        user_id: "u1",
+        detail: { conflicting: 1, submitted: 2, owners: 1 },
+      },
+    ]);
+  });
+
+  it("제한 기록을 읽지도 쓰지도 못하면 제출은 받고, 제한이 걸리지 않았다고 운영에 알린다", async () => {
+    const world = makeWorld({ eventsError: "Could not find the table 'public.submit_events'" });
+
+    const response = await submit();
+
+    expect(response.status).toBe(200);
+    expect(did(world, "usage_stats", "upsert")).toHaveLength(1);
+    expect(onceAlerts().map((alert) => alert.type)).toContain("submit_limit_unavailable");
   });
 
   it("날짜 형식이 틀리면 400 이고 사용량을 쓰지 않는다", async () => {

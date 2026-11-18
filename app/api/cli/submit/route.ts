@@ -29,6 +29,11 @@ import {
 import { notifyValidationIssue } from "@/lib/services/validation-notify";
 import { alertOpsOncePerUser } from "@/lib/services/ops-alert";
 import {
+  MAX_ACCEPTED_PER_HOUR,
+  admitSubmit,
+  recordSubmitEvent,
+} from "@/lib/services/submit-rate-limit";
+import {
   fetchSessionHashRows,
   hashStoreDeadline,
   storeAlert,
@@ -136,11 +141,6 @@ interface AuthenticatedUser {
   shadow_banned?: boolean | null;
 }
 
-// Rate limit settings: 2 submissions per hour
-// (Since v2.0 submits ALL projects at once, frequent submissions are unnecessary)
-const RATE_LIMIT_WINDOW_HOURS = 1;
-const RATE_LIMIT_MAX_SUBMISSIONS = 2;
-
 export async function POST(request: NextRequest) {
   const requestStartedAt = Date.now();
   try {
@@ -202,42 +202,19 @@ export async function POST(request: NextRequest) {
 
     const authenticatedUser = user as AuthenticatedUser;
 
-    // Rate limit check: count unique submissions in the last hour
-    // Note: Each submission can create multiple rows (one per day), so we count DISTINCT submitted_at
-    const oneHourAgo = new Date(
-      Date.now() - RATE_LIMIT_WINDOW_HOURS * 60 * 60 * 1000
-    ).toISOString();
-
-    // Get distinct submission timestamps for this user in the last hour
-    const { data: recentSubmissionData } = await supabase
-      .from("usage_stats")
-      .select("submitted_at")
-      .eq("user_id", authenticatedUser.id)
-      .gte("submitted_at", oneHourAgo);
-
-    // Count unique submission timestamps
-    const submissionTimestamps: string[] =
-      recentSubmissionData?.map((r: { submitted_at: string }) => r.submitted_at) || [];
-    const uniqueSubmissions = new Set(submissionTimestamps);
-    const recentSubmissionCount = uniqueSubmissions.size;
-
-    if (recentSubmissionCount >= RATE_LIMIT_MAX_SUBMISSIONS) {
-      // Calculate when they can submit again (based on oldest unique submission)
-      const sortedTimestamps = Array.from(uniqueSubmissions).sort();
-      const oldestSubmissionTime = sortedTimestamps[0];
-
-      let retryAfterMinutes = 60; // Default 60 minutes
-      if (oldestSubmissionTime) {
-        const oldestTime = new Date(oldestSubmissionTime).getTime();
-        const windowEndTime = oldestTime + RATE_LIMIT_WINDOW_HOURS * 60 * 60 * 1000;
-        retryAfterMinutes = Math.ceil((windowEndTime - Date.now()) / (60 * 1000));
-      }
-
+    // Hourly limit, counted from one row per request (lib/services/submit-rate-limit). Since
+    // v2.0 a submit carries every project at once, so frequent submits are unnecessary — and
+    // each one makes the database look up every session hash the account has.
+    const limit = await admitSubmit(supabase, authenticatedUser);
+    if (!limit.allowed) {
       return NextResponse.json(
         {
-          error: `Rate limit exceeded. Maximum ${RATE_LIMIT_MAX_SUBMISSIONS} submissions per hour.`,
-          retryAfterMinutes: Math.max(1, retryAfterMinutes),
-          hint: `Please try again in ${retryAfterMinutes} minute${retryAfterMinutes !== 1 ? "s" : ""}.`,
+          error:
+            limit.reason === "accepted"
+              ? `Rate limit exceeded. Maximum ${MAX_ACCEPTED_PER_HOUR} submissions per hour.`
+              : "Rate limit exceeded. Too many submit attempts in the last hour.",
+          retryAfterMinutes: limit.retryAfterMinutes,
+          hint: `Please try again in ${limit.retryAfterMinutes} minute${limit.retryAfterMinutes !== 1 ? "s" : ""}.`,
         },
         { status: 429 }
       );
@@ -439,6 +416,17 @@ export async function POST(request: NextRequest) {
             },
           });
         }
+        await recordSubmitEvent(supabase, authenticatedUser, {
+          outcome: "duplicate_session",
+          deviceId,
+          cliVersion,
+          source: submissionSource,
+          detail: {
+            conflicting: refusal.conflicting,
+            submitted: refusal.submitted,
+            owners: refusal.owners,
+          },
+        });
         return NextResponse.json(
           {
             error: "These sessions have already been submitted by another account.",
@@ -1211,6 +1199,14 @@ export async function POST(request: NextRequest) {
       console.error("[CLI Submit] Update error:", updateError);
       return NextResponse.json({ error: "Failed to update stats" }, { status: 500 });
     }
+
+    await recordSubmitEvent(supabase, authenticatedUser, {
+      outcome: "accepted",
+      deviceId,
+      cliVersion,
+      source: submissionSource,
+      detail: { daysSubmitted: body.dailyUsage?.length ?? 0, daysWritten: writtenDayTotals.size },
+    });
 
     // A scheduled submit proves the daily job is on. Written separately and
     // best-effort so a DB without migration 081 still accepts the submit.

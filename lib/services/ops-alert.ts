@@ -55,7 +55,7 @@ const PUSHED_WITHOUT_RECORD_MAX = 1000;
 function alreadyPushedWithoutRecord(alert: UserAlert): boolean {
   const key = `${alert.type}:${alert.userId}`;
   const pushedAt = pushedWithoutRecord.get(key);
-  if (pushedAt !== undefined && Date.now() - pushedAt < ONCE_PER_USER_WINDOW_MS) return true;
+  if (pushedAt !== undefined && Date.now() - pushedAt < windowOf(alert)) return true;
   if (pushedWithoutRecord.size >= PUSHED_WITHOUT_RECORD_MAX) pushedWithoutRecord.clear();
   pushedWithoutRecord.set(key, Date.now());
   return false;
@@ -69,7 +69,14 @@ export interface UserAlert {
   /** Shown on the admin dashboard */
   message: string;
   detail: Record<string, unknown>;
+  /**
+   * How long one push holds back the next of this type and user: milliseconds, above zero.
+   * 20 hours when left out.
+   */
+  windowMs?: number;
 }
+
+const windowOf = (alert: UserAlert): number => alert.windowMs ?? ONCE_PER_USER_WINDOW_MS;
 
 /** The push is held back, the occurrence is not: every one leaves a line in the server log. */
 function held(alert: UserAlert): "deduped" {
@@ -88,16 +95,16 @@ function held(alert: UserAlert): "deduped" {
 
 /**
  * alertOps for something a signed-in client can cause as often as it likes: one push per user and
- * type in 20 hours. The admin_alerts row is the record and the limit at once, so repeating the
- * request cannot fill the channel or run the webhook into its rate limit, where a real alert
- * sent in the same minute would be dropped.
+ * type in 20 hours, or in the alert's own window. The admin_alerts row is the record and the
+ * limit at once, so repeating the request cannot fill the channel or run the webhook into its
+ * rate limit, where a real alert sent in the same minute would be dropped.
  */
 export async function alertOpsOncePerUser(
   supabase: SupabaseClient,
   alert: UserAlert
 ): Promise<"notified" | "deduped"> {
   try {
-    const since = new Date(Date.now() - ONCE_PER_USER_WINDOW_MS).toISOString();
+    const since = new Date(Date.now() - windowOf(alert)).toISOString();
     const earliestRow = async (): Promise<{ id: string | null } | "unreadable"> => {
       const { data, error } = await supabase
         .from("admin_alerts")
