@@ -1,13 +1,6 @@
 import { getConfig, getApiUrl } from "./config.js";
 import { VERSION } from "./ui.js";
 
-export interface SyncPayload {
-  totalTokens: number;
-  totalSpent: number;
-  modelBreakdown: Record<string, number>;
-  timestamp: string;
-}
-
 export interface UserStats {
   rank: number;
   countryRank: number | null;
@@ -55,13 +48,6 @@ async function fetchApi<T>(endpoint: string, options: RequestInit = {}): Promise
     const message = error instanceof Error ? error.message : "Unknown error";
     return { success: false, error: message };
   }
-}
-
-export async function syncUsage(payload: SyncPayload): Promise<ApiResponse<{ rank: number }>> {
-  return fetchApi("/cli/sync", {
-    method: "POST",
-    body: JSON.stringify(payload),
-  });
 }
 
 export async function getStatus(): Promise<ApiResponse<UserStats>> {

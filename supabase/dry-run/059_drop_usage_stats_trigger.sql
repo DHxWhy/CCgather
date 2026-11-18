@@ -19,6 +19,11 @@
 --   2. OR add an explicit "recompute user totals" block (mirroring
 --      `app/api/cli/submit/route.ts` STEP 2-3) to those two routes.
 --
+-- 2026-11-18: both routes are gone from the code (`/api/submit` earlier, `/api/bulk-submit`
+-- with this note), and Vercel showed no request to `/api/bulk-submit` in the 30 hours before.
+-- Pre-condition 1 now holds on the code side; applying this is still a database change that
+-- waits for the owner's go-ahead.
+--
 -- Once one of the above is satisfied, move this file back to
 -- `supabase/migrations/059_drop_usage_stats_trigger.sql` and apply it via
 -- Supabase Dashboard → SQL Editor.

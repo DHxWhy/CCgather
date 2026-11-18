@@ -129,13 +129,6 @@ export const rateLimiters = {
       windowMs: 60 * 1000, // 1 minute
     }),
 
-  /** Bulk submit: 5 requests per hour */
-  bulkSubmit: (identifier: string) =>
-    checkRateLimit(`bulk:${identifier}`, {
-      limit: 5,
-      windowMs: 60 * 60 * 1000, // 1 hour
-    }),
-
   /** CLI verify star-status check: 10 requests per hour */
   starStatus: (identifier: string) =>
     checkRateLimit(`star:${identifier}`, {
