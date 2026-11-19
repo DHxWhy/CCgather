@@ -1,5 +1,6 @@
 import { Header } from "@/components/layout/header";
 import { Footer } from "@/components/layout/footer";
+import { CliUpdateBanner } from "@/components/layout/CliUpdateBanner";
 import { OnboardingGuard } from "@/components/auth/OnboardingGuard";
 import { InstallBanner } from "@/components/pwa/InstallBanner";
 import { UpdateNotification } from "@/components/pwa/UpdateNotification";
@@ -15,7 +16,10 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
       <OnboardingGuard>
         <div className="min-h-screen flex flex-col bg-bg-primary">
           <Header />
-          <main className="flex-1 pt-12">{children}</main>
+          <main className="flex-1 pt-12">
+            <CliUpdateBanner />
+            {children}
+          </main>
           <Footer />
           <InstallBanner />
           <UpdateNotification />

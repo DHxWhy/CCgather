@@ -1,12 +1,14 @@
 const CLI_VERSION = /^[0-9A-Za-z.+-]{1,32}$/;
 
+export const CLI_VERSION_NOT_SENT = "pre-2.2.0";
+
 /**
  * The version a CLI says it is, as it may be logged, stored and shown to ops. A client can send
  * anything here, and a string the database refuses — one holding a NUL character, say — fails
  * every write it is part of, including the record that limits how often an alert goes out.
  */
 export function readCliVersion(value: unknown): string {
-  if (typeof value !== "string") return "pre-2.2.0";
+  if (typeof value !== "string") return CLI_VERSION_NOT_SENT;
   return CLI_VERSION.test(value) ? value : "invalid";
 }
 
