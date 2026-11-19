@@ -12,7 +12,7 @@ const getStats = cache(getPublicStats);
 export async function generateMetadata(): Promise<Metadata> {
   try {
     const { summary } = await getStats();
-    const title = `${NUM.format(summary.totalUsers)} developers across ${NUM.format(summary.totalCountries)} countries — CCgather Stats`;
+    const title = `${NUM.format(summary.totalUsers)} developers across ${NUM.format(summary.totalCountries)} countries — Claude Code Usage Stats`;
     const description =
       "Live growth of the CCgather community — the free, open-source leaderboard for Claude Code usage. Updated hourly.";
     return {
@@ -23,7 +23,7 @@ export async function generateMetadata(): Promise<Metadata> {
     };
   } catch {
     return {
-      title: "CCgather Stats — Claude Code Community Growth",
+      title: "Claude Code Usage Stats — Developers and Countries",
       description:
         "Live growth statistics of the CCgather community: developers, countries, tokens tracked across the globe.",
     };
