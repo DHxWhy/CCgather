@@ -1,199 +1,123 @@
 <div align="center">
 
-# CCGather
+# CCgather
 
-### Document Your Claude Code Journey
+**The open-source Claude Code usage leaderboard.**
 
-**Global Leaderboard | Community | Levels & Badges | PWA App**
+Run `npx ccgather` to sync your Claude Code tokens and cost, then see where you rank — worldwide, in your country, and each month.
 
-[![Next.js](https://img.shields.io/badge/Next.js-16-black?style=flat-square&logo=next.js)](https://nextjs.org/)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.9-3178C6?style=flat-square&logo=typescript)](https://www.typescriptlang.org/)
-[![Supabase](https://img.shields.io/badge/Supabase-PostgreSQL-3FCF8E?style=flat-square&logo=supabase)](https://supabase.com/)
+[![Developers](https://img.shields.io/endpoint?url=https%3A%2F%2Fccgather.com%2Fapi%2Fstats%2Fbadge%3Fmetric%3Ddevelopers&style=flat-square)](https://ccgather.com/stats)
+[![Claude Code tokens logged](https://img.shields.io/endpoint?url=https%3A%2F%2Fccgather.com%2Fapi%2Fstats%2Fbadge%3Fmetric%3Dtokens&style=flat-square)](https://ccgather.com/stats)
+[![Tokens in the last 30 days](https://img.shields.io/endpoint?url=https%3A%2F%2Fccgather.com%2Fapi%2Fstats%2Fbadge%3Fmetric%3Dtokens30d&style=flat-square)](https://ccgather.com/stats)
+[![npm](https://img.shields.io/npm/v/ccgather?style=flat-square&color=da7756)](https://www.npmjs.com/package/ccgather)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue?style=flat-square)](LICENSE)
 
-[Website](https://ccgather.com) · [Report Bug](https://github.com/DHxWhy/ccgather/issues) · [Request Feature](https://github.com/DHxWhy/ccgather/issues)
+[Leaderboard](https://ccgather.com/leaderboard) · [All-time ranking](https://ccgather.com/leaderboard?period=all) · [Live stats](https://ccgather.com/stats) · [Report a bug](https://github.com/DHxWhy/CCgather/issues)
 
-![CCgather Hero](assets/images/hero.gif)
-
-<sub>📎 hero.gif</sub>
+<img src="assets/images/readme/hero.webp" alt="CCgather landing page: a 3D globe of Claude Code developers around the world" width="100%">
 
 </div>
 
 ---
 
-## Quick Start
+> Claude Code clears its local logs after about 30 days, and your usage history goes with them.
+> CCgather keeps your daily totals, because every token is a trace of your spirit of exploration.
+
+## Quick start
+
+```bash
+npx ccgather@latest                  # sign in with GitHub, then submit
+npx ccgather@latest autosubmit on    # submit once a day, automatically
+```
+
+Claude Code keeps about 30 days of local logs. CCgather keeps your daily totals after that, so your history stays.
+
+---
+
+## What you get
+
+<table>
+<tr><td width="200"><b>Claude Code leaderboard</b></td><td>Rank by tokens or cost over 1D, 7D, 30D or All — worldwide or in your country's league</td></tr>
+<tr><td><b>Live stats</b></td><td>Developers, countries, 30-day tokens and sessions, and the model mix</td></tr>
+<tr><td><b>Season Sprint</b></td><td>A monthly race; every finished month goes into the hall of fame</td></tr>
+<tr><td><b>Your profile</b></td><td>Level, badges, a daily activity heatmap and your Claude plan. Share it as <code>ccgather.com/u/&lt;github-username&gt;</code></td></tr>
+<tr><td><b>Daily auto-submit</b></td><td>Through your OS scheduler on Windows, macOS and Linux</td></tr>
+<tr><td><b>Installable web app</b></td><td>Push notifications for your submit summaries and replies to your feedback</td></tr>
+<tr><td><b>What's new</b></td><td>Every update, dated, inside the app</td></tr>
+</table>
+
+<img src="assets/images/readme/leaderboard.webp" alt="CCgather Claude Code leaderboard, last 30 days" width="100%">
 
 <table>
 <tr>
-<th width="80">Step</th>
-<th>Description</th>
+<td width="64%"><img src="assets/images/readme/profile.webp" alt="A developer profile: level, badges and daily activity heatmap"></td>
+<td width="36%"><img src="assets/images/readme/mobile.webp" alt="The leaderboard on a phone"></td>
 </tr>
-<tr><td align="center"><b>1</b></td><td>Sign in with GitHub at <a href="https://ccgather.com">ccgather.com</a></td></tr>
-<tr><td align="center"><b>2</b></td><td>Run <code>npx ccgather</code> in your terminal</td></tr>
-<tr><td align="center"><b>3</b></td><td>Done! Your Claude Code usage syncs automatically</td></tr>
 </table>
 
----
+<img src="assets/images/readme/stats.webp" alt="CCgather live stats: developers, countries, 30-day tokens, top developers and model mix" width="100%">
 
-## Why CCgather Exists
+<img src="assets/images/readme/season.webp" alt="Season Sprint: this month's race and the hall of fame" width="100%">
 
-### The Problem
-
-Claude Code only keeps usage history for 30 days — then your work disappears. The leaderboard service I was using stopped working one day, and no fix came. So I decided: **"I'll just build it myself."**
-
-### The Philosophy
-
-**Token usage is NOT a measure of skill.** More tokens mean more attempts, more experiments, more exploration. This number represents your **spirit of exploration** and **passion**.
-
-### The Vision
-
-> "One tool, one community, no borders."
-
-Developers worldwide use the same tools, but struggle to communicate due to different languages. The community feature breaks down these barriers with AI-powered automatic translation.
-
-This is just the beginning. CCgather will evolve into a platform where Claude Code developers can showcase projects, share knowledge, and find collaborators—regardless of nationality.
+<sub>Other developers' names and avatars are blurred in these screenshots.</sub>
 
 ---
 
-## My Story
+## How CCgather counts
 
-I'm a non-developer from South Korea. I started vibe coding in August 2025 with Cursor and Lovable, then discovered Claude Code. For months, I spent 16+ hours daily—not using automation tools, but engaging in every conversation, asking Claude to explain concepts at a 15-year-old's level so I could truly understand. I still can't read code on my own, but I've worked hard to understand how the pieces connect.
-
-**CCgather was built in about 3 weeks.**
-
-On February 2, 2026, I launched CCgather on [Product Hunt](https://www.producthunt.com/products/ccgather) with zero marketing budget. It earned **116 upvotes** and **106 followers** on launch day alone — the community responded to the story of a non-developer building a full-featured platform through vibe coding and solving a real pain point.
-
-Developers spend hours staring at gray text on dark backgrounds—I wanted to give them something worth looking at. I aimed for an MVP, but ended up trying many features for the sake of learning—and went through 2 major refactoring overhauls along the way. Countless trade-offs were made between the 3D globe, animations, visual polish, and rendering performance.
-
-I tried to bring every UX detail I imagined to life.
+- **Tokens** = input + output + cache writes + cache reads — the same definition [ccusage](https://github.com/ryoppippi/ccusage) uses. Cache reads are usually the largest part, so totals are far larger than on boards that leave cache out.
+- **Each response once.** Claude Code writes one response as several lines; the CLI counts it once, at its largest line, as ccusage does.
+- **Costs** use Anthropic's official API prices, synced hourly, including fast mode and 1-hour cache writes.
+- **One project, one person.** One-way session fingerprints stop the same session from being submitted by two accounts.
+- **Several machines** add up: each one submits its own usage, and a session is never counted twice.
+- **Up to 2 submits per account per hour.**
 
 ---
 
-## CCgather vs Other Leaderboards
+## Privacy
 
-| Feature | CCgather | Others |
-|---------|:--------:|:------:|
-| **Active Maintenance** | Daily updates, open-source | Varies |
-| **Open Source** | Apache 2.0 | Limited or closed |
-| **Community** | AI-translated multilingual | Basic or none |
-| **Country Leagues** | Yes | No |
-| **Level System** | 10-tier (Rookie → Immortal) | No |
-| **Badges** | 27 badges, 4 tiers | No |
-| **3D Globe Visualization** | Yes | No |
-| **Activity Heatmap** | GitHub-style | No |
-| **PWA & Push Notifications** | Yes | No |
-| **Product Hunt** | 116 upvotes on day one, zero marketing | — |
+- **Sent:** daily token and cost totals per model, session counts, one-way session fingerprints, a one-way device ID, the CLI version and your Claude plan type
+- **Never sent:** prompts, conversations, code, file contents or file paths
+- **Public:** your GitHub username, avatar and country on the leaderboard
+- **Delete your account** in Settings — you can recover it for 7 days, then all of its data is deleted
 
 ---
 
-## Features
+## Levels and badges
 
-### 🏆 Global Leaderboard & Country League
+Ten levels by total tokens:
 
-See your passion among developers worldwide. Track your ranking by token usage and compete in country-based leagues that give you a sense of belonging.
+| Level | Icon | Name | From |
+| --- | --- | --- | --- |
+| 1 | 🌱 | Novice | 0 |
+| 2 | 📚 | Apprentice | 50M |
+| 3 | ⚡ | Journeyman | 200M |
+| 4 | 💎 | Expert | 500M |
+| 5 | 🔥 | Master | 1B |
+| 6 | 👑 | Grandmaster | 3B |
+| 7 | 🌟 | Legend | 10B |
+| 8 | 🏆 | Mythic | 30B |
+| 9 | 💫 | Immortal | 50B |
+| 10 | 🌌 | Transcendent | 100B |
 
-![CCgather Leaderboard](assets/images/leaderboard.gif)
-
-<sub>📎 leaderboard.gif</sub>
-
-### 🌐 3D Globe Visualization
-
-Visualize developer activity worldwide in real-time. See at a glance which countries are actively coding.
-
-### 💬 Global Community with AI Translation
-
-**Write in your native language.** Posts are automatically translated by AI and displayed in the reader's language. Share posts, comments, and celebrate top contributors in the Hall of Fame.
-
-![CCgather Community](assets/images/community.gif)
-
-<sub>📎 community.gif</sub>
-
-### More Features
-
-<table>
-<tr>
-<th width="60">Icon</th>
-<th width="180">Feature</th>
-<th>Description</th>
-</tr>
-<tr><td align="center">📊</td><td>Activity Heatmap</td><td>GitHub-style visualization of your daily usage patterns</td></tr>
-<tr><td align="center">📱</td><td>PWA & Push Notifications</td><td>Install like an app, receive notifications for community activity</td></tr>
-<tr><td align="center">🤝</td><td>Referral System</td><td>Invite friends with unique links, earn badges (5→50 invites)</td></tr>
-<tr><td align="center">🎨</td><td>Light/Dark Mode</td><td>Theme switching with system preference support</td></tr>
-<tr><td align="center">📱</td><td>Responsive Design</td><td>Optimized for mobile, tablet, and desktop</td></tr>
-</table>
-
----
-
-## Level System
-
-10-tier level system based on token usage
-
-<table>
-<tr>
-<th width="80">Level</th>
-<th width="80">Icon</th>
-<th width="140">Name</th>
-<th width="140">Tokens</th>
-</tr>
-<tr><td align="center">1</td><td align="center">🌱</td><td>Novice</td><td>0 - 50M</td></tr>
-<tr><td align="center">2</td><td align="center">⚡</td><td>Apprentice</td><td>50M - 200M</td></tr>
-<tr><td align="center">3</td><td align="center">🔨</td><td>Journeyman</td><td>200M - 500M</td></tr>
-<tr><td align="center">4</td><td align="center">💎</td><td>Expert</td><td>500M - 1B</td></tr>
-<tr><td align="center">5</td><td align="center">🔥</td><td>Master</td><td>1B - 3B</td></tr>
-<tr><td align="center">6</td><td align="center">👑</td><td>Grandmaster</td><td>3B - 10B</td></tr>
-<tr><td align="center">7</td><td align="center">🌟</td><td>Legend</td><td>10B - 30B</td></tr>
-<tr><td align="center">8</td><td align="center">⚔️</td><td>Mythic</td><td>30B - 50B</td></tr>
-<tr><td align="center">9</td><td align="center">💫</td><td>Immortal</td><td>50B - 100B</td></tr>
-<tr><td align="center">10</td><td align="center">🌌</td><td>Transcendent</td><td>100B+</td></tr>
-</table>
-
----
-
-## Badge System
-
-27 badges · 4 tiers
-
-<table>
-<tr>
-<th width="140">Tier</th>
-<th width="300">Description</th>
-</tr>
-<tr><td>🟡 Legendary</td><td>Highest difficulty achievements (6)</td></tr>
-<tr><td>🟣 Epic</td><td>Advanced achievements (7)</td></tr>
-<tr><td>🔵 Rare</td><td>Intermediate achievements (8)</td></tr>
-<tr><td>⚪ Common</td><td>Entry-level achievements (6)</td></tr>
-</table>
-
-**Categories:**
-- 🔥 **Streak**: Consecutive activity days (7 days ~ 180 days)
-- 💎 **Tokens**: Cumulative usage (1M ~ 10B)
-- 🏆 **Rank**: Ranking achievements (Top 50 ~ #1)
-- 🎭 **Model**: Usage patterns (Haiku, Sonnet, Opus)
-- 🤝 **Social**: Friend referrals (5 ~ 50 people)
+40 badges in 6 categories: daily streaks (7), token milestones (7), rank (7), models (7), sessions and spend (7) and referrals, a GitHub star and auto-submit (5). By rarity: 12 common, 8 rare, 12 epic and 8 legendary.
 
 ---
 
 ## CLI
 
 ```bash
-npx ccgather
+npx ccgather@latest
 ```
 
-![CCgather CLI](assets/images/cli.gif)
-
-<sub>📎 cli.gif</sub>
+The menu:
 
 <table>
-<tr>
-<th width="80">Menu</th>
-<th width="180">Function</th>
-<th>Description</th>
-</tr>
-<tr><td align="center">📤</td><td>Submit Usage Data</td><td>Scan and submit Claude Code usage</td></tr>
+<tr><th width="80">Menu</th><th width="180">Function</th><th>Description</th></tr>
+<tr><td align="center">📤</td><td>Submit usage data</td><td>Scan and submit your Claude Code usage</td></tr>
 <tr><td align="center">🔁</td><td>Auto-submit</td><td>Turn the daily automatic submit on or off, or change its time</td></tr>
-<tr><td align="center">🌐</td><td>Open Leaderboard</td><td>Check rankings in browser</td></tr>
-<tr><td align="center">⚙️</td><td>Settings</td><td>Re-authenticate or change account</td></tr>
+<tr><td align="center">🌐</td><td>Open leaderboard</td><td>See the rankings in your browser</td></tr>
+<tr><td align="center">⚙️</td><td>Settings</td><td>Sign in again, change account, choose data folders</td></tr>
 </table>
 
 ### Scheduled Submit
@@ -266,63 +190,71 @@ Set up through `npx`, the job runs the newest ccgather release each day (`npx --
 
 ---
 
-## The Name
+## FAQ
 
-```
-CC = Claude Code
-Gather = Come together + Collect
+**Why are my totals so large?**
+Cache reads count. Claude Code re-reads the same context many times, and those tokens are usually most of your total — ccusage counts them the same way.
 
-"Where Claude Code developers worldwide gather"
-```
+**Why can Claude Code's `/stats` show more than CCgather?**
+In our checks, `/stats` added a response's usage again for every content line in that response, while CCgather counts each response once.
+
+**How often should I submit?**
+Once a day is plenty — turn on auto-submit and forget it. Claude Code deletes local logs after about 30 days, so submit at least that often.
+
+**Is it free?**
+Yes. No paid tier, Apache 2.0, and the full source is in this repository.
 
 ---
 
-## Tech Stack
+## The story
+
+I'm a non-developer from South Korea. I started vibe coding in August 2025, found Claude Code and spent 16+ hours a day exploring with it. Then I noticed Claude Code quietly deletes its logs after about 30 days, and the record of all that effort went with them. To me that record was not a score. Every token was another attempt, another experiment: a trace of the spirit of exploration. So I wanted to keep it. When the leaderboard I used stopped working and no fix came, I built my own, talking it through with Claude Code until I understood how the pieces fit.
+
+CCgather went from its first commit on January 5, 2026 to its [Product Hunt](https://www.producthunt.com/products/ccgather) launch on February 2, 2026, about four weeks, with no marketing budget.
+
+> **Token usage is not a measure of skill.** More tokens mean more attempts, more experiments, more exploration. The number shows your spirit of exploration and your passion.
+
+**CC** = Claude Code · **Gather** = come together and collect.
+
+---
+
+## Tech stack
 
 <table>
-<tr>
-<th width="140">Area</th>
-<th>Technology</th>
-</tr>
-<tr><td><b>Frontend</b></td><td>Next.js 16, React 19, TypeScript 5.9, Tailwind CSS 4</td></tr>
-<tr><td><b>Backend</b></td><td>Supabase (PostgreSQL), Clerk (Auth)</td></tr>
-<tr><td><b>State Management</b></td><td>TanStack Query</td></tr>
-<tr><td><b>UI</b></td><td>Radix UI, Lucide React</td></tr>
-<tr><td><b>Visualization</b></td><td>Framer Motion, Recharts, Cobe</td></tr>
-<tr><td><b>AI</b></td><td>Google Gemini (Translation)</td></tr>
-<tr><td><b>PWA</b></td><td>next-pwa, Web Push API</td></tr>
-<tr><td><b>Testing</b></td><td>Playwright</td></tr>
-<tr><td><b>Code Quality</b></td><td>ESLint, Prettier, Husky</td></tr>
+<tr><th width="140">Area</th><th>Technology</th></tr>
+<tr><td><b>Web</b></td><td>Next.js 16, React 19, TypeScript, Tailwind CSS 4</td></tr>
+<tr><td><b>Data and sign-in</b></td><td>Supabase (PostgreSQL), Clerk (GitHub OAuth)</td></tr>
+<tr><td><b>UI</b></td><td>TanStack Query, Radix UI, Framer Motion, Recharts, Cobe (3D globe)</td></tr>
+<tr><td><b>App</b></td><td>Installable PWA with Web Push</td></tr>
+<tr><td><b>Tests</b></td><td>Vitest, Playwright</td></tr>
+<tr><td><b>Hosting</b></td><td>Vercel</td></tr>
+<tr><td><b>CLI</b></td><td>Node.js 18+, published to npm as <code>ccgather</code></td></tr>
 </table>
+
+---
+
+## Contributors
+
+Thank you to everyone who reports issues and sends pull requests. Code contributions so far:
+
+- [@michael-huffaker](https://github.com/michael-huffaker) — subagent transcripts counted ([#33](https://github.com/DHxWhy/CCgather/pull/33)), `ccgather submit` for schedulers ([#34](https://github.com/DHxWhy/CCgather/pull/34)), workflow journals no longer counted as sessions ([#35](https://github.com/DHxWhy/CCgather/pull/35)), `ccgather autosubmit` ([#36](https://github.com/DHxWhy/CCgather/pull/36))
+- [@JakeB-5](https://github.com/JakeB-5) — files with no session and no usage left out of the fingerprint ([#42](https://github.com/DHxWhy/CCgather/pull/42))
 
 ---
 
 ## Acknowledgements
 
-This project was inspired by the following projects:
-
 <table>
-<tr>
-<th width="200">Project</th>
-<th>Description</th>
-</tr>
-<tr>
-<td><a href="https://github.com/ryoppippi/ccusage">ccusage</a></td>
-<td>Claude Code usage analyzer that inspired our CLI implementation (by <a href="https://github.com/ryoppippi">@ryoppippi</a>)</td>
-</tr>
-<tr>
-<td><a href="https://github.com/shuding/cobe">cobe</a></td>
-<td>3D globe visualization library (by <a href="https://github.com/shuding">@shuding</a>, Vercel)</td>
-</tr>
+<tr><th width="200">Project</th><th>Description</th></tr>
+<tr><td><a href="https://github.com/ryoppippi/ccusage">ccusage</a></td><td>Claude Code usage analyzer that inspired our CLI and its counting (by <a href="https://github.com/ryoppippi">@ryoppippi</a>)</td></tr>
+<tr><td><a href="https://github.com/shuding/cobe">cobe</a></td><td>3D globe library (by <a href="https://github.com/shuding">@shuding</a>, Vercel)</td></tr>
 </table>
 
 ---
 
 ## License
 
-This project is distributed under the Apache License 2.0. See [`LICENSE`](LICENSE) for details.
-
----
+Distributed under the Apache License 2.0. See [`LICENSE`](LICENSE).
 
 <div align="center">
 
