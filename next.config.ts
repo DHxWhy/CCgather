@@ -94,6 +94,7 @@ const nextConfig: NextConfig = {
   async redirects() {
     return [
       { source: "/u/:username", destination: "/leaderboard?u=:username", permanent: false },
+      { source: "/@:username", destination: "/leaderboard?u=:username", permanent: false },
       { source: "/community/:path*", destination: "/leaderboard", permanent: false },
     ];
   },

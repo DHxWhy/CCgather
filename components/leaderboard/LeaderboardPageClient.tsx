@@ -43,6 +43,7 @@ import {
   type InitialLeaderboard,
   type ServerAggregate,
 } from "@/lib/leaderboard/initial-shared";
+import { periodFromParam, searchWithPeriod } from "@/lib/leaderboard/url-period";
 import type { FeedPost } from "@/components/community/FeedCard";
 import {
   useLazyTranslation,
@@ -315,11 +316,15 @@ const VirtuosoTableHead = React.forwardRef<HTMLTableSectionElement, React.Compon
 );
 
 export function LeaderboardPageClient({ initialLeaderboard }: LeaderboardPageClientProps) {
-  // 서버가 HTML 에 담아 보낸 첫 페이지 — 기본 필터(30일·전체)일 때만 초기 상태로 쓴다
-  const ssr = initialLeaderboard?.period === LEADERBOARD_DEFAULT_PERIOD ? initialLeaderboard : null;
+  const searchParams = useSearchParams();
+  // 링크가 다른 기간으로 열 수 있다(?period=all). 서버는 기본 기간(30일)만 그려 보낸다
+  const [initialPeriod] = useState<PeriodFilter>(
+    () => periodFromParam(searchParams.get("period")) ?? LEADERBOARD_DEFAULT_PERIOD
+  );
+  // 서버가 HTML 에 담아 보낸 첫 페이지 — 첫 화면의 기간이 그 페이지의 기간일 때만 초기 상태로 쓴다
+  const ssr = initialLeaderboard?.period === initialPeriod ? initialLeaderboard : null;
   const queryClient = useQueryClient();
   const { user: clerkUser } = useUser();
-  const searchParams = useSearchParams();
   const pathname = usePathname();
   const highlightUsername = searchParams.get("u");
   const authorParam = searchParams.get("author");
@@ -436,8 +441,20 @@ export function LeaderboardPageClient({ initialLeaderboard }: LeaderboardPageCli
   const [isPanelOpen, setIsPanelOpen] = useState(false);
   const closePanelTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [isGlobePanelOpen, setIsGlobePanelOpen] = useState(false);
-  const [periodFilter, setPeriodFilter] = useState<PeriodFilter>(LEADERBOARD_DEFAULT_PERIOD);
+  const [periodFilter, setPeriodFilter] = useState<PeriodFilter>(initialPeriod);
   const [scopeFilter, setScopeFilter] = useState<ScopeFilter>(LEADERBOARD_DEFAULT_SCOPE);
+
+  // 고른 기간을 주소에 남겨 그 화면을 링크로 줄 수 있게 한다. 30일은 맨 주소(/leaderboard)
+  useEffect(() => {
+    const search = searchWithPeriod(window.location.search, periodFilter);
+    if (search !== window.location.search) {
+      window.history.replaceState(
+        null,
+        "",
+        `${window.location.pathname}${search}${window.location.hash}`
+      );
+    }
+  }, [periodFilter]);
   const [globePulse, setGlobePulse] = useState(false);
   const [sortBy, setSortBy] = useState<SortByFilter>("tokens");
   const [showLevelInfo, setShowLevelInfo] = useState(false);
