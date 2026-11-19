@@ -116,6 +116,11 @@ const LINK_SECTIONS: { title: string; links: { name: string; url: string; notes:
         notes: "the web app (Next.js, Supabase) and the CLI (packages/cli), Apache 2.0",
       },
       {
+        name: "DHxWhy on GitHub",
+        url: "https://github.com/DHxWhy",
+        notes: "the creator of CCgather, a non-developer in South Korea",
+      },
+      {
         name: "Privacy policy",
         url: `${SITE_URL}/privacy`,
         notes: "what is collected and how to delete your account",
@@ -167,7 +172,7 @@ const GETTING_STARTED =
   "**Getting started:** sign in with GitHub at https://ccgather.com, run `npx ccgather@latest`, then `npx ccgather@latest autosubmit on` to submit once a day automatically on Windows, macOS or Linux. Claude Code keeps about 30 days of local logs; CCgather keeps your daily totals after that.";
 
 const WHY_IT_EXISTS =
-  "**Why it exists:** Claude Code clears its local logs after about 30 days, and the usage history goes with them. CCgather was built by a non-developer in South Korea who wanted to keep that record, because every token is a trace of the spirit of exploration (another attempt, another experiment), not a measure of skill.";
+  "**Why it exists:** Claude Code clears its local logs after about 30 days, and the usage history goes with them. CCgather was built by [DHxWhy](https://github.com/DHxWhy), a non-developer in South Korea who wanted to keep that record, because every token is a trace of the spirit of exploration (another attempt, another experiment), not a measure of skill.";
 
 function projectParagraph(): string {
   const update = latestUpdate();

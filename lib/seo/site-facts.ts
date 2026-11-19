@@ -90,7 +90,7 @@ export const SITE_FAQ: { question: string; answer: string }[] = [
   {
     question: "Why was CCgather built?",
     answer:
-      "Claude Code clears its local logs after about 30 days, and the usage history goes with them. CCgather's creator, a non-developer in South Korea, wanted to keep that record, because every token is a trace of the spirit of exploration (another attempt, another experiment), not a measure of skill.",
+      "Claude Code clears its local logs after about 30 days, and the usage history goes with them. CCgather's creator, DHxWhy (github.com/DHxWhy), a non-developer in South Korea, wanted to keep that record, because every token is a trace of the spirit of exploration (another attempt, another experiment), not a measure of skill.",
   },
   {
     question: "Is CCgather free to use?",

@@ -208,7 +208,7 @@ Yes. No paid tier, Apache 2.0, and the full source is in this repository.
 
 ## The story
 
-I'm a non-developer from South Korea. I started vibe coding in August 2025, found Claude Code and spent 16+ hours a day exploring with it. Then I noticed Claude Code quietly deletes its logs after about 30 days, and the record of all that effort went with them. To me that record was not a score. Every token was another attempt, another experiment: a trace of the spirit of exploration. So I wanted to keep it. When the leaderboard I used stopped working and no fix came, I built my own, talking it through with Claude Code until I understood how the pieces fit.
+I'm [DHxWhy](https://github.com/DHxWhy), a non-developer from South Korea. I started vibe coding in August 2025, found Claude Code and spent 16+ hours a day exploring with it. Then I noticed Claude Code quietly deletes its logs after about 30 days, and the record of all that effort went with them. To me that record was not a score. Every token was another attempt, another experiment: a trace of the spirit of exploration. So I wanted to keep it. When the leaderboard I used stopped working and no fix came, I built my own, talking it through with Claude Code until I understood how the pieces fit.
 
 CCgather went from its first commit on January 5, 2026 to its [Product Hunt](https://www.producthunt.com/products/ccgather) launch on February 2, 2026, about four weeks, with no marketing budget.
 

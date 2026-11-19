@@ -107,6 +107,8 @@ describe("llms.txt 내용", () => {
       "**Why it exists:** Claude Code clears its local logs after about 30 days"
     );
     expect(text).toContain("every token is a trace of the spirit of exploration");
+    expect(text).toContain("built by [DHxWhy](https://github.com/DHxWhy)");
+    expect(text).toContain("- [DHxWhy on GitHub](https://github.com/DHxWhy): the creator");
     expect(text).not.toMatch(
       /keeps? (your )?(sessions|conversations|transcripts|session history)/i
     );
