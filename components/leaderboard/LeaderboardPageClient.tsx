@@ -44,6 +44,7 @@ import {
   type ServerAggregate,
 } from "@/lib/leaderboard/initial-shared";
 import { periodFromParam, searchWithPeriod } from "@/lib/leaderboard/url-period";
+import { countryTotalsFromAggregate } from "@/lib/leaderboard/country-totals";
 import type { FeedPost } from "@/components/community/FeedCard";
 import {
   useLazyTranslation,
@@ -640,25 +641,21 @@ export function LeaderboardPageClient({ initialLeaderboard }: LeaderboardPageCli
   );
 
   // Country stats state for Globe and Top Countries
-  const [countryStats, setCountryStats] = useState<CountryStat[]>([]);
-  const [totalGlobalTokens, setTotalGlobalTokens] = useState(0);
-  const [totalGlobalCost, setTotalGlobalCost] = useState(0);
+  // 서버가 준 집계로 첫 화면부터 채운다 — 비워 두면 서버 HTML 에 $0 · 0 과 빈 나라 목록이 찍힌다
+  const [initialCountryTotals] = useState(() => countryTotalsFromAggregate(ssr?.aggregate));
+  const [countryStats, setCountryStats] = useState<CountryStat[]>(initialCountryTotals.stats);
+  const [totalGlobalTokens, setTotalGlobalTokens] = useState(initialCountryTotals.tokens);
+  const [totalGlobalCost, setTotalGlobalCost] = useState(initialCountryTotals.cost);
 
   // Calculate country stats from users data (respects period filter)
   useEffect(() => {
     // 서버가 조회 대상 전체를 집계해 준 값이 있으면 우선 사용.
     // 아래 fallback 은 "로드된 페이지"만 더하므로 2페이지 이상(All Time)에서 과소집계된다.
     if (serverAggregate) {
-      setCountryStats(
-        serverAggregate.countries.map((c) => ({
-          code: c.country_code,
-          name: getCountryName(c.country_code),
-          tokens: c.tokens,
-          cost: c.cost,
-        }))
-      );
-      setTotalGlobalTokens(serverAggregate.totals.tokens);
-      setTotalGlobalCost(serverAggregate.totals.cost);
+      const totals = countryTotalsFromAggregate(serverAggregate);
+      setCountryStats(totals.stats);
+      setTotalGlobalTokens(totals.tokens);
+      setTotalGlobalCost(totals.cost);
       return;
     }
 
@@ -2127,7 +2124,7 @@ export function LeaderboardPageClient({ initialLeaderboard }: LeaderboardPageCli
                           duration={1200}
                           easing="easeOut"
                           className="font-semibold"
-                          formatter={(n) => `$${n.toLocaleString()}`}
+                          formatter={(n) => `$${n.toLocaleString("en-US")}`}
                           storageKey="leaderboard_cost"
                           smartStart={0.97}
                         />
@@ -2146,6 +2143,7 @@ export function LeaderboardPageClient({ initialLeaderboard }: LeaderboardPageCli
                           duration={1200}
                           easing="easeOut"
                           className="font-semibold"
+                          formatter={(n) => n.toLocaleString("en-US")}
                           storageKey="leaderboard_tokens"
                           smartStart={0.97}
                         />

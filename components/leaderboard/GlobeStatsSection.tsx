@@ -205,7 +205,9 @@ export function GlobeStatsSection({
             >
               <span>💰</span>
               <span className="font-semibold">
-                ${totalCost.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                {loading
+                  ? "—"
+                  : `$${totalCost.toLocaleString(undefined, { maximumFractionDigits: 0 })}`}
               </span>
             </span>
             <span className="text-[var(--color-text-muted)]">·</span>
@@ -213,7 +215,7 @@ export function GlobeStatsSection({
               className={`flex items-center gap-1 ${sortBy === "cost" ? "text-[var(--color-text-muted)]" : "text-[var(--color-claude-coral)]"}`}
             >
               <span>⚡</span>
-              <span className="font-semibold">{totalTokens.toLocaleString()}</span>
+              <span className="font-semibold">{loading ? "—" : totalTokens.toLocaleString()}</span>
             </span>
           </>
         ) : (
@@ -227,10 +229,11 @@ export function GlobeStatsSection({
             >
               <span>💰</span>
               <span className="font-semibold">
-                $
-                {(userCountryData?.cost || 0).toLocaleString(undefined, {
-                  maximumFractionDigits: 0,
-                })}
+                {loading
+                  ? "—"
+                  : `$${(userCountryData?.cost || 0).toLocaleString(undefined, {
+                      maximumFractionDigits: 0,
+                    })}`}
               </span>
             </span>
             <span className="text-[var(--color-text-muted)]">·</span>
@@ -239,7 +242,7 @@ export function GlobeStatsSection({
             >
               <span>⚡</span>
               <span className="font-semibold">
-                {(userCountryData?.tokens || 0).toLocaleString()}
+                {loading ? "—" : (userCountryData?.tokens || 0).toLocaleString()}
               </span>
             </span>
           </>
