@@ -24,9 +24,13 @@ export interface LiveNumbers {
   countries?: number;
   tokensAllTime?: number;
   tokens30d?: number;
+  countries30d?: number;
+  countries24h?: number;
 }
 
 const usable = (n: number | undefined): n is number => typeof n === "number" && n > 0;
+
+const countriesPhrase = (n: number): string => `${n} ${n === 1 ? "country" : "countries"}`;
 
 export function formatBigNumber(n: number): string {
   if (n >= 1e12) return `${(n / 1e12).toFixed(2)} trillion`;
@@ -45,8 +49,16 @@ function liveParagraph(live: LiveNumbers | null): string | null {
   }
   if (usable(live.tokens30d)) {
     const daily = formatBigNumber(live.tokens30d / 30);
+    const who = usable(live.countries30d)
+      ? `, developers in ${countriesPhrase(live.countries30d)}`
+      : ` ${sentences.length ? "they" : "developers"}`;
     sentences.push(
-      `In the last 30 days ${sentences.length ? "they" : "developers"} logged ${formatBigNumber(live.tokens30d)}, about ${daily} a day.`
+      `In the last 30 days${who} logged ${formatBigNumber(live.tokens30d)}, about ${daily} a day.`
+    );
+  }
+  if (usable(live.countries24h)) {
+    sentences.push(
+      `In the last 24 hours, developers in ${countriesPhrase(live.countries24h)} synced their usage.`
     );
   }
   if (usable(live.developers) && usable(live.countries)) {

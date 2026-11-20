@@ -101,6 +101,24 @@ describe("llms.txt 내용", () => {
     expect(zero).not.toContain("**Live (");
   });
 
+  it("나라 수 문장: 30일 동안 쓴 나라 · 24시간 안에 제출한 나라 — 회원 명수는 쓰지 않는다", () => {
+    const text = buildLlmsTxt({ ...LIVE, countries30d: 23, countries24h: 11 });
+    expect(text).toContain(
+      "In the last 30 days, developers in 23 countries logged 1.46 trillion, about 48.7 billion a day."
+    );
+    expect(text).toContain("In the last 24 hours, developers in 11 countries synced their usage.");
+    expect(text).not.toMatch(/In the last 24 hours, \d+ developers/);
+  });
+
+  it("나라가 하나면 단수로 쓰고, 24시간 나라 수가 없으면 그 문장을 뺀다", () => {
+    const one = buildLlmsTxt({ ...LIVE, countries30d: 1, countries24h: 1 });
+    expect(one).toContain("developers in 1 country logged");
+    expect(one).toContain("developers in 1 country synced their usage.");
+    const none = buildLlmsTxt({ ...LIVE, countries24h: 0 });
+    expect(none).not.toContain("In the last 24 hours");
+    expect(none).toContain("In the last 30 days they logged 1.46 trillion");
+  });
+
   it("왜 만들었는지: 30일 뒤 지워지는 기록과 탐구의 흔적 — 대화 기록을 보관한다고 하지 않는다", () => {
     const text = buildLlmsTxt(null);
     expect(text).toContain(

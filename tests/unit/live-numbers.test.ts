@@ -22,7 +22,40 @@ describe("getLiveNumbers — 랜딩 · /stats 와 같은 숫자", () => {
     mocks.rpc.mockReset();
   });
 
-  it("랜딩의 누적 · 가입 수와 /stats 의 30일 토큰을 기준 날짜와 함께 돌려준다", async () => {
+  it("DB 함수의 활동 숫자가 있으면 30일 토큰 · 30일 나라 · 24시간 나라를 거기서 쓰고 /stats 요약은 부르지 않는다", async () => {
+    mocks.global.mockResolvedValueOnce({
+      ...GLOBAL,
+      activity: { tokens30d: 1_457_815_525_100, countries30d: 23, countries24h: 11 },
+    });
+
+    expect(await getLiveNumbers(NOW)).toEqual({
+      asOf: "2026-11-19",
+      developers: 296,
+      countries: 45,
+      tokensAllTime: 7_424_227_228_738,
+      tokens30d: 1_457_815_525_100,
+      countries30d: 23,
+      countries24h: 11,
+    });
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+
+  it("활동 숫자 가운데 0 인 것은 뺀다", async () => {
+    mocks.global.mockResolvedValueOnce({
+      ...GLOBAL,
+      activity: { tokens30d: 5, countries30d: 0, countries24h: 0 },
+    });
+
+    expect(await getLiveNumbers(NOW)).toEqual({
+      asOf: "2026-11-19",
+      developers: 296,
+      countries: 45,
+      tokensAllTime: 7_424_227_228_738,
+      tokens30d: 5,
+    });
+  });
+
+  it("DB 함수 값이 없으면 랜딩의 누적 · 가입 수와 /stats 요약의 30일 토큰을 쓴다", async () => {
     mocks.global.mockResolvedValueOnce(GLOBAL);
     mocks.rpc.mockResolvedValueOnce({ data: [{ tokens_30d: "1459614687101" }], error: null });
 
